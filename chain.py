@@ -17,53 +17,12 @@ from langchain.prompts.example_selector import \
 from langchain.vectorstores import FAISS, Weaviate
 from pydantic import BaseModel
 
-WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-client = weaviate.Client(
-    url=WEAVIATE_URL,
-    additional_headers={"X-OpenAI-Api-Key": os.environ["OPENAI_API_KEY"]},
-)
-
-_eg_template = """## Example:
-
-Chat History:
-{chat_history}
-Follow Up Input: {question}
-Standalone question: {answer}"""
-_eg_prompt = PromptTemplate(
-    template=_eg_template,
-    input_variables=["chat_history", "question", "answer"],
-)
-
-
-_prefix = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question. You should assume that the question is related to LangChain."""
-_suffix = """## Example:
-
-Chat History:
-{chat_history}
-Follow Up Input: {question}
-Standalone question:"""
-eg_store = Weaviate(
-    client,
-    "Rephrase",
-    "content",
-    attributes=["question", "answer", "chat_history"],
-)
-example_selector = SemanticSimilarityExampleSelector(vectorstore=eg_store, k=4)
-prompt = FewShotPromptTemplate(
-    prefix=_prefix,
-    suffix=_suffix,
-    example_selector=example_selector,
-    example_prompt=_eg_prompt,
-    input_variables=["question", "chat_history"],
-)
-llm = OpenAI(temperature=0, model_name="text-davinci-003")
-key_word_extractor = LLMChain(llm=llm, prompt=prompt)
-
 
 class CustomChain(Chain, BaseModel):
 
     vstore: Weaviate
     chain: BaseCombineDocumentsChain
+    key_word_extractor: Chain
 
     @property
     def input_keys(self) -> List[str]:
@@ -77,7 +36,7 @@ class CustomChain(Chain, BaseModel):
         question = inputs["question"]
         chat_history_str = _get_chat_history(inputs["chat_history"])
         if chat_history_str:
-            new_question = key_word_extractor.run(
+            new_question = self.key_word_extractor.run(
                 question=question, chat_history=chat_history_str
             )
         else:
@@ -92,6 +51,46 @@ class CustomChain(Chain, BaseModel):
 
 
 def get_new_chain1(vectorstore) -> Chain:
+    WEAVIATE_URL = os.environ["WEAVIATE_URL"]
+    client = weaviate.Client(
+        url=WEAVIATE_URL,
+        additional_headers={"X-OpenAI-Api-Key": os.environ["OPENAI_API_KEY"]},
+    )
+
+    _eg_template = """## Example:
+
+    Chat History:
+    {chat_history}
+    Follow Up Input: {question}
+    Standalone question: {answer}"""
+    _eg_prompt = PromptTemplate(
+        template=_eg_template,
+        input_variables=["chat_history", "question", "answer"],
+    )
+
+    _prefix = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question. You should assume that the question is related to LangChain."""
+    _suffix = """## Example:
+
+    Chat History:
+    {chat_history}
+    Follow Up Input: {question}
+    Standalone question:"""
+    eg_store = Weaviate(
+        client,
+        "Rephrase",
+        "content",
+        attributes=["question", "answer", "chat_history"],
+    )
+    example_selector = SemanticSimilarityExampleSelector(vectorstore=eg_store, k=4)
+    prompt = FewShotPromptTemplate(
+        prefix=_prefix,
+        suffix=_suffix,
+        example_selector=example_selector,
+        example_prompt=_eg_prompt,
+        input_variables=["question", "chat_history"],
+    )
+    llm = OpenAI(temperature=0, model_name="text-davinci-003")
+    key_word_extractor = LLMChain(llm=llm, prompt=prompt)
 
     EXAMPLE_PROMPT = PromptTemplate(
         template=">Example:\nContent:\n---------\n{page_content}\n----------\nSource: {source}",
@@ -115,7 +114,9 @@ Answer in Markdown:"""
         prompt=PROMPT,
         document_prompt=EXAMPLE_PROMPT,
     )
-    return CustomChain(chain=doc_chain, vstore=vectorstore)
+    return CustomChain(
+        chain=doc_chain, vstore=vectorstore, key_word_extractor=key_word_extractor
+    )
 
 
 def _get_chat_history(chat_history: List[Tuple[str, str]]):

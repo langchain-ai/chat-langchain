@@ -19,12 +19,10 @@ def get_weaviate_store():
     return Weaviate(client, "Paragraph", "content", attributes=["source"])
 
 
-vectorstore = get_weaviate_store()
-
-
 def set_openai_api_key(api_key, agent):
     if api_key:
         os.environ["OPENAI_API_KEY"] = api_key
+        vectorstore = get_weaviate_store()
         qa_chain = get_new_chain1(vectorstore)
         os.environ["OPENAI_API_KEY"] = ""
         return qa_chain
