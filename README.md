@@ -2,9 +2,13 @@
 
 This repo is an implementation of a chatbot specifically focused on question answering over the [LangChain documentation](https://langchain.readthedocs.io/en/latest/).
 
-## 🚀 Overview
+## 🚀 Important Links
 
-For a high level overview of why we built this, see [our blog](https://blog.langchain.dev/).
+Website: [chat.langchain.dev](chat.langchain.dev)
+
+Hugging Face Spage: [huggingface.co/spaces/hwchase17/chat-langchain](https://huggingface.co/spaces/hwchase17/chat-langchain)
+
+Blog Post: [blog.langchain.dev/langchain-chat/](https://blog.langchain.dev/langchain-chat/)
 
 ## 📚 Technical description
 
