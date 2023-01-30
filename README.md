@@ -6,7 +6,7 @@ This repo is an implementation of a chatbot specifically focused on question ans
 
 Website: [chat.langchain.dev](https://chat.langchain.dev)
 
-Hugging Face Spage: [huggingface.co/spaces/hwchase17/chat-langchain](https://huggingface.co/spaces/hwchase17/chat-langchain)
+Hugging Face Space: [huggingface.co/spaces/hwchase17/chat-langchain](https://huggingface.co/spaces/hwchase17/chat-langchain)
 
 Blog Post: [blog.langchain.dev/langchain-chat/](https://blog.langchain.dev/langchain-chat/)
 
