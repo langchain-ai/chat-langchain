@@ -5,7 +5,9 @@ from pathlib import Path
 import weaviate
 from bs4 import BeautifulSoup
 from langchain.text_splitter import CharacterTextSplitter
+import logging
 
+logging.basicConfig(level=logging.INFO)
 
 def clean_data(data):
     soup = BeautifulSoup(data)
@@ -39,7 +41,15 @@ client = weaviate.Client(
     additional_headers={"X-OpenAI-Api-Key": os.environ["OPENAI_API_KEY"]},
 )
 
-client.schema.delete_class("Paragraph")
+try:
+    client.schema.delete_class("Paragraph")
+except weaviate.exceptions.UnexpectedStatusCodeException as e:
+    if e.status_code == 400:
+        # If this is the first time running this script, the class does not exist yet.
+        logging.info("Class Paragraph does not exist yet.")
+    else:
+        raise
+
 client.schema.get()
 schema = {
     "classes": [

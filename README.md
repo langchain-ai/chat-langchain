@@ -30,3 +30,34 @@ Question-Answering has the following steps:
 ## 🧠 How to Extend to your documentation?
 
 Coming soon.
+
+
+## How To Deploy It Yourself
+
+1. Create a weaviate cluster on https://weaviate.io/
+
+   * You can use a free sandbox cluster
+
+1. Set the environment variable for WEAVIATE
+
+   ```
+   export WEAVIATE_URL=https://${NAME}.weaviate.network 
+   ```
+
+1. Set the environment variable for your OPENAI Key
+
+   ```
+   export OPENAI_API_KEY
+   ```
+
+1. Run the ingestion script
+
+   ```
+   ingest.sh
+   ```
+
+1. Start the local server
+
+   ```
+   python3 app.py 
+   ```

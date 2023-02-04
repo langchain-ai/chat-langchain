@@ -1,8 +1,10 @@
 """Ingest examples into Weaviate."""
 import os
 from pathlib import Path
-
+import logging
 import weaviate
+
+logging.basicConfig(level=logging.INFO)
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 client = weaviate.Client(
@@ -10,8 +12,16 @@ client = weaviate.Client(
     additional_headers={"X-OpenAI-Api-Key": os.environ["OPENAI_API_KEY"]},
 )
 
-client.schema.delete_class("Rephrase")
-client.schema.delete_class("QA")
+for class_name in ["Rephrase", "QA"]:
+    try:
+        client.schema.delete_class(class_name)
+    except weaviate.exceptions.UnexpectedStatusCodeException as e:
+        if e.status_code == 400:
+            # If this is the first time running this script, the class does not exist yet.
+            logging.info(f"Class {class_name} does not exist yet.")
+        else:
+            raise
+
 client.schema.get()
 schema = {
     "classes": [
