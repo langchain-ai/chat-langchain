@@ -11,4 +11,8 @@ To run:
 2. Run the app: `make start`
 3. To enable tracing, make sure `langchain-server` is running locally and pass `tracing=True` to `get_chain` in `main.py`.
 
-<img src="./assets/images/Chat_Your_Data.gif" width="500" height="281"/>
+<a href="https://www.loom.com/share/a64b1def314a4884ab0526bf77d9fa65">
+    <p>Chat Your Data</p>
+    <img style="max-width:800px;" src="https://cdn.loom.com/sessions/thumbnails/a64b1def314a4884ab0526bf77d9fa65-1676325415887-with-play.gif">
+  </a>
+
