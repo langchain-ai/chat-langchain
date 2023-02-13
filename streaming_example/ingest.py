@@ -1,3 +1,4 @@
+"""Ingest data into vectorstore"""
 import pickle
 
 from langchain.document_loaders import UnstructuredFileLoader

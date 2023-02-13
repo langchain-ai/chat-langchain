@@ -51,7 +51,8 @@
         }
     </style>
     <script>
-        var ws = new WebSocket("ws://localhost:8000/chat");
+        var endpoint = "ws://localhost:9000/chat";
+        var ws = new WebSocket(endpoint);
         // Receive message from server word by word. Display the words as they are received.
         ws.onmessage = function (event) {
             var messages = document.getElementById('messages');

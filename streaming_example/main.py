@@ -1,3 +1,4 @@
+"""Main entrypoint for the app."""
 import logging
 import pickle
 from pathlib import Path
@@ -38,6 +39,8 @@ async def websocket_endpoint(websocket: WebSocket):
     stream_handler = StreamingLLMCallbackHandler(websocket)
     chat_history = []
     qa_chain = get_chain(vectorstore, question_handler, stream_handler)
+    # Use the below line instead of the above line to enable tracing
+    # qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
 
     while True:
         try:

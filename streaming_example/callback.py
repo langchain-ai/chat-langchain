@@ -1,3 +1,4 @@
+"""Callback handlers used in the app."""
 from typing import Any, Dict, List
 
 from langchain.callbacks.base import AsyncCallbackHandler
@@ -6,6 +7,8 @@ from schemas import ChatResponse
 
 
 class StreamingLLMCallbackHandler(AsyncCallbackHandler):
+    """Callback handler for streaming LLM responses."""
+
     def __init__(self, websocket):
         self.websocket = websocket
 
@@ -15,6 +18,8 @@ class StreamingLLMCallbackHandler(AsyncCallbackHandler):
 
 
 class QuestionGenCallbackHandler(AsyncCallbackHandler):
+    """Callback handler for question generation."""
+
     def __init__(self, websocket):
         self.websocket = websocket
 
