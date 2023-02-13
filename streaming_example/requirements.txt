@@ -1,0 +1,14 @@
+openai
+fastapi
+black
+isort
+websockets
+pydantic
+langchain
+uvicorn
+jinja2
+git+ssh://git@github.com/hwchase17/langchain.git@ankush/async-callbacks
+faiss-cpu
+bs4
+unstructured
+libmagic
