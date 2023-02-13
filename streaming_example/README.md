@@ -11,4 +11,4 @@ To run:
 2. Run the app: `make start`
 3. To enable tracing, make sure `langchain-server` is running locally and pass `tracing=True` to `get_chain` in `main.py`.
 
-![Chat_Your_Data.gif](assets%2Fimages%2FChat_Your_Data.gif)
+<img src="https://github.com/hwchase17/chat-langchain/blob/0b592e0e15687f0fc6d6db9608ee90eaf76446e8/streaming_example/assets/images/Chat_Your_Data.gif" width="500" height="500"/>
