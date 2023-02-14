@@ -7,16 +7,11 @@ The app leverages LangChain's streaming support and async API to update the page
 
 ## ✅ To run:
 1. Install dependencies: `pip install -r requirements.txt`
-1. Run `./ingest.sh` to ingest LangChain docs data into the vectorstore (only needs to be done once).
-1. To see an example of how to ingest other docs, see `ingest_state_of_union.py`.
+1. Run `ingest.sh` to ingest LangChain docs data into the vectorstore (only needs to be done once).
+   1. You can use other [Document Loaders](https://langchain.readthedocs.io/en/latest/modules/document_loaders.html) to load your own data into the vectorstore.
 1. Run the app: `make start`
 1. To enable tracing, make sure `langchain-server` is running locally and pass `tracing=True` to `get_chain` in `main.py`.
 1. Open [localhost:9000](http://localhost:9000) in your browser.
-
-<a href="https://www.loom.com/share/a64b1def314a4884ab0526bf77d9fa65">
-    <p><strong>Chat Your Data with `state_of_the_union.txt`</strong></p>
-    <img style="max-width:800px;" src="https://cdn.loom.com/sessions/thumbnails/a64b1def314a4884ab0526bf77d9fa65-1676325415887-with-play.gif">
-  </a>
 
 ## 🚀 Important Links
 
@@ -43,7 +38,3 @@ Question-Answering has the following steps, all handled by [ChatVectorDBChain](h
 1. Given the chat history and new user input, determine what a standalone question would be (using GPT-3).
 2. Given that standalone question, look up relevant documents from the vectorstore.
 3. Pass the standalone question and relevant documents to GPT-3 to generate a final answer.
-
-## 🧠 How to Extend to your documentation?
-
-See `ingest_state_of_union.py` for an example of how to ingest your own docs.
