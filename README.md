@@ -3,7 +3,7 @@
 This repo is an implementation of a locally hosted chatbot specifically focused on question answering over the [LangChain documentation](https://langchain.readthedocs.io/en/latest/).
 Built with [LangChain](https://github.com/hwchase17/langchain/) and [FastAPI](https://fastapi.tiangolo.com/).
 
-The app leverages LangChain's streaming support and async API to update the page in real time  multiple users.
+The app leverages LangChain's streaming support and async API to update the page in real time for multiple users.
 
 ## ✅ To run:
 1. Install dependencies: `pip install -r requirements.txt`
@@ -11,6 +11,7 @@ The app leverages LangChain's streaming support and async API to update the page
 1. To see an example of how to ingest other docs, see `ingest_state_of_union.py`.
 1. Run the app: `make start`
 1. To enable tracing, make sure `langchain-server` is running locally and pass `tracing=True` to `get_chain` in `main.py`.
+1. Open [localhost:9000](http://localhost:9000) in your browser.
 
 <a href="https://www.loom.com/share/a64b1def314a4884ab0526bf77d9fa65">
     <p><strong>Chat Your Data with `state_of_the_union.txt`</strong></p>
@@ -23,7 +24,8 @@ Deployed version (to be updated soon): [chat.langchain.dev](https://chat.langcha
 
 Hugging Face Space (to be updated soon): [huggingface.co/spaces/hwchase17/chat-langchain](https://huggingface.co/spaces/hwchase17/chat-langchain)
 
-Blog Post: [blog.langchain.dev/langchain-chat/](https://blog.langchain.dev/langchain-chat/)
+Blog Posts: 
+* [blog.langchain.dev/langchain-chat/](https://blog.langchain.dev/langchain-chat/)
 
 ## 📚 Technical description
 

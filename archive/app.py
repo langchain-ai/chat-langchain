@@ -4,9 +4,8 @@ import os
 import gradio as gr
 import langchain
 import weaviate
-from langchain.vectorstores import Weaviate
-
 from chain import get_new_chain1
+from langchain.vectorstores import Weaviate
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 
