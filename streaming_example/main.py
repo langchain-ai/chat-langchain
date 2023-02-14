@@ -40,7 +40,7 @@ async def websocket_endpoint(websocket: WebSocket):
     chat_history = []
     qa_chain = get_chain(vectorstore, question_handler, stream_handler)
     # Use the below line instead of the above line to enable tracing
-    # qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
+    qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
 
     while True:
         try:
@@ -76,4 +76,4 @@ async def websocket_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=9000)
