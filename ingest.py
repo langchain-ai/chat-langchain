@@ -1,9 +1,10 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
 import pickle
+
+from langchain.document_loaders import ReadTheDocsLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores.faiss import FAISS
-from langchain.document_loaders import ReadTheDocsLoader
 
 
 def ingest_docs():
