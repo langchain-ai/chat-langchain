@@ -7,7 +7,6 @@ pydantic
 langchain
 uvicorn
 jinja2
-git+ssh://git@github.com/hwchase17/langchain.git@ankush/llm-streaming
 faiss-cpu
 bs4
 unstructured
