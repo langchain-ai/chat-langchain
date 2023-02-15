@@ -1,92 +1,28 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
-import os
-from pathlib import Path
+import pickle
 
-import weaviate
-from bs4 import BeautifulSoup
-from langchain.text_splitter import CharacterTextSplitter
-
-
-def clean_data(data):
-    soup = BeautifulSoup(data)
-    text = soup.find_all("main", {"id": "main-content"})[0].get_text()
-    return "\n".join([t for t in text.split("\n") if t])
+from langchain.document_loaders import ReadTheDocsLoader
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.vectorstores.faiss import FAISS
 
 
-docs = []
-metadatas = []
-for p in Path("langchain.readthedocs.io/en/latest/").rglob("*"):
-    if p.is_dir():
-        continue
-    with open(p) as f:
-        docs.append(clean_data(f.read()))
-        metadatas.append({"source": p})
+def ingest_docs():
+    """Get documents from web pages."""
+    loader = ReadTheDocsLoader("langchain.readthedocs.io/en/latest/")
+    raw_documents = loader.load()
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200,
+    )
+    documents = text_splitter.split_documents(raw_documents)
+    embeddings = OpenAIEmbeddings()
+    vectorstore = FAISS.from_documents(documents, embeddings)
+
+    # Save vectorstore
+    with open("vectorstore.pkl", "wb") as f:
+        pickle.dump(vectorstore, f)
 
 
-text_splitter = CharacterTextSplitter(
-    separator="\n",
-    chunk_size=1000,
-    chunk_overlap=200,
-    length_function=len,
-)
-
-documents = text_splitter.create_documents(docs, metadatas=metadatas)
-
-
-WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-client = weaviate.Client(
-    url=WEAVIATE_URL,
-    additional_headers={"X-OpenAI-Api-Key": os.environ["OPENAI_API_KEY"]},
-)
-
-client.schema.delete_class("Paragraph")
-client.schema.get()
-schema = {
-    "classes": [
-        {
-            "class": "Paragraph",
-            "description": "A written paragraph",
-            "vectorizer": "text2vec-openai",
-            "moduleConfig": {
-                "text2vec-openai": {
-                    "model": "ada",
-                    "modelVersion": "002",
-                    "type": "text",
-                }
-            },
-            "properties": [
-                {
-                    "dataType": ["text"],
-                    "description": "The content of the paragraph",
-                    "moduleConfig": {
-                        "text2vec-openai": {
-                            "skip": False,
-                            "vectorizePropertyName": False,
-                        }
-                    },
-                    "name": "content",
-                },
-                {
-                    "dataType": ["text"],
-                    "description": "The link",
-                    "moduleConfig": {
-                        "text2vec-openai": {
-                            "skip": True,
-                            "vectorizePropertyName": False,
-                        }
-                    },
-                    "name": "source",
-                },
-            ],
-        },
-    ]
-}
-
-client.schema.create(schema)
-
-with client.batch as batch:
-    for text in documents:
-        batch.add_data_object(
-            {"content": text.page_content, "source": str(text.metadata["source"])},
-            "Paragraph",
-        )
+if __name__ == "__main__":
+    ingest_docs()

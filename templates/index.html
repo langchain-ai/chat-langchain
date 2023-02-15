@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat Your Data</title>
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .chat-body {
+            width: 550px;
+            margin: 50px auto;
+        }
+        .card-body {
+            background-color: #333;
+            color: #fff;
+            border-radius: 10px;
+        }
+        .server-message {
+            background-color: #444;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+        }
+        .client-message {
+            background-color: #555;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+        }
+        .form-inline {
+            display: flex;
+            justify-content: space-between;
+        }
+        .form-control {
+            width: 80%;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 10px;
+            margin-right: 10px;
+        }
+        #send {
+            background-color: #4C4CFF;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 20px;
+        }
+        .form-message {
+          margin-top: 10px;
+        }
+    </style>
+    <script>
+        var endpoint = "ws://localhost:9000/chat";
+        var ws = new WebSocket(endpoint);
+        // Receive message from server word by word. Display the words as they are received.
+        ws.onmessage = function (event) {
+            var messages = document.getElementById('messages');
+            var data = JSON.parse(event.data);
+            if (data.sender === "bot") {
+                if (data.type === "start") {
+                    var header = document.getElementById('header');
+                    header.innerHTML = "Computing answer...";
+                    var div = document.createElement('div');
+                    div.className = 'server-message';
+                    var p = document.createElement('p');
+                    p.innerHTML = "<strong>" + "Chatbot: " + "</strong>";
+                    div.appendChild(p);
+                    messages.appendChild(div);
+                } else if (data.type === "stream") {
+                    var header = document.getElementById('header');
+                    header.innerHTML = "Chatbot is typing...";
+                    var p = messages.lastChild.lastChild;
+                    if (data.message === "\n") {
+                        p.innerHTML += "<br>";
+                    } else {
+                        p.innerHTML += data.message;
+                    }
+                } else if (data.type === "info") {
+                    var header = document.getElementById('header');
+                    header.innerHTML = data.message;
+                } else if (data.type === "end") {
+                    var header = document.getElementById('header');
+                    header.innerHTML = "Ask a question";
+                    var button = document.getElementById('send');
+                    button.innerHTML = "Send";
+                    button.disabled = false;
+                } else if (data.type === "error") {
+                    var header = document.getElementById('header');
+                    header.innerHTML = "Ask a question";
+                    var button = document.getElementById('send');
+                    button.innerHTML = "Send";
+                    button.disabled = false;
+                    var p = messages.lastChild.lastChild;
+                    p.innerHTML += data.message;
+                }
+            } else {
+                var div = document.createElement('div');
+                div.className = 'client-message';
+                var p = document.createElement('p');
+                p.innerHTML = "<strong>" + "You: " + "</strong>";
+                p.innerHTML += data.message;
+                div.appendChild(p);
+                messages.appendChild(div);
+            }
+            // Scroll to the bottom of the chat
+            messages.scrollTop = messages.scrollHeight;
+        };
+        // Send message to server
+        function sendMessage(event) {
+            event.preventDefault();
+            var message = document.getElementById('messageText').value;
+            if (message === "") {
+                return;
+            }
+            ws.send(message);
+            document.getElementById('messageText').value = "";
+
+            // Turn the button into a loading button
+            var button = document.getElementById('send');
+            button.innerHTML = "Loading...";
+            button.disabled = true;
+        }
+    </script>
+</head>
+<body class="bg-black">
+    <div class="chat-body card">
+        <div class="card-body p-5">
+            <h4 class="card-title text-center text-xl font-medium"> Chat Your Data </h4>
+            <p class="card-text text-center text-sm" id="header"> Ask a question </p>
+            <hr class="border-gray-500 mb-5" style="margin-top: 20px;">
+            <div id="messages" class="overflow-auto" style="max-height: 500px;">
+            </div>
+            <form action="" class="form-inline mt-5" id="chat-form" onsubmit="sendMessage(event)">
+                <input type="text" class="form-control" placeholder="Write your question" id="messageText">
+                <button id="send" type="submit" class="btn btn-primary">Send</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
