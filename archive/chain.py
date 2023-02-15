@@ -19,7 +19,6 @@ from pydantic import BaseModel
 
 
 class CustomChain(Chain, BaseModel):
-
     vstore: Weaviate
     chain: BaseCombineDocumentsChain
     key_word_extractor: Chain
