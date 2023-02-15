@@ -20,7 +20,8 @@ Deployed version (to be updated soon): [chat.langchain.dev](https://chat.langcha
 Hugging Face Space (to be updated soon): [huggingface.co/spaces/hwchase17/chat-langchain](https://huggingface.co/spaces/hwchase17/chat-langchain)
 
 Blog Posts: 
-* [blog.langchain.dev/langchain-chat/](https://blog.langchain.dev/langchain-chat/)
+* [Initial Launch](https://blog.langchain.dev/langchain-chat/)
+* [Streaming Support](https://blog.langchain.dev/streaming-support-in-langchain/)
 
 ## 📚 Technical description
 
@@ -29,9 +30,9 @@ There are two components: ingestion and question-answering.
 Ingestion has the following steps:
 
 1. Pull html from documentation site
-2. Parse html with BeautifulSoup
+2. Load html with LangChain's [ReadTheDocs Loader](https://langchain.readthedocs.io/en/latest/modules/document_loaders/examples/readthedocs_documentation.html)
 3. Split documents with LangChain's [TextSplitter](https://langchain.readthedocs.io/en/latest/modules/utils/combine_docs_examples/textsplitter.html)
-4. Create a vectorstore of embeddings, using LangChain's [vectorstore wrapper](https://langchain.readthedocs.io/en/latest/modules/utils/combine_docs_examples/vectorstores.html) (with OpenAI's embeddings and Weaviate's vectorstore).
+4. Create a vectorstore of embeddings, using LangChain's [vectorstore wrapper](https://langchain.readthedocs.io/en/latest/modules/utils/combine_docs_examples/vectorstores.html) (with OpenAI's embeddings and FAISS vectorstore).
 
 Question-Answering has the following steps, all handled by [ChatVectorDBChain](https://langchain.readthedocs.io/en/latest/modules/chains/combine_docs_examples/chat_vector_db.html):
 
