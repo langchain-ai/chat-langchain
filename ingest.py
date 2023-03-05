@@ -11,7 +11,6 @@ load_dotenv()
 
 
 def ingest_docs():
-    """Get documents from web pages."""
     loader = ReadTheDocsLoader("aide.blank.app/")
     raw_documents = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(
@@ -19,13 +18,15 @@ def ingest_docs():
         chunk_overlap=200,
     )
 
-    # documents = text_splitter.split_documents(raw_documents)
-    # embeddings = OpenAIEmbeddings()
-    # vectorstore = FAISS.from_documents(documents, embeddings)
+    # limit to 10 documents for now to avoid costs
+    documents = text_splitter.split_documents(raw_documents)[:10]
+    embeddings = OpenAIEmbeddings()
+    vectorstore = FAISS.from_documents(documents, embeddings)
 
     # # Save vectorstore
-    # with open("vectorstore.pkl", "wb") as f:
-    #     pickle.dump(vectorstore, f)
+    with open("vectorstore.pkl", "wb") as f:
+        pickle.dump(vectorstore, f)
+
 
 
 if __name__ == "__main__":
