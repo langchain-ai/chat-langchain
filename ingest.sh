@@ -3,4 +3,4 @@
 # Error if any command fails
 set -e
 wget -r https://aide.blank.app/hc/fr --user-agent="Mozilla/5.0 (Windows NT 10.0; WOW64)"
-python3 ingest.py
+#python3 ingest.py

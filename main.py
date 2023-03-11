@@ -12,12 +12,18 @@ from callback import QuestionGenCallbackHandler, StreamingLLMCallbackHandler
 from query_data import get_chain
 from schemas import ChatResponse
 from dotenv import load_dotenv
+import os
+logging.basicConfig(level=logging.DEBUG)
 
 load_dotenv()
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 vectorstore: Optional[VectorStore] = None
+
+# if OPENAI_API_KEY doesn't exist in .env then log it
+if os.getenv("OPENAI_API_KEY") is None:
+    logging.warning("OPENAI_API_KEY not found")
 
 
 @app.on_event("startup")
@@ -41,10 +47,10 @@ async def websocket_endpoint(websocket: WebSocket):
     question_handler = QuestionGenCallbackHandler(websocket)
     stream_handler = StreamingLLMCallbackHandler(websocket)
     chat_history = []
-    #qa_chain = get_chain(vectorstore, question_handler, stream_handler)
+    qa_chain = get_chain(vectorstore, question_handler, stream_handler)
     # Use the below line instead of the above line to enable tracing
     # Ensure `langchain-server` is running
-    qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
+    #qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
 
     while True:
         try:
@@ -71,7 +77,7 @@ async def websocket_endpoint(websocket: WebSocket):
             logging.error(e)
             resp = ChatResponse(
                 sender="bot",
-                message="Sorry, something went wrong. Try again.",
+                message="Sorry, something went wrong. Try again later.",
                 type="error",
             )
             await websocket.send_json(resp.dict())
@@ -80,4 +86,4 @@ async def websocket_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=9000)
+    uvicorn.run(app, host="0.0.0.0", port=9000, access_log=True)
