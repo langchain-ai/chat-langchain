@@ -46,7 +46,7 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install new poetry 1.2
+          name: Install new poetry 1.4
           command: curl -sSL https://install.python-poetry.org | python3 -
       - run:
           name: Poetry version post
