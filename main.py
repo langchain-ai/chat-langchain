@@ -2,15 +2,17 @@
 import logging
 import pickle
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.templating import Jinja2Templates
 from langchain.vectorstores import VectorStore
+from loguru import logger
 
 from callback import QuestionGenCallbackHandler, StreamingLLMCallbackHandler
 from query_data import get_chain
-from schemas import ChatResponse
+from schemas import ChatResponse, DataSource
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -19,6 +21,7 @@ vectorstore: Optional[VectorStore] = None
 
 @app.on_event("startup")
 async def startup_event():
+    load_dotenv()
     logging.info("loading vectorstore")
     if not Path("vectorstore.pkl").exists():
         raise ValueError("vectorstore.pkl does not exist, please run ingest.py first")
@@ -38,10 +41,8 @@ async def websocket_endpoint(websocket: WebSocket):
     question_handler = QuestionGenCallbackHandler(websocket)
     stream_handler = StreamingLLMCallbackHandler(websocket)
     chat_history = []
-    qa_chain = get_chain(vectorstore, question_handler, stream_handler)
-    # Use the below line instead of the above line to enable tracing
-    # Ensure `langchain-server` is running
-    # qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
+    # qa_chain = get_chain(vectorstore, question_handler, stream_handler)
+    qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
 
     while True:
         try:
@@ -57,9 +58,18 @@ async def websocket_endpoint(websocket: WebSocket):
             result = await qa_chain.acall(
                 {"question": question, "chat_history": chat_history}
             )
-            chat_history.append((question, result["answer"]))
+            answer = result["answer"]
+            logger.debug(f"answer: {answer}")
+            chat_history.append((question, answer))
 
-            end_resp = ChatResponse(sender="bot", message="", type="end")
+            logger.debug("Source documents:")
+            source_docs = result["source_documents"]
+            data_sources = format_data_sources(source_docs)
+
+            logger.debug(data_sources)
+            end_resp = ChatResponse(
+                sender="bot", message="", type="end", sources=data_sources
+            )
             await websocket.send_json(end_resp.dict())
         except WebSocketDisconnect:
             logging.info("websocket disconnect")
@@ -74,7 +84,21 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.send_json(resp.dict())
 
 
+def format_data_sources(source_docs) -> List[DataSource]:
+    data_sources = []
+    for source_doc in source_docs:
+        page_content = source_doc.page_content
+        meta_data = source_doc.metadata
+        data_sources.append(
+            DataSource(
+                page_content=page_content,
+                meta_data=meta_data,
+            ).dict()
+        )
+    return data_sources
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=9000)
+    uvicorn.run(app, host="0.0.0.0", port=8080)

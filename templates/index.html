@@ -1,35 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>Chat Your Data</title>
+    <title>Montoux Security Bot</title>
     <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
     <style>
         .chat-body {
-            width: 550px;
+            width: 800px;
             margin: 50px auto;
         }
+
         .card-body {
             background-color: #333;
             color: #fff;
             border-radius: 10px;
         }
+
         .server-message {
             background-color: #444;
             padding: 10px;
             margin: 10px;
             border-radius: 10px;
         }
-        .client-message {
-            background-color: #555;
+
+        .source-message {
+            background-color: #444;
             padding: 10px;
             margin: 10px;
             border-radius: 10px;
         }
+
+        .source-item {
+            font-size: small;
+            font-style: italic;
+        }
+
+
+        .client-message {
+            background-color: #357434;
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+        }
+
         .form-inline {
             display: flex;
             justify-content: space-between;
         }
+
         .form-control {
             width: 80%;
             background-color: #333;
@@ -39,6 +58,7 @@
             padding: 10px;
             margin-right: 10px;
         }
+
         #send {
             background-color: #4C4CFF;
             color: #fff;
@@ -46,10 +66,12 @@
             border-radius: 5px;
             padding: 10px 20px;
         }
+
         .form-message {
-          margin-top: 10px;
+            margin-top: 10px;
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
     <script>
         var endpoint = "ws://localhost:9000/chat";
         var ws = new WebSocket(endpoint);
@@ -80,18 +102,52 @@
                     var header = document.getElementById('header');
                     header.innerHTML = data.message;
                 } else if (data.type === "end") {
+                    console.log(data);
+                    //Write the source of the answer
+                    var div = document.createElement('div');
+                    div.className = 'source-message';
+                    var p = document.createElement('p');
+                    p.innerHTML = "<strong>" + "Sources: " + "</strong>";
+                    div.appendChild(p);
+                    messages.appendChild(div);
+                    console.log(data.sources);
+
+                    _.forEach(data.sources, (item) => {
+                        console.log('Page Content:');
+                        console.log(item.page_content);
+                        console.log('\nMeta Data:');
+
+                        var sourceDiv = document.createElement('div');
+                        sourceDiv.className = 'group cursor-pointer relative inline-block text-left w-full italic text-sm';
+                        sourceDiv.innerHTML = item.meta_data.file_path + " - page(" + item.meta_data.page_number + ")";
+                        var tooltipDiv = document.createElement('div');
+                        tooltipDiv.className = 'opacity-0 bg-black text-white text-center text-xs rounded-lg py-2 absolute z-100 group-hover:opacity-100 bottom-full px-3 pointer-events-none';
+                        tooltipDiv.innerHTML = item.page_content;
+                        sourceDiv.appendChild(tooltipDiv);
+                        div.appendChild(sourceDiv);
+
+                        _.forEach(item.meta_data, (value, key) => {
+                            console.log(`${key}: ${value}`);
+                        });
+
+                        console.log('\n----------------------\n');
+                    });
+                    p.innerHTML += data.message;
+
                     var header = document.getElementById('header');
                     header.innerHTML = "Ask a question";
                     var button = document.getElementById('send');
                     button.innerHTML = "Send";
                     button.disabled = false;
                 } else if (data.type === "error") {
+                    console.log(data);
                     var header = document.getElementById('header');
                     header.innerHTML = "Ask a question";
                     var button = document.getElementById('send');
                     button.innerHTML = "Send";
                     button.disabled = false;
                     var p = messages.lastChild.lastChild;
+
                     p.innerHTML += data.message;
                 }
             } else {
@@ -123,19 +179,23 @@
         }
     </script>
 </head>
+
 <body class="bg-black">
     <div class="chat-body card">
         <div class="card-body p-5">
-            <h4 class="card-title text-center text-xl font-medium"> Chat Your Data </h4>
-            <p class="card-text text-center text-sm" id="header"> Ask a question </p>
+            <h4 class="card-title text-center text-xl font-medium"> Montoux Security Chat </h4>
+            <p class="card-text text-center text-sm" id="header"> Ask a question that from the security questionaire?
+            </p>
             <hr class="border-gray-500 mb-5" style="margin-top: 20px;">
             <div id="messages" class="overflow-auto" style="max-height: 500px;">
             </div>
             <form action="" class="form-inline mt-5" id="chat-form" onsubmit="sendMessage(event)">
                 <input type="text" class="form-control" placeholder="Write your question" id="messageText">
-                <button id="send" type="submit" class="btn btn-primary">Send</button>
+                <!--value="What is the policy for offsite backups?"-->
+                <button id="send" type="submit" class="btn btn-primary">Ask</button>
             </form>
         </div>
     </div>
 </body>
+
 </html>

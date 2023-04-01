@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "doc-chat"
+version = "0.1.0"
+description = ""
+authors = ["mrmattwright <matt.wright@montoux.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+openai = "^0.27.2"
+fastapi = "^0.95.0"
+black = "^23.1.0"
+isort = "^5.12.0"
+websockets = "^10.4"
+pydantic = "^1.10.7"
+langchain = "^0.0.123"
+uvicorn = "^0.21.1"
+jinja2 = "^3.1.2"
+faiss-cpu = "^1.7.3"
+bs4 = "^0.0.1"
+python-dotenv = "^1.0.0"
+unstructured = "^0.5.7"
+libmagic = "^1.0"
+pymupdf = "^1.21.1"
+loguru = "^0.6.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.1.0"
+ruff = "^0.0.259"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

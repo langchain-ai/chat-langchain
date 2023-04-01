@@ -1,5 +1,12 @@
 """Schemas for the chat app."""
+from typing import Dict, List, Optional
+
 from pydantic import BaseModel, validator
+
+
+class DataSource(BaseModel):
+    page_content: str
+    meta_data: Dict
 
 
 class ChatResponse(BaseModel):
@@ -8,6 +15,7 @@ class ChatResponse(BaseModel):
     sender: str
     message: str
     type: str
+    sources: Optional[List[DataSource]]
 
     @validator("sender")
     def sender_must_be_bot_or_you(cls, v):
