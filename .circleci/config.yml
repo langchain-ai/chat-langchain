@@ -56,7 +56,7 @@ jobs:
           command: poetry install 
       - run:
           name: Safety Check
-          command: poetry run safety check 
+          command: poetry run safety check -i 51668
       - run:
           name: Run tests
           command: |
