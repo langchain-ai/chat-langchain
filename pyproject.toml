@@ -27,6 +27,8 @@ loguru = "^0.6.0"
 [tool.poetry.group.dev.dependencies]
 black = "^23.1.0"
 ruff = "^0.0.259"
+pytest = "^7.2.2"
+pytest-asyncio = "^0.21.0"
 
 
 [build-system]
