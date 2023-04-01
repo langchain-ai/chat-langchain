@@ -46,9 +46,6 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Poetry uninstall 1.1.6
-          command: POETRY_UNINSTALL=1 bash -c 'curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python'      
-      - run:
           name: Install new poetry 1.2
           command: curl -sSL https://install.python-poetry.org | python3 -
       - run:
