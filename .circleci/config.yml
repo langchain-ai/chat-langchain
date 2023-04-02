@@ -82,7 +82,7 @@ jobs:
       - run:
           name: Deploy to Fly
           command: |
-            ./flyctl auth login --email $FLY_USER_NAME --password $FLY_PASSWORD --otp nothing
+            ./flyctl auth docker -t $FLY_API_ACCESS_TOKEN
             docker build -t registry.fly.io/$FLY_APP_NAME:$CIRCLE_BUILD_NUM .
             docker push registry.fly.io/$FLY_APP_NAME:$CIRCLE_BUILD_NUM
             ./flyctl deploy -i registry.fly.io/$FLY_APP_NAME:$CIRCLE_BUILD_NUM -a $FLY_APP_NAME
@@ -101,7 +101,7 @@ jobs:
       - run:
           name: Deploy to Fly Production
           command: |
-            ./flyctl auth login --email $FLY_USER_NAME --password $FLY_PASSWORD --otp nothing
+            ./flyctl auth docker -t $FLY_API_ACCESS_TOKEN
             docker build -t registry.fly.io/$FLY_APP_NAME_PROD:$CIRCLE_BUILD_NUM .
             docker push registry.fly.io/$FLY_APP_NAME_PROD:$CIRCLE_BUILD_NUM
             ./flyctl deploy -i registry.fly.io/$FLY_APP_NAME_PROD:$CIRCLE_BUILD_NUM -a $FLY_APP_NAME_PROD
