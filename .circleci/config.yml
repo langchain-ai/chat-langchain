@@ -85,7 +85,7 @@ jobs:
             ./flyctl auth docker -t $FLY_API_ACCESS_TOKEN
             docker build -t registry.fly.io/$FLY_APP_NAME:$CIRCLE_BUILD_NUM .
             docker push registry.fly.io/$FLY_APP_NAME:$CIRCLE_BUILD_NUM
-            ./flyctl deploy -i registry.fly.io/$FLY_APP_NAME:$CIRCLE_BUILD_NUM -a $FLY_APP_NAME
+            ./flyctl deploy -i registry.fly.io/$FLY_APP_NAME:$CIRCLE_BUILD_NUM -a $FLY_APP_NAME -t $FLY_API_ACCESS_TOKEN
 
   fly-deploy-prod:
     machine:
@@ -104,4 +104,4 @@ jobs:
             ./flyctl auth docker -t $FLY_API_ACCESS_TOKEN
             docker build -t registry.fly.io/$FLY_APP_NAME_PROD:$CIRCLE_BUILD_NUM .
             docker push registry.fly.io/$FLY_APP_NAME_PROD:$CIRCLE_BUILD_NUM
-            ./flyctl deploy -i registry.fly.io/$FLY_APP_NAME_PROD:$CIRCLE_BUILD_NUM -a $FLY_APP_NAME_PROD
+            ./flyctl deploy -i registry.fly.io/$FLY_APP_NAME_PROD:$CIRCLE_BUILD_NUM -a $FLY_APP_NAME_PROD -t $FLY_API_ACCESS_TOKEN
