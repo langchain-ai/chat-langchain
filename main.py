@@ -1,13 +1,14 @@
 """Main entrypoint for the app."""
 import logging
-import pickle
-from pathlib import Path
+import os
 from typing import List, Optional
 
+import pinecone
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.templating import Jinja2Templates
-from langchain.vectorstores import VectorStore
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import Pinecone, VectorStore
 from loguru import logger
 
 from callback import QuestionGenCallbackHandler, StreamingLLMCallbackHandler
@@ -22,12 +23,12 @@ vectorstore: Optional[VectorStore] = None
 @app.on_event("startup")
 async def startup_event():
     load_dotenv()
-    logging.info("loading vectorstore")
-    if not Path("vectorstore.pkl").exists():
-        raise ValueError("vectorstore.pkl does not exist, please run ingest.py first")
-    with open("vectorstore.pkl", "rb") as f:
-        global vectorstore
-        vectorstore = pickle.load(f)
+    logging.info("init pinecone vectorstore")
+    # initialize pinecone
+    pinecone.init(
+        api_key=os.environ.get("PINECONE_API_KEY"),  # find at app.pinecone.io
+        environment=os.environ.get("PINECONE_ENV"),
+    )
 
 
 @app.get("/")
@@ -41,6 +42,9 @@ async def websocket_endpoint(websocket: WebSocket):
     question_handler = QuestionGenCallbackHandler(websocket)
     stream_handler = StreamingLLMCallbackHandler(websocket)
     chat_history = []
+    index = pinecone.Index(os.environ.get("PINECONE_INDEX"))
+    embeddings = OpenAIEmbeddings()
+    vectorstore = Pinecone(index, embeddings.embed_query, "text")
     # qa_chain = get_chain(vectorstore, question_handler, stream_handler)
     qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
 

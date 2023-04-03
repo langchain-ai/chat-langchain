@@ -24,6 +24,7 @@ libmagic = "^1.0"
 pymupdf = "^1.21.1"
 loguru = "^0.6.0"
 gunicorn = "^20.1.0"
+pinecone-client = "^2.2.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.1.0"

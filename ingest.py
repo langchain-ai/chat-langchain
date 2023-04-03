@@ -1,12 +1,12 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
 import os
-import pickle
 
+import pinecone
 from dotenv import load_dotenv
 from langchain.document_loaders import PyMuPDFLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores.faiss import FAISS
+from langchain.vectorstores import Pinecone
 from loguru import logger
 
 
@@ -33,13 +33,17 @@ def ingest_docs():
         chunk_size=1000,
         chunk_overlap=0,
     )
-    documents = text_splitter.split_documents(docs)
+    text_splitter.split_documents(docs)
     embeddings = OpenAIEmbeddings()
-    vectorstore = FAISS.from_documents(documents, embeddings)
 
-    # Save vectorstore
-    with open("vectorstore.pkl", "wb") as f:
-        pickle.dump(vectorstore, f)
+    pinecone.init(
+        api_key=os.environ.get("PINECONE_API_KEY"),  # find at app.pinecone.io
+        environment=os.environ.get("PINECONE_ENV"),
+    )
+
+    index_name = os.environ.get("PINECONE_INDEX")
+
+    Pinecone.from_documents(docs, embeddings, index_name=index_name)
 
 
 if __name__ == "__main__":
