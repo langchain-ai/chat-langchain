@@ -7,8 +7,15 @@ from langchain.chains.chat_vector_db.prompts import (CONDENSE_QUESTION_PROMPT,
 from langchain.chains.llm import LLMChain
 from langchain.chains.question_answering import load_qa_chain
 from langchain.llms import OpenAI
-from langchain.vectorstores.base import VectorStore
+from langchain.vectorstores.base import VectorStore, VectorStoreRetriever
 
+from langchain.schema import Document
+from typing import List
+
+async def aget_relevant_documents(self, query: str) -> List[Document]:
+    return self.get_relevant_documents(query)
+
+VectorStoreRetriever.aget_relevant_documents = aget_relevant_documents
 
 def get_chain(
     vectorstore: VectorStore, question_handler, stream_handler, tracing: bool = False
