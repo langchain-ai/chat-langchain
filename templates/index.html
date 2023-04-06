@@ -73,7 +73,7 @@
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
     <script>
-        var endpoint = "ws://opio-chat.fly.dev/chat";
+        var endpoint = "wss://opio-chat.fly.dev/chat";
         var ws = new WebSocket(endpoint);
         // Receive message from server word by word. Display the words as they are received.
         ws.onmessage = function (event) {
