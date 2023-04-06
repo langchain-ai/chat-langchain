@@ -1,41 +1,110 @@
-# 🦜️🔗 ChatLangChain
+# right_founder
 
-This repo is an implementation of a locally hosted chatbot specifically focused on question answering over the [LangChain documentation](https://langchain.readthedocs.io/en/latest/).
-Built with [LangChain](https://github.com/hwchase17/langchain/) and [FastAPI](https://fastapi.tiangolo.com/).
+# Python Setup
 
-The app leverages LangChain's streaming support and async API to update the page in real time for multiple users.
+Install the correct version of python using [pyenv](https://github.com/pyenv/pyenv#installation) (get pyenv setup first)
 
-## ✅ Running locally
-1. Install dependencies: `pip install -r requirements.txt`
-1. Run `ingest.sh` to ingest LangChain docs data into the vectorstore (only needs to be done once).
-   1. You can use other [Document Loaders](https://langchain.readthedocs.io/en/latest/modules/document_loaders.html) to load your own data into the vectorstore.
-1. Run the app: `make start`
-   1. To enable tracing, make sure `langchain-server` is running locally and pass `tracing=True` to `get_chain` in `main.py`. You can find more documentation [here](https://langchain.readthedocs.io/en/latest/tracing.html).
-1. Open [localhost:9000](http://localhost:9000) in your browser.
+```
+# Use a local python that is already installed
+pyenv local 3.11.2
 
-## 🚀 Important Links
+# Install a specific version
+pyenv install 3.11.2
 
-Deployed version (to be updated soon): [chat.langchain.dev](https://chat.langchain.dev)
+# Check local version
+pyenv version
+=> 3.11.2 (set by path/to/right_founder/.python-version)
+```
 
-Hugging Face Space (to be updated soon): [huggingface.co/spaces/hwchase17/chat-langchain](https://huggingface.co/spaces/hwchase17/chat-langchain)
+```
 
-Blog Posts: 
-* [Initial Launch](https://blog.langchain.dev/langchain-chat/)
-* [Streaming Support](https://blog.langchain.dev/streaming-support-in-langchain/)
+# Installing
 
-## 📚 Technical description
+We are using [Poetry](https://github.com/python-poetry/poetry) to manage packages and to run a virtual environment, get that installed first.
 
-There are two components: ingestion and question-answering.
+Then get packages and env setup via:
 
-Ingestion has the following steps:
+```
 
-1. Pull html from documentation site
-2. Load html with LangChain's [ReadTheDocs Loader](https://langchain.readthedocs.io/en/latest/modules/document_loaders/examples/readthedocs_documentation.html)
-3. Split documents with LangChain's [TextSplitter](https://langchain.readthedocs.io/en/latest/reference/modules/text_splitter.html)
-4. Create a vectorstore of embeddings, using LangChain's [vectorstore wrapper](https://langchain.readthedocs.io/en/latest/reference/modules/vectorstore.html) (with OpenAI's embeddings and FAISS vectorstore).
+# Install the dependencies
 
-Question-Answering has the following steps, all handled by [ChatVectorDBChain](https://langchain.readthedocs.io/en/latest/modules/indexes/chain_examples/chat_vector_db.html):
+poetry install
 
-1. Given the chat history and new user input, determine what a standalone question would be (using GPT-3).
-2. Given that standalone question, look up relevant documents from the vectorstore.
-3. Pass the standalone question and relevant documents to GPT-3 to generate a final answer.
+# Now start a shell and virtual environment
+
+```
+poetry shell
+```
+
+# Local environment
+
+You need:
+
+1. A `.env` file (always needed)
+
+Ask Matt
+
+# remember `poetry shell` first
+
+poetry run python  manage.py runserver 8001
+
+```
+Then it should run
+[http://127.0.0.1:8001](http://127.0.0.1:8001)
+
+# Running livereload
+Uncomment the lines in base.py that say:
+'# "livereload",
+'# "livereload.middleware.LiveReloadScript",
+
+
+The in a seperate terminal run
+```poetry run python manage.py livereload```
+
+# Tests
+Before we committed a line of code we wrote tests. True story. We use pytest for running all our tests.
+
+ To run them all:
+
+```
+
+pytest
+
+```
+
+Test names should follow a pattern of ```test_[module]_[tested behaviour]```. For example: ```test_trademark_table_parser_loads```
+
+For those with an extra penchant for automation we have included the [pytest-watch](https://github.com/joeyespo/pytest-watch) package which can automatically rerun tests if you just run.
+
+```
+
+ptw
+
+```
+in the project root. Productivity 🔥. You're welcome.
+
+If you want you can be quite specific about how you want tests to run and which folders to monitor and which tests to rerun first. Example;
+
+```
+
+ptw -- --last-failed --new-first
+
+```
+
+If you need to add test HTML data, firstly you add this into your local database using django admin, looking for "Insight html fragments" then you will need to ensure that data is saved to the local file so it can then be migrated in the various environments and on heroku (and of course loaded in tests and in circle ci) do this by generating a new file 
+
+```
+
+poetry run python manage.py dumpdata survey_responses.InsightHTMLFragment -o survey_responses/fixtures/InsightHTMLFragment.json
+
+```
+
+ to do this on flyio in production run:
+ ```
+
+flyctl ssh console --app right-founder-staging
+
+# wait for the shell to launch then
+
+/venv/bin/poetry run python manage.py loaddata InsightHTMLFragment.json
+```

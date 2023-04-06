@@ -2,7 +2,7 @@
 name = "doc-chat"
 version = "0.1.0"
 description = ""
-authors = ["mrmattwright <matt.wright@montoux.com>"]
+authors = ["mrmattwright <matt@opioinc.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
