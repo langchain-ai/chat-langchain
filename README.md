@@ -1,4 +1,6 @@
-# right_founder
+# Helper
+
+A thing - what helps people, search for stuff. It's a FastAPI project mainly, with Jinja2 templates. But we can change that...
 
 # Python Setup
 
@@ -13,7 +15,7 @@ pyenv install 3.11.2
 
 # Check local version
 pyenv version
-=> 3.11.2 (set by path/to/right_founder/.python-version)
+=> 3.11.2 (set by path/to/doc-chat/.python-version)
 ```
 
 ```
@@ -28,7 +30,9 @@ Then get packages and env setup via:
 
 # Install the dependencies
 
+```
 poetry install
+```
 
 # Now start a shell and virtual environment
 
@@ -40,29 +44,22 @@ poetry shell
 
 You need:
 
-1. A `.env` file (always needed)
+1. A `.env` file (always needed), see `.env.example` for an example
 
 Ask Matt
 
-# remember `poetry shell` first
-
-poetry run python  manage.py runserver 8001
+remember `poetry shell` first
 
 ```
+make start
+```
+
 Then it should run
-[http://127.0.0.1:8001](http://127.0.0.1:8001)
-
-# Running livereload
-Uncomment the lines in base.py that say:
-'# "livereload",
-'# "livereload.middleware.LiveReloadScript",
-
-
-The in a seperate terminal run
-```poetry run python manage.py livereload```
+[http://127.0.0.1:9000](http://127.0.0.1:9000)
 
 # Tests
-Before we committed a line of code we wrote tests. True story. We use pytest for running all our tests.
+
+We use pytest for running all our tests.
 
  To run them all:
 
@@ -81,6 +78,7 @@ For those with an extra penchant for automation we have included the [pytest-wat
 ptw
 
 ```
+
 in the project root. Productivity 🔥. You're welcome.
 
 If you want you can be quite specific about how you want tests to run and which folders to monitor and which tests to rerun first. Example;
@@ -91,20 +89,8 @@ ptw -- --last-failed --new-first
 
 ```
 
-If you need to add test HTML data, firstly you add this into your local database using django admin, looking for "Insight html fragments" then you will need to ensure that data is saved to the local file so it can then be migrated in the various environments and on heroku (and of course loaded in tests and in circle ci) do this by generating a new file 
+# Deployment
 
-```
+When you commit to `main` a build is run on [https://app.circleci.com/pipelines/github/opioinc/doc-chat?branch=main](https://app.circleci.com/pipelines/github/opioinc/doc-chat?branch=main) - ask Matt for acccess and then automatically deployed to the glorious [fly.io](www.fly.io) platform. (Again - ask Matt for access) then it gets automatically deployed to [https://opio-chat.fly.dev/](https://opio-chat.fly.dev/) - will set up a proper domain name soon.
 
-poetry run python manage.py dumpdata survey_responses.InsightHTMLFragment -o survey_responses/fixtures/InsightHTMLFragment.json
-
-```
-
- to do this on flyio in production run:
- ```
-
-flyctl ssh console --app right-founder-staging
-
-# wait for the shell to launch then
-
-/venv/bin/poetry run python manage.py loaddata InsightHTMLFragment.json
-```
+It's deployed using a docker container so if youw want to change the deployment process you can do that in the `Dockerfile` in the root.
