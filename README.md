@@ -46,7 +46,7 @@ You need:
 
 1. A `.env` file (always needed), see `.env.example` for an example
 
-Ask Matt
+Ask Matt for all the keys, you'll need an OpenAPI Key and the right Pinecone settings
 
 remember `poetry shell` first
 
