@@ -356,14 +356,14 @@
                     var header = document.getElementById('header');
                     header.innerHTML = "Ask a question";
                     var button = document.getElementById('send');
-                    button.innerHTML = "Send";
+                    button.innerHTML = "Ask";
                     button.disabled = false;
                 } else if (data.type === "error") {
                     console.log(data);
                     var header = document.getElementById('header');
                     header.innerHTML = "Ask a question";
                     var button = document.getElementById('send');
-                    button.innerHTML = "Send";
+                    button.innerHTML = "Ask";
                     button.disabled = false;
                     var p = messages.lastChild.lastChild;
 
@@ -413,7 +413,7 @@
                     Document Chat
                 </h1>
                 <p class="card-text text-center" id="header">
-                    Ask a question about the documents?
+                    Ask a question about the documents
                 </p>
             </header>
             
