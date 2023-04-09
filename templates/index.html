@@ -11,6 +11,8 @@
     <!-- TODO: move styles here => <link rel="stylesheet" href="../assets/style.css"> --> 
     <style>
         /* TODO move out to asset/style.css */
+
+
         
         /* utililty for screen reader only text */
         .sr-only:not(:focus):not(:active) {
@@ -30,6 +32,7 @@
             --gray-brand: #393e46;
             --gray-2: #3b3b3b;
             --gray-1: #505050;
+            --gray-0: #8d8b8b;
             --gradient-1: linear-gradient(to right, var(--brand-mid), var(--brand-color) 30%);
 
             --brand-color: #4ecca3;
@@ -51,6 +54,15 @@
 
             --font-family: font-family: 'Open Sans', sans-serif;
         }
+
+        html {
+            box-sizing: border-box;
+        }
+
+        *, *::before, *::after {
+            box-sizing: inherit;
+        }
+
         body, html {
             min-height: 100vh;
             /* border: 1px solid pink; */
@@ -61,6 +73,8 @@
 
         body {
             font-family: var(--font-family);
+            display: flex;
+            flex-flow: column nowrap;
         }
 
         .helper-nav {
@@ -78,22 +92,37 @@
             padding: 1.5rem 1rem 1rem;
         }
 
+        .helper-header__logo-icon {
+            width: 50px;
+            margin: 1rem auto;
+            opacity: 0.4;
+
+        }
+        .helper-header__logo-icon svg {
+            fill: var(--white);
+        }
+
         .helper-content {
             box-shadow: var(--box-shadow-1);
+            
+            width: 90%;
             max-width: 800px;
             margin: 0 auto;
+            
         }
 
         .chat-body {
             width: 100%;
-            padding: 5rem 2rem;
-            margin: 50px auto;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-top: 2rem;
+            padding-bottom: 9rem;
+
         }
 
         .card-body {
-            /* border: 4px solid green; */
-            /* background-color: #333; */
-            /* background-color: red; */
             background-color: var(--gray-1);
             color: #fff;
             border-radius: 10px;
@@ -105,7 +134,11 @@
         }
 
         .helper-input-controls {
-            /* change to flex after media size met */
+            padding-top: 1rem;
+            margin-top: 1rem;
+            border-top: 1px solid var(--gray-0);
+
+            /* TODO: ? this could suit being fixed at the bottom - maybe even just for mobile */
         }
 
         .helper-messaging-form {
@@ -138,6 +171,7 @@
             padding: 0.5rem;
             border-radius: 3px;
             background-color: var(--brand-color-darker);
+            transition: background-color 0.2s ease-out;
         }
         .helper__submit-btn:focus {
             outline: none; /* a11y ok as it's replaced below */
@@ -148,6 +182,9 @@
         }
         .helper__submit-btn:active {
             background-color: var(--brand-mid);
+        }
+        .helper__submit-btn:disabled {
+            background-color: var(--brand-dark);
         }
 
         @media screen and (min-width: 50rem) {
@@ -194,7 +231,6 @@
 
         .server-message {
             position: relative;
-            background-color: #444;
             background-color: var(--black);
         }
 
@@ -213,7 +249,7 @@
         }
 
         .source-message::after {
-            border-color: #444;
+            border-bottom-color: #444;
         }
 
         .source-message {
@@ -370,6 +406,9 @@
     <main class="chat-body card">
         <div class="helper-content card-body p-5">
             <header class="helper-header">
+                <div class="helper-header__logo-icon">
+                    <svg id="Layer_1" viewBox="0 0 136.57 156.08"><g id="SvgjsG2224"><path d="M80,2,11.72,41v78L80,158l68.26-39,0,0V41Zm0,15,48.56,27.75-13.13,7.5L80,32,44.58,52.24,31.44,44.73Zm28.86,46.53V89L86.57,76.25V50.77ZM73.43,50.77V76.25L51.14,89V63.51Zm0,88.49L24.86,111.51V56L38,63.5V104l35.44,20.25Zm-15.73-39L80,87.51l22.3,12.73L80,113Zm77.44,11.27L86.57,139.26v-15L122,104V63.5L135.14,56v55.52Z" transform="translate(-11.72 -1.96)"/></g></svg>
+                </div>
                 <h1 class="card-title text-center text-xl font-medium helper-heading">
                     Document Chat
                 </h1>
@@ -378,8 +417,7 @@
                 </p>
             </header>
             
-            <hr class="border-gray-500 mb-5" style="margin-top: 20px;">
-            <div id="messages" class="overflow-auto" style="max-height: 500px;">
+            <div id="messages" class="helper-messages">
             </div>
 
             <form action="" class="helper-messaging-form" id="chat-form" onsubmit="sendMessage(event)">
