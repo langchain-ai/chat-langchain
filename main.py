@@ -43,6 +43,7 @@ async def websocket_endpoint(websocket: WebSocket):
     stream_handler = StreamingLLMCallbackHandler(websocket)
     chat_history = []
     index = pinecone.Index(os.environ.get("PINECONE_INDEX"))
+    logger.debug(f"Pinecone index: {index}")
     embeddings = OpenAIEmbeddings()
     vectorstore = Pinecone(index, embeddings.embed_query, "text")
     # qa_chain = get_chain(vectorstore, question_handler, stream_handler)
