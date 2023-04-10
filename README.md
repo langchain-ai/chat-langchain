@@ -18,23 +18,19 @@ pyenv version
 => 3.11.2 (set by path/to/doc-chat/.python-version)
 ```
 
-```
-
 # Installing
 
 We are using [Poetry](https://github.com/python-poetry/poetry) to manage packages and to run a virtual environment, get that installed first.
 
 Then get packages and env setup via:
 
-```
-
-# Install the dependencies
+## Install the dependencies
 
 ```
 poetry install
 ```
 
-# Now start a shell and virtual environment
+## Now start a shell and virtual environment
 
 ```
 poetry shell
@@ -46,7 +42,7 @@ You need:
 
 1. A `.env` file (always needed), see `.env.example` for an example
 
-Ask Matt for all the keys, you'll need an OpenAPI Key and the right Pinecone settings
+Ask Matt for all the keys, you'll need an OpenAPI Key and the right Pinecone settings, although for now just put anything in because the frontend is hard coded to point at [opio-chat.fly.dev](opio-chat.fly.dev) which will just work.
 
 remember `poetry shell` first
 
@@ -64,9 +60,7 @@ We use pytest for running all our tests.
  To run them all:
 
 ```
-
 pytest
-
 ```
 
 Test names should follow a pattern of ```test_[module]_[tested behaviour]```. For example: ```test_trademark_table_parser_loads```
@@ -74,9 +68,7 @@ Test names should follow a pattern of ```test_[module]_[tested behaviour]```. Fo
 For those with an extra penchant for automation we have included the [pytest-watch](https://github.com/joeyespo/pytest-watch) package which can automatically rerun tests if you just run.
 
 ```
-
 ptw
-
 ```
 
 in the project root. Productivity 🔥. You're welcome.
@@ -84,9 +76,7 @@ in the project root. Productivity 🔥. You're welcome.
 If you want you can be quite specific about how you want tests to run and which folders to monitor and which tests to rerun first. Example;
 
 ```
-
 ptw -- --last-failed --new-first
-
 ```
 
 # Deployment
