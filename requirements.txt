@@ -4,7 +4,7 @@ black
 isort
 websockets
 pydantic
-langchain
+langchain==0.0.104
 uvicorn
 jinja2
 faiss-cpu
