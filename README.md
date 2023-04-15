@@ -6,12 +6,19 @@ Built with [LangChain](https://github.com/hwchase17/langchain/) and [FastAPI](ht
 The app leverages LangChain's streaming support and async API to update the page in real time for multiple users.
 
 ## ✅ Running locally
+### Host
 1. Install dependencies: `pip install -r requirements.txt`
 1. Run `ingest.sh` to ingest LangChain docs data into the vectorstore (only needs to be done once).
    1. You can use other [Document Loaders](https://langchain.readthedocs.io/en/latest/modules/document_loaders.html) to load your own data into the vectorstore.
 1. Run the app: `make start`
    1. To enable tracing, make sure `langchain-server` is running locally and pass `tracing=True` to `get_chain` in `main.py`. You can find more documentation [here](https://langchain.readthedocs.io/en/latest/tracing.html).
 1. Open [localhost:9000](http://localhost:9000) in your browser.
+
+### Docker
+1. Build
+`docker build --build-arg OPENAI_API_KEY=<your openai key> -t chatlangchain`
+2. Run
+`docker run -ti -p 9000:9000 chatlangchain`
 
 ## 🚀 Important Links
 
