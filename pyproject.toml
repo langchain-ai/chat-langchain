@@ -25,6 +25,8 @@ pymupdf = "^1.21.1"
 loguru = "^0.6.0"
 gunicorn = "^20.1.0"
 pinecone-client = "^2.2.1"
+sqlmodel = "^0.0.8"
+psycopg2-binary = "^2.9.6"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.1.0"

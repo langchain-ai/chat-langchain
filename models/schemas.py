@@ -1,7 +1,17 @@
 """Schemas for the chat app."""
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, validator
+from sqlmodel import Field, SQLModel
+
+
+class ChatLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    time_stamp: datetime = Field(default_factory=datetime.now())
+    question: str
+    answer: str
+    chat_trace: str
 
 
 class DataSource(BaseModel):
