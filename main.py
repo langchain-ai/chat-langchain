@@ -10,6 +10,7 @@ from typing import List, Optional
 import pinecone
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import Pinecone, VectorStore
@@ -32,6 +33,8 @@ vectorstore: Optional[VectorStore] = None
 
 engine = create_engine(settings.docchat_database_url, echo=True)
 SQLModel.metadata.create_all(engine)
+
+app.mount("/assets", StaticFiles(directory="app/assets"), name="assets")
 
 
 @app.on_event("startup")
