@@ -2,7 +2,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from callback import QuestionGenCallbackHandler, StreamingLLMCallbackHandler
+from app.callback import (QuestionGenCallbackHandler,
+                          StreamingLLMCallbackHandler)
 
 
 @pytest.fixture

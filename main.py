@@ -16,10 +16,10 @@ from langchain.vectorstores import Pinecone, VectorStore
 from loguru import logger
 from sqlmodel import Session, SQLModel, create_engine
 
-from callback import QuestionGenCallbackHandler, StreamingLLMCallbackHandler
-from models import config
-from models.schemas import ChatLog, ChatResponse, DataSource
-from query_data import get_chain
+from app.callback import QuestionGenCallbackHandler, StreamingLLMCallbackHandler
+from app.models import config
+from app.models.schemas import ChatLog, ChatResponse, DataSource
+from app.query_data import get_chain
 
 app = FastAPI()
 
@@ -27,7 +27,7 @@ logger.remove()
 logger.add(sys.stderr, level="DEBUG")
 
 settings = config.get_settings()
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="app/templates")
 vectorstore: Optional[VectorStore] = None
 
 engine = create_engine(settings.docchat_database_url, echo=True)

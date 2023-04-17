@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
 
 def get_project_root() -> str:
-    return os.path.join(os.path.dirname(__file__), "../")
+    return os.path.join(os.path.dirname(__file__), "../../")
 
 
 def get_settings() -> Settings:
