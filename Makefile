@@ -1,6 +1,6 @@
 .PHONY: start
 start:
-	uvicorn main:app --reload --port 9000
+	python3 main.py
 
 .PHONY: format
 format:
