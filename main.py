@@ -151,14 +151,20 @@ def log_chat(question: str, answer: str, chat_trace: str):
     logger.info(f"answer: {answer}")
     logger.info(f"chat_trace: {chat_trace}")
     now = datetime.datetime.now()
-    with Session(engine) as session:
-        session.add(
-            ChatLog(
-                answer=answer, question=question, chat_trace=chat_trace, time_stamp=now
+    try:
+        with Session(engine) as session:
+            session.add(
+                ChatLog(
+                    answer=answer,
+                    question=question,
+                    chat_trace=chat_trace,
+                    time_stamp=now,
+                )
             )
-        )
-        session.commit()
-    logger.info("Chat logged.")
+            session.commit()
+        logger.info("Chat logged.")
+    except Exception as e:
+        logger.exception(f"An exception occurred while logging chat: {e}")
 
 
 if __name__ == "__main__":
