@@ -1,0 +1,36 @@
+<header class="pointer-events-none relative z-50 flex flex-col"
+    style="height:var(--header-height);margin-bottom:var(--header-mb)">
+    <div class="flex flex-1 justify-end md:justify-center pt-6">
+        <div class="pointer-events-auto md:hidden" data-headlessui-state=""><button
+                class="group flex items-center rounded-full bg-white/90 px-4 py-2 text-sm font-medium text-zinc-800 shadow-lg shadow-zinc-800/5 ring-1 ring-zinc-900/5 backdrop-blur dark:bg-zinc-800/90 dark:text-zinc-200 dark:ring-white/10 dark:hover:ring-white/20"
+                type="button" aria-expanded="false" data-headlessui-state=""
+                id="headlessui-popover-button-:R2qb6:">Menu<svg viewBox="0 0 8 6" aria-hidden="true"
+                    class="ml-3 h-auto w-2 stroke-zinc-500 group-hover:stroke-zinc-700 dark:group-hover:stroke-zinc-400">
+                    <path d="M1.75 1.75 4 4.25l2.25-2.5" fill="none" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round"></path>
+                </svg></button></div>
+        <nav class="pointer-events-auto hidden md:block">
+            <ul x-data="{ currentPath: window.location.pathname }"
+                class="flex rounded-full bg-white/90 px-3 text-sm font-medium text-zinc-800 shadow-lg shadow-zinc-800/5 ring-1 ring-zinc-900/5 backdrop-blur dark:bg-zinc-800/90 dark:text-zinc-200 dark:ring-white/10">
+                <li :class="{'text-teal-500 dark:text-teal-400': currentPath === '/'}">
+                    <a class="relative block px-3 py-2 transition hover:text-teal-500" href="/">Chat
+                        <span x-show="currentPath === '/'"
+                            class="absolute inset-x-1 -bottom-px h-px bg-gradient-to-r from-teal-500/0 via-teal-500/40 to-teal-500/0 dark:from-teal-400/0 dark:via-teal-400/40 dark:to-teal-400/0"></span>
+                    </a>
+                </li>
+                <li :class="{'text-teal-500 dark:text-teal-400': currentPath === '/faq'}">
+                    <a class="relative block px-3 py-2 transition hover:text-teal-500" href="/faq">FAQ
+                        <span x-show="currentPath === '/faq'"
+                            class="absolute inset-x-1 -bottom-px h-px bg-gradient-to-r from-teal-500/0 via-teal-500/40 to-teal-500/0 dark:from-teal-400/0 dark:via-teal-400/40 dark:to-teal-400/0"></span>
+                    </a>
+                </li>
+                <li :class="{'text-teal-500 dark:text-teal-400': currentPath === '/about'}">
+                    <a class="relative block px-3 py-2 transition hover:text-teal-500" href="/about">About
+                        <span x-show="currentPath === '/about'"
+                            class="absolute inset-x-1 -bottom-px h-px bg-gradient-to-r from-teal-500/0 via-teal-500/40 to-teal-500/0 dark:from-teal-400/0 dark:via-teal-400/40 dark:to-teal-400/0"></span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+</header>

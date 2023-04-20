@@ -75,6 +75,22 @@ async def get(request: Request):
     )
 
 
+@app.get("/about")
+async def get_about(request: Request):
+    return templates.TemplateResponse(
+        "about.html",
+        {"request": request},
+    )
+
+
+@app.get("/faq")
+async def get_faq(request: Request):
+    return templates.TemplateResponse(
+        "faq.html",
+        {"request": request},
+    )
+
+
 @app.websocket("/chat")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()

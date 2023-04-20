@@ -18,7 +18,7 @@
     --gray-2: #3b3b3b;
     --gray-1: #505050;
     --gray-0: #8d8b8b;
-    --gradient-1: linear-gradient(to right, var(--brand-mid), var(--brand-color) 30%);
+
 
     --brand-color: #4ecca3;
     --brand-color-darker: #4abc93;
@@ -57,7 +57,7 @@ html {
     /* border: 1px solid pink; */
     padding: 0;
     margin: 0;
-    background-color: var(--black);
+    background-color: var(--white);
 }
 
 body {
@@ -67,11 +67,7 @@ body {
 }
 
 .helper-nav {
-    padding: 1rem;
     background-color: var(--brand-color);
-    background: var(--gradient-1);
-    box-shadow: var(--box-shadow-1);
-
 }
 
 .helper-logo {
@@ -96,17 +92,24 @@ body {
 .helper-content {
     box-shadow: var(--box-shadow-1);
 
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.helper-content-boxless {
+
     width: 90%;
     max-width: 800px;
     margin: 0 auto;
-
 }
+
 
 .chat-body {
     width: 100%;
     flex: 1;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     padding-top: 2rem;
 }
@@ -277,13 +280,6 @@ body {
     margin-right: 10px;
 }
 
-#send {
-    /* background-color: #4C4CFF;
-    color: #fff;
-    border: none;
-    border-radius: 5px;
-    padding: 10px 20px; */
-}
 
 .form-message {
     margin-top: 10px;
