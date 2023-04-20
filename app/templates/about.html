@@ -37,8 +37,21 @@
                 <h1 class="text-left text-4xl font-bold tracking-tight text-zinc-800 dark:text-zinc-100 sm:text-5xl">
                     About
                 </h1>
-                <p class="mt-6 mb-6 text-base text-zinc-600 dark:text-zinc-400">True story: I had to answer a security
-                    questionaire recently. It </p>
+                <p class="mt-6 mb-6 text-base text-zinc-600 dark:text-zinc-400">True story: I had to answer an
+                    enterprise security
+                    questionaire recently. This is not something you want to do regularly. It can be 100s of questions
+                    relating to
+                    your policies, backup procedures etc. Luckily I had really good docs, but it still took an age to
+                    look
+                    at the question
+                    then scan through several docs to get an answer. It took a couple of days. No kidding. I'm an NLP
+                    nerd so I figured;
+                    "Hey there must be a better way...why can't I give my private documents to GPT and get it to answer
+                    the questions?"
+                    2 hours and 2 wines later....I had a basic python script that did just that. Then we build this site
+                    to showcase
+                    how to query your own documents, in this case a public set of documents, but it could really be "any
+                    documents".</p>
 
                 <h3 class="text-base font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">So how did you build
                     it?</h3>
@@ -52,8 +65,19 @@
                 <h3 class="text-base font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">But what technology?
                 </h3>
 
-                <p class="relative z-10 mt-2 mb-6 text-sm text-zinc-600 dark:text-zinc-400">Look, we like simple things.
-                    Things that have a clear path to you know...deploying actual software.
+                <p class="relative z-10 mt-2 mb-6 text-sm text-zinc-600 dark:text-zinc-400">Ok get ready for the Nerd
+                    Salad.
+                    Everything is written in Python. We are using FastAPI to serve the pages, websockets and Jinja2 for
+                    templating.
+                    The rest is TailwindCSS and AlpineJS. The "chat" uses the wonderful <a
+                        class="text-sm font-medium text-zinc-800 transition hover:text-teal-500 dark:text-zinc-200 "
+                        href="https://python.langchain.com/en/latest/modules/chains/index_examples/chat_vector_db.html">Langchain
+                        library</a> and specifically the ConversationalRetrievalChain.
+                    An example is <a
+                        class="text-sm font-medium text-zinc-800 transition hover:text-teal-500 dark:text-zinc-200 "
+                        href="https://python.langchain.com/en/latest/index.html">here.</a>
+
+
                 </p>
 
 
