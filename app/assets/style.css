@@ -133,10 +133,6 @@ body {
     /* TODO: ? this could suit being fixed at the bottom - maybe even just for mobile */
 }
 
-.helper-messaging-form {
-    padding-top: 1rem;
-}
-
 .helper-input-controls__input-wrapper {
     margin-bottom: 1rem;
 }
