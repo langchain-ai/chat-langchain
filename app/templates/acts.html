@@ -48,12 +48,13 @@
                 </p>
 
 
-                <ul role="list" class="divide-y divide-gray-100">
+                <ul role="list">
                     {% for act in acts %}
-                    <li class="flex gap-x-4 py-5">
+                    <li class="flex gap-x-4 py-1">
                         <div class="min-w-0">
-                            <a href="{{act.url}}" class="transition hover:text-teal-500" target="_blank">
-                                <span class="text-sm font-medium leading-6 text-gray-900">{{act.act_name}}</span>
+                            <a href="{{act.url}}" target="_blank">
+                                <span
+                                    class="text-sm font-medium leading-6 text-gray-900 transition hover:text-teal-500">{{act.act_name}}</span>
                                 <span class="mt-1 truncate text-xs leading-5 text-gray-500">- {{act.year}}</span>
                             </a>
                         </div>
