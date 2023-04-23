@@ -21,6 +21,7 @@ from app.callback import QuestionGenCallbackHandler, StreamingLLMCallbackHandler
 from app.models import config
 from app.models.schemas import ChatLog, ChatResponse, DataSource
 from app.query_data import get_chain
+from app.routers import static_router
 
 app = FastAPI()
 
@@ -35,6 +36,8 @@ engine = create_engine(settings.docchat_database_url, echo=True)
 SQLModel.metadata.create_all(engine)
 
 app.mount("/assets", StaticFiles(directory="app/assets"), name="assets")
+
+app.include_router(static_router.router)
 
 
 @app.on_event("startup")
@@ -61,34 +64,11 @@ async def log_requests(request: Request, call_next):
     process_time = (time.time() - start_time) * 1000
     formatted_process_time = "{0:.2f}".format(process_time)
     logger.info(
-        f"rid={idem} completed_in={formatted_process_time}ms status_code={response.status_code}"
+        f"rid={idem} completed_in={formatted_process_time}ms "
+        f"status_code={response.status_code}"
     )
 
     return response
-
-
-@app.get("/")
-async def get(request: Request):
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request, "websocketEndpoint": settings.websocket_endpoint},
-    )
-
-
-@app.get("/about")
-async def get_about(request: Request):
-    return templates.TemplateResponse(
-        "about.html",
-        {"request": request},
-    )
-
-
-@app.get("/faq")
-async def get_faq(request: Request):
-    return templates.TemplateResponse(
-        "faq.html",
-        {"request": request},
-    )
 
 
 @app.websocket("/chat")

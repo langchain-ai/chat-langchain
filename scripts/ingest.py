@@ -14,8 +14,8 @@ def ingest_docs():
     """Get documents from web pages."""
     loaders = []
 
-    # doc_folder = "data/accounting-docs/"
-    doc_folder = "data/security-docs/"
+    doc_folder = "data/govt-docs/"
+    # doc_folder = "data/security-docs/"
     # doc_folder = "data/prophet-docs/"
 
     for file in os.listdir(doc_folder):

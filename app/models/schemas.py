@@ -38,3 +38,9 @@ class ChatResponse(BaseModel):
         if v not in ["start", "stream", "end", "error", "info"]:
             raise ValueError("type must be start, stream or end")
         return v
+
+
+class Legislation(BaseModel):
+    act_name: str
+    year: str
+    url: str
