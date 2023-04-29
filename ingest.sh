@@ -3,4 +3,4 @@
 # Error if any command fails
 set -e
 wget -r -A.html https://langchain.readthedocs.io/en/latest/
-python3 ingest.py
+poetry run python ingest.py

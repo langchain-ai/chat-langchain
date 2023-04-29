@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "chat-langchain"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{include = "chat_langchain"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+openai = "^0.27.5"
+fastapi = "^0.95.1"
+black = "^23.3.0"
+isort = "^5.12.0"
+websockets = "^11.0.2"
+pydantic = "^1.10.7"
+langchain = "^0.0.152"
+uvicorn = "^0.22.0"
+jinja2 = "^3.1.2"
+faiss-cpu = "^1.7.4"
+bs4 = "^0.0.1"
+unstructured = "^0.6.2"
+libmagic = "^1.0"
+tiktoken = "^0.3.3"
+
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
