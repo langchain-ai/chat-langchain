@@ -12,9 +12,9 @@ from langchain.vectorstores.base import VectorStore
 
 def get_chain(
     vectorstore: VectorStore, question_handler, stream_handler, tracing: bool = False
-) -> ChatVectorDBChain:
-    """Create a ChatVectorDBChain for question/answering."""
-    # Construct a ChatVectorDBChain with a streaming llm for combine docs
+) -> ConversationalRetrievalChain:
+    """Create a ConversationalRetrievalChain for question/answering."""
+    # Construct a ConversationalRetrievalChain with a streaming llm for combine docs
     # and a separate, non-streaming llm for question generation
     manager = AsyncCallbackManager([])
     question_manager = AsyncCallbackManager([question_handler])
@@ -51,5 +51,5 @@ def get_chain(
         question_generator=question_generator,
         callback_manager=manager,
     )
-    
+
     return qa
