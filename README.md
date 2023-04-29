@@ -9,6 +9,7 @@ The app leverages LangChain's streaming support and async API to update the page
 1. Install dependencies: `poetry install`
 1. Run `ingest.sh` to ingest LangChain docs data into the vectorstore (only needs to be done once).
    1. You can use other [Document Loaders](https://langchain.readthedocs.io/en/latest/modules/document_loaders.html) to load your own data into the vectorstore.
+1. Export your OpenAPI key, eg `export OPENAI_API_KEY=sk-...`
 1. Run the app: `make start`
    1. To enable tracing, make sure `langchain-server` is running locally and pass `tracing=True` to `get_chain` in `main.py`. You can find more documentation [here](https://langchain.readthedocs.io/en/latest/tracing.html).
 1. Open [localhost:9000](http://localhost:9000) in your browser.
