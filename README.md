@@ -30,11 +30,11 @@ There are two components: ingestion and question-answering.
 Ingestion has the following steps:
 
 1. Pull html from documentation site
-2. Load html with LangChain's [ReadTheDocs Loader](https://langchain.readthedocs.io/en/latest/modules/document_loaders/examples/readthedocs_documentation.html)
-3. Split documents with LangChain's [TextSplitter](https://langchain.readthedocs.io/en/latest/reference/modules/text_splitter.html)
+2. Load html with LangChain's [ReadTheDocs Loader](https://python.langchain.com/en/latest/modules/document_loaders/examples/readthedocs_documentation.html)
+3. Split documents with LangChain's [TextSplitter](https://python.langchain.com/en/latest/reference/modules/text_splitter.html)
 4. Create a vectorstore of embeddings, using LangChain's [vectorstore wrapper](https://python.langchain.com/en/latest/modules/indexes/vectorstores.html) (with OpenAI's embeddings and FAISS vectorstore).
 
-Question-Answering has the following steps, all handled by [ChatVectorDBChain](https://langchain.readthedocs.io/en/latest/modules/indexes/chain_examples/chat_vector_db.html):
+Question-Answering has the following steps, all handled by [ChatVectorDBChain](https://python.langchain.com/en/latest/modules/indexes/chain_examples/chat_vector_db.html):
 
 1. Given the chat history and new user input, determine what a standalone question would be (using GPT-3).
 2. Given that standalone question, look up relevant documents from the vectorstore.

@@ -136,4 +136,6 @@ dmypy.json
 .DS_Store
 
 vectorstore.pkl
-langchain.readthedocs.io/
+python.langchain.com/
+
+.venv
