@@ -10,7 +10,7 @@ from langchain.llms import OpenAI
 from langchain.vectorstores.base import VectorStore
 
 
-async def get_chain(
+def get_chain(
     vectorstore: VectorStore, question_handler, stream_handler, tracing: bool = False
 ) -> ConversationalRetrievalChain:
     """Create a ConversationalRetrievalChain for question/answering."""
