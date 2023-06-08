@@ -1,6 +1,6 @@
 langchain==0.0.64
 beautifulsoup4
-weaviate-client
+weaviate-client==3.19.0
 openai
 black
 isort
