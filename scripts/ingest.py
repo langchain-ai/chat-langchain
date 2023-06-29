@@ -1,12 +1,11 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
 import os
 
-import pinecone
 from dotenv import load_dotenv
 from langchain.document_loaders import PyMuPDFLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Pinecone
+from langchain.vectorstores.pgvector import PGVector
 from loguru import logger
 
 
@@ -29,21 +28,18 @@ def ingest_docs():
         docs.extend(loader.load())
 
     # loader = PyMuPDFLoader("data/security-docs/2022 Montoux Solution Overview.pdf")
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=0,
-    )
-    text_splitter.split_documents(docs)
+    text_splitter = RecursiveCharacterTextSplitter()
+
+    documents = text_splitter.split_documents(docs)
+    # embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
     embeddings = OpenAIEmbeddings()
 
-    pinecone.init(
-        api_key=os.environ.get("PINECONE_API_KEY"),  # find at app.pinecone.io
-        environment=os.environ.get("PINECONE_ENV"),
+    PGVector.from_documents(
+        embedding=embeddings,
+        documents=documents,
+        collection_name="government-docs",
+        pre_delete_collection=True,
     )
-
-    index_name = os.environ.get("PINECONE_INDEX")
-
-    Pinecone.from_documents(docs, embeddings, index_name=index_name)
 
 
 if __name__ == "__main__":

@@ -1,19 +1,18 @@
 """Main entrypoint for the app."""
 import datetime
-import os
 import random
 import string
 import sys
 import time
 from typing import List, Optional
 
-import pinecone
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import Pinecone, VectorStore
+from langchain.vectorstores import VectorStore
+from langchain.vectorstores.pgvector import PGVector
 from loguru import logger
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -44,13 +43,6 @@ app.include_router(static_router.router)
 async def startup_event():
     load_dotenv()
     logger.add(sys.stderr, enqueue=True)
-    logger.info("init pinecone vectorstore")
-    logger.debug("debug pincone init")
-    # initialize pinecone
-    pinecone.init(
-        api_key=os.environ.get("PINECONE_API_KEY"),  # find at app.pinecone.io
-        environment=os.environ.get("PINECONE_ENV"),
-    )
 
 
 @app.middleware("http")
@@ -79,12 +71,11 @@ async def websocket_endpoint(websocket: WebSocket):
     stream_handler = StreamingLLMCallbackHandler(websocket)
     chat_history = []
     chat_trace = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
-    index = pinecone.Index(os.environ.get("PINECONE_INDEX"))
-    logger.debug(f"Pinecone index: {index}")
+
     embeddings = OpenAIEmbeddings()
-    vectorstore = Pinecone(index, embeddings.embed_query, "text")
-    # qa_chain = get_chain(vectorstore, question_handler, stream_handler)
-    qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
+    vectorstore = PGVector.from_existing_index(embeddings, "government-docs")
+    qa_chain = get_chain(vectorstore, question_handler, stream_handler)
+    # qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
 
     while True:
         try:
