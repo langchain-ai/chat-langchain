@@ -7,6 +7,7 @@ The app leverages LangChain's streaming support and async API to update the page
 
 ## ✅ Running locally
 1. Install dependencies: `pip install -r requirements.txt`
+1. Create a copy of .env.template, call it .env and update with your unique OpenAI API Key after the `=`, without any quotes or spaces.
 1. Run `ingest.sh` to ingest LangChain docs data into the vectorstore (only needs to be done once).
    1. If on Windows, Run `ingest.bat` instead. Must have wget for windows installed and updated ([instructions here](https://www.tomshardware.com/how-to/use-wget-download-files-command-line)).
    1. You can use other [Document Loaders](https://langchain.readthedocs.io/en/latest/modules/document_loaders.html) to load your own data into the vectorstore.
