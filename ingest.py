@@ -16,7 +16,7 @@ def ingest_docs():
     if platform.system() == "Windows":
         loader = ReadTheDocsLoader("api.python.langchain.com/en/latest/", "utf-8-sig")
     else:
-        loader = ReadTheDocsLoader("langchain.readthedocs.io/en/latest/")
+        loader = ReadTheDocsLoader("api.python.langchain.com/en/latest/")
 
     raw_documents = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(
