@@ -12,6 +12,19 @@ from callback import QuestionGenCallbackHandler, StreamingLLMCallbackHandler
 from query_data import get_chain
 from schemas import ChatResponse
 
+from langchain.chat_models import ChatOpenAI, ChatAnthropic, ChatGooglePalm
+from langchain.llms import Anthropic
+
+from langchain.schema.runnable import RunnablePassthrough
+from langchain.prompts import ChatPromptTemplate
+from langchain.vectorstores import Chroma
+from langchain.schema.runnable import RunnablePassthrough
+from langchain.schema.output_parser import StrOutputParser
+import langchain
+from typing import Any
+
+# langchain.debug = True
+
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 vectorstore: Optional[VectorStore] = None
@@ -31,17 +44,29 @@ async def startup_event():
 async def get(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+class TokenHandler:
+    def __init__(self, websocket):
+        self.websocket = websocket
+
+    async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
+        resp = ChatResponse(sender="bot", message=token, type="stream")
+        await self.websocket.send_json(resp.dict())
 
 @app.websocket("/chat")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    question_handler = QuestionGenCallbackHandler(websocket)
-    stream_handler = StreamingLLMCallbackHandler(websocket)
+    token_handler = TokenHandler(websocket)
+    model = ChatOpenAI(temperature=0, model="gpt-3.5-turbo", streaming=True)
+    # model = ChatAnthropic()
+    # model = ChatGooglePalm()
+    prompt = ChatPromptTemplate.from_template("Using Langchain docs, help me answer a question about {question} with context {context}.")
+    chain = (
+        {"context": vectorstore.as_retriever(), "question": RunnablePassthrough()} 
+        | prompt 
+        | model 
+        | StrOutputParser()
+    )
     chat_history = []
-    qa_chain = get_chain(vectorstore, question_handler, stream_handler)
-    # Use the below line instead of the above line to enable tracing
-    # Ensure `langchain-server` is running
-    # qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
 
     while True:
         try:
@@ -49,15 +74,23 @@ async def websocket_endpoint(websocket: WebSocket):
             question = await websocket.receive_text()
             resp = ChatResponse(sender="you", message=question, type="stream")
             await websocket.send_json(resp.dict())
+            
+            print("Recieved question: ", question)
 
             # Construct a response
             start_resp = ChatResponse(sender="bot", message="", type="start")
             await websocket.send_json(start_resp.dict())
 
-            result = await qa_chain.acall(
-                {"question": question, "chat_history": chat_history}
-            )
-            chat_history.append((question, result["answer"]))
+            result = ""
+            num = 0
+            
+            for s in chain.stream(question):
+                print(num)
+                num += 1
+                await token_handler.on_llm_new_token(s)
+                result += s
+                
+            chat_history.append((question, result))
 
             end_resp = ChatResponse(sender="bot", message="", type="end")
             await websocket.send_json(end_resp.dict())
