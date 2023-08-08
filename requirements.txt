@@ -8,6 +8,7 @@ langchain
 uvicorn
 jinja2
 faiss-cpu
-bs4
+beautifulsoup4
 unstructured
 libmagic
+tiktoken
