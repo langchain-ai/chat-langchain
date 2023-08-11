@@ -1,12 +1,15 @@
 """Main entrypoint for the app."""
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
-from typing import Any, Optional
+from typing import Any, Optional, Generator
 import os
 import logging
+import json
 
 import langchain
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import ChatOpenAI, ChatAnthropic
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
@@ -20,6 +23,14 @@ import asyncio
 # langchain.debug = True
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 templates = Jinja2Templates(directory="templates")
 vectorstore: Optional[VectorStore] = None
 
@@ -27,17 +38,14 @@ vectorstore: Optional[VectorStore] = None
 async def get(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-@app.websocket("/chat")
-async def websocket_endpoint(websocket: WebSocket):
+@app.post("/chat")
+async def chat_endpoint(request: Request):
+    data = await request.json()
+    question = data.get('message')
+    model_type = data.get('model')
+    
     WEAVIATE_URL=os.environ["WEAVIATE_URL"]
     WEAVIATE_API_KEY=os.environ["WEAVIATE_API_KEY"]
-
-    await websocket.accept()
-    
-    # if model_type == "anthropic":
-    #     model = ChatAnthropic()
-    # else:
-    model = ChatOpenAI(temperature=0, model="gpt-3.5-turbo")
 
     chat_history = []
     embeddings = OpenAIEmbeddings()
@@ -45,21 +53,13 @@ async def websocket_endpoint(websocket: WebSocket):
     print(client.query.aggregate("LangChain_idx").with_meta_count().do())
     weaviate_client = Weaviate(client=client, index_name="LangChain_idx", text_key="text", embedding=embeddings, by_text=False)
 
-    while True:
+    async def stream():
         try:
-            # Receive and send back the client message
-            question = await websocket.receive_text()
-            resp = ChatResponse(sender="you", message=question, type="stream")
-            await websocket.send_json(resp.dict())
-            await asyncio.sleep(0)
+            model = ChatOpenAI(temperature=0, model="gpt-3.5-turbo") if model_type == "openai" else ChatAnthropic()
 
             print("Recieved question: ", question)
-
-            # Construct a response
-            start_resp = ChatResponse(sender="bot", message="", type="start")
-            await websocket.send_json(start_resp.dict())
             
-            prompt = ChatPromptTemplate.from_template("Using Langchain docs, help me answer a question about {question} with the context provided {context}")
+            prompt = ChatPromptTemplate.from_template("You are an expert programming prodigy creator of Langchain. Answer this question to the best of your ability {question} with the provided context {context}")
             chain = (
                 {"context": weaviate_client.as_retriever(), "question": RunnablePassthrough()} 
                 | prompt 
@@ -69,29 +69,20 @@ async def websocket_endpoint(websocket: WebSocket):
             result = ""
             
             for s in chain.stream(question):
-                resp = ChatResponse(sender="bot", message=s.content, type="stream")
-                await websocket.send_json(resp.dict())
+                yield formatted_content
                 await asyncio.sleep(0)
-                result += s.content
+                print(formatted_content, end="", flush=True)
                 
+            result += formatted_content
             chat_history.append((question, result))
 
-            end_resp = ChatResponse(sender="bot", message="", type="end")
-            await websocket.send_json(end_resp.dict())
-        except WebSocketDisconnect:
-            logging.info("websocket disconnect")
-            break
         except Exception as e:
             logging.error(e)
-            resp = ChatResponse(
-                sender="bot",
-                message="Sorry, something went wrong. Try again.",
-                type="error",
-            )
-            await websocket.send_json(resp.dict())
+            yield  "Sorry, something went wrong. Try again." + "\n"
 
+    return StreamingResponse(stream())
 
 if __name__ == "__main__":
     import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8080)
 
-    uvicorn.run(app, host="0.0.0.0", port=9000)

@@ -12,3 +12,5 @@ beautifulsoup4
 unstructured
 libmagic
 tiktoken
+weaviate-client
+anthropic
