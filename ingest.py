@@ -2,15 +2,43 @@
 from bs4 import BeautifulSoup as Soup
 import weaviate
 import os
+from git import Repo
+import shutil
 
 from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
 from langchain.embeddings import OpenAIEmbeddings, CohereEmbeddings
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Weaviate
+from langchain.document_transformers import Html2TextTransformer
+from langchain.text_splitter import Language
+from langchain.document_loaders.generic import GenericLoader
+from langchain.document_loaders.parsers import LanguageParser
 
 WEAVIATE_URL=os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY=os.environ["WEAVIATE_API_KEY"]
+
+def ingest_repo():
+    repo_path = "/Users/mollycantillon/Desktop/test_repo"
+    if os.path.exists(repo_path):
+        shutil.rmtree(repo_path)
+
+    repo = Repo.clone_from("https://github.com/langchain-ai/langchain", to_path=repo_path)
+
+    loader = GenericLoader.from_filesystem(
+        repo_path+"/libs/langchain/langchain",
+        glob="**/*",
+        suffixes=[".py"],
+        parser=LanguageParser(language=Language.PYTHON, parser_threshold=500)
+    )
+    documents_repo = loader.load()
+    len(documents_repo)
+
+    python_splitter = RecursiveCharacterTextSplitter.from_language(language=Language.PYTHON, 
+                                                                chunk_size=1000, 
+                                                                chunk_overlap=200)
+    texts = python_splitter.split_documents(documents_repo)
+    return texts
 
 def ingest_docs():
     """Get documents from web pages."""
@@ -26,14 +54,20 @@ def ingest_docs():
 
     documents = []
     for url in urls:
-        loader = RecursiveUrlLoader(url=url, max_depth=1 if url == urls[0] else 3, extractor=lambda x: Soup(x, "lxml").text, prevent_outside=False)
+        loader = RecursiveUrlLoader(url=url, max_depth=1 if url == urls[0] else 3, extractor=lambda x: Soup(x, "lxml").text, prevent_outside=False if url=urls[0] else True)
         documents += loader.load()
     
+    html2text = Html2TextTransformer()
+    docs_transformed = html2text.transform_documents(documents)
+    
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-
-    print('before splitting', len(documents))
-    docs = text_splitter.split_documents(documents)
+    
+    print('before splitting', len(docs_transformed))
+    docs = text_splitter.split_documents(docs_transformed)
     print('after splitting', len(docs))
+    
+    repo_docs = ingest_repo()
+    docs += repo_docs
 
     embeddings = OpenAIEmbeddings(chunk_size=200) # rate limit
 
