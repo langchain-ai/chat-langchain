@@ -34,17 +34,12 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-templates = Jinja2Templates(directory="templates")
-vectorstore: Optional[VectorStore] = None
 run_collector = RunCollectorCallbackHandler()
 runnable_config = RunnableConfig(callbacks=[run_collector])
 run_id = None
+
 from langsmith import Client
 client = Client()
-
-@app.get("/")
-async def get(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.post("/chat")
 async def chat_endpoint(request: Request):

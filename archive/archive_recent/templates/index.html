@@ -49,9 +49,20 @@
         .form-message {
           margin-top: 10px;
         }
+        /* New styles for the dropdown */
+        #modelType {
+            width: 20%;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 5px;
+            margin-right: 10px;
+        }
     </style>
     <script>
-        var endpoint = "ws://localhost:9000/chat";
+        // var endpoint = "ws://localhost:9000/chat";
+        var endpoint = "wss://" + window.location.host + "/chat";
         var ws = new WebSocket(endpoint);
         // Receive message from server word by word. Display the words as they are received.
         ws.onmessage = function (event) {
@@ -110,10 +121,12 @@
         function sendMessage(event) {
             event.preventDefault();
             var message = document.getElementById('messageText').value;
+            var model = document.getElementById('modelType').value;
             if (message === "") {
                 return;
             }
-            ws.send(message);
+            console.log(JSON.stringify({message: message, model: model}));
+            ws.send(JSON.stringify({message: message, model: model}));
             document.getElementById('messageText').value = "";
 
             // Turn the button into a loading button
@@ -125,6 +138,12 @@
 </head>
 <body class="bg-black">
     <div class="chat-body card">
+        <form action="" class="form-inline m-5" id="chat-form" onsubmit="sendMessage(event)">
+            <select id="modelType" class="form-control">
+                <option value="openai" selected>OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+            </select>
+        </form>
         <div class="card-body p-5">
             <h4 class="card-title text-center text-xl font-medium"> Chat Your Data </h4>
             <p class="card-text text-center text-sm" id="header"> Ask a question </p>
