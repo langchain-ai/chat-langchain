@@ -70,7 +70,10 @@ async def chat_endpoint(request: Request):
             
             _template = """You are an expert programmer, tasked to answer any question about Langchain. Be as helpful as possible. 
             
-            Here you have multiple separate sources about Langchain.{context} 
+            Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
+            <context>
+                {context} 
+            <context/>
                             
             Conversation History:               
             {history}
