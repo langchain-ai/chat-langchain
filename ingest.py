@@ -35,7 +35,7 @@ def ingest_repo():
     len(documents_repo)
 
     python_splitter = RecursiveCharacterTextSplitter.from_language(language=Language.PYTHON, 
-                                                                chunk_size=1000, 
+                                                                chunk_size=2000, 
                                                                 chunk_overlap=200)
     texts = python_splitter.split_documents(documents_repo)
     return texts
@@ -54,7 +54,7 @@ def ingest_docs():
 
     documents = []
     for url in urls:
-        loader = RecursiveUrlLoader(url=url, max_depth=1 if url == urls[0] else 3, extractor=lambda x: Soup(x, "lxml").text, prevent_outside=False if url=urls[0] else True)
+        loader = RecursiveUrlLoader(url=url, max_depth=1 if url == urls[0] else 3, extractor=lambda x: Soup(x, "lxml").text, prevent_outside=False if url == urls[0] else True)        
         documents += loader.load()
     
     html2text = Html2TextTransformer()
