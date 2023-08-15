@@ -47,6 +47,7 @@ export function ChatWindow(props: {
     if (isLoading) {
       return;
     }
+    setInput("");
     setHasInteracted(true);
     setMessages((prevMessages) => [
       ...prevMessages,
@@ -160,7 +161,6 @@ export function ChatWindow(props: {
   };
 
   const viewTrace = () => {
-    console.log("IN VIEW TRACE")
     fetch("https://chat-langchain.fly.dev/get_trace", {
       method: "POST",
       headers: {
@@ -219,6 +219,7 @@ export function ChatWindow(props: {
           className="flex-grow mr-2 p-4 rounded"
           placeholder={placeholder}
           onChange={(e) => setInput(e.target.value)}
+          value={input}
           style={{minWidth: '50px'}}
         />
         <select
