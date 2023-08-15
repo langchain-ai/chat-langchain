@@ -8,6 +8,9 @@ import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 export function ChatWindow(props: {
   endpoint: string;
   emptyStateComponent: React.ReactElement;
@@ -44,6 +47,7 @@ export function ChatWindow(props: {
     if (isLoading) {
       return;
     }
+    setHasInteracted(true);
     setMessages((prevMessages) => [
       ...prevMessages,
       { id: Math.random().toString(), message: input.trim(), role: "user" },
@@ -232,11 +236,12 @@ export function ChatWindow(props: {
             feedback === 1 ? "bg-green-100" : ""
           }`}
           onClick={() => {
-            if (feedback === null) {
+            if (feedback === null && hasInteracted) {
               sendFeedback(1);
+            } else {
+              toast.error("You have already provided your feedback.");
             }
           }}
-          disabled={feedback !== null || !hasInteracted}
           id="upButton"
         >
           👍
@@ -247,11 +252,12 @@ export function ChatWindow(props: {
             feedback === 0 ? "bg-red-100" : ""
           }`}
           onClick={() => {
-            if (feedback === null) {
+            if (feedback === null && hasInteracted) {
               sendFeedback(0);
+            } else {
+              toast.error("You have already provided your feedback.");
             }
           }}
-          disabled={feedback !== null || !hasInteracted}
           id="downButton"
         >
           👎

@@ -64,7 +64,7 @@ async def chat_endpoint(request: Request):
     async def stream():
         result = ''
         try:
-            model = ChatOpenAI(temperature=0, model="gpt-3.5-turbo") if model_type == "openai" else ChatAnthropic()
+            model = ChatOpenAI(temperature=0, model="gpt-3.5-turbo") if model_type == "openai" else ChatAnthropic(model='claude-instant-v1-100k')
 
             print("Recieved question: ", question)
             
@@ -75,8 +75,9 @@ async def chat_endpoint(request: Request):
                 {context} 
             <context/>
                             
-            Conversation History:               
+            <conversation_history>               
             {history}
+            <conversation_history/>
             
             Answer the user's question to the best of your ability: {question}
             Helpful Answer:"""
