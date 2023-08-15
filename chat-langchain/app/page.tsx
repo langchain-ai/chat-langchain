@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Chat from "../app/components/chat";
 import { ChatWindow } from "../app/components/ChatWindow";
+import { ToastContainer } from 'react-toastify';
 
 export default function Home() {
   const InfoCard = (
@@ -62,6 +63,7 @@ export default function Home() {
       {/* <main className="flex h-[100vh] overflow-hidden flex-col items-center justify-center bg-grey-100">
         <div className="z-10 w-[100vw] w items-center justify-center font-normal text-sm lg:flex lg:max-h-[40rem] sm:max-h-[20rem] text-center p-4 md:p-0"> */}
           {/* <Chat/> */}
+          <ToastContainer />
           <ChatWindow
             // endpoint="https://chat-langchain.fly.dev/chat"
             endpoint="http://0.0.0.0:8080/chat"

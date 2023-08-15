@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import os
+from typing import Literal, Optional, Union
 
 import weaviate
 from fastapi import FastAPI, Request
@@ -17,21 +18,6 @@ from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import Runnable, RunnableConfig
 from langchain.vectorstores import Weaviate
 from langsmith import Client
-
-from typing import Literal, Optional, Union
-
-import weaviate
-from langchain.chains import RetrievalQA
-from langchain.chat_models import ChatAnthropic, ChatOpenAI
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.memory import ConversationBufferMemory
-from langchain.prompts.prompt import PromptTemplate
-from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import Runnable
-from langchain.smith import RunEvalConfig
-from langchain.vectorstores import Weaviate
-from langsmith import Client
-
 
 client = Client()
 
@@ -56,7 +42,7 @@ _PROVIDER_MAP = {
 
 _MODEL_MAP = {
     "openai": "gpt-3.5-turbo",
-    "anthropic": "claude-2",
+    "anthropic": "claude-instant-v1-100k",
 }
 
 
@@ -78,7 +64,9 @@ def create_chain(
     <context/>
                     
     Conversation History:               
+    <conversation_history>
     {history}
+    <conversation_history/>
     
     Answer the user's question to the best of your ability: {question}
     Helpful Answer:"""
@@ -179,7 +167,7 @@ async def send_feedback(request: Request):
 @app.post("/get_trace")
 async def get_trace(request: Request):
     global run_id, access_counter
-    if run_id == None:
+    if run_id is None:
         run = run_collector.traced_runs[0]
         run_id = run.id
         access_counter += 1
