@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Chat from "../app/components/chat";
 import { ChatWindow } from "../app/components/ChatWindow";
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer } from "react-toastify";
 
 export default function Home() {
   const InfoCard = (
@@ -11,39 +11,51 @@ export default function Home() {
         <li className="text-l">
           🤝
           <span className="ml-2">
-            This template showcases a simple chatbot using{" "}
-            <a href="https://js.langchain.com/" target="_blank">
-              LangChain.js
+            This is a simple chatbot over LangChain's{" "}
+            <a href="https://python.langchain.com/" target="_blank">
+              Python Documentation.
             </a>{" "}
-            in a{" "}
-            <a href="https://nextjs.org/" target="_blank">
-              Next.js
-            </a>{" "}
-            project.
           </span>
         </li>
         <li className="text-l">
           🔁
           <span className="ml-2">
-            It also uses the Vercel{" "}
-            <a href="https://sdk.vercel.ai/docs" target="_blank">
-              AI SDK
+            It uses the{" "}
+            <a href="https://python.langchain.com/docs/integrations/document_loaders/recursive_url_loader">
+              RecursiveURLLoader
             </a>{" "}
-            for streaming HTTP responses and the UI.
+            in tandem with the{" "}
+            <a href="https://api.python.langchain.com/en/latest/document_loaders/langchain.document_loaders.generic.GenericLoader.html">
+              GenericLoader
+            </a>{" "}
+            to ingest all of our API and repository pages.
+          </span>
+        </li>
+        <li className="text-l">
+          ⚡️
+          <span className="ml-2">
+            The documents are chunked and stored in a{" "}
+            <a
+              href="https://python.langchain.com/docs/integrations/vectorstores/weaviate"
+              target="_blank"
+            >
+              Weaviate
+            </a>{" "}
+            instance for lightning fast retrieval.
           </span>
         </li>
         <li className="text-l">
           💻
           <span className="ml-2">
-            You can find the prompt and model logic for this use-case in{" "}
-            <code>app/api/chat/route.ts</code>.
+            You can find the prompt and model logic which uses expression language
+            and chat history in <code> main.py</code>.
           </span>
         </li>
-        <li>
-          🏴‍☠️
+        <li className="text-l">
+          💻
           <span className="ml-2">
-            By default, the bot is pretending to be a pirate, but you can change
-            the prompt to whatever you want!
+            Feedback and Tracing are additional neat features, thanks to {" "}
+            <a href="https://smith.langchain.com" target="_blank">LangSmith</a>.
           </span>
         </li>
         <li className="text-l">
@@ -53,27 +65,25 @@ export default function Home() {
           </span>
         </li>
         <li className="text-l">
-          👇<span className="ml-2">Try asking, "What is it like to be a pirate?" or another question below!</span>
+          👇
+          <span className="ml-2">
+            Begin by asking, "Show me how to use a RecursiveUrlLoader?" or another
+            question below!
+          </span>
         </li>
       </ul>
     </div>
   );
   return (
     <>
-      {/* <main className="flex h-[100vh] overflow-hidden flex-col items-center justify-center bg-grey-100">
-        <div className="z-10 w-[100vw] w items-center justify-center font-normal text-sm lg:flex lg:max-h-[40rem] sm:max-h-[20rem] text-center p-4 md:p-0"> */}
-          {/* <Chat/> */}
-          <ToastContainer />
-          <ChatWindow
-            // endpoint="https://chat-langchain.fly.dev/chat"
-            endpoint="http://0.0.0.0:8080/chat"
-            emoji="🏴‍☠️"
-            titleText="ChatLangChain"
-            placeholder="Write your question"
-            emptyStateComponent={InfoCard}
-          ></ChatWindow>
-        {/* </div>
-      </main> */}
+      <ToastContainer />
+      <ChatWindow
+        endpoint="https://chat-langchain.fly.dev/chat"
+        // emoji="🏴‍☠️"
+        titleText="ChatLangChain"
+        placeholder="Write your question"
+        emptyStateComponent={InfoCard}
+      ></ChatWindow>
     </>
   );
 }
