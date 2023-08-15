@@ -3,6 +3,9 @@ import functools
 import os
 from typing import Literal, Optional, Union
 
+from langsmith.evaluation.evaluator import EvaluationResult
+from langsmith.schemas import Example, Run
+
 import weaviate
 from langchain import prompts
 from langchain.chains import RetrievalQA
@@ -14,6 +17,9 @@ from langchain.schema.runnable import Runnable
 from langchain.smith import RunEvalConfig
 from langchain.vectorstores import Weaviate
 from langsmith import Client
+from langsmith import RunEvaluator
+from langchain import load as langchain_load
+import json
 
 _PROVIDER_MAP = {
     "openai": ChatOpenAI,
@@ -61,6 +67,7 @@ Helpful Answer:"""
                 ("system", "<retrieved_context>\n{context}\n</retrieved_context>"),
             ]
         )
+
 
 
 def create_chain(
@@ -115,6 +122,31 @@ def _get_retriever():
         attributes=["source"],
     )
     return weaviate_client.as_retriever(search_kwargs=dict(k=10))
+
+
+class CustomHallucinationEvaluator(RunEvaluator):
+
+    @staticmethod
+    def _get_llm_runs(run: Run) -> Run:
+        runs = []
+        for child in (run.child_runs or []):
+            if run.run_type == "llm":
+                runs.append(child)
+            else:
+                runs.extend(CustomHallucinationEvaluator._get_llm_runs(child))
+
+
+    def evaluate_run(self, run: Run, example: Example | None = None) -> EvaluationResult:
+        llm_runs = self._get_llm_runs(run)
+        if not llm_runs:
+            return EvaluationResult(key="hallucination", comment="No LLM runs found")
+        if len(llm_runs) > 0:
+            return EvaluationResult(key="hallucination", comment="Too many LLM runs found")
+        llm_run = llm_runs[0]
+        messages = llm_run.inputs["messages"]
+        langchain_load(json.dumps(messages))
+
+
 
 
 if __name__ == "__main__":
