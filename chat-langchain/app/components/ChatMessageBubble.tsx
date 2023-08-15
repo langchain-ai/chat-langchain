@@ -1,6 +1,9 @@
 import type { Message } from "ai/react";
 
-export function ChatMessageBubble(props: { message: Message, aiEmoji?: string }) {
+export function ChatMessageBubble(props: {
+  message: Message;
+  aiEmoji?: string;
+}) {
   const colorClassName =
     props.message.role === "user" ? "bg-sky-600" : "bg-slate-50 text-black";
   const alignmentClassName =
@@ -8,9 +11,13 @@ export function ChatMessageBubble(props: { message: Message, aiEmoji?: string })
   const prefix = props.message.role === "user" ? "🧑" : props.aiEmoji;
   return (
     <div
-      className={`${alignmentClassName} ${colorClassName} rounded px-4 py-2 max-w-[80%] mb-8 inline-block whitespace-pre-wrap`}
+      className={`${alignmentClassName} ${colorClassName} rounded px-4 py-2 max-w-[80%] mb-8 flex`}
     >
-        {prefix} <div dangerouslySetInnerHTML={{ __html: props.message.content }}></div>
+      <div className="mr-2">{prefix}</div>
+      <div
+        className="whitespace-pre-wrap"
+        dangerouslySetInnerHTML={{ __html: props.message.content }}
+      ></div>
     </div>
   );
 }
