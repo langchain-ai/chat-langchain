@@ -11,7 +11,7 @@ export default function Home() {
         <li className="text-l">
           🤝
           <span className="ml-2">
-            This is a simple chatbot over LangChain's{" "}
+            This is a simple chatbot over LangChain&apos;s{" "}
             <a href="https://python.langchain.com/" target="_blank">
               Python Documentation.
             </a>{" "}
@@ -67,7 +67,7 @@ export default function Home() {
         <li className="text-l">
           👇
           <span className="ml-2">
-            Begin by asking, "Show me how to use a RecursiveUrlLoader?" or another
+            Begin by asking, &quot;Show me how to use a RecursiveUrlLoader?&quot; or another
             question below!
           </span>
         </li>
