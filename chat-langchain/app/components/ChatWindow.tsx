@@ -130,7 +130,7 @@ export function ChatWindow(props: {
     if (feedback !== null) return;
 
     setFeedback(score);
-    fetch("http://0.0.0.0:8080/feedback", {
+    fetch("https://chat-langchain.fly.dev/feedback", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -161,7 +161,7 @@ export function ChatWindow(props: {
 
   const viewTrace = () => {
     console.log("IN VIEW TRACE")
-    fetch("http://0.0.0.0:8080/get_trace", {
+    fetch("https://chat-langchain.fly.dev/get_trace", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
