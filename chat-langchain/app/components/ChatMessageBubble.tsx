@@ -11,7 +11,7 @@ export function ChatMessageBubble(props: {
   const prefix = props.message.role === "user" ? "🧑" : props.aiEmoji;
   return (
     <div
-      className={`${alignmentClassName} ${colorClassName} rounded px-4 py-2 max-w-[80%] mb-8 flex`}
+      className={`${alignmentClassName} ${colorClassName} rounded px-4 py-2 max-w-[80%] mb-8 flex break-words`}
     >
       <div className="mr-2">{prefix}</div>
       <div

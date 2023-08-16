@@ -87,7 +87,7 @@ export function ChatWindow(props: {
           validLanguage || "plaintext",
           code
         ).value;
-        return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; word-wrap: break-word;"><code class="${language}" style="color: #d6e2ef;">${highlightedCode}</code></pre>`;
+        return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; display: block; line-height: 1.2"><code class="${language}" style="color: #d6e2ef; font-size: 12px; ">${highlightedCode}</code></pre>`;
       };
       marked.setOptions({ renderer });
 
