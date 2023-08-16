@@ -49,15 +49,6 @@ _MODEL_MAP = {
     "anthropic": "claude-instant-v1-100k",
 }
 
-def _process_chat_history(chat_history):
-    processed_chat_history = []
-    for chat in chat_history:
-        if 'question' in chat:
-            processed_chat_history.append(HumanMessage(content=chat.pop('question')))
-        if 'result' in chat:
-            processed_chat_history.append(AIMessage(content=chat.pop('result')))
-    return processed_chat_history
-
 def create_chain(
     retriever: BaseRetriever,
     model_provider: Union[Literal["openai"], Literal["anthropic"]],
@@ -67,61 +58,74 @@ def create_chain(
 ) -> Runnable:
     model_name = model or _MODEL_MAP[model_provider]
     model = _PROVIDER_MAP[model_provider](model=model_name, temperature=temperature)
-        
-    _template = """Given the following chat history and a follow up question, respond with a standalone question with all the necessary context to understand what the user is truly asking.
+    
+    _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
     Chat History:
     {chat_history}
     Follow Up Input: {question}
     Standalone Question:"""
     
+    
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
     
-    _inputs = RunnableMap(
-        {
-            "standalone_question": {
-                "question": lambda x: x["question"],
-                "chat_history": lambda x: _process_chat_history(x['chat_history'])
-            } | CONDENSE_QUESTION_PROMPT | model | StrOutputParser(),
-            "chat_history": lambda x: _process_chat_history(x['chat_history']),
-        }
-    )
-
-    _template = """You are an expert programmer, tasked to answer any question about Langchain. Be as helpful as possible. 
+    _template = """You are a helpful AI assistant. Use the following pieces of context to answer the question at the end.
+    If you don't know the answer, just say you don't know. DO NOT try to make up an answer.
+    If the question is not related to the context, politely respond that you are tuned to only answer questions that are related to the context
     
     Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
     <context>
         {context} 
     <context/>"""
-    
-    if len(chat_history) > 1:
+
+    if chat_history:
+        _inputs = RunnableMap(
+                {
+                    "standalone_question": {
+                        "question": lambda x: x["question"],
+                        "chat_history": lambda x: x["chat_history"],
+                    } | CONDENSE_QUESTION_PROMPT | model | StrOutputParser(),
+                    "question": lambda x: x["question"],
+                    "chat_history": lambda x: x["chat_history"],
+                }
+            )
+        _context = {
+            "context": itemgetter("standalone_question") | retriever,
+            "question": lambda x: x["question"], 
+            "chat_history": lambda x: x["chat_history"],
+        }
         prompt = ChatPromptTemplate.from_messages([
             ("system", _template),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{question}"),
         ])
     else:
+        _inputs = RunnableMap(
+            {
+                "question": lambda x: x["question"],
+                "chat_history": lambda x: x["chat_history"],
+            }
+        )
+        _context = {
+            "context": itemgetter("question") | retriever,
+            "question": lambda x: x["question"], 
+            "chat_history": lambda x: x["chat_history"],
+        }
         prompt = ChatPromptTemplate.from_messages([
             ("system", _template),
             ("human", "{question}"),
         ])
-
     
-    _context = {
-        "context": itemgetter("standalone_question") | retriever,
-        "question": lambda x: x["standalone_question"], 
-        "chat_history": lambda x: x["chat_history"]
-    }
+
     
     chain = (
         _inputs
         | _context
         | prompt 
-        | model 
+        | ChatOpenAI(model="gpt-4", temperature=temperature)
     )
     
     return chain
-
 
 def _get_retriever():
     WEAVIATE_URL = os.environ["WEAVIATE_URL"]
@@ -143,6 +147,15 @@ def _get_retriever():
     )
     return weaviate_client.as_retriever(search_kwargs=dict(k=10))
 
+def _process_chat_history(chat_history):
+    processed_chat_history = []
+    for chat in chat_history:
+        if 'question' in chat:
+            processed_chat_history.append(HumanMessage(content=chat.pop('question')))
+        if 'result' in chat:
+            processed_chat_history.append(AIMessage(content=chat.pop('result')))
+    return processed_chat_history
+    
 @app.post("/chat")
 async def chat_endpoint(request: Request):
     global run_id, access_counter
@@ -156,6 +169,7 @@ async def chat_endpoint(request: Request):
     chat_history = data.get("history", [])
 
     retriever = _get_retriever()
+    chat_history = _process_chat_history(chat_history)
     # source_docs = retriever.invoke(question) # opportunity to return source documents
     # context = [doc.page_content for doc in source_docs]
              
