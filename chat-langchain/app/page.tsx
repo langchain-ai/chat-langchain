@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Chat from "../app/components/chat";
 import { ChatWindow } from "../app/components/ChatWindow";
 import { ToastContainer } from "react-toastify";
 

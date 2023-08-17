@@ -120,6 +120,7 @@ def create_chain(
         | _context
         | prompt 
         | ChatOpenAI(model="gpt-4", temperature=temperature)
+        | StrOutputParser()
     )
     
     return chain
@@ -133,7 +134,6 @@ def _get_retriever():
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
-    # print(client.query.aggregate("LangChain_idx").with_meta_count().do())
     weaviate_client = Weaviate(
         client=client,
         index_name="LangChain_idx",
@@ -180,9 +180,9 @@ async def chat_endpoint(request: Request):
         result = ""
         try:
             async for s in qa_chain.astream({"question": question, "chat_history": chat_history}, config=runnable_config):
-                print(s.content, end="", flush=True)
-                result += s.content
-                yield s.content
+                print(s, end="", flush=True)
+                result += s
+                yield s
 
         except Exception as e:
             logging.error(e)

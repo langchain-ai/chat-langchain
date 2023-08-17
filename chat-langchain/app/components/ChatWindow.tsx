@@ -8,9 +8,6 @@ import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-
 export function ChatWindow(props: {
   endpoint: string;
   emptyStateComponent: React.ReactElement;
@@ -194,11 +191,14 @@ export function ChatWindow(props: {
         {messages.length > 0
           ? [...messages]
               .reverse()
-              .map((m) => (
+              .map((m, index) => (
                 <ChatMessageBubble
                   key={m.id}
                   message={{ id: m.id, content: m.message, role: m.role }}
                   aiEmoji="🦜"
+                  sendFeedback={sendFeedback}
+                  feedback={feedback}
+                  isMostRecent={index === 0}
                 ></ChatMessageBubble>
               ))
           : emptyStateComponent}
@@ -231,38 +231,6 @@ export function ChatWindow(props: {
           <option value="openai">OpenAI</option>
           <option value="anthropic">Anthropic</option>
         </select>
-        <button
-          type="button"
-          className={`w-16 sm:w-auto text-white border rounded p-2 mr-1 hover:border-green-400 ${
-            feedback === 1 ? "bg-green-100" : ""
-          }`}
-          onClick={() => {
-            if (feedback === null && hasInteracted) {
-              sendFeedback(1);
-            } else {
-              toast.error("You have already provided your feedback.");
-            }
-          }}
-          id="upButton"
-        >
-          👍
-        </button>
-        <button
-          type="button"
-          className={`w-16 sm:w-auto text-white border rounded p-2 mr-2 hover:border-red-400 ${
-            feedback === 0 ? "bg-red-100" : ""
-          }`}
-          onClick={() => {
-            if (feedback === null && hasInteracted) {
-              sendFeedback(0);
-            } else {
-              toast.error("You have already provided your feedback.");
-            }
-          }}
-          id="downButton"
-        >
-          👎
-        </button>
         <button
           type="submit"
           className="flex-shrink p-2 w-16 sm:w-auto bg-sky-600 rounded"
