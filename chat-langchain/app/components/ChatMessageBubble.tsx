@@ -10,6 +10,7 @@ export function ChatMessageBubble(props: {
   feedback: number | null;
   sendFeedback: (feedback: 0 | 1) => void;
   isMostRecent: boolean;
+  messageCompleted: boolean;
 }) {
   const colorClassName =
     props.message.role === "user" ? "bg-sky-600" : "bg-slate-50 text-black";
@@ -56,18 +57,20 @@ export function ChatMessageBubble(props: {
   };
 
   return (
+    <div className="mb-8">
     <div
-      className={`${alignmentClassName} ${colorClassName} ${feedbackColor} rounded px-4 py-2 max-w-[80%] mb-8 flex break-words`}
+      className={`${alignmentClassName} ${colorClassName} ${feedbackColor} rounded px-4 py-2 max-w-[80%] mb-1 flex break-words`}
     >
       <div className="mr-2">{prefix}</div>
       <div
         className="whitespace-pre-wrap"
         dangerouslySetInnerHTML={{ __html: props.message.content }}
       ></div>
-      {props.message.role !== "user" && props.isMostRecent && (
-        <div className="relative flex space-x-4 items-start translate-y-[-35px]">
+    </div>
+    {props.message.role !== "user" && props.isMostRecent && props.messageCompleted && (
+        <div className="relative flex space-x-1 items-start justify-end">
           <button
-            className={`top-0 text-sm rounded ${props.feedback === null ? "hover:bg-green-200" : ""}`}
+            className={`text-sm rounded ${props.feedback === null ? "hover:bg-green-200" : ""}`}
             id="upButton"
             type="button"
             onClick={() => {
@@ -83,7 +86,7 @@ export function ChatMessageBubble(props: {
             👍
           </button>
           <button
-            className={`absolute top-0 ml-6 text-sm rounded ${props.feedback === null ? "hover:bg-red-200" : ""}`}
+            className={`text-sm rounded ${props.feedback === null ? "hover:bg-red-200" : ""}`}
             id="downButton"
             type="button"
             onClick={() => {

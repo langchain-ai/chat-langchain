@@ -184,6 +184,9 @@ export function ChatWindow(props: {
       <h2 className={`${messages.length > 0 ? "" : "hidden"} text-2xl mb-1`}>
         {titleText}
       </h2>
+      <h4 className={`${messages.length > 0 ? "" : "hidden"} text-sm mb-4`}>
+        We appreciate feedback!
+        </h4>
       <div
         className="flex flex-col-reverse w-full mb-2 overflow-auto"
         ref={messageContainerRef}
@@ -199,6 +202,7 @@ export function ChatWindow(props: {
                   sendFeedback={sendFeedback}
                   feedback={feedback}
                   isMostRecent={index === 0}
+                  messageCompleted={!isLoading}
                 ></ChatMessageBubble>
               ))
           : emptyStateComponent}
@@ -215,7 +219,7 @@ export function ChatWindow(props: {
         </div>
 
       <form onSubmit={sendMessage} className="flex w-full">
-        <input
+        <textarea
           className="flex-grow mr-2 p-4 rounded"
           placeholder={placeholder}
           onChange={(e) => setInput(e.target.value)}
@@ -224,7 +228,7 @@ export function ChatWindow(props: {
         />
         <select
           id="modelType"
-          className="bg-gray-800 text-white rounded p-2 mr-2 w-full sm:w-auto"
+          className="bg-gray-800 text-white rounded p-2 mr-2 w-full sm:w-auto max-h-[40px]"
           value={model}
           onChange={(e) => setModel(e.target.value)}
         >
@@ -233,7 +237,7 @@ export function ChatWindow(props: {
         </select>
         <button
           type="submit"
-          className="flex-shrink p-2 w-16 sm:w-auto bg-sky-600 rounded"
+          className="flex-shrink p-2 w-16 sm:w-auto bg-sky-600 rounded max-h-[40px]"
         >
           <div
             role="status"
@@ -257,7 +261,7 @@ export function ChatWindow(props: {
             </svg>
             <span className="sr-only">Loading...</span>
           </div>
-          <span className={isLoading ? "hidden" : ""}>Send</span>
+          <span className={`${isLoading ? "hidden" : ""}`}>Send</span>
         </button>
       </form>
     </div>

@@ -136,7 +136,7 @@ def _get_retriever():
     )
     weaviate_client = Weaviate(
         client=client,
-        index_name="LangChain_idx",
+        index_name="LangChain_newest_idx",
         text_key="text",
         embedding=embeddings,
         by_text=False,
