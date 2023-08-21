@@ -70,8 +70,8 @@ def create_chain(
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
     
     _template = """
-    You are an expert programmer, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability.
-    
+    You are an expert programmer, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability. 
+    If you don't know the answer, just say "Hmm, I'm not sure." Don't try to make up an answer.
     Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
     <context>
         {context} 
@@ -142,7 +142,9 @@ def _get_retriever():
         by_text=False,
         attributes=["source"],
     )
-    return weaviate_client.as_retriever(search_kwargs=dict(k=10))
+    return weaviate_client.as_retriever(
+        search_kwargs={'score_threshold': 0.7}
+    )
 
 def _process_chat_history(chat_history):
     processed_chat_history = []

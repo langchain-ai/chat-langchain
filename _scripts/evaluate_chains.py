@@ -13,12 +13,15 @@ from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.memory import ConversationBufferMemory
 from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import Runnable
+from langchain.schema.runnable import Runnable, RunnableMap
+from langchain.schema.output_parser import StrOutputParser
 from langchain.smith import RunEvalConfig
 from langchain.vectorstores import Weaviate
+from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langsmith import Client
 from langsmith import RunEvaluator
 from langchain import load as langchain_load
+from operator import itemgetter
 import json
 
 _PROVIDER_MAP = {
@@ -31,98 +34,104 @@ _MODEL_MAP = {
     "anthropic": "claude-2",
 }
 
-
-def _get_prompt(prompt_type: str) -> prompts.BasePromptTemplate:
-    if prompt_type == "completion":
-        _template = """You are an expert programmer, tasked to answer any question about Langchain. Be as helpful as possible. 
-        
-Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
-<context>
-    {context} 
-<context/>
-                
-Conversation History:               
-{history}
-
-Answer the user's question to the best of your ability: {question}
-Helpful Answer:"""
-
-        return prompts.PromptTemplate(
-            input_variables=["history", "context", "question"], template=_template
-        )
-    else:
-        return prompts.ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    "You are an expert programmer, tasked with answering any question about Langchain. Be as helpful as possible.",
-                ),
-                prompts.MessagesPlaceholder(variable_name="history"),
-                ("human", "{question}"),
-                (
-                    "system",
-                    "Respond to the user's question as best and truthfully as you are able."
-                    " You can choose to use the following retrieved information if it is relevant.",
-                ),
-                ("system", "<retrieved_context>\n{context}\n</retrieved_context>"),
-            ]
-        )
-
-
-
 def create_chain(
     retriever: BaseRetriever,
     model_provider: Union[Literal["openai"], Literal["anthropic"]],
     chat_history: Optional[list] = None,
     model: Optional[str] = None,
     temperature: float = 0.0,
-    prompt_type: Union[Literal["chat"], Literal["completion"]] = "chat",
 ) -> Runnable:
     model_name = model or _MODEL_MAP[model_provider]
     model = _PROVIDER_MAP[model_provider](model=model_name, temperature=temperature)
+    
+    _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
-    prompt = _get_prompt(prompt_type)
-    return_messages = True if prompt_type == "chat" else False
+    Chat History:
+    {chat_history}
+    Follow Up Input: {question}
+    Standalone Question:"""
+    
+    
+    CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
+    
+    _template = """
+    You are an expert programmer, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability.
+    If you don't know the answer, just say "Hmm, I'm not sure." Don't try to make up an answer.
+    Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
+    <context>
+        {context} 
+    <context/>"""
 
-    memory = ConversationBufferMemory(
-        input_key="question", memory_key="history", return_messages=return_messages
-    )
-    chat_history_ = chat_history or []
-    for message in chat_history_:
-        memory.save_context(
-            {"question": message["question"]}, {"result": message["result"]}
+    if chat_history:
+        _inputs = RunnableMap(
+                {
+                    "standalone_question": {
+                        "question": lambda x: x["question"],
+                        "chat_history": lambda x: x["chat_history"],
+                    } | CONDENSE_QUESTION_PROMPT | model | StrOutputParser(),
+                    "question": lambda x: x["question"],
+                    "chat_history": lambda x: x["chat_history"],
+                }
+            )
+        _context = {
+            "context": itemgetter("standalone_question") | retriever,
+            "question": lambda x: x["question"], 
+            "chat_history": lambda x: x["chat_history"],
+        }
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", _template),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("human", "{question}"),
+        ])
+    else:
+        _inputs = RunnableMap(
+            {
+                "question": lambda x: x["question"],
+                "chat_history": lambda x: [],
+            }
         )
-
-    qa_chain = RetrievalQA.from_chain_type(
-        model,
-        chain_type="stuff",
-        retriever=retriever,
-        return_source_documents=True,
-        chain_type_kwargs={"prompt": prompt, "memory": memory},
+        _context = {
+            "context": itemgetter("question") | retriever,
+            "question": lambda x: x["question"], 
+            "chat_history": lambda x: [],
+        }
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", _template),
+            ("human", "{question}"),
+        ])
+    
+    chain = (
+        _inputs
+        | _context
+        | prompt 
+        | ChatOpenAI(model="gpt-4", temperature=temperature)
+        | StrOutputParser()
     )
-    return qa_chain
+    
+    return chain
 
 
 def _get_retriever():
     WEAVIATE_URL = os.environ["WEAVIATE_URL"]
     WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
-    embeddings = OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings(chunk_size=200)
     client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
-    print(client.query.aggregate("LangChain_idx").with_meta_count().do())
+    print(client.query.aggregate("LangChain_newest_idx").with_meta_count().do())
     weaviate_client = Weaviate(
         client=client,
-        index_name="LangChain_idx",
+        index_name="LangChain_newest_idx",
         text_key="text",
         embedding=embeddings,
         by_text=False,
         attributes=["source"],
     )
-    return weaviate_client.as_retriever(search_kwargs=dict(k=10))
-
+    return weaviate_client.as_retriever(
+        search_kwargs={'score_threshold': 0.7}
+    )
 
 class CustomHallucinationEvaluator(RunEvaluator):
 
@@ -163,10 +172,9 @@ if __name__ == "__main__":
         create_chain,
         retriever=retriever,
         model_provider=args.model_provider,
-        prompt_type=args.prompt_type,
     )
     chain = constructor()
-    eval_config = RunEvalConfig(evaluators=["qa"], prediction_key="result")
+    eval_config = RunEvalConfig(evaluators=["qa"], prediction_key="output")
     results = client.run_on_dataset(
         dataset_name=args.dataset_name,
         llm_or_chain_factory=constructor,
