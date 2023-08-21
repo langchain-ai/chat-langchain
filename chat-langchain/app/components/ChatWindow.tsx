@@ -44,6 +44,7 @@ export function ChatWindow(props: {
     if (isLoading) {
       return;
     }
+    if (input.trim() === "") return;
     setInput("");
     setHasInteracted(true);
     setMessages((prevMessages) => [
