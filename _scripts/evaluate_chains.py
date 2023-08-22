@@ -23,6 +23,12 @@ from langsmith import RunEvaluator
 from langchain import load as langchain_load
 from operator import itemgetter
 import json
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.retrievers import ParentDocumentRetriever
+from langchain.storage import InMemoryStore
+from langchain.storage import RedisStore, EncoderBackedStore
+from langchain.utilities.redis import get_client
+from langchain.schema.document import Document
 
 _PROVIDER_MAP = {
     "openai": ChatOpenAI,
@@ -55,8 +61,8 @@ def create_chain(
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
     
     _template = """
-    You are an expert programmer, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability.
-    If you don't know the answer, just say "Hmm, I'm not sure." Don't try to make up an answer.
+    You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
+    If you really don't know the answer, just say "Hmm, I'm not sure." Don't try to make up an answer.
     Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
     <context>
         {context} 
@@ -116,22 +122,59 @@ def _get_retriever():
     WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
     embeddings = OpenAIEmbeddings(chunk_size=200)
+    child_splitter = RecursiveCharacterTextSplitter(chunk_size=1000)
+    parent_splitter = RecursiveCharacterTextSplitter(chunk_size=2000)
+    
     client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
-    print(client.query.aggregate("LangChain_newest_idx").with_meta_count().do())
+    print("Index has this many vectors", client.query.aggregate("LangChain_parents_idx").with_meta_count().do())
     weaviate_client = Weaviate(
         client=client,
-        index_name="LangChain_newest_idx",
+        index_name="LangChain_parents_idx",
         text_key="text",
         embedding=embeddings,
         by_text=False,
-        attributes=["source"],
+        attributes=["source", "doc_id"],
     )
-    return weaviate_client.as_retriever(
-        search_kwargs={'score_threshold': 0.7}
+
+    def key_encoder(key: int) -> str:
+        return json.dumps(key)
+
+    def value_serializer(value: float) -> str:
+        if isinstance(value, Document):
+            value = {
+                'page_content': value.page_content,
+                'metadata': value.metadata,
+            }
+        return json.dumps(value)
+
+    def value_deserializer(serialized_value: str) -> Document:
+        value = json.loads(serialized_value)
+        if 'page_content' in value and 'metadata' in value:
+            return Document(page_content=value['page_content'], metadata=value['metadata'])
+        else:
+            return value
+
+    client = get_client('redis://default:c16f99d1cc694b7fb9380db03abbe341@fly-chat-langchain.upstash.io')
+    abstract_store = RedisStore(client=client)
+    store = EncoderBackedStore(
+        store=abstract_store,
+        key_encoder=key_encoder,
+        value_serializer=value_serializer,
+        value_deserializer=value_deserializer
     )
+    
+    retriever = ParentDocumentRetriever(
+        vectorstore=weaviate_client, 
+        docstore=store, 
+        child_splitter=child_splitter,
+        parent_splitter=parent_splitter,
+        search_kwargs={'k': 10}
+    )
+    
+    return retriever
 
 class CustomHallucinationEvaluator(RunEvaluator):
 
