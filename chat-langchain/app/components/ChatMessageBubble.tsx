@@ -15,7 +15,7 @@ export function ChatMessageBubble(props: {
   const colorClassName =
     props.message.role === "user" ? "bg-sky-600" : "bg-slate-50 text-black";
   const alignmentClassName =
-    props.message.role === "user" ? "mr-auto" : "ml-auto";
+    props.message.role === "user" ? "ml-auto" : "mr-auto";
   const prefix = props.message.role === "user" ? "🧑" : props.aiEmoji;
 
   const [feedbackColor, setFeedbackColor] = useState("");
@@ -68,7 +68,7 @@ export function ChatMessageBubble(props: {
       ></div>
     </div>
     {props.message.role !== "user" && props.isMostRecent && props.messageCompleted && (
-        <div className="relative flex space-x-1 items-start justify-end">
+        <div className="relative flex space-x-1 items-start justify-start">
           <button
             className={`text-sm rounded ${props.feedback === null ? "hover:bg-green-200" : ""}`}
             id="upButton"
