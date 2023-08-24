@@ -36,8 +36,7 @@ export function ChatWindow(props: {
     titleText = "An LLM",
   } = props;
 
-  function sendMessage(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function sendMessage() {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
     }
@@ -220,13 +219,19 @@ export function ChatWindow(props: {
         </div>
 
       <form onSubmit={sendMessage} className="flex w-full">
-        <textarea
-          className="flex-grow mr-2 p-4 rounded"
-          placeholder={placeholder}
-          onChange={(e) => setInput(e.target.value)}
-          value={input}
-          style={{minWidth: '50px'}}
-        />
+      <textarea
+        className="flex-grow mr-2 p-2 rounded max-h-[40px]"
+        placeholder={placeholder}
+        onChange={(e) => setInput(e.target.value)}
+        value={input}
+        style={{minWidth: '50px'}}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+          }
+        }}
+      />
         <select
           id="modelType"
           className="bg-gray-800 text-white rounded p-2 mr-2 w-full sm:w-auto max-h-[40px]"

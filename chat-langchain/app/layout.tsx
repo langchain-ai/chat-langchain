@@ -17,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div className="flex flex-col m-12 h-[calc(100vh-6rem)]">
+        <div className="flex flex-col h-[calc(100vh-6rem)] m-[calc(2rem)]">
           {children}
         </div>
       </body>
