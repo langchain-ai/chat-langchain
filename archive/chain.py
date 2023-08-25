@@ -12,8 +12,7 @@ from langchain.chains.conversation.memory import ConversationBufferMemory
 from langchain.chains.question_answering import load_qa_chain
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import FewShotPromptTemplate, PromptTemplate
-from langchain.prompts.example_selector import \
-    SemanticSimilarityExampleSelector
+from langchain.prompts.example_selector import SemanticSimilarityExampleSelector
 from langchain.vectorstores import FAISS, Weaviate
 from pydantic import BaseModel
 

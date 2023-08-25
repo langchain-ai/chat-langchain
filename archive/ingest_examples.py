@@ -104,8 +104,7 @@ documents = [
         "answer": "Can you provide a code snippet for creating an Agent with a custom LLMChain?",
     },
 ]
-from langchain.prompts.example_selector.semantic_similarity import \
-    sorted_values
+from langchain.prompts.example_selector.semantic_similarity import sorted_values
 
 for d in documents:
     d["content"] = " ".join(sorted_values(d))
@@ -206,8 +205,7 @@ documents = [
         "sources": "bar.html",
     },
 ]
-from langchain.prompts.example_selector.semantic_similarity import \
-    sorted_values
+from langchain.prompts.example_selector.semantic_similarity import sorted_values
 
 for d in documents:
     d["content"] = " ".join(sorted_values(d))
