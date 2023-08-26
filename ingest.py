@@ -6,18 +6,13 @@ from git import Repo
 import shutil
 
 from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
-from langchain.embeddings import OpenAIEmbeddings, CohereEmbeddings
-from langchain.schema import Document
+from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Weaviate
 from langchain.document_transformers import Html2TextTransformer
 from langchain.text_splitter import Language
 from langchain.document_loaders.generic import GenericLoader
 from langchain.document_loaders.parsers import LanguageParser
-from langchain.storage import RedisStore, EncoderBackedStore
-from langchain.retrievers import ParentDocumentRetriever
-from langchain.utilities.redis import get_client
-import json
 
 WEAVIATE_URL=os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY=os.environ["WEAVIATE_API_KEY"]

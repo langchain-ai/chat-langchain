@@ -23,12 +23,6 @@ from langsmith import RunEvaluator
 from langchain import load as langchain_load
 from operator import itemgetter
 import json
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.retrievers import ParentDocumentRetriever
-from langchain.storage import InMemoryStore
-from langchain.storage import RedisStore, EncoderBackedStore
-from langchain.utilities.redis import get_client
-from langchain.schema.document import Document
 
 _PROVIDER_MAP = {
     "openai": ChatOpenAI,
