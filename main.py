@@ -19,12 +19,6 @@ from langchain.schema.output_parser import StrOutputParser
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from operator import itemgetter
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.retrievers import ParentDocumentRetriever
-from langchain.storage import RedisStore, EncoderBackedStore
-from langchain.utilities.redis import get_client
-import json
-from langchain.schema.document import Document
 
 client = Client()
 
