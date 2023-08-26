@@ -52,6 +52,7 @@ _MODEL_MAP = {
     "anthropic": "claude-instant-v1-100k",
 }
 
+
 def create_chain(
     retriever: BaseRetriever,
     model_provider: Union[Literal["openai"], Literal["anthropic"]],
@@ -61,17 +62,16 @@ def create_chain(
 ) -> Runnable:
     model_name = model or _MODEL_MAP[model_provider]
     model = _PROVIDER_MAP[model_provider](model=model_name, temperature=temperature)
-    
+
     _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
     Chat History:
     {chat_history}
     Follow Up Input: {question}
     Standalone Question:"""
-    
 
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
-    
+
     _template = """
     You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
     If you really don't know the answer, just say "Hmm, I'm not sure." Don't try to make up an answer.
@@ -82,25 +82,30 @@ def create_chain(
 
     if chat_history:
         _inputs = RunnableMap(
-                {
-                    "standalone_question": {
-                        "question": lambda x: x["question"],
-                        "chat_history": lambda x: x["chat_history"],
-                    } | CONDENSE_QUESTION_PROMPT | model | StrOutputParser(),
+            {
+                "standalone_question": {
                     "question": lambda x: x["question"],
                     "chat_history": lambda x: x["chat_history"],
                 }
-            )
+                | CONDENSE_QUESTION_PROMPT
+                | model
+                | StrOutputParser(),
+                "question": lambda x: x["question"],
+                "chat_history": lambda x: x["chat_history"],
+            }
+        )
         _context = {
             "context": itemgetter("standalone_question") | retriever,
-            "question": lambda x: x["question"], 
+            "question": lambda x: x["question"],
             "chat_history": lambda x: x["chat_history"],
         }
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", _template),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{question}"),
-        ])
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", _template),
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("human", "{question}"),
+            ]
+        )
     else:
         _inputs = RunnableMap(
             {
@@ -110,23 +115,26 @@ def create_chain(
         )
         _context = {
             "context": itemgetter("question") | retriever,
-            "question": lambda x: x["question"], 
+            "question": lambda x: x["question"],
             "chat_history": lambda x: x["chat_history"],
         }
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", _template),
-            ("human", "{question}"),
-        ])
-    
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", _template),
+                ("human", "{question}"),
+            ]
+        )
+
     chain = (
         _inputs
         | _context
-        | prompt 
+        | prompt
         | ChatOpenAI(model="gpt-4", temperature=temperature)
         | StrOutputParser()
     )
-    
+
     return chain
+
 
 def _get_retriever():
     WEAVIATE_URL = os.environ["WEAVIATE_URL"]
@@ -135,7 +143,7 @@ def _get_retriever():
     embeddings = OpenAIEmbeddings(chunk_size=200)
     child_splitter = RecursiveCharacterTextSplitter(chunk_size=1000)
     parent_splitter = RecursiveCharacterTextSplitter(chunk_size=2000)
-    
+
     client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
@@ -155,46 +163,50 @@ def _get_retriever():
     def value_serializer(value: float) -> str:
         if isinstance(value, Document):
             value = {
-                'page_content': value.page_content,
-                'metadata': value.metadata,
+                "page_content": value.page_content,
+                "metadata": value.metadata,
             }
         return json.dumps(value)
 
     def value_deserializer(serialized_value: str) -> Document:
         value = json.loads(serialized_value)
-        if 'page_content' in value and 'metadata' in value:
-            return Document(page_content=value['page_content'], metadata=value['metadata'])
+        if "page_content" in value and "metadata" in value:
+            return Document(
+                page_content=value["page_content"], metadata=value["metadata"]
+            )
         else:
             return value
 
-    client = get_client('redis://localhost:6379')
+    client = get_client("redis://localhost:6379")
     abstract_store = RedisStore(client=client)
     store = EncoderBackedStore(
         store=abstract_store,
         key_encoder=key_encoder,
         value_serializer=value_serializer,
-        value_deserializer=value_deserializer
+        value_deserializer=value_deserializer,
     )
-    
+
     retriever = ParentDocumentRetriever(
-        vectorstore=weaviate_client, 
-        docstore=store, 
+        vectorstore=weaviate_client,
+        docstore=store,
         child_splitter=child_splitter,
         parent_splitter=parent_splitter,
-        search_kwargs={'k': 10}
+        search_kwargs={"k": 10},
     )
-    
+
     return retriever
-    
+
+
 def _process_chat_history(chat_history):
     processed_chat_history = []
     for chat in chat_history:
-        if 'question' in chat:
-            processed_chat_history.append(HumanMessage(content=chat.pop('question')))
-        if 'result' in chat:
-            processed_chat_history.append(AIMessage(content=chat.pop('result')))
+        if "question" in chat:
+            processed_chat_history.append(HumanMessage(content=chat.pop("question")))
+        if "result" in chat:
+            processed_chat_history.append(AIMessage(content=chat.pop("result")))
     return processed_chat_history
-    
+
+
 @app.post("/chat")
 async def chat_endpoint(request: Request):
     global run_id, access_counter
@@ -206,13 +218,14 @@ async def chat_endpoint(request: Request):
     question = data.get("message")
     model_type = data.get("model")
     chat_history = data.get("history", [])
+    conversation_id = data.get("conversation_id")
 
     retriever = _get_retriever()
     chat_history = _process_chat_history(chat_history)
-    
+
     # source_docs = retriever.invoke(question) # opportunity to return source documents
     # context = [doc.page_content for doc in source_docs]
-             
+
     qa_chain = create_chain(
         retriever=retriever, model_provider=model_type, chat_history=chat_history
     )
@@ -221,7 +234,13 @@ async def chat_endpoint(request: Request):
     async def stream():
         result = ""
         try:
-            async for s in qa_chain.astream({"question": question, "chat_history": chat_history}, config=runnable_config):
+            async for s in qa_chain.astream(
+                {"question": question, "chat_history": chat_history},
+                config={
+                    **runnable_config,
+                    "metadata": {"conversation_id": conversation_id},
+                },
+            ):
                 print(s, end="", flush=True)
                 result += s
                 yield s
