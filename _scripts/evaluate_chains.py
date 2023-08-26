@@ -122,59 +122,19 @@ def _get_retriever():
     WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
     embeddings = OpenAIEmbeddings(chunk_size=200)
-    child_splitter = RecursiveCharacterTextSplitter(chunk_size=1000)
-    parent_splitter = RecursiveCharacterTextSplitter(chunk_size=2000)
-    
     client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
-    print("Index has this many vectors", client.query.aggregate("LangChain_parents_idx").with_meta_count().do())
     weaviate_client = Weaviate(
         client=client,
-        index_name="LangChain_parents_idx",
+        index_name="LangChain_test_idx",
         text_key="text",
         embedding=embeddings,
         by_text=False,
-        attributes=["source", "doc_id"],
+        attributes=["source"],
     )
-
-    def key_encoder(key: int) -> str:
-        return json.dumps(key)
-
-    def value_serializer(value: float) -> str:
-        if isinstance(value, Document):
-            value = {
-                'page_content': value.page_content,
-                'metadata': value.metadata,
-            }
-        return json.dumps(value)
-
-    def value_deserializer(serialized_value: str) -> Document:
-        value = json.loads(serialized_value)
-        if 'page_content' in value and 'metadata' in value:
-            return Document(page_content=value['page_content'], metadata=value['metadata'])
-        else:
-            return value
-
-    client = get_client('redis://default:c16f99d1cc694b7fb9380db03abbe341@fly-chat-langchain.upstash.io')
-    abstract_store = RedisStore(client=client)
-    store = EncoderBackedStore(
-        store=abstract_store,
-        key_encoder=key_encoder,
-        value_serializer=value_serializer,
-        value_deserializer=value_deserializer
-    )
-    
-    retriever = ParentDocumentRetriever(
-        vectorstore=weaviate_client, 
-        docstore=store, 
-        child_splitter=child_splitter,
-        parent_splitter=parent_splitter,
-        search_kwargs={'k': 10}
-    )
-    
-    return retriever
+    return weaviate_client.as_retriever(search_kwargs=dict(k=10))
 
 class CustomHallucinationEvaluator(RunEvaluator):
 
