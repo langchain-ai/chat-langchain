@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import type { FormEvent } from "react";
+import { v4 as uuidv4 } from "uuid";
 import { ChatMessageBubble } from "../components/ChatMessageBubble";
 import { marked } from "marked";
 import { Renderer } from "marked";
@@ -26,8 +27,12 @@ export function ChatWindow(props: {
   const [model, setModel] = useState("openai");
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<number | null>(null);
+
+  const [conversationId, setConversationId] = useState<string | null>(uuidv4());
   const [hasInteracted, setHasInteracted] = useState(false);
-  const [chatHistory, setChatHistory] = useState<{question: string, result: string}[]>([]);
+  const [chatHistory, setChatHistory] = useState<
+    { question: string; result: string }[]
+  >([]);
 
   const {
     endpoint,
@@ -61,6 +66,7 @@ export function ChatWindow(props: {
         message: input,
         model: model,
         history: chatHistory,
+        conversation_id: conversationId,
       }),
     }).then((response) => {
       if (!response.body) {
@@ -73,7 +79,7 @@ export function ChatWindow(props: {
       let messageIndex: number | null = null;
 
       let renderer = new Renderer();
-      renderer.paragraph = function(text) {
+      renderer.paragraph = function (text) {
         return text;
       };
       renderer.code = function (code, language) {
@@ -89,38 +95,45 @@ export function ChatWindow(props: {
       marked.setOptions({ renderer });
 
       reader
-      .read()
-      .then(function processText(
-        res: ReadableStreamReadResult<Uint8Array>
-      ): Promise<void> {
-        const { done, value } = res;
-        if (done) {
-          console.log("Stream complete");
-          setChatHistory(prevChatHistory => [...prevChatHistory, {question: input, result: accumulatedMessage}]);
-          return Promise.resolve();
-        }
-    
-        let result = decoder.decode(value);
-        accumulatedMessage += result;
-        let parsedResult = marked.parse(accumulatedMessage);
-    
-        setMessages((prevMessages) => {
+        .read()
+        .then(function processText(
+          res: ReadableStreamReadResult<Uint8Array>
+        ): Promise<void> {
+          const { done, value } = res;
+          if (done) {
+            console.log("Stream complete");
+            setChatHistory((prevChatHistory) => [
+              ...prevChatHistory,
+              { question: input, result: accumulatedMessage },
+            ]);
+            return Promise.resolve();
+          }
+
+          let result = decoder.decode(value);
+          accumulatedMessage += result;
+          let parsedResult = marked.parse(accumulatedMessage);
+
+          setMessages((prevMessages) => {
             let newMessages = [...prevMessages];
             if (messageIndex === null) {
               messageIndex = newMessages.length;
-              newMessages.push({ id: Math.random().toString(), message: parsedResult.trim(), role: "assistant" });
+              newMessages.push({
+                id: Math.random().toString(),
+                message: parsedResult.trim(),
+                role: "assistant",
+              });
             } else {
               newMessages[messageIndex].message = parsedResult.trim();
             }
             return newMessages;
           });
 
-        setIsLoading(false);
-        return reader.read().then(processText);
-      })
-      .catch((error) => {
-        console.error("Error:", error);
-      });
+          setIsLoading(false);
+          return reader.read().then(processText);
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+        });
     });
   }
 
@@ -186,7 +199,7 @@ export function ChatWindow(props: {
       </h2>
       <h4 className={`${messages.length > 0 ? "" : "hidden"} text-sm mb-4`}>
         We appreciate feedback!
-        </h4>
+      </h4>
       <div
         className="flex flex-col-reverse w-full mb-2 overflow-auto"
         ref={messageContainerRef}
@@ -209,29 +222,29 @@ export function ChatWindow(props: {
       </div>
 
       <div className="flex w-full flex-row-reverse mb-2">
-            <button
-              type="button"
-              className="text-xs border rounded p-1 float-right"
-              onClick={() => viewTrace()}
-            >
-              🛠️ view trace
-            </button>
-        </div>
+        <button
+          type="button"
+          className="text-xs border rounded p-1 float-right"
+          onClick={() => viewTrace()}
+        >
+          🛠️ view trace
+        </button>
+      </div>
 
       <form onSubmit={sendMessage} className="flex w-full">
-      <textarea
-        className="flex-grow mr-2 p-2 rounded max-h-[40px]"
-        placeholder={placeholder}
-        onChange={(e) => setInput(e.target.value)}
-        value={input}
-        style={{minWidth: '50px'}}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-          }
-        }}
-      />
+        <textarea
+          className="flex-grow mr-2 p-2 rounded max-h-[40px]"
+          placeholder={placeholder}
+          onChange={(e) => setInput(e.target.value)}
+          value={input}
+          style={{ minWidth: "50px" }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage();
+            }
+          }}
+        />
         <select
           id="modelType"
           className="bg-gray-800 text-white rounded p-2 mr-2 w-full sm:w-auto max-h-[40px]"
