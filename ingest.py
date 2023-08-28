@@ -31,7 +31,6 @@ def ingest_repo():
         parser=LanguageParser(language=Language.PYTHON, parser_threshold=500)
     )
     documents_repo = loader.load()
-    len(documents_repo)
 
     python_splitter = RecursiveCharacterTextSplitter.from_language(language=Language.PYTHON, 
                                                                 chunk_size=2000, 
@@ -55,10 +54,10 @@ def ingest_docs():
     ]
 
     documents = []
-    for url in urls:
-        loader = RecursiveUrlLoader(url=url, max_depth=2 if url == urls[0] else 8, extractor=lambda x: Soup(x, "lxml").text, prevent_outside=True)
-        temp_docs = loader.load()
-        temp_docs = [doc for i, doc in enumerate(temp_docs) if doc not in temp_docs[:i]]        
+    for j, url in enumerate(urls):
+        max_depth = 2 if j == 0 else 10
+        loader = RecursiveUrlLoader(url=url, max_depth=max_depth, extractor=lambda x: Soup(x, "lxml").text, prevent_outside=True)
+        temp_docs = loader.load()           
         documents += temp_docs
         print("Loaded", len(temp_docs), "documents from", url)
     
@@ -91,7 +90,7 @@ def ingest_docs():
     batch_size = 100 # to handle batch size limit 
     for i in range(0, len(docs_transformed), batch_size):
         batch = docs_transformed[i:i+batch_size]
-        Weaviate.from_documents(batch, embeddings, client=client, by_text=False, index_name="LangChain_newest_idx")
+        Weaviate.add_documents(batch, embeddings, client=client, by_text=False, index_name="LangChain_newest_idx")
 
     print("LangChain now has this many vectors", client.query.aggregate("LangChain_newest_idx").with_meta_count().do())
     
