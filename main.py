@@ -124,7 +124,7 @@ def create_chain(
         _inputs
         | _context
         | prompt
-        | ChatOpenAI(model="gpt-4", temperature=temperature)
+        | model
         | StrOutputParser()
     )
 
