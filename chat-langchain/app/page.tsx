@@ -44,14 +44,14 @@ export default function Home() {
           </span>
         </li>
         <li className="text-l">
-          💻
+          🦾
           <span className="ml-2">
             You can find the prompt and model logic which uses expression language
             and chat history in <code> main.py</code>.
           </span>
         </li>
         <li className="text-l">
-          💻
+          👣
           <span className="ml-2">
             Feedback and Tracing are additional neat features, thanks to {" "}
             <a href="https://smith.langchain.com" target="_blank">LangSmith</a>.

@@ -9,6 +9,9 @@ import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 export function ChatWindow(props: {
   endpoint: string;
   emptyStateComponent: React.ReactElement;
@@ -33,6 +36,7 @@ export function ChatWindow(props: {
   const [chatHistory, setChatHistory] = useState<
     { question: string; result: string }[]
   >([]);
+  const [mode, setMode] = useState("novice");
 
   const {
     endpoint,
@@ -60,23 +64,24 @@ export function ChatWindow(props: {
     fetch(endpoint, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+          "Content-Type": "application/json",
       },
       body: JSON.stringify({
         message: input,
         model: model,
         history: chatHistory,
         conversation_id: conversationId,
+        mode: mode,
       }),
-    }).then((response) => {
-      if (!response.body) {
-        throw new Error("Response body is null");
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
+  }).then(response => { 
+    if (!response.body) {
+      throw new Error("Response body is null");
+    }
+    const reader = response.body.getReader();
+    let decoder = new TextDecoder();
 
-      let accumulatedMessage = "";
-      let messageIndex: number | null = null;
+    let accumulatedMessage = "";
+    let messageIndex: number | null = null;
 
       let renderer = new Renderer();
       renderer.paragraph = function (text) {
@@ -135,7 +140,8 @@ export function ChatWindow(props: {
           console.error("Error:", error);
         });
     });
-  }
+})
+}
 
   const sendFeedback = (score: number | null) => {
     if (feedback !== null) return;
@@ -177,11 +183,16 @@ export function ChatWindow(props: {
         "Content-Type": "application/json",
       },
     })
-      .then((response) => response.text())
+      .then((response) => response.json())
       .then((data) => {
-        console.log(data);
-        const url = data.replace(/['"]+/g, "");
-        window.open(url, "_blank");
+        if (data.code === 400 && data.result === "No chat session found") {
+          toast.error("Unable to view trace");
+          throw new Error("Unable to view trace");
+        } else {
+          console.log(data)
+          const url = data.replace(/['"]+/g, "");
+          window.open(url, "_blank");
+        }
       })
       .catch((error) => {
         console.error("Error:", error);
@@ -222,14 +233,23 @@ export function ChatWindow(props: {
       </div>
 
       <div className="flex w-full flex-row-reverse mb-2">
-        <button
-          type="button"
-          className="text-xs border rounded p-1 float-right"
-          onClick={() => viewTrace()}
-        >
-          🛠️ view trace
-        </button>
-      </div>
+            <button
+              type="button"
+              className="text-xs border rounded p-1 float-right"
+              onClick={() => viewTrace()}
+            >
+              🛠️ view trace
+            </button>
+            <div className="flex items-center mr-2">
+              <label htmlFor="modeToggle" className="mr-1 text-xs">Expert Mode</label>
+              <input
+                type="checkbox"
+                id="modeToggle"
+                className="toggle toggle-blue"
+                onChange={() => setMode(mode === "expert" ? "novice" : "expert")}
+              />
+            </div>
+        </div>
 
       <form onSubmit={sendMessage} className="flex w-full">
         <textarea
