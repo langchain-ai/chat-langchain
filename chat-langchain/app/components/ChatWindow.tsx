@@ -140,7 +140,6 @@ export function ChatWindow(props: {
           console.error("Error:", error);
         });
     });
-})
 }
 
   const sendFeedback = (score: number | null) => {

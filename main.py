@@ -120,11 +120,13 @@ def create_chain(
             ]
         )
 
+    final_model = "gpt-4" if model_provider == "openai" else "claude-2"
+    
     chain = (
         _inputs
         | _context
         | prompt
-        | model
+        | final_model
         | StrOutputParser()
     )
 
