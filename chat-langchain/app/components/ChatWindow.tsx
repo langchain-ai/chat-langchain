@@ -8,6 +8,9 @@ import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 export function ChatWindow(props: {
   endpoint: string;
   emptyStateComponent: React.ReactElement;
@@ -28,6 +31,7 @@ export function ChatWindow(props: {
   const [feedback, setFeedback] = useState<number | null>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [chatHistory, setChatHistory] = useState<{question: string, result: string}[]>([]);
+  const [mode, setMode] = useState("novice");
 
   const {
     endpoint,
@@ -55,74 +59,72 @@ export function ChatWindow(props: {
     fetch(endpoint, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+          "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        message: input,
-        model: model,
-        history: chatHistory,
+          message: input,
+          model: model,
+          history: chatHistory,
+          mode: mode,
       }),
-    }).then((response) => {
-      if (!response.body) {
-        throw new Error("Response body is null");
+  }).then(response => { 
+    if (!response.body) {
+      throw new Error("Response body is null");
+    }
+    const reader = response.body.getReader();
+    let decoder = new TextDecoder();
+
+    let accumulatedMessage = "";
+    let messageIndex: number | null = null;
+
+    let renderer = new Renderer();
+    renderer.paragraph = function(text) {
+      return text;
+    };
+    renderer.code = function (code, language) {
+      const validLanguage = hljs.getLanguage(language || "")
+        ? language
+        : "plaintext";
+      const highlightedCode = hljs.highlight(
+        validLanguage || "plaintext",
+        code
+      ).value;
+      return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; display: block; line-height: 1.2"><code class="${language}" style="color: #d6e2ef; font-size: 12px; ">${highlightedCode}</code></pre>`;
+    };
+    marked.setOptions({ renderer });
+
+    reader
+    .read()
+    .then(function processText(
+      res: ReadableStreamReadResult<Uint8Array>
+    ): Promise<void> {
+      const { done, value } = res;
+      if (done) {
+        console.log("Stream complete");
+        setChatHistory(prevChatHistory => [...prevChatHistory, {question: input, result: accumulatedMessage}]);
+        return Promise.resolve();
       }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
 
-      let accumulatedMessage = "";
-      let messageIndex: number | null = null;
+      let result = decoder.decode(value);
+      accumulatedMessage += result;
+      let parsedResult = marked.parse(accumulatedMessage);
 
-      let renderer = new Renderer();
-      renderer.paragraph = function(text) {
-        return text;
-      };
-      renderer.code = function (code, language) {
-        const validLanguage = hljs.getLanguage(language || "")
-          ? language
-          : "plaintext";
-        const highlightedCode = hljs.highlight(
-          validLanguage || "plaintext",
-          code
-        ).value;
-        return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; display: block; line-height: 1.2"><code class="${language}" style="color: #d6e2ef; font-size: 12px; ">${highlightedCode}</code></pre>`;
-      };
-      marked.setOptions({ renderer });
+      setMessages((prevMessages) => {
+          let newMessages = [...prevMessages];
+          if (messageIndex === null) {
+            messageIndex = newMessages.length;
+            newMessages.push({ id: Math.random().toString(), message: parsedResult.trim(), role: "assistant" });
+          } else {
+            newMessages[messageIndex].message = parsedResult.trim();
+          }
+          return newMessages;
+        });
 
-      reader
-      .read()
-      .then(function processText(
-        res: ReadableStreamReadResult<Uint8Array>
-      ): Promise<void> {
-        const { done, value } = res;
-        if (done) {
-          console.log("Stream complete");
-          setChatHistory(prevChatHistory => [...prevChatHistory, {question: input, result: accumulatedMessage}]);
-          return Promise.resolve();
-        }
-    
-        let result = decoder.decode(value);
-        accumulatedMessage += result;
-        let parsedResult = marked.parse(accumulatedMessage);
-    
-        setMessages((prevMessages) => {
-            let newMessages = [...prevMessages];
-            if (messageIndex === null) {
-              messageIndex = newMessages.length;
-              newMessages.push({ id: Math.random().toString(), message: parsedResult.trim(), role: "assistant" });
-            } else {
-              newMessages[messageIndex].message = parsedResult.trim();
-            }
-            return newMessages;
-          });
-
-        setIsLoading(false);
-        return reader.read().then(processText);
-      })
-      .catch((error) => {
-        console.error("Error:", error);
-      });
+      setIsLoading(false);
+      return reader.read().then(processText);
     });
-  }
+})
+}
 
   const sendFeedback = (score: number | null) => {
     if (feedback !== null) return;
@@ -164,11 +166,16 @@ export function ChatWindow(props: {
         "Content-Type": "application/json",
       },
     })
-      .then((response) => response.text())
+      .then((response) => response.json())
       .then((data) => {
-        console.log(data);
-        const url = data.replace(/['"]+/g, "");
-        window.open(url, "_blank");
+        if (data.code === 400 && data.result === "No chat session found") {
+          toast.error("Unable to view trace");
+          throw new Error("Unable to view trace");
+        } else {
+          console.log(data)
+          const url = data.replace(/['"]+/g, "");
+          window.open(url, "_blank");
+        }
       })
       .catch((error) => {
         console.error("Error:", error);
@@ -216,6 +223,15 @@ export function ChatWindow(props: {
             >
               🛠️ view trace
             </button>
+            <div className="flex items-center mr-2">
+              <label htmlFor="modeToggle" className="mr-1 text-xs">Expert Mode</label>
+              <input
+                type="checkbox"
+                id="modeToggle"
+                className="toggle toggle-blue"
+                onChange={() => setMode(mode === "expert" ? "novice" : "expert")}
+              />
+            </div>
         </div>
 
       <form onSubmit={sendMessage} className="flex w-full">
