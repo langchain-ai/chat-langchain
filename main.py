@@ -19,12 +19,6 @@ from langchain.schema.output_parser import StrOutputParser
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from operator import itemgetter
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.retrievers import ParentDocumentRetriever
-from langchain.storage import RedisStore, EncoderBackedStore
-from langchain.utilities.redis import get_client
-import json
-from langchain.schema.document import Document
 
 client = Client()
 
@@ -41,6 +35,7 @@ app.add_middleware(
 run_collector = RunCollectorCallbackHandler()
 runnable_config = RunnableConfig(callbacks=[run_collector])
 run_id = None
+feedback_recorded = False
 
 _PROVIDER_MAP = {
     "openai": ChatOpenAI,
@@ -140,63 +135,21 @@ def _get_retriever():
     WEAVIATE_URL = os.environ["WEAVIATE_URL"]
     WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
-    embeddings = OpenAIEmbeddings(chunk_size=200)
-    child_splitter = RecursiveCharacterTextSplitter(chunk_size=1000)
-    parent_splitter = RecursiveCharacterTextSplitter(chunk_size=2000)
-
+    embeddings = OpenAIEmbeddings()
     client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
     weaviate_client = Weaviate(
         client=client,
-        index_name="LangChain_parents_idx",
+        index_name="LangChain_test_idx",
         text_key="text",
         embedding=embeddings,
         by_text=False,
-        attributes=["source", "doc_id"],
+        attributes=["source"],
     )
-
-    def key_encoder(key: int) -> str:
-        return json.dumps(key)
-
-    def value_serializer(value: float) -> str:
-        if isinstance(value, Document):
-            value = {
-                "page_content": value.page_content,
-                "metadata": value.metadata,
-            }
-        return json.dumps(value)
-
-    def value_deserializer(serialized_value: str) -> Document:
-        value = json.loads(serialized_value)
-        if "page_content" in value and "metadata" in value:
-            return Document(
-                page_content=value["page_content"], metadata=value["metadata"]
-            )
-        else:
-            return value
-
-    client = get_client("redis://localhost:6379")
-    abstract_store = RedisStore(client=client)
-    store = EncoderBackedStore(
-        store=abstract_store,
-        key_encoder=key_encoder,
-        value_serializer=value_serializer,
-        value_deserializer=value_deserializer,
-    )
-
-    retriever = ParentDocumentRetriever(
-        vectorstore=weaviate_client,
-        docstore=store,
-        child_splitter=child_splitter,
-        parent_splitter=parent_splitter,
-        search_kwargs={"k": 10},
-    )
-
-    return retriever
-
-
+    return weaviate_client.as_retriever(search_kwargs=dict(k=10))
+    
 def _process_chat_history(chat_history):
     processed_chat_history = []
     for chat in chat_history:
@@ -209,9 +162,10 @@ def _process_chat_history(chat_history):
 
 @app.post("/chat")
 async def chat_endpoint(request: Request):
-    global run_id, access_counter
+    global run_id, feedback_recorded, trace_url
     run_id = None
-    access_counter = 0
+    trace_url = None
+    feedback_recorded = False
     run_collector.traced_runs = []
 
     data = await request.json()
@@ -232,6 +186,7 @@ async def chat_endpoint(request: Request):
     print("Recieved question: ", question)
 
     async def stream():
+        global run_id, trace_url, feedback_recorded
         result = ""
         try:
             async for s in qa_chain.astream(
@@ -244,6 +199,9 @@ async def chat_endpoint(request: Request):
                 print(s, end="", flush=True)
                 result += s
                 yield s
+            if not run_id and run_collector.traced_runs:
+                run = run_collector.traced_runs[0]
+                run_id = run.id
 
         except Exception as e:
             logging.error(e)
@@ -252,38 +210,26 @@ async def chat_endpoint(request: Request):
     return StreamingResponse(stream())
 
 
-access_counter = 0
-
-
 @app.post("/feedback")
 async def send_feedback(request: Request):
-    global run_id, access_counter
+    global run_id, feedback_recorded
+    if feedback_recorded or run_id is None:
+        return {"result": "Feedback already recorded or no chat session found", "code": 400}
     data = await request.json()
     score = data.get("score")
-    if not run_id:
-        run = run_collector.traced_runs[0]
-        run_id = run.id
-        access_counter += 1
-        if access_counter >= 2:
-            run_collector.traced_runs = []
-            access_counter = 0
     client.create_feedback(run_id, "user_score", score=score)
+    feedback_recorded = True
     return {"result": "posted feedback successfully", "code": 200}
 
-
+trace_url = None
 @app.post("/get_trace")
 async def get_trace(request: Request):
-    global run_id, access_counter
+    global run_id, trace_url
+    if trace_url is None and run_id is not None:
+        trace_url = client.share_run(run_id)
     if run_id is None:
-        run = run_collector.traced_runs[0]
-        run_id = run.id
-        access_counter += 1
-        if access_counter >= 2:
-            run_collector.traced_runs = []
-            access_counter = 0
-    url = client.share_run(run_id)
-    return url
-
+        return {"result": "No chat session found", "code": 400}
+    return trace_url if trace_url else {"result": "Trace URL not found", "code": 400}
 
 if __name__ == "__main__":
     import uvicorn
