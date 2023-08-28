@@ -183,7 +183,7 @@ async def chat_endpoint(request: Request):
     qa_chain = create_chain(
         retriever=retriever, model_provider=model_type, chat_history=chat_history
     )
-    print("Recieved question: ", question)
+    print("Received question: ", question)
 
     async def stream():
         global run_id, trace_url, feedback_recorded
