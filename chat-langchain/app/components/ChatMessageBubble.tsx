@@ -20,7 +20,7 @@ export function ChatMessageBubble(props: {
 
   const [feedbackColor, setFeedbackColor] = useState("");
 
-  var cumulativeOffset = function(element: HTMLElement | null) {
+  const cumulativeOffset = function(element: HTMLElement | null) {
       var top = 0, left = 0;
       do {
           top += element?.offsetTop  || 0;
