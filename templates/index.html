@@ -31,8 +31,8 @@
             justify-content: space-between;
         }
         .form-control {
-            width: 80%;
-            background-color: #333;
+            width: 83%;
+            background-color: rgb(64,65,79);
             color: #fff;
             border: none;
             border-radius: 5px;
@@ -49,10 +49,38 @@
         .form-message {
           margin-top: 10px;
         }
+        .flex-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        #micButton {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: -70px; /* Adjust as per the size of the microphone icon to overlap with the input's edge */
+            cursor: pointer;
+            background-color: transparent;
+            border: none;
+        }
+
+        #soundToggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+
     </style>
     <script>
         var endpoint = "ws://localhost:9000/chat";
         var ws = new WebSocket(endpoint);
+
+        let soundIsOn = false;
+        const soundOnSvg = '<svg width="40" height="40" version="1.1" viewBox="0 0 36 36" width="100%"><defs><clipPath><path d="m 14.35,-0.14 -5.86,5.86 20.73,20.78 5.86,-5.91 z"></path><path d="M 7.07,6.87 -1.11,15.33 19.61,36.11 27.80,27.60 z"></path><path d="M 9.09,5.20 6.47,7.88 26.82,28.77 29.66,25.99 z"></path></clipPath><clipPath><path d="m -11.45,-15.55 -4.44,4.51 20.45,20.94 4.55,-4.66 z"></path></clipPath></defs><path d="M8,21 L12,21 L17,26 L17,10 L12,15 L8,15 L8,21 Z M19,14 L19,22 C20.48,21.32 21.5,19.77 21.5,18 C21.5,16.26 20.48,14.74 19,14 ZM19,11.29 C21.89,12.15 24,14.83 24,18 C24,21.17 21.89,23.85 19,24.71 L19,26.77 C23.01,25.86 26,22.28 26,18 C26,13.72 23.01,10.14 19,9.23 L19,11.29 Z" fill="#123BB6"></path></svg>';
+        const soundOffSvg = '<svg width="40" height="40" version="1.1" viewBox="0 0 36 36"><path d="m 21.48,17.98 c 0,-1.77 -1.02,-3.29 -2.5,-4.03 v 2.21 l 2.45,2.45 c .03,-0.2 .05,-0.41 .05,-0.63 z m 2.5,0 c 0,.94 -0.2,1.82 -0.54,2.64 l 1.51,1.51 c .66,-1.24 1.03,-2.65 1.03,-4.15 0,-4.28 -2.99,-7.86 -7,-8.76 v 2.05 c 2.89,.86 5,3.54 5,6.71 z M 9.25,8.98 l -1.27,1.26 4.72,4.73 H 7.98 v 6 H 11.98 l 5,5 v -6.73 l 4.25,4.25 c -0.67,.52 -1.42,.93 -2.25,1.18 v 2.06 c 1.38,-0.31 2.63,-0.95 3.69,-1.81 l 2.04,2.05 1.27,-1.27 -9,-9 -7.72,-7.72 z m 7.72,.99 -2.09,2.08 2.09,2.09 V 9.98 z" fill="#123BB6"></path></svg>';
+        let botResponse = "";
+
         // Receive message from server word by word. Display the words as they are received.
         ws.onmessage = function (event) {
             var messages = document.getElementById('messages');
@@ -73,8 +101,10 @@
                     var p = messages.lastChild.lastChild;
                     if (data.message === "\n") {
                         p.innerHTML += "<br>";
+                        botResponse += " ";
                     } else {
                         p.innerHTML += data.message;
+                        botResponse += data.message;
                     }
                 } else if (data.type === "info") {
                     var header = document.getElementById('header');
@@ -85,6 +115,14 @@
                     var button = document.getElementById('send');
                     button.innerHTML = "Send";
                     button.disabled = false;
+                    if (soundIsOn) {
+                        const utterance = new SpeechSynthesisUtterance(botResponse);
+                        const voices = window.speechSynthesis.getVoices();
+                        const selectedVoice = voices.find(voice => voice.lang.includes('en-')); //voice => voice.voiceURI === 'Microsoft Zira - English (United States)');
+                        utterance.voice = selectedVoice;
+                        window.speechSynthesis.speak(utterance);
+                    }
+                    botResponse = "";
                 } else if (data.type === "error") {
                     var header = document.getElementById('header');
                     header.innerHTML = "Ask a question";
@@ -93,6 +131,7 @@
                     button.disabled = false;
                     var p = messages.lastChild.lastChild;
                     p.innerHTML += data.message;
+                    botResponse += data.message;
                 }
             } else {
                 var div = document.createElement('div');
@@ -117,24 +156,88 @@
             document.getElementById('messageText').value = "";
 
             // Turn the button into a loading button
+            loading();
+        }
+
+        function loading() {
+            // Turn the button into a loading button
             var button = document.getElementById('send');
-            button.innerHTML = "Loading...";
+            button.innerHTML = "Wait...";
             button.disabled = true;
         }
+        
+        // speech recognition
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            alert("Your browser does not support speech recognition. Please use a compatible browser like Chrome.");
+        }
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.onstart = () => {
+            console.log("Speech recognition started");
+        };
+
+        recognition.onresult = (event) => {
+            message = event.results[0][0].transcript;
+            console.log("Speech recognized: " + message);
+            if (message === "") {
+                return;
+            }
+            ws.send(message);
+            loading();
+            recognition.stop();
+        };
+
+        recognition.onend = () => {
+            console.log("Speech recognition ended");
+        };
+        
+        // Focus on the input field when clicking anywhere on the page (except when highlighting text)
+        document.addEventListener('DOMContentLoaded', (event) => {
+            document.body.addEventListener('click', function(e) {
+                var textSelected = !!window.getSelection().toString();
+                if (!textSelected && e.target.id !== 'messageText') {
+                    document.getElementById('messageText').focus();
+                }
+            });
+            document.getElementById('micButton').addEventListener('click', function() {
+                recognition.start();
+            });
+            document.getElementById('soundToggle').addEventListener('click', () => {
+                soundIsOn = !soundIsOn;  // Toggle the sound state
+                
+                // const buttonText = soundIsOn ? "Sound: ON" : "Sound: OFF";
+                // document.getElementById('soundToggle').innerText = buttonText;
+                
+                const svgContent = soundIsOn ? soundOnSvg : soundOffSvg;
+                document.getElementById('soundToggle').innerHTML = svgContent;
+            });
+        });
     </script>
 </head>
 <body class="bg-black">
     <div class="chat-body card">
-        <div class="card-body p-5">
+        <div class="card-body p-5" style="position: relative;">
+            <button id="soundToggle">
+                <svg width="40" height="40" version="1.1" viewBox="0 0 36 36"><path d="m 21.48,17.98 c 0,-1.77 -1.02,-3.29 -2.5,-4.03 v 2.21 l 2.45,2.45 c .03,-0.2 .05,-0.41 .05,-0.63 z m 2.5,0 c 0,.94 -0.2,1.82 -0.54,2.64 l 1.51,1.51 c .66,-1.24 1.03,-2.65 1.03,-4.15 0,-4.28 -2.99,-7.86 -7,-8.76 v 2.05 c 2.89,.86 5,3.54 5,6.71 z M 9.25,8.98 l -1.27,1.26 4.72,4.73 H 7.98 v 6 H 11.98 l 5,5 v -6.73 l 4.25,4.25 c -0.67,.52 -1.42,.93 -2.25,1.18 v 2.06 c 1.38,-0.31 2.63,-0.95 3.69,-1.81 l 2.04,2.05 1.27,-1.27 -9,-9 -7.72,-7.72 z m 7.72,.99 -2.09,2.08 2.09,2.09 V 9.98 z" id="ytp-id-80" fill="#123BB6"></path></svg>
+            </button>
             <h4 class="card-title text-center text-xl font-medium"> Chat Your Data </h4>
             <p class="card-text text-center text-sm" id="header"> Ask a question </p>
             <hr class="border-gray-500 mb-5" style="margin-top: 20px;">
             <div id="messages" class="overflow-auto" style="max-height: 500px;">
             </div>
-            <form action="" class="form-inline mt-5" id="chat-form" onsubmit="sendMessage(event)">
-                <input type="text" class="form-control" placeholder="Write your question" id="messageText">
+            <form action="" class="form-inline mt-5 flex-container" id="chat-form" onsubmit="sendMessage(event)">
+                <input type="text" class="form-control" placeholder="Write or speak your question" id="messageText">
+                <div id="micButton" role="button" tabindex="0" aria-label="Search using voice" data-tooltip="Search using voice">
+                    <svg width="17" height="24" viewBox="0 0 17 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15.9 10.8C16.3556 10.8 16.7322 11.1386 16.7918 11.5778L16.8 11.7V12.3C16.8 16.5713 13.494 20.0705 9.3012 20.378L9.3 23.1C9.3 23.597 8.89704 24 8.4 24C7.94436 24 7.5678 23.6614 7.50816 23.2222L7.5 23.1V20.3782C3.39988 20.0779 0.147396 16.7256 0.00487175 12.5836L0 12.3V11.7C0 11.203 0.402948 10.8 0.9 10.8C1.35564 10.8 1.73219 11.1386 1.79178 11.5778L1.8 11.7V12.3C1.8 15.6924 4.48134 18.4585 7.84032 18.5947L8.1 18.6H8.7C12.0924 18.6 14.8585 15.9187 14.9947 12.5597L15 12.3V11.7C15 11.203 15.403 10.8 15.9 10.8ZM8.4 0C11.0509 0 13.2 2.14903 13.2 4.8V12C13.2 14.6509 11.0509 16.8 8.4 16.8C5.74903 16.8 3.6 14.6509 3.6 12V4.8C3.6 2.14903 5.74903 0 8.4 0ZM8.4 1.8C6.74316 1.8 5.4 3.14315 5.4 4.8V12C5.4 13.6568 6.74316 15 8.4 15C10.0568 15 11.4 13.6568 11.4 12V4.8C11.4 3.14315 10.0568 1.8 8.4 1.8Z"
+                            fill="#123BB6"></path>
+                    </svg>
+                </div>
                 <button id="send" type="submit" class="btn btn-primary">Send</button>
             </form>
+            
         </div>
     </div>
 </body>
