@@ -27,7 +27,6 @@ export function ChatWindow(props: {
     }>
   >([]);
   const [input, setInput] = useState("");
-  const [model, setModel] = useState("openai");
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<number | null>(null);
 
@@ -36,7 +35,6 @@ export function ChatWindow(props: {
   const [chatHistory, setChatHistory] = useState<
     { question: string; result: string }[]
   >([]);
-  const [mode, setMode] = useState("novice");
 
   const {
     endpoint,
@@ -45,7 +43,8 @@ export function ChatWindow(props: {
     titleText = "An LLM",
   } = props;
 
-  function sendMessage() {
+  function sendMessage(e: any) {
+    e.preventDefault();
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
     }
@@ -68,10 +67,8 @@ export function ChatWindow(props: {
       },
       body: JSON.stringify({
         message: input,
-        model: model,
         history: chatHistory,
         conversation_id: conversationId,
-        mode: mode,
       }),
   }).then(response => { 
     if (!response.body) {
@@ -139,7 +136,7 @@ export function ChatWindow(props: {
         .catch((error) => {
           console.error("Error:", error);
         });
-    });
+  })
 }
 
   const sendFeedback = (score: number | null) => {
@@ -239,15 +236,6 @@ export function ChatWindow(props: {
             >
               🛠️ view trace
             </button>
-            <div className="flex items-center mr-2">
-              <label htmlFor="modeToggle" className="mr-1 text-xs">Expert Mode</label>
-              <input
-                type="checkbox"
-                id="modeToggle"
-                className="toggle toggle-blue"
-                onChange={() => setMode(mode === "expert" ? "novice" : "expert")}
-              />
-            </div>
         </div>
 
       <form onSubmit={sendMessage} className="flex w-full">
@@ -260,19 +248,10 @@ export function ChatWindow(props: {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              sendMessage();
+              sendMessage(e);
             }
           }}
         />
-        <select
-          id="modelType"
-          className="bg-gray-800 text-white rounded p-2 mr-2 w-full sm:w-auto max-h-[40px]"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-        >
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-        </select>
         <button
           type="submit"
           className="flex-shrink p-2 w-16 sm:w-auto bg-sky-600 rounded max-h-[40px]"

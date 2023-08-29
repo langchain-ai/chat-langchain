@@ -78,8 +78,7 @@ export default function Home() {
       <ToastContainer />
       <ChatWindow
         endpoint="https://chat-langchain.fly.dev/chat"
-        // emoji="🏴‍☠️"
-        titleText="ChatLangChain"
+        titleText="Chat LangChain"
         placeholder="Write your question"
         emptyStateComponent={InfoCard}
       ></ChatWindow>
