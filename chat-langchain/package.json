@@ -10,12 +10,10 @@
   },
   "dependencies": {
     "@emotion/react": "^11.11.1",
-    "@nanostores/react": "github:ai/react",
     "@types/marked": "^5.0.1",
     "@types/node": "20.4.9",
     "@types/react": "18.2.20",
     "@types/react-dom": "18.2.7",
-    "ai": "^2.1.33",
     "autoprefixer": "10.4.14",
     "emojisplosion": "^2.6.1",
     "eslint": "8.46.0",

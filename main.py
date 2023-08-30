@@ -47,7 +47,6 @@ _MODEL_MAP = {
     "anthropic": "claude-instant-v1-100k",
 }
 
-
 def create_chain(
     retriever: BaseRetriever,
     model_provider: Union[Literal["openai"], Literal["anthropic"]],
@@ -70,9 +69,9 @@ def create_chain(
     _template = """
     You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
     If you really don't know the answer, just say "Hmm, I'm not sure." Don't try to make up an answer.
-    Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
+    Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user.
     <context>
-        {context} 
+        {context}
     <context/>"""
 
     if chat_history:
@@ -120,8 +119,7 @@ def create_chain(
             ]
         )
 
-    final_model = "gpt-4" if model_provider == "openai" else "claude-2"
-    
+    final_model = ChatOpenAI(model="gpt-4") if model_provider == "openai" else ChatAnthropic(model_name="claude-2")
     chain = (
         _inputs
         | _context
@@ -151,7 +149,7 @@ def _get_retriever():
         attributes=["source"],
     )
     return weaviate_client.as_retriever(search_kwargs=dict(k=10))
-    
+
 def _process_chat_history(chat_history):
     processed_chat_history = []
     for chat in chat_history:
