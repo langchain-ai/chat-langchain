@@ -92,9 +92,11 @@ def get_agent(llm, chat_history: Optional[list] = None):
 
     system_message = SystemMessage(
             content=(
-                "You are an experienced software engineer and problem solver, able to answer anything about LangChain."
-                "Answer the following question as best you can. You should include CODE SNIPPETS relevant to the question."
-                "You have access to a retriever tool for your answer"
+                "You are a helpful chatbot who is tasked with answering questions about LangChain. "
+                "Answer the following question as best you can. "
+                "Be inclined to include CORRECT Python code snippets if relevant to the question. If you can't find the answer, just say you don't know. "
+                "You have access to a LangChain knowledge bank retriever tool for your answer. "
+                "You know NOTHING about LangChain's codebase."
             )
     )
     
