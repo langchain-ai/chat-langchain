@@ -7,6 +7,7 @@ import shutil
 
 from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
 from langchain.embeddings import OpenAIEmbeddings
+from langchain.indexes import SQLRecordManager, index
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Weaviate
 from langchain.document_transformers import Html2TextTransformer
@@ -14,8 +15,12 @@ from langchain.text_splitter import Language
 from langchain.document_loaders.generic import GenericLoader
 from langchain.document_loaders.parsers import LanguageParser
 
-WEAVIATE_URL=os.environ["WEAVIATE_URL"]
-WEAVIATE_API_KEY=os.environ["WEAVIATE_API_KEY"]
+WEAVIATE_URL = os.environ["WEAVIATE_URL"]
+WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
+WEAVIATE_INDEX_NAME = "LangChain_newest_idx"
+RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+RECORD_MANAGER_NAMESPACE = f"weaviate/{WEAVIATE_INDEX_NAME}"
+
 
 def ingest_repo():
     repo_path = os.path.join(os.getcwd(), "test_repo")
@@ -37,6 +42,7 @@ def ingest_repo():
                                                                 chunk_overlap=200)
     texts = python_splitter.split_documents(documents_repo)
     return texts
+
 
 def ingest_docs():
     """Get documents from web pages."""
@@ -82,17 +88,38 @@ def ingest_docs():
     # with open('docs_transformed.pkl', 'rb') as f:
     #     docs_transformed = pickle.load(f)
     
-    client = weaviate.Client(url=WEAVIATE_URL, auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY))
-    client.schema.delete_class("LangChain_newest_idx") # delete the class if it already exists
+    client = weaviate.Client(
+        url=WEAVIATE_URL,
+        auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY)
+    )
+    embedding = OpenAIEmbeddings(chunk_size=200)  # rate limit
+    vectorstore = Weaviate(
+        client,
+        WEAVIATE_INDEX_NAME,
+        "text",
+        embedding=embedding,
+        by_text=False,
+        attributes=["source"]
+    )
 
-    embeddings = OpenAIEmbeddings(chunk_size=200) # rate limit
+    record_manager = SQLRecordManager(
+        RECORD_MANAGER_NAMESPACE,
+        db_url=RECORD_MANAGER_DB_URL
+    )
+    record_manager.create_schema()
+    index(
+        docs_transformed,
+        record_manager,
+        vectorstore,
+        delete_mode="full",
+        source_id_key="source"
+    )
 
-    batch_size = 100 # to handle batch size limit 
-    for i in range(0, len(docs_transformed), batch_size):
-        batch = docs_transformed[i:i+batch_size]
-        Weaviate.add_documents(batch, embeddings, client=client, by_text=False, index_name="LangChain_newest_idx")
+    print(
+        "LangChain now has this many vectors: ",
+        client.query.aggregate(WEAVIATE_INDEX_NAME).with_meta_count().do()
+    )
 
-    print("LangChain now has this many vectors", client.query.aggregate("LangChain_newest_idx").with_meta_count().do())
-    
+
 if __name__ == "__main__":
     ingest_docs()
