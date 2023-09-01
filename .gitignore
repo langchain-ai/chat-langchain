@@ -138,3 +138,6 @@ dmypy.json
 vectorstore.pkl
 langchain.readthedocs.io/
 .vercel
+
+bin/
+pyvenv.cfg

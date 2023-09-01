@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
-import type { FormEvent } from "react";
+import React, { useRef, useState, FormEventHandler, FormEvent } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble } from "../components/ChatMessageBubble";
 import { marked } from "marked";
 import { Renderer } from "marked";
@@ -13,11 +13,11 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export function ChatWindow(props: {
-  endpoint: string;
-  emptyStateComponent: React.ReactElement;
+  apiBaseUrl: string;
   placeholder?: string;
   titleText?: string;
 }) {
+  const conversationId = uuidv4();
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<
     Array<{
@@ -30,20 +30,18 @@ export function ChatWindow(props: {
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<number | null>(null);
 
-  const [conversationId, setConversationId] = useState<string | null>(uuidv4());
-  const [hasInteracted, setHasInteracted] = useState(false);
   const [chatHistory, setChatHistory] = useState<
     { question: string; result: string }[]
   >([]);
 
   const {
-    endpoint,
-    emptyStateComponent,
+    apiBaseUrl,
     placeholder,
     titleText = "An LLM",
   } = props;
 
-  function sendMessage(e: any) {
+  
+  const sendMessage = async (message?: string) => {
     e.preventDefault();
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -51,26 +49,34 @@ export function ChatWindow(props: {
     if (isLoading) {
       return;
     }
-    if (input.trim() === "") return;
+    const messageValue = message ?? input;
+    if (messageValue === "") return;
     setInput("");
-    setHasInteracted(true);
     setMessages((prevMessages) => [
       ...prevMessages,
-      { id: Math.random().toString(), message: input.trim(), role: "user" },
+      { id: Math.random().toString(), message: messageValue, role: "user" },
     ]);
     setFeedback(null);
     setIsLoading(true);
-    fetch(endpoint, {
-      method: "POST",
-      headers: {
+    let response;
+    try {
+      response = await fetch(apiBaseUrl + "/chat", {
+        method: "POST",
+        headers: {
           "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message: input,
-        history: chatHistory,
-        conversation_id: conversationId,
-      }),
-  }).then(response => { 
+        },
+        body: JSON.stringify({
+          message: messageValue,
+          history: chatHistory,
+          conversation_id: conversationId,
+        }),
+      });
+    } catch (e) {
+      setMessages((prevMessages) => prevMessages.slice(0, -1));
+      setIsLoading(false);
+      setInput(messageValue);
+      throw e;
+    }
     if (!response.body) {
       throw new Error("Response body is null");
     }
@@ -80,88 +86,85 @@ export function ChatWindow(props: {
     let accumulatedMessage = "";
     let messageIndex: number | null = null;
 
-      let renderer = new Renderer();
-      renderer.paragraph = function (text) {
-        return text;
-      };
-      renderer.code = function (code, language) {
-        const validLanguage = hljs.getLanguage(language || "")
-          ? language
-          : "plaintext";
-        const highlightedCode = hljs.highlight(
-          validLanguage || "plaintext",
-          code
-        ).value;
-        return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; display: block; line-height: 1.2"><code class="${language}" style="color: #d6e2ef; font-size: 12px; ">${highlightedCode}</code></pre>`;
-      };
-      marked.setOptions({ renderer });
+    let renderer = new Renderer();
+    renderer.paragraph = function (text) {
+      return text;
+    };
+    renderer.code = function (code, language) {
+      const validLanguage = hljs.getLanguage(language || "")
+        ? language
+        : "plaintext";
+      const highlightedCode = hljs.highlight(
+        validLanguage || "plaintext",
+        code
+      ).value;
+      return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; display: block; line-height: 1.2"><code class="${language}" style="color: #d6e2ef; font-size: 12px; ">${highlightedCode}</code></pre>`;
+    };
+    marked.setOptions({ renderer });
 
-      reader
-        .read()
-        .then(function processText(
-          res: ReadableStreamReadResult<Uint8Array>
-        ): Promise<void> {
-          const { done, value } = res;
-          if (done) {
-            console.log("Stream complete");
-            setChatHistory((prevChatHistory) => [
-              ...prevChatHistory,
-              { question: input, result: accumulatedMessage },
-            ]);
-            return Promise.resolve();
-          }
-
-          let result = decoder.decode(value);
-          accumulatedMessage += result;
-          let parsedResult = marked.parse(accumulatedMessage);
-
-          setMessages((prevMessages) => {
-            let newMessages = [...prevMessages];
-            if (messageIndex === null) {
-              messageIndex = newMessages.length;
-              newMessages.push({
-                id: Math.random().toString(),
-                message: parsedResult.trim(),
-                role: "assistant",
-              });
-            } else {
-              newMessages[messageIndex].message = parsedResult.trim();
-            }
-            return newMessages;
-          });
-
-          setIsLoading(false);
-          return reader.read().then(processText);
-        })
-        .catch((error) => {
-          console.error("Error:", error);
-        });
-  })
-}
-
-  const sendFeedback = (score: number | null) => {
-    if (feedback !== null) return;
-
-    setFeedback(score);
-    fetch("https://chat-langchain.fly.dev/feedback", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        score: score,
-      }),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.code === 200) {
-          score == 1 ? animateButton("upButton") : animateButton("downButton");
+    reader
+      .read()
+      .then(function processText(
+        res: ReadableStreamReadResult<Uint8Array>
+      ): Promise<void> {
+        const { done, value } = res;
+        if (done) {
+          console.log("Stream complete");
+          setChatHistory((prevChatHistory) => [
+            ...prevChatHistory,
+            { question: messageValue, result: accumulatedMessage },
+          ]);
+          return Promise.resolve();
         }
-        console.log(data);
+
+        let result = decoder.decode(value);
+        accumulatedMessage += result;
+        let parsedResult = marked.parse(accumulatedMessage);
+
+        setMessages((prevMessages) => {
+          let newMessages = [...prevMessages];
+          if (messageIndex === null) {
+            messageIndex = newMessages.length;
+            newMessages.push({
+              id: Math.random().toString(),
+              message: parsedResult.trim(),
+              role: "assistant",
+            });
+          } else {
+            newMessages[messageIndex].message = parsedResult.trim();
+          }
+          return newMessages;
+        });
+        setIsLoading(false);
+        return reader.read().then(processText);
       })
       .catch((error) => {
         console.error("Error:", error);
       });
+}
+
+  const sendFeedback = async (score: number | null) => {
+    if (feedback !== null) return;
+
+    setFeedback(score);
+    try {
+      const response = await fetch(apiBaseUrl + "/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          score: score,
+        }),
+      });
+      const data = await response.json();
+      if (data.code === 200) {
+        score == 1 ? animateButton("upButton") : animateButton("downButton");
+      }
+    } catch (e: any) {
+      console.error("Error:", e);
+      toast.error(e.message);
+    }
   };
 
   const animateButton = (buttonId: string) => {
@@ -172,34 +175,37 @@ export function ChatWindow(props: {
     }, 500);
   };
 
-  const viewTrace = () => {
-    fetch("https://chat-langchain.fly.dev/get_trace", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.code === 400 && data.result === "No chat session found") {
-          toast.error("Unable to view trace");
-          throw new Error("Unable to view trace");
-        } else {
-          console.log(data)
-          const url = data.replace(/['"]+/g, "");
-          window.open(url, "_blank");
-        }
-      })
-      .catch((error) => {
-        console.error("Error:", error);
+  const viewTrace = async () => {
+    try {
+      const response = await fetch(apiBaseUrl + "/get_trace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
+
+      const data = await response.json();
+
+      if (data.code === 400 && data.result === "No chat session found") {
+        toast.error("Unable to view trace");
+        throw new Error("Unable to view trace");
+      } else {
+        const url = data.replace(/['"]+/g, "");
+        window.open(url, "_blank");
+      }
+    } catch (e: any) {
+      console.error("Error:", e);
+      toast.error(e.message);
+    }
+  };
+
+  const sendInitialQuestion = async (question: string) => {
+    await sendMessage(question)
   };
 
   return (
     <div
-      className={`flex flex-col items-center p-8 rounded grow max-h-[calc(100%-2rem)] ${
-        messages.length > 0 ? "border" : ""
-      }`}
+      className={`flex flex-col items-center p-8 rounded grow`}
     >
       <h2 className={`${messages.length > 0 ? "" : "hidden"} text-2xl mb-1`}>
         {titleText}
@@ -225,7 +231,7 @@ export function ChatWindow(props: {
                   messageCompleted={!isLoading}
                 ></ChatMessageBubble>
               ))
-          : emptyStateComponent}
+          : <EmptyState onChoice={sendInitialQuestion} />}
       </div>
 
       <div className="flex w-full flex-row-reverse mb-2">
@@ -238,7 +244,7 @@ export function ChatWindow(props: {
             </button>
         </div>
 
-      <form onSubmit={sendMessage} className="flex w-full">
+      <form onSubmit={() => sendMessage()} className="flex w-full">
         <textarea
           className="flex-grow mr-2 p-2 rounded max-h-[40px]"
           placeholder={placeholder}

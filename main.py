@@ -48,7 +48,6 @@ WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
     
 def search(inp: str, index_name: str, callbacks=None) -> str:
     client = weaviate.Client(url=WEAVIATE_URL, auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY))
-
     weaviate_client = Weaviate(
         client=client,
         index_name=index_name,
@@ -154,7 +153,6 @@ class QueueCallback(BaseCallbackHandler):
 
     def __init__(self, q):
         self.q = q
-
     def on_llm_new_token(self, token: str, **kwargs: any) -> None:
         self.q.put(token)
 
