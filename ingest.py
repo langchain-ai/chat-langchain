@@ -17,7 +17,7 @@ from langchain.document_loaders.parsers import LanguageParser
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
-WEAVIATE_INDEX_NAME = "LangChain_newest_idx"
+WEAVIATE_INDEX_NAME = "TestIndexingAction"
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 RECORD_MANAGER_NAMESPACE = f"weaviate/{WEAVIATE_INDEX_NAME}"
 
