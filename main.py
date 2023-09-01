@@ -112,16 +112,11 @@ def get_agent(llm, chat_history: Optional[list] = None):
                 "1. Query your search tool for information on 'vLLM' to get as much context as you can about it. \n"
                 "2. Answer the question as you now have enough context."
     ))
-    
-    if chat_history:
-        prompt = OpenAIFunctionsAgent.create_prompt(
-            system_message=system_message,
-            extra_prompt_messages=[MessagesPlaceholder(variable_name="chat_history")],
-        )
-    else: 
-        prompt = OpenAIFunctionsAgent.create_prompt(
-            system_message=system_message,
-        )
+
+    prompt = OpenAIFunctionsAgent.create_prompt(
+        system_message=system_message,
+        extra_prompt_messages=[MessagesPlaceholder(variable_name="chat_history")],
+    )
     
     memory = AgentTokenBufferMemory(memory_key="chat_history", llm=llm, max_token_limit=2000)
     

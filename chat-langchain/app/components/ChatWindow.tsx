@@ -42,7 +42,6 @@ export function ChatWindow(props: {
 
   
   const sendMessage = async (message?: string) => {
-    e.preventDefault();
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
     }
@@ -254,7 +253,7 @@ export function ChatWindow(props: {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              sendMessage(e);
+              sendMessage();
             }
           }}
         />
