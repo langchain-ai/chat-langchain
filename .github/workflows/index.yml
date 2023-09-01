@@ -1,0 +1,25 @@
+name: Update index
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron:  '0 13 * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: Indexing
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Ingest docs
+        run: python ingest.py
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
+          WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+          RECORD_MANAGER_DB_URL: ${{ secrets.RECORD_MANAGER_DB_URL }}
