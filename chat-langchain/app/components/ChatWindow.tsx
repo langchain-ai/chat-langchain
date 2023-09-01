@@ -40,7 +40,7 @@ export function ChatWindow(props: {
     titleText = "An LLM",
   } = props;
 
-  
+
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -204,7 +204,7 @@ export function ChatWindow(props: {
 
   return (
     <div
-      className={`flex flex-col items-center p-8 rounded grow`}
+      className="flex flex-col items-center p-8 rounded grow max-h-full"
     >
       <h2 className={`${messages.length > 0 ? "" : "hidden"} text-2xl mb-1`}>
         {titleText}
