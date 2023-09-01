@@ -25,7 +25,7 @@ from langchain.agents.openai_functions_agent.agent_token_buffer_memory import Ag
 WEAVIATE_URL=os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY=os.environ["WEAVIATE_API_KEY"]
 
-def agent_ingest_repo():
+def ingest_repo():
     repo_path = os.path.join(os.getcwd(), "test_repo")
     if os.path.exists(repo_path):
         shutil.rmtree(repo_path)
@@ -60,7 +60,7 @@ def agent_ingest_repo():
 
     return texts
 
-def agent_ingest_docs():
+def ingest_docs():
     urls = [
         "https://api.python.langchain.com/en/latest/api_reference.html#module-langchain",
         "https://python.langchain.com/docs/get_started", 
@@ -96,7 +96,7 @@ def agent_ingest_docs():
     batch_size = 500 # to handle batch size limit 
     for i in range(0, len(docs_transformed), batch_size):
         batch = docs_transformed[i:i+batch_size]
-        vectorstore.add_documents(batch)
+        vstore.add_documents(batch)
         
     return docs_transformed
 
