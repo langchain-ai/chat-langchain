@@ -1,8 +1,16 @@
-import type { Message } from "ai/react";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { emojisplosion } from "emojisplosion";
 import { useState } from "react";
+
+export type Message = {
+  id: string;
+  createdAt?: Date | undefined;
+  content: string;
+  role: 'system' | 'user' | 'assistant' | 'function';
+  name?: string | undefined;
+  function_call?: { name: string };
+};
 
 export function ChatMessageBubble(props: {
   message: Message;
@@ -57,17 +65,17 @@ export function ChatMessageBubble(props: {
   };
 
   return (
-    <div className="mb-8">
-    <div
-      className={`${alignmentClassName} ${colorClassName} ${feedbackColor} rounded px-4 py-2 max-w-[80%] mb-1 flex break-words`}
-    >
-      <div className="mr-2">{prefix}</div>
+    <div className="mt-4 flex flex-col">
       <div
-        className="whitespace-pre-wrap"
-        dangerouslySetInnerHTML={{ __html: props.message.content }}
-      ></div>
-    </div>
-    {props.message.role !== "user" && props.isMostRecent && props.messageCompleted && (
+        className={`${alignmentClassName} ${colorClassName} ${feedbackColor} rounded px-4 py-2 max-w-[80%] mb-1 flex break-words`}
+      >
+        <div className="mr-2">{prefix}</div>
+        <div
+          className="whitespace-pre-wrap"
+          dangerouslySetInnerHTML={{ __html: props.message.content }}
+        ></div>
+      </div>
+      {props.message.role !== "user" && props.isMostRecent && props.messageCompleted && (
         <div className="relative flex space-x-1 items-start justify-start">
           <button
             className={`text-sm rounded ${props.feedback === null ? "hover:bg-green-200" : ""}`}
