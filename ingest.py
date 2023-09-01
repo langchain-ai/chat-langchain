@@ -41,6 +41,7 @@ def ingest_repo():
                                                                 chunk_size=2000, 
                                                                 chunk_overlap=200)
     texts = python_splitter.split_documents(documents_repo)
+    return []
     return texts
 
 
@@ -58,6 +59,7 @@ def ingest_docs():
         "https://python.langchain.com/docs/additional_resources",
         "https://python.langchain.com/docs/community",
     ]
+    urls = urls[1]
 
     documents = []
     for j, url in enumerate(urls):
