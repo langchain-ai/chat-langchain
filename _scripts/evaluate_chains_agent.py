@@ -1,22 +1,30 @@
-"""Main entrypoint for the app."""
+import argparse
+import functools
 import os
-from typing import Optional
+from typing import Literal, Optional, Union
+
+from langsmith.evaluation.evaluator import EvaluationResult
+from langsmith.schemas import Example, Run
+from langchain.smith import arun_on_dataset, run_on_dataset
 
 import weaviate
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from langchain.callbacks.tracers.run_collector import RunCollectorCallbackHandler
+from langchain import prompts
+from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import MessagesPlaceholder
+from langchain.memory import ConversationBufferMemory
+from langchain.schema.retriever import BaseRetriever
+from langchain.schema.runnable import Runnable, RunnableMap
 from langchain.schema.messages import HumanMessage, AIMessage, SystemMessage
-from langchain.schema.runnable import Runnable, RunnableConfig
+from langchain.schema.output_parser import StrOutputParser
+from langchain.smith import RunEvalConfig
 from langchain.vectorstores import Weaviate
+from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langsmith import Client
-from threading import Thread
-from queue import Queue, Empty
-from collections.abc import Generator
+from langsmith import RunEvaluator
+from langchain import load as langchain_load
+from operator import itemgetter
+import json
 from langchain.agents import (
     Tool,
     AgentExecutor,
@@ -25,29 +33,15 @@ from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langchain.agents.openai_functions_agent.agent_token_buffer_memory import AgentTokenBufferMemory
 import pickle
 from langchain.callbacks.base import BaseCallbackHandler
+import asyncio
 
-client = Client()
-
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
-
-run_collector = RunCollectorCallbackHandler()
-runnable_config = RunnableConfig(callbacks=[run_collector])
-run_id = None
-feedback_recorded = False
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
     
 def search(inp: str, index_name: str, callbacks=None) -> str:
     client = weaviate.Client(url=WEAVIATE_URL, auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY))
+
     weaviate_client = Weaviate(
         client=client,
         index_name=index_name,
@@ -56,7 +50,7 @@ def search(inp: str, index_name: str, callbacks=None) -> str:
         by_text=False,
         attributes=["source"] if not index_name == "LangChain_agent_sources" else None,
     )
-    retriever = weaviate_client.as_retriever(search_kwargs=dict(k=3), callbacks=callbacks)
+    retriever = weaviate_client.as_retriever(search_kwargs=dict(k=3), callbacks=callbacks) if index_name == "LangChain_agent_sources" else weaviate_client.as_retriever(search_kwargs=dict(k=6), callbacks=callbacks)
         
     return retriever.get_relevant_documents(inp, callbacks=callbacks)
 
@@ -112,7 +106,7 @@ def get_agent(llm, chat_history: Optional[list] = None):
                 "1. Query your search tool for information on 'vLLM' to get as much context as you can about it. \n"
                 "2. Answer the question as you now have enough context."
     ))
-
+    
     prompt = OpenAIFunctionsAgent.create_prompt(
         system_message=system_message,
         extra_prompt_messages=[MessagesPlaceholder(variable_name="chat_history")],
@@ -134,97 +128,69 @@ def get_agent(llm, chat_history: Optional[list] = None):
     agent_executor = AgentExecutor(
             agent=agent,
             tools=tools,
-            memory=memory,
+            memory=memory if chat_history else None,
             verbose=True,
             return_intermediate_steps=True,
         )
 
     return agent_executor
 
+class CustomHallucinationEvaluator(RunEvaluator):
 
-class QueueCallback(BaseCallbackHandler):
-    """Callback handler for streaming LLM responses to a queue."""
-    # https://gist.github.com/mortymike/70711b028311681e5f3c6511031d5d43
+    @staticmethod
+    def _get_llm_runs(run: Run) -> Run:
+        runs = []
+        for child in (run.child_runs or []):
+            if run.run_type == "llm":
+                runs.append(child)
+            else:
+                runs.extend(CustomHallucinationEvaluator._get_llm_runs(child))
 
-    def __init__(self, q):
-        self.q = q
-    def on_llm_new_token(self, token: str, **kwargs: any) -> None:
-        self.q.put(token)
 
-    def on_llm_end(self, *args, **kwargs: any) -> None:
-        return self.q.empty()
-    
-@app.post("/chat")
-async def chat_endpoint(request: Request):
-    global run_id, feedback_recorded, trace_url
-    run_id = None
-    trace_url = None
-    feedback_recorded = False
-    run_collector.traced_runs = []
+    def evaluate_run(self, run: Run, example: Example | None = None) -> EvaluationResult:
+        llm_runs = self._get_llm_runs(run)
+        if not llm_runs:
+            return EvaluationResult(key="hallucination", comment="No LLM runs found")
+        if len(llm_runs) > 0:
+            return EvaluationResult(key="hallucination", comment="Too many LLM runs found")
+        llm_run = llm_runs[0]
+        messages = llm_run.inputs["messages"]
+        langchain_load(json.dumps(messages))
 
-    data = await request.json()
-    question = data.get("message")
-    chat_history = data.get("history", [])
-    conversation_id = data.get("conversation_id")
-    
-    print("Recieved question: ", question)
 
-    def stream() -> Generator:
-        global run_id, trace_url, feedback_recorded
-
-        q = Queue()
-        job_done = object()
-
-        llm = ChatOpenAI(model="gpt-3.5-turbo-16k", streaming=True, temperature=0, callbacks=[QueueCallback(q)])
-
-        def task():
-            agent = get_agent(llm, chat_history)
-            agent.invoke({"input": question, "chat_history": chat_history}, config=runnable_config)
-            q.put(job_done)
-
-        t = Thread(target=task)
-        t.start()
-
-        content = ""
-
-        while True:
-            try:
-                next_token = q.get(True, timeout=1)
-                if next_token is job_done:
-                    break
-                content += next_token
-                yield next_token
-            except Empty:
-                continue
-            
-        if not run_id and run_collector.traced_runs:
-            run = run_collector.traced_runs[0]
-            run_id = run.id
-                
-    return StreamingResponse(stream())
-
-@app.post("/feedback")
-async def send_feedback(request: Request):
-    global run_id, feedback_recorded
-    if feedback_recorded or run_id is None:
-        return {"result": "Feedback already recorded or no chat session found", "code": 400}
-    data = await request.json()
-    score = data.get("score")
-    client.create_feedback(run_id, "user_score", score=score)
-    feedback_recorded = True
-    return {"result": "posted feedback successfully", "code": 200}
-
-trace_url = None
-@app.post("/get_trace")
-async def get_trace(request: Request):
-    global run_id, trace_url
-    if trace_url is None and run_id is not None:
-        trace_url = client.share_run(run_id)
-    if run_id is None:
-        return {"result": "No chat session found", "code": 400}
-    return trace_url if trace_url else {"result": "Trace URL not found", "code": 400}
+def return_results(client, llm):
+    results = run_on_dataset(
+        client=client,
+        dataset_name=args.dataset_name,
+        llm_or_chain_factory=get_agent(llm),
+        evaluation=eval_config,
+        verbose=True,
+        concurrency_level=0, # Add this to not go async
+    )
+    return results
 
 if __name__ == "__main__":
-    import uvicorn
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset-name", default="Chat LangChain Questions")
+    parser.add_argument("--model-provider", default="openai")
+    parser.add_argument("--prompt-type", default="chat")
+    args = parser.parse_args()
+    client = Client()
+    # Check dataset exists
+    ds = client.read_dataset(dataset_name=args.dataset_name)
+    
+    llm = ChatOpenAI(model="gpt-3.5-turbo-16k", streaming=True, temperature=0)
 
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    eval_config = RunEvalConfig(evaluators=["qa"], prediction_key="output")
+    results = run_on_dataset(
+        client,
+        dataset_name=args.dataset_name,
+        llm_or_chain_factory=get_agent(llm),
+        evaluation=eval_config,
+        verbose=True,
+        concurrency_level=0, # Add this to not go async
+    )
+    print(results)
+
+    proj = client.read_project(project_name=results["project_name"])
+    print(proj.feedback_stats)
