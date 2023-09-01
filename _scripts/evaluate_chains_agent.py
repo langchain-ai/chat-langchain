@@ -50,24 +50,23 @@ def search(inp: str, index_name: str, callbacks=None) -> str:
         by_text=False,
         attributes=["source"] if not index_name == "LangChain_agent_sources" else None,
     )
-    retriever = weaviate_client.as_retriever(search_kwargs=dict(k=3), callbacks=callbacks)
+    retriever = weaviate_client.as_retriever(search_kwargs=dict(k=3), callbacks=callbacks) if index_name == "LangChain_agent_sources" else weaviate_client.as_retriever(search_kwargs=dict(k=6), callbacks=callbacks)
         
     return retriever.get_relevant_documents(inp, callbacks=callbacks)
 
-with open('docs.pkl', 'rb') as f:
-    docs = pickle.load(f)
+with open('agent_all_transformed.pkl', 'rb') as f:
+    all_texts = pickle.load(f)
     
 def search_everything(inp: str, callbacks: Optional[any] = None ) -> str:
-    global docs
+    global all_texts
     docs_references = search(inp, "LangChain_agent_docs", callbacks=callbacks)
-    repo_references = search(inp, "LangChain_agent_repo", callbacks=callbacks)
-    all_references = docs_references + repo_references
+    # repo_references = search(inp, "LangChain_agent_repo", callbacks=callbacks)
+    all_references = docs_references
     all_references_sources = [r for r in all_references if r.metadata['source']]
 
     sources = search(inp, "LangChain_agent_sources", callbacks=callbacks)
-    
-    sources_docs = [docs[i] for i, t in enumerate(sources)]
-    combined_sources = sources_docs + [source for source in all_references_sources if source not in sources_docs]
+    sources_docs = [doc for doc in all_texts if doc.metadata['source'] in [source.page_content for source in sources]]
+    combined_sources = sources_docs + all_references_sources
     
     return [doc.page_content for doc in combined_sources]
 
@@ -85,31 +84,41 @@ def get_agent(llm, chat_history: Optional[list] = None):
 
     system_message = SystemMessage(
             content=(
-                "You are a helpful chatbot who is tasked with answering questions about LangChain."
-                "Answer the following question as best you can."
-                "Be inclined to include CORRECT Python code snippets if relevant to the question. If you don't know the answer, just say you don't know."
-                "You have access to a LangChain knowledge bank retriever tool for your answer."
-            )
+                "You are an expert developer who is tasked with scouring documentation to answer question about LangChain. "
+                "Answer the following question as best you can. "
+                "Be inclined to include CORRECT Python code snippets if relevant to the question. If you can't find the answer, DO NOT hallucinate. Just say you don't know. "
+                "You have access to a LangChain knowledge bank retriever tool for your answer but know NOTHING about LangChain otherwise. "
+                "Always provide articulate detail to your action input. "
+                "You should always first check your search tool for information on the concepts in the question. "
+                "For example, given the following input question:\n"
+                "-----START OF EXAMPLE INPUT QUESTION-----\n"
+                "What is the transform() method for runnables? \n"
+                "-----END OF EXAMPLE INPUT QUESTION-----\n"
+                "Your research flow should be:\n"
+                "1. Query your search tool for information on 'Transform() method' to get as much context as you can about it. \n"
+                "2. Then, query your search tool for information on 'Runnables' to get as much context as you can about it. \n"
+                "3. Answer the question with the context you have gathered."
+                "For another example, given the following input question:\n"
+                "-----START OF EXAMPLE INPUT QUESTION-----\n"
+                "How can I use vLLM to run my own locally hosted model? \n"
+                "-----END OF EXAMPLE INPUT QUESTION-----\n"
+                "Your research flow should be:\n"
+                "1. Query your search tool for information on 'vLLM' to get as much context as you can about it. \n"
+                "2. Answer the question as you now have enough context."
+    ))
+    
+    prompt = OpenAIFunctionsAgent.create_prompt(
+        system_message=system_message,
+        extra_prompt_messages=[MessagesPlaceholder(variable_name="chat_history")],
     )
     
-    if chat_history:
-        prompt = OpenAIFunctionsAgent.create_prompt(
-            system_message=system_message,
-            extra_prompt_messages=[MessagesPlaceholder(variable_name="chat_history")],
-        )
-    else: 
-        prompt = OpenAIFunctionsAgent.create_prompt(
-            system_message=system_message,
-        )
+    memory = AgentTokenBufferMemory(memory_key="chat_history", llm=llm, max_token_limit=2000)
     
-    
-    if chat_history:
-        memory = AgentTokenBufferMemory(memory_key="chat_history", llm=llm, max_token_limit=4000)
-        for msg in chat_history:
-            if "question" in msg:
-                memory.chat_memory.add_user_message(str(msg.pop("question")))
-            if "result" in msg:
-                memory.chat_memory.add_ai_message(str(msg.pop("result")))
+    for msg in chat_history:
+        if "question" in msg:
+            memory.chat_memory.add_user_message(str(msg.pop("question")))
+        if "result" in msg:
+            memory.chat_memory.add_ai_message(str(msg.pop("result")))
                 
     tools = get_tools()
     
