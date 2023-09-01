@@ -119,7 +119,7 @@ def create_chain(
             ]
         )
 
-    final_model = ChatOpenAI(model="gpt-4") if model_provider == "openai" else ChatAnthropic(model_name="claude-2")
+    final_model = ChatOpenAI(model="gpt-3.5-turbo-16k") if model_provider == "openai" else ChatAnthropic(model_name="claude-2")
     chain = (
         _inputs
         | _context
@@ -142,7 +142,7 @@ def _get_retriever():
     )
     weaviate_client = Weaviate(
         client=client,
-        index_name="LangChain_test_idx",
+        index_name="LangChain_newest_idx",
         text_key="text",
         embedding=embeddings,
         by_text=False,

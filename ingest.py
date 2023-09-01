@@ -86,11 +86,12 @@ def ingest_docs():
     client.schema.delete_class("LangChain_newest_idx") # delete the class if it already exists
 
     embeddings = OpenAIEmbeddings(chunk_size=200) # rate limit
+    weav = Weaviate(client=client, index_name="LangChain_newest_idx", text_key="text", embedding=embeddings, by_text=False)
 
     batch_size = 100 # to handle batch size limit 
     for i in range(0, len(docs_transformed), batch_size):
         batch = docs_transformed[i:i+batch_size]
-        Weaviate.add_documents(batch, embeddings, client=client, by_text=False, index_name="LangChain_newest_idx")
+        weav.add_documents(batch)
 
     print("LangChain now has this many vectors", client.query.aggregate("LangChain_newest_idx").with_meta_count().do())
     
