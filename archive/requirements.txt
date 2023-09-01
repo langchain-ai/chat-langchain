@@ -1,9 +1,0 @@
-langchain==0.0.64
-beautifulsoup4
-weaviate-client
-openai
-black
-isort
-Flask
-transformers
-gradio
