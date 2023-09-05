@@ -9,6 +9,7 @@ import weaviate
 from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
+from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 from langchain.vectorstores import Weaviate
 from langchain.document_transformers import Html2TextTransformer
@@ -153,7 +154,8 @@ def ingest_sources():
     all_texts = codes + documentations
     with open('agent_all_transformed.pkl', 'wb') as f:
         pickle.dump(all_texts, f)
-    
+    all_sources = [Document(page_content=doc.metadata['source'], metadata={"source": doc.metadata["source"]}) for doc in all_texts]
+
     client = weaviate.Client(url=WEAVIATE_URL, auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY))
     embedding = OpenAIEmbeddings(chunk_size=100)  # rate limit
     vectorstore = Weaviate(
@@ -162,7 +164,6 @@ def ingest_sources():
         "text",
         embedding=embedding,
         by_text=False,
-        attributes=["source"]
     )
 
     record_manager = SQLRecordManager(
@@ -171,7 +172,7 @@ def ingest_sources():
     )
     record_manager.create_schema()
     index(
-        all_texts,
+        all_sources,
         record_manager,
         vectorstore,
         cleanup="full",
