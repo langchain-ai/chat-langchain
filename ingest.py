@@ -25,11 +25,11 @@ from langchain.schema.messages import SystemMessage
 from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langchain.agents.openai_functions_agent.agent_token_buffer_memory import AgentTokenBufferMemory
 
+from constants import WEAVIATE_REPO_INDEX_NAME, WEAVIATE_DOCS_INDEX_NAME, \
+    WEAVIATE_SOURCES_INDEX_NAME
+
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
-WEAVIATE_REPO_INDEX_NAME = "LangChain_agent_repo"
-WEAVIATE_DOCS_INDEX_NAME = "LangChain_agent_docs"
-WEAVIATE_SOURCES_INDEX_NAME = "LangChain_agent_sources"
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
 

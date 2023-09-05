@@ -1,0 +1,3 @@
+WEAVIATE_REPO_INDEX_NAME = "LangChain_agent_repo_indexed"
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_agent_docs_indexed"
+WEAVIATE_SOURCES_INDEX_NAME = "LangChain_agent_sources_indexed"

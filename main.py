@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain.callbacks.tracers.run_collector import RunCollectorCallbackHandler
-from langchain.chat_models import ChatAnthropic, ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import MessagesPlaceholder
 from langchain.schema.messages import HumanMessage, AIMessage, SystemMessage
@@ -25,6 +25,8 @@ from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langchain.agents.openai_functions_agent.agent_token_buffer_memory import AgentTokenBufferMemory
 import pickle
 from langchain.callbacks.base import BaseCallbackHandler
+
+from constants import WEAVIATE_SOURCES_INDEX_NAME, WEAVIATE_DOCS_INDEX_NAME
 
 client = Client()
 
@@ -45,7 +47,8 @@ feedback_recorded = False
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
-    
+
+
 def search(inp: str, index_name: str, callbacks=None) -> str:
     client = weaviate.Client(url=WEAVIATE_URL, auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY))
     weaviate_client = Weaviate(
@@ -54,7 +57,7 @@ def search(inp: str, index_name: str, callbacks=None) -> str:
         text_key="text",
         embedding=OpenAIEmbeddings(chunk_size=200),
         by_text=False,
-        attributes=["source"] if not index_name == "LangChain_agent_sources" else None,
+        attributes=["source"] if not index_name == WEAVIATE_SOURCES_INDEX_NAME else None,
     )
     retriever = weaviate_client.as_retriever(search_kwargs=dict(k=3), callbacks=callbacks)
         
@@ -65,12 +68,12 @@ with open('agent_all_transformed.pkl', 'rb') as f:
     
 def search_everything(inp: str, callbacks: Optional[any] = None ) -> str:
     global all_texts
-    docs_references = search(inp, "LangChain_agent_docs", callbacks=callbacks)
-    # repo_references = search(inp, "LangChain_agent_repo", callbacks=callbacks)
+    docs_references = search(inp, WEAVIATE_DOCS_INDEX_NAME, callbacks=callbacks)
+    # repo_references = search(inp, "WEAVIATE_REPO_INDEX_NAME", callbacks=callbacks)
     all_references = docs_references
     all_references_sources = [r for r in all_references if r.metadata['source']]
 
-    sources = search(inp, "LangChain_agent_sources", callbacks=callbacks)
+    sources = search(inp, WEAVIATE_SOURCES_INDEX_NAME, callbacks=callbacks)
     sources_docs = [doc for doc in all_texts if doc.metadata['source'] in [source.page_content for source in sources]]
     combined_sources = sources_docs + all_references_sources
     
