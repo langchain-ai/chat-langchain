@@ -164,6 +164,7 @@ def ingest_sources():
         "text",
         embedding=embedding,
         by_text=False,
+        attributes=["source"],
     )
 
     record_manager = SQLRecordManager(
