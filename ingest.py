@@ -3,11 +3,14 @@ import os
 from git import Repo
 import shutil
 import pickle
+from bs4 import BeautifulSoup
 from typing import Optional
 import weaviate
 from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.indexes import SQLRecordManager, index
+from langchain.schema import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
 from langchain.vectorstores import Weaviate
 from langchain.document_transformers import Html2TextTransformer
 from langchain.document_loaders.generic import GenericLoader
@@ -22,8 +25,13 @@ from langchain.schema.messages import SystemMessage
 from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langchain.agents.openai_functions_agent.agent_token_buffer_memory import AgentTokenBufferMemory
 
-WEAVIATE_URL=os.environ["WEAVIATE_URL"]
-WEAVIATE_API_KEY=os.environ["WEAVIATE_API_KEY"]
+WEAVIATE_URL = os.environ["WEAVIATE_URL"]
+WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
+WEAVIATE_REPO_INDEX_NAME = "LangChain_agent_repo"
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_agent_docs"
+WEAVIATE_SOURCES_INDEX_NAME = "LangChain_agent_sources"
+RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+
 
 def ingest_repo():
     repo_path = os.path.join(os.getcwd(), "test_repo")
@@ -50,15 +58,30 @@ def ingest_repo():
     texts = python_splitter.split_documents(documents_repo)
     
     client = weaviate.Client(url=WEAVIATE_URL, auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY))
-    client.schema.delete_class("LangChain_agent_repo")
-    vstore = Weaviate(client, "LangChain_agent_repo", text_key="text", by_text=False, embedding=OpenAIEmbeddings(chunk_size=200))
+    embedding = OpenAIEmbeddings(chunk_size=200)
+    vectorstore = Weaviate(
+        client,
+        WEAVIATE_REPO_INDEX_NAME,
+        "text",
+        embedding=embedding,
+        by_text=False,
+        attributes=["source"]
+    )
 
-    batch_size = 500 # to handle batch size limit 
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i:i+batch_size]
-        Weaviate.add_documents(batch, OpenAIEmbeddings(chunk_size=200), client=client, by_text=False, index_name="LangChain_agent_repo")
-
+    record_manager = SQLRecordManager(
+        f"weaviate/{WEAVIATE_REPO_INDEX_NAME}",
+        db_url=RECORD_MANAGER_DB_URL
+    )
+    record_manager.create_schema()
+    index(
+        texts,
+        record_manager,
+        vectorstore,
+        cleanup="full",
+        source_id_key="source"
+    )
     return texts
+
 
 def ingest_docs():
     urls = [
@@ -75,7 +98,7 @@ def ingest_docs():
 
     documents = []
     for url in urls:
-        loader = RecursiveUrlLoader(url=url, max_depth=8, extractor=lambda x: Soup(x, "lxml").text, prevent_outside=True)
+        loader = RecursiveUrlLoader(url=url, max_depth=8, extractor=lambda x: BeautifulSoup(x, "lxml").text, prevent_outside=True)
         temp_docs = loader.load()
         temp_docs = [doc for i, doc in enumerate(temp_docs) if doc not in temp_docs[:i]]        
         documents += temp_docs
@@ -89,16 +112,37 @@ def ingest_docs():
         
     docs_transformed = text_splitter.split_documents(docs_transformed)
     
-    client = weaviate.Client(url=WEAVIATE_URL, auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY))
-    client.schema.delete_class("LangChain_agent_docs")
-    vstore = Weaviate(client, "LangChain_agent_docs", text_key="text", by_text=False, embedding=OpenAIEmbeddings(chunk_size=200))
+    client = weaviate.Client(
+        url=WEAVIATE_URL,
+        auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY)
+    )
+    embedding = OpenAIEmbeddings(chunk_size=200)  # rate limit
+    vectorstore = Weaviate(
+        client,
+        WEAVIATE_DOCS_INDEX_NAME,
+        "text",
+        embedding=embedding,
+        by_text=False,
+        attributes=["source"]
+    )
 
-    batch_size = 500 # to handle batch size limit 
-    for i in range(0, len(docs_transformed), batch_size):
-        batch = docs_transformed[i:i+batch_size]
-        vstore.add_documents(batch)
-        
-    return docs_transformed
+    record_manager = SQLRecordManager(
+        f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}",
+        db_url=RECORD_MANAGER_DB_URL
+    )
+    record_manager.create_schema()
+    index(
+        docs_transformed,
+        record_manager,
+        vectorstore,
+        cleanup="full",
+        source_id_key="source"
+    )
+
+    print(
+        "LangChain now has this many vectors: ",
+        client.query.aggregate(WEAVIATE_DOCS_INDEX_NAME).with_meta_count().do()
+    )
 
 def ingest_sources():
     with open('agent_repo_transformed.pkl', 'rb') as f:
@@ -110,18 +154,32 @@ def ingest_sources():
     all_texts = codes + documentations
     with open('agent_all_transformed.pkl', 'wb') as f:
         pickle.dump(all_texts, f)
-    
+    all_sources = [Document(page_content=doc.metadata['source'], metadata={"source": doc.metadata["source"]}) for doc in all_texts]
+
     client = weaviate.Client(url=WEAVIATE_URL, auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY))
-    client.schema.delete_class("LangChain_agent_sources")
-    vectorstore = Weaviate(client, "LangChain_agent_sources", text_key="text", by_text=False, embedding=OpenAIEmbeddings(chunk_size=200))
+    embedding = OpenAIEmbeddings(chunk_size=100)  # rate limit
+    vectorstore = Weaviate(
+        client,
+        WEAVIATE_SOURCES_INDEX_NAME,
+        "text",
+        embedding=embedding,
+        by_text=False,
+    )
+
+    record_manager = SQLRecordManager(
+        f"weaviate/{WEAVIATE_SOURCES_INDEX_NAME}",
+        db_url=RECORD_MANAGER_DB_URL
+    )
+    record_manager.create_schema()
+    index(
+        all_sources,
+        record_manager,
+        vectorstore,
+        cleanup="full",
+        source_id_key="source"
+    )
 
 
-    batch_size = 500 # to handle batch size limit 
-    for i in range(0, len(all_texts), batch_size):
-        batch = all_texts[i:i+batch_size]
-        source_urls = [Document(page_content=doc.metadata['source']) for doc in batch]
-        vstore.add_documents(source_urls)
-        
 if __name__ == "__main__":
     ingest_repo()
     ingest_docs()
