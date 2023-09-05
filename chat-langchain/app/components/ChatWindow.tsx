@@ -27,20 +27,19 @@ export function ChatWindow(props: {
     }>
   >([]);
   const [input, setInput] = useState("");
-  const [model, setModel] = useState("openai");
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<number | null>(null);
 
   const [chatHistory, setChatHistory] = useState<
     { question: string; result: string }[]
   >([]);
-  const [mode, setMode] = useState("novice");
 
   const {
     apiBaseUrl,
     placeholder,
     titleText = "An LLM",
   } = props;
+
 
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
@@ -67,10 +66,8 @@ export function ChatWindow(props: {
         },
         body: JSON.stringify({
           message: messageValue,
-          model: model,
           history: chatHistory,
           conversation_id: conversationId,
-          mode: mode,
         }),
       });
     } catch (e) {
@@ -79,7 +76,6 @@ export function ChatWindow(props: {
       setInput(messageValue);
       throw e;
     }
-
     if (!response.body) {
       throw new Error("Response body is null");
     }
@@ -138,7 +134,6 @@ export function ChatWindow(props: {
           }
           return newMessages;
         });
-
         setIsLoading(false);
         return reader.read().then(processText);
       })
@@ -209,7 +204,7 @@ export function ChatWindow(props: {
 
   return (
     <div
-      className={`flex flex-col items-center p-8 rounded grow`}
+      className="flex flex-col items-center p-8 rounded grow max-h-full"
     >
       <h2 className={`${messages.length > 0 ? "" : "hidden"} text-2xl mb-1`}>
         {titleText}
@@ -246,15 +241,6 @@ export function ChatWindow(props: {
             >
               🛠️ view trace
             </button>
-            <div className="flex items-center mr-2">
-              <label htmlFor="modeToggle" className="mr-1 text-xs">Expert Mode</label>
-              <input
-                type="checkbox"
-                id="modeToggle"
-                className="toggle toggle-blue"
-                onChange={() => setMode(mode === "expert" ? "novice" : "expert")}
-              />
-            </div>
         </div>
 
       <form onSubmit={() => sendMessage()} className="flex w-full">
@@ -271,15 +257,6 @@ export function ChatWindow(props: {
             }
           }}
         />
-        <select
-          id="modelType"
-          className="bg-gray-800 text-white rounded p-2 mr-2 w-full sm:w-auto max-h-[40px]"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-        >
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-        </select>
         <button
           type="submit"
           className="flex-shrink p-2 w-16 sm:w-auto bg-sky-600 rounded max-h-[40px]"
