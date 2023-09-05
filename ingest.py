@@ -155,7 +155,7 @@ def ingest_sources():
         pickle.dump(all_texts, f)
     
     client = weaviate.Client(url=WEAVIATE_URL, auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY))
-    embedding = OpenAIEmbeddings(chunk_size=200)  # rate limit
+    embedding = OpenAIEmbeddings(chunk_size=100)  # rate limit
     vectorstore = Weaviate(
         client,
         WEAVIATE_SOURCES_INDEX_NAME,
