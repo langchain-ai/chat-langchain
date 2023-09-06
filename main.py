@@ -80,7 +80,8 @@ def get_tools():
     return [langchain_tool]
 
 
-def get_agent(llm, chat_history: Optional[list] = None):
+def get_agent(llm, *, chat_history: Optional[list] = None):
+    chat_history = chat_history or []
     system_message = SystemMessage(
         content=(
             "You are an expert developer who is tasked with scouring documentation to answer question about LangChain. "
@@ -180,7 +181,7 @@ async def chat_endpoint(request: Request):
         )
 
         def task():
-            agent = get_agent(llm, chat_history)
+            agent = get_agent(llm, chat_history=chat_history)
             agent.invoke(
                 {"input": question, "chat_history": chat_history},
                 config=runnable_config,
