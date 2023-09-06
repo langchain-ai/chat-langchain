@@ -25,10 +25,9 @@ from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
     AgentTokenBufferMemory,
 )
-import pickle
 from langchain.callbacks.base import BaseCallbackHandler
 
-from constants import WEAVIATE_SOURCES_INDEX_NAME, WEAVIATE_DOCS_INDEX_NAME
+from constants import WEAVIATE_DOCS_INDEX_NAME
 
 client = Client()
 
@@ -51,85 +50,60 @@ WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
 
-def search(inp: str, index_name: str, callbacks=None) -> str:
+def search(inp: str, callbacks=None) -> list:
     client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
     weaviate_client = Weaviate(
         client=client,
-        index_name=index_name,
+        index_name=WEAVIATE_DOCS_INDEX_NAME,
         text_key="text",
         embedding=OpenAIEmbeddings(chunk_size=200),
         by_text=False,
-        attributes=["source"]
-        if not index_name == WEAVIATE_SOURCES_INDEX_NAME
-        else None,
+        attributes=["source"],
     )
     retriever = weaviate_client.as_retriever(
         search_kwargs=dict(k=3), callbacks=callbacks
     )
 
-    return retriever.get_relevant_documents(inp, callbacks=callbacks)
-
-
-with open("agent_all_transformed.pkl", "rb") as f:
-    all_texts = pickle.load(f)
-
-
-def search_everything(inp: str, callbacks: Optional[any] = None) -> str:
-    global all_texts
-    docs_references = search(inp, WEAVIATE_DOCS_INDEX_NAME, callbacks=callbacks)
-    # repo_references = search(inp, "WEAVIATE_REPO_INDEX_NAME", callbacks=callbacks)
-    all_references = docs_references
-    all_references_sources = [r for r in all_references if r.metadata["source"]]
-
-    sources = search(inp, WEAVIATE_SOURCES_INDEX_NAME, callbacks=callbacks)
-    sources_docs = [
-        doc
-        for doc in all_texts
-        if doc.metadata["source"] in [source.page_content for source in sources]
-    ]
-    combined_sources = sources_docs + all_references_sources
-
-    return [doc.page_content for doc in combined_sources]
+    docs = retriever.get_relevant_documents(inp, callbacks=callbacks)
+    return [doc.page_content for doc in docs]
 
 
 def get_tools():
     langchain_tool = Tool(
         name="Documentation",
-        func=search_everything,
-        description="useful for when you need to refer to LangChain's documentation, for both API reference and codebase",
+        func=search,
+        description="useful for when you need to refer to LangChain's documentation",
     )
-    ALL_TOOLS = [langchain_tool]
-
-    return ALL_TOOLS
+    return [langchain_tool]
 
 
-def get_agent(llm, chat_history: Optional[list] = None):
+def get_agent(llm, *, chat_history: Optional[list] = None):
+    chat_history = chat_history or []
     system_message = SystemMessage(
         content=(
-            "You are an expert developer who is tasked with scouring documentation to answer question about LangChain. "
-            "Answer the following question as best you can. "
-            "Be inclined to include CORRECT Python code snippets if relevant to the question. If you can't find the answer, DO NOT hallucinate. Just say you don't know. "
-            "You have access to a LangChain knowledge bank retriever tool for your answer but know NOTHING about LangChain otherwise. "
-            "Always provide articulate detail to your action input. "
-            "You should always first check your search tool for information on the concepts in the question. "
+            "You are an expert developer tasked answering questions about the LangChain Python package. "
+            "You have access to a LangChain knowledge bank which you can query but know NOTHING about LangChain otherwise. "
+            "You should always first query the knowledge bank for information on the concepts in the question. "
             "For example, given the following input question:\n"
             "-----START OF EXAMPLE INPUT QUESTION-----\n"
             "What is the transform() method for runnables? \n"
             "-----END OF EXAMPLE INPUT QUESTION-----\n"
             "Your research flow should be:\n"
-            "1. Query your search tool for information on 'Transform() method' to get as much context as you can about it. \n"
-            "2. Then, query your search tool for information on 'Runnables' to get as much context as you can about it. \n"
+            "1. Query your search tool for information on 'Runnables.transform() method' to get as much context as you can about it.\n"
+            "2. Then, query your search tool for information on 'Runnables' to get as much context as you can about it.\n"
             "3. Answer the question with the context you have gathered."
             "For another example, given the following input question:\n"
             "-----START OF EXAMPLE INPUT QUESTION-----\n"
             "How can I use vLLM to run my own locally hosted model? \n"
             "-----END OF EXAMPLE INPUT QUESTION-----\n"
             "Your research flow should be:\n"
-            "1. Query your search tool for information on 'vLLM' to get as much context as you can about it. \n"
-            "2. Answer the question as you now have enough context."
+            "1. Query your search tool for information on 'run vLLM locally' to get as much context as you can about it. \n"
+            "2. Answer the question as you now have enough context.\n\n"
+            "Include CORRECT Python code snippets in your answer if relevant to the question. If you can't find the answer, DO NOT make up an answer. Just say you don't know. "
+            "Answer the following question as best you can:"
         )
     )
 
@@ -206,7 +180,7 @@ async def chat_endpoint(request: Request):
         )
 
         def task():
-            agent = get_agent(llm, chat_history)
+            agent = get_agent(llm, chat_history=chat_history)
             agent.invoke(
                 {"input": question, "chat_history": chat_history},
                 config=runnable_config,
