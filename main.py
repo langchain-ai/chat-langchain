@@ -25,7 +25,6 @@ from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
     AgentTokenBufferMemory,
 )
-import pickle
 from langchain.callbacks.base import BaseCallbackHandler
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
@@ -51,14 +50,14 @@ WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
 
-def search(inp: str, index_name: str, callbacks=None) -> str:
+def search(inp: str, callbacks=None) -> list:
     client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
     weaviate_client = Weaviate(
         client=client,
-        index_name=index_name,
+        index_name=WEAVIATE_DOCS_INDEX_NAME,
         text_key="text",
         embedding=OpenAIEmbeddings(chunk_size=200),
         by_text=False,
@@ -68,40 +67,17 @@ def search(inp: str, index_name: str, callbacks=None) -> str:
         search_kwargs=dict(k=3), callbacks=callbacks
     )
 
-    return retriever.get_relevant_documents(inp, callbacks=callbacks)
-
-
-with open("agent_all_transformed.pkl", "rb") as f:
-    all_texts = pickle.load(f)
-
-
-def search_everything(inp: str, callbacks: Optional[any] = None) -> str:
-    global all_texts
-    docs_references = search(inp, WEAVIATE_DOCS_INDEX_NAME, callbacks=callbacks)
-    # repo_references = search(inp, "WEAVIATE_REPO_INDEX_NAME", callbacks=callbacks)
-    all_references = docs_references
-    all_references_sources = [r for r in all_references if r.metadata["source"]]
-
-    sources = search(inp, WEAVIATE_SOURCES_INDEX_NAME, callbacks=callbacks)
-    sources_docs = [
-        doc
-        for doc in all_texts
-        if doc.metadata["source"] in [source.page_content for source in sources]
-    ]
-    combined_sources = sources_docs + all_references_sources
-
-    return [doc.page_content for doc in combined_sources]
+    docs = retriever.get_relevant_documents(inp, callbacks=callbacks)
+    return [doc.page_content for doc in docs]
 
 
 def get_tools():
     langchain_tool = Tool(
         name="Documentation",
-        func=search_everything,
-        description="useful for when you need to refer to LangChain's documentation, for both API reference and codebase",
+        func=search,
+        description="useful for when you need to refer to LangChain's documentation",
     )
-    ALL_TOOLS = [langchain_tool]
-
-    return ALL_TOOLS
+    return [langchain_tool]
 
 
 def get_agent(llm, chat_history: Optional[list] = None):
