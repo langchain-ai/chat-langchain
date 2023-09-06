@@ -28,7 +28,7 @@ from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
 import pickle
 from langchain.callbacks.base import BaseCallbackHandler
 
-from constants import WEAVIATE_SOURCES_INDEX_NAME, WEAVIATE_DOCS_INDEX_NAME
+from constants import WEAVIATE_DOCS_INDEX_NAME
 
 client = Client()
 
@@ -62,9 +62,7 @@ def search(inp: str, index_name: str, callbacks=None) -> str:
         text_key="text",
         embedding=OpenAIEmbeddings(chunk_size=200),
         by_text=False,
-        attributes=["source"]
-        if not index_name == WEAVIATE_SOURCES_INDEX_NAME
-        else None,
+        attributes=["source"],
     )
     retriever = weaviate_client.as_retriever(
         search_kwargs=dict(k=3), callbacks=callbacks
