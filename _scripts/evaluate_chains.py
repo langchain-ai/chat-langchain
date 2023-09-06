@@ -7,11 +7,8 @@ from langsmith.evaluation.evaluator import EvaluationResult
 from langsmith.schemas import Example, Run
 
 import weaviate
-from langchain import prompts
-from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.memory import ConversationBufferMemory
 from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import Runnable, RunnableMap
 from langchain.schema.output_parser import StrOutputParser
@@ -34,6 +31,7 @@ _MODEL_MAP = {
     "anthropic": "claude-2",
 }
 
+
 def create_chain(
     retriever: BaseRetriever,
     model_provider: Union[Literal["openai"], Literal["anthropic"]],
@@ -43,17 +41,16 @@ def create_chain(
 ) -> Runnable:
     model_name = model or _MODEL_MAP[model_provider]
     model = _PROVIDER_MAP[model_provider](model=model_name, temperature=temperature)
-    
+
     _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
     Chat History:
     {chat_history}
     Follow Up Input: {question}
     Standalone Question:"""
-    
-    
+
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
-    
+
     _template = """
     You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
     If you really don't know the answer, just say "Hmm, I'm not sure." Don't try to make up an answer.
@@ -64,25 +61,30 @@ def create_chain(
 
     if chat_history:
         _inputs = RunnableMap(
-                {
-                    "standalone_question": {
-                        "question": lambda x: x["question"],
-                        "chat_history": lambda x: x["chat_history"],
-                    } | CONDENSE_QUESTION_PROMPT | model | StrOutputParser(),
+            {
+                "standalone_question": {
                     "question": lambda x: x["question"],
                     "chat_history": lambda x: x["chat_history"],
                 }
-            )
+                | CONDENSE_QUESTION_PROMPT
+                | model
+                | StrOutputParser(),
+                "question": lambda x: x["question"],
+                "chat_history": lambda x: x["chat_history"],
+            }
+        )
         _context = {
             "context": itemgetter("standalone_question") | retriever,
-            "question": lambda x: x["question"], 
+            "question": lambda x: x["question"],
             "chat_history": lambda x: x["chat_history"],
         }
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", _template),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{question}"),
-        ])
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", _template),
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("human", "{question}"),
+            ]
+        )
     else:
         _inputs = RunnableMap(
             {
@@ -92,22 +94,18 @@ def create_chain(
         )
         _context = {
             "context": itemgetter("question") | retriever,
-            "question": lambda x: x["question"], 
+            "question": lambda x: x["question"],
             "chat_history": lambda x: [],
         }
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", _template),
-            ("human", "{question}"),
-        ])
-    
-    chain = (
-        _inputs
-        | _context
-        | prompt 
-        | model
-        | StrOutputParser()
-    )
-    
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", _template),
+                ("human", "{question}"),
+            ]
+        )
+
+    chain = _inputs | _context | prompt | model | StrOutputParser()
+
     return chain
 
 
@@ -130,29 +128,30 @@ def _get_retriever():
     )
     return weaviate_client.as_retriever(search_kwargs=dict(k=10))
 
-class CustomHallucinationEvaluator(RunEvaluator):
 
+class CustomHallucinationEvaluator(RunEvaluator):
     @staticmethod
     def _get_llm_runs(run: Run) -> Run:
         runs = []
-        for child in (run.child_runs or []):
+        for child in run.child_runs or []:
             if run.run_type == "llm":
                 runs.append(child)
             else:
                 runs.extend(CustomHallucinationEvaluator._get_llm_runs(child))
 
-
-    def evaluate_run(self, run: Run, example: Example | None = None) -> EvaluationResult:
+    def evaluate_run(
+        self, run: Run, example: Example | None = None
+    ) -> EvaluationResult:
         llm_runs = self._get_llm_runs(run)
         if not llm_runs:
             return EvaluationResult(key="hallucination", comment="No LLM runs found")
         if len(llm_runs) > 0:
-            return EvaluationResult(key="hallucination", comment="Too many LLM runs found")
+            return EvaluationResult(
+                key="hallucination", comment="Too many LLM runs found"
+            )
         llm_run = llm_runs[0]
         messages = llm_run.inputs["messages"]
         langchain_load(json.dumps(messages))
-
-
 
 
 if __name__ == "__main__":
