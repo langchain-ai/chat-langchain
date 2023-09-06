@@ -1,77 +1,24 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
+import logging
 import os
-from git import Repo
-import shutil
-import pickle
 from bs4 import BeautifulSoup
 import weaviate
 from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
-from langchain.schema import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter, Language
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Weaviate
 from langchain.document_transformers import Html2TextTransformer
-from langchain.document_loaders.generic import GenericLoader
-from langchain.document_loaders.parsers import LanguageParser
 
 from constants import (
-    WEAVIATE_REPO_INDEX_NAME,
     WEAVIATE_DOCS_INDEX_NAME,
-    WEAVIATE_SOURCES_INDEX_NAME,
 )
+
+logger = logging.getLogger(__name__)
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
-
-
-def ingest_repo():
-    repo_path = os.path.join(os.getcwd(), "test_repo")
-    if os.path.exists(repo_path):
-        shutil.rmtree(repo_path)
-
-    Repo.clone_from(
-        "https://github.com/langchain-ai/langchain", to_path=repo_path
-    )
-
-    loader = GenericLoader.from_filesystem(
-        repo_path + "/libs/langchain/langchain",
-        glob="**/*",
-        suffixes=[".py"],
-        parser=LanguageParser(language=Language.PYTHON, parser_threshold=500),
-    )
-    documents_repo = loader.load()
-    len(documents_repo)
-
-    with open("agent_repo_transformed.pkl", "wb") as f:
-        pickle.dump(documents_repo, f)
-
-    python_splitter = RecursiveCharacterTextSplitter.from_language(
-        language=Language.PYTHON, chunk_size=2000, chunk_overlap=200
-    )
-    texts = python_splitter.split_documents(documents_repo)
-
-    client = weaviate.Client(
-        url=WEAVIATE_URL,
-        auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
-    )
-    embedding = OpenAIEmbeddings(chunk_size=200)
-    vectorstore = Weaviate(
-        client,
-        WEAVIATE_REPO_INDEX_NAME,
-        "text",
-        embedding=embedding,
-        by_text=False,
-        attributes=["source"],
-    )
-
-    record_manager = SQLRecordManager(
-        f"weaviate/{WEAVIATE_REPO_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
-    )
-    record_manager.create_schema()
-    index(texts, record_manager, vectorstore, cleanup="full", source_id_key="source")
-    return texts
 
 
 def ingest_docs():
@@ -100,12 +47,9 @@ def ingest_docs():
         documents += temp_docs
 
     html2text = Html2TextTransformer()
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
+
     docs_transformed = html2text.transform_documents(documents)
-
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=200)
-    with open("agent_docs_transformed.pkl", "wb") as f:
-        pickle.dump(docs_transformed, f)
-
     docs_transformed = text_splitter.split_documents(docs_transformed)
 
     client = weaviate.Client(
@@ -134,54 +78,11 @@ def ingest_docs():
         source_id_key="source",
     )
 
-    print(
+    logger.info(
         "LangChain now has this many vectors: ",
         client.query.aggregate(WEAVIATE_DOCS_INDEX_NAME).with_meta_count().do(),
     )
 
 
-def ingest_sources():
-    with open("agent_repo_transformed.pkl", "rb") as f:
-        codes = pickle.load(f)
-
-    with open("agent_docs_transformed.pkl", "rb") as f:
-        documentations = pickle.load(f)
-
-    all_texts = codes + documentations
-    with open("agent_all_transformed.pkl", "wb") as f:
-        pickle.dump(all_texts, f)
-    all_sources = [
-        Document(
-            page_content=doc.metadata["source"],
-            metadata={"source": doc.metadata["source"]},
-        )
-        for doc in all_texts
-    ]
-
-    client = weaviate.Client(
-        url=WEAVIATE_URL,
-        auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
-    )
-    embedding = OpenAIEmbeddings(chunk_size=100)  # rate limit
-    vectorstore = Weaviate(
-        client,
-        WEAVIATE_SOURCES_INDEX_NAME,
-        "text",
-        embedding=embedding,
-        by_text=False,
-        attributes=["source"],
-    )
-
-    record_manager = SQLRecordManager(
-        f"weaviate/{WEAVIATE_SOURCES_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
-    )
-    record_manager.create_schema()
-    index(
-        all_sources, record_manager, vectorstore, cleanup="full", source_id_key="source"
-    )
-
-
 if __name__ == "__main__":
-    ingest_repo()
     ingest_docs()
-    ingest_sources()
