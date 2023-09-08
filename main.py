@@ -26,10 +26,16 @@ from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
     AgentTokenBufferMemory,
 )
 from langchain.callbacks.base import BaseCallbackHandler
+from llmfeedback.client import Client as FeedbackClient
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
 client = Client()
+
+project_id = "YOUR_PROJECT_ID"
+api_key = "YOUR_API_KEY"
+feedback_client = FeedbackClient(project_id=project_id, api_key=api_key)
+CONFIG_NAME = "CHAT-LANGCHAIN_09072023"
 
 app = FastAPI()
 app.add_middleware(
@@ -133,6 +139,19 @@ def get_agent(llm, *, chat_history: Optional[list] = None):
         return_intermediate_steps=True,
     )
 
+    feedback_client.register_config(
+        config_name=CONFIG_NAME, 
+        config={
+            "type": "OpenAIFunctionsAgent",
+            "prompt": system_message.content,
+            "llm": llm._default_params,
+            "tools": [{
+                "name": tool.name,
+                "description": tool.description,
+            } for tool in tools]
+        }
+    )
+
     return agent_executor
 
 
@@ -206,6 +225,14 @@ async def chat_endpoint(request: Request):
             run = run_collector.traced_runs[0]
             run_id = run.id
 
+        feedback_client.log_dialogue(
+            config_name=CONFIG_NAME,
+            instruction=question,
+            response=content,
+            id=str(run_id),
+            group_id=data.get("conversation_id"),
+            created_by="user",
+        )
     return StreamingResponse(stream())
 
 
@@ -220,6 +247,12 @@ async def send_feedback(request: Request):
     data = await request.json()
     score = data.get("score")
     client.create_feedback(run_id, "user_score", score=score)
+    feedback_client.create_feedback(
+        content_id=str(run_id), 
+        key="user_score",
+        score=score,
+        user="user" 
+    )
     feedback_recorded = True
     return {"result": "posted feedback successfully", "code": 200}
 

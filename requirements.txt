@@ -18,3 +18,4 @@ html2text
 GitPython
 psycopg2-binary
 lxml
+llm-feedback-client
