@@ -61,7 +61,7 @@ def search(inp: str, callbacks=None) -> list:
         text_key="text",
         embedding=OpenAIEmbeddings(chunk_size=200),
         by_text=False,
-        attributes=["source"],
+        attributes=["source", "title"],
     )
     retriever = weaviate_client.as_retriever(
         search_kwargs=dict(k=3), callbacks=callbacks
