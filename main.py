@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain.callbacks.tracers.run_collector import RunCollectorCallbackHandler
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import MessagesPlaceholder
 from langchain.schema.messages import SystemMessage
@@ -26,8 +26,26 @@ from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
     AgentTokenBufferMemory,
 )
 from langchain.callbacks.base import BaseCallbackHandler
+from langchain.schema.retriever import BaseRetriever
+from typing import Literal, Optional, Union
+from langchain.schema.runnable import Runnable, RunnableMap, RunnablePassthrough
+from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
+from langchain.schema.output_parser import StrOutputParser
+from operator import itemgetter
+import urllib3
+from bs4 import BeautifulSoup
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
+
+_PROVIDER_MAP = {
+    "openai": ChatOpenAI,
+    "anthropic": ChatAnthropic,
+}
+
+_MODEL_MAP = {
+    "openai": "gpt-3.5-turbo-16k",
+    "anthropic": "claude-2",
+}
 
 client = Client()
 
@@ -50,90 +68,83 @@ WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
 
-def search(inp: str, callbacks=None) -> list:
-    client = weaviate.Client(
+def get_retriever():
+    weaviate_client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
     weaviate_client = Weaviate(
-        client=client,
+        client=weaviate_client,
         index_name=WEAVIATE_DOCS_INDEX_NAME,
         text_key="text",
         embedding=OpenAIEmbeddings(chunk_size=200),
         by_text=False,
         attributes=["source", "title"],
     )
-    retriever = weaviate_client.as_retriever(
-        search_kwargs=dict(k=3), callbacks=callbacks
+    return weaviate_client.as_retriever(
+        search_kwargs=dict(k=3)
     )
 
-    docs = retriever.get_relevant_documents(inp, callbacks=callbacks)
-    return [doc.page_content for doc in docs]
+def create_retriever(chat_history, llm, retriever: BaseRetriever):
+    _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
+    Chat History:
+    {chat_history}
+    Follow Up Input: {question}
+    Standalone Question:"""
 
-def get_tools():
-    langchain_tool = Tool(
-        name="Documentation",
-        func=search,
-        description="useful for when you need to refer to LangChain's documentation",
-    )
-    return [langchain_tool]
+    CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
 
-
-def get_agent(llm, *, chat_history: Optional[list] = None):
-    chat_history = chat_history or []
-    system_message = SystemMessage(
-        content=(
-            "You are an expert developer tasked answering questions about the LangChain Python package. "
-            "You have access to a LangChain knowledge bank which you can query but know NOTHING about LangChain otherwise. "
-            "You should always first query the knowledge bank for information on the concepts in the question. "
-            "For example, given the following input question:\n"
-            "-----START OF EXAMPLE INPUT QUESTION-----\n"
-            "What is the transform() method for runnables? \n"
-            "-----END OF EXAMPLE INPUT QUESTION-----\n"
-            "Your research flow should be:\n"
-            "1. Query your search tool for information on 'Runnables.transform() method' to get as much context as you can about it.\n"
-            "2. Then, query your search tool for information on 'Runnables' to get as much context as you can about it.\n"
-            "3. Answer the question with the context you have gathered."
-            "For another example, given the following input question:\n"
-            "-----START OF EXAMPLE INPUT QUESTION-----\n"
-            "How can I use vLLM to run my own locally hosted model? \n"
-            "-----END OF EXAMPLE INPUT QUESTION-----\n"
-            "Your research flow should be:\n"
-            "1. Query your search tool for information on 'run vLLM locally' to get as much context as you can about it. \n"
-            "2. Answer the question as you now have enough context.\n\n"
-            "Include CORRECT Python code snippets in your answer if relevant to the question. If you can't find the answer, DO NOT make up an answer. Just say you don't know. "
-            "Answer the following question as best you can:"
+    if chat_history:
+        retriever_chain = (
+        {
+            "question": lambda x: x["question"],
+            "chat_history": lambda x: x["chat_history"],
+        }
+        | CONDENSE_QUESTION_PROMPT
+        | llm
+        | StrOutputParser()
+        | retriever
         )
-    )
+    else:
+        retriever_chain = (
+            (lambda x: x["question"]) | retriever
+        )
+    return retriever_chain
 
-    prompt = OpenAIFunctionsAgent.create_prompt(
-        system_message=system_message,
-        extra_prompt_messages=[MessagesPlaceholder(variable_name="chat_history")],
-    )
 
-    memory = AgentTokenBufferMemory(
-        memory_key="chat_history", llm=llm, max_token_limit=2000
-    )
+def create_chain(
+    llm,
+    retriever_chain,
+) -> Runnable:
+    _template = """
+    You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
+    If there is nothing in the context relevant to the question at hand, just say "Hmm, I'm not sure." Don't try to make up an answer.
+    Anything between the following `context`  html blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
+    <context>
+        {context} 
+    <context/>
 
-    for msg in chat_history:
-        if "question" in msg:
-            memory.chat_memory.add_user_message(str(msg.pop("question")))
-        if "result" in msg:
-            memory.chat_memory.add_ai_message(str(msg.pop("result")))
+    REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm not sure." Don't try to make up an answer. Anything between the preceding 'context' html blocks is retrieved from a knowledge bank, not part of the conversation with the user.
+    """
 
-    tools = get_tools()
+    
+    _context = {
+        "context": retriever_chain,
+        "question": lambda x: x["question"],
+        "chat_history": lambda x: x["chat_history"],
+    }
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", _template),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{question}"),
+    ])
 
-    agent = OpenAIFunctionsAgent(llm=llm, tools=tools, prompt=prompt)
-    agent_executor = AgentExecutor(
-        agent=agent,
-        tools=tools,
-        memory=memory,
-        verbose=True,
-        return_intermediate_steps=True,
-    )
+    chain = _context | prompt | llm | StrOutputParser()
 
-    return agent_executor
+
+
+    return chain
 
 
 class QueueCallback(BaseCallbackHandler):
@@ -180,13 +191,19 @@ async def chat_endpoint(request: Request):
         )
 
         def task():
-            agent = get_agent(llm, chat_history=chat_history)
-            agent.invoke(
-                {"input": question, "chat_history": chat_history},
-                config=runnable_config,
-            )
+            retriever_chain = create_retriever(chat_history, llm, get_retriever())
+            chain = create_chain(llm, retriever_chain)
+            docs = retriever_chain.invoke({"question": question, "chat_history": chat_history}, config=runnable_config)
+            url_set = set()
+            for doc in docs:
+                if doc.metadata['source'] in url_set:
+                    continue
+                q.put(doc.metadata['source']+"\n")
+                url_set.add(doc.metadata['source'])
+            if len(docs) > 0:
+                q.put("SOURCES:----------------------------")
+            chain.invoke({"question": question, "chat_history": chat_history, "context": docs}, config=runnable_config)
             q.put(job_done)
-
         t = Thread(target=task)
         t.start()
 
