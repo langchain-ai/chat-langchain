@@ -52,6 +52,15 @@ def ingest_docs():
     docs_transformed = html2text.transform_documents(documents)
     docs_transformed = text_splitter.split_documents(docs_transformed)
 
+    # We try to return 'source' and 'title' metadata when querying vector store and
+    # Weaviate will error at query time if one of the attributes is missing from a
+    # retrieved document.
+    for doc in docs_transformed:
+        if "source" not in doc.metadata:
+            doc.metadata["source"] = ""
+        if "title" not in doc.metadata:
+            doc.metadata["title"] = ""
+
     client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
@@ -63,7 +72,7 @@ def ingest_docs():
         "text",
         embedding=embedding,
         by_text=False,
-        attributes=["source"],
+        attributes=["source", "title"],
     )
 
     record_manager = SQLRecordManager(
