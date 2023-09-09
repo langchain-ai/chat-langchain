@@ -13,11 +13,6 @@ export function createScope<T>(methods: T) {
     getActiveElement: (ctx: Ctx) => screen.getDoc(ctx).activeElement as HTMLElement | null,
     getById: <T extends HTMLElement = HTMLElement>(ctx: Ctx, id: string) =>
       screen.getRootNode(ctx).getElementById(id) as T | null,
-    queryById: <T extends HTMLElement = HTMLElement>(ctx: Ctx, id: string): T => {
-      const el = screen.getById<T>(ctx, id)
-      if (!el) throw new Error(`Element with id "${id}" not found.`)
-      return el
-    },
   }
   return { ...screen, ...methods }
 }
