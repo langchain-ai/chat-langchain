@@ -57,12 +57,13 @@ export function ChatMessageBubble(props: {
   
     let urls = parts[0].trim().split('\n');
 
-    urls = urls.map((url) => {
+    let sources = urls.map((url) => {
       let urlParts = url.split('"');
-      return urlParts[1];
+      let titleParts = url.split(':');
+      return {url: urlParts[1], title: titleParts[0]};
     });
     
-    return urls;
+    return sources;
   }
 
   const sources = parseUrls(props.message.content);
@@ -101,7 +102,7 @@ export function ChatMessageBubble(props: {
           <HStack spacing={'10px'}>
             {
             sources.map((source, index) => (
-              <Box key={index}><SourceBubble source={{url: source, title: source}}/></Box>
+              <Box key={index}><SourceBubble source={source}/></Box>
             ))
             }
           </HStack> 

@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@chakra-ui/icons": "^2.1.0",
+    "@chakra-ui/react": "^2.8.1",
     "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
     "@types/marked": "^5.0.1",
     "@types/node": "20.4.9",
     "@types/react": "18.2.20",
@@ -19,6 +21,7 @@
     "emojisplosion": "^2.6.1",
     "eslint": "8.46.0",
     "eslint-config-next": "13.4.13",
+    "framer-motion": "^10.16.4",
     "highlight.js": "^11.8.0",
     "langchain": "^0.0.127",
     "marked": "^7.0.2",
