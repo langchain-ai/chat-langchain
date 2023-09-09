@@ -33,7 +33,7 @@ export function ChatWindow(props: {
   const [feedback, setFeedback] = useState<number | null>(null);
 
   const [chatHistory, setChatHistory] = useState<
-    { question: string; result: string }[]
+    { human: string; ai: string }[]
   >([]);
 
   const {
@@ -113,7 +113,7 @@ export function ChatWindow(props: {
           console.log("Stream complete");
           setChatHistory((prevChatHistory) => [
             ...prevChatHistory,
-            { question: messageValue, result: accumulatedMessage },
+            { human: messageValue, ai: accumulatedMessage },
           ]);
           return Promise.resolve();
         }
