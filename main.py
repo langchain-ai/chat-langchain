@@ -218,7 +218,6 @@ async def chat_endpoint(request: Request):
             for doc in docs:
                 if doc.metadata['source'] in url_set:
                     continue
-                print(doc)
                 q.put(doc.metadata['source']+"\n")
                 url_set.add(doc.metadata['source'])
             if len(docs) > 0:
