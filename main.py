@@ -10,7 +10,7 @@ from langchain.callbacks.tracers.run_collector import RunCollectorCallbackHandle
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import MessagesPlaceholder
-from langchain.schema.messages import SystemMessage
+from langchain.schema.messages import SystemMessage, HumanMessage, AIMessage
 from langchain.schema.runnable import RunnableConfig
 from langchain.vectorstores import Weaviate
 from langsmith import Client
@@ -85,6 +85,7 @@ def get_retriever():
         search_kwargs=dict(k=3)
     )
 
+
 def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
     _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
@@ -136,7 +137,6 @@ def create_chain(
     REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm not sure." Don't try to make up an answer. Anything between the preceding 'context' html blocks is retrieved from a knowledge bank, not part of the conversation with the user.
     """
 
-    
     _context = {
         "context": retriever_chain | format_docs,
         "question": lambda x: x["question"],
@@ -181,11 +181,12 @@ async def chat_endpoint(request: Request):
     data = await request.json()
     question = data.get("message")
     chat_history = data.get("history", [])
-    combined_chat_history = []
-    if chat_history is not None:
-        for dict in chat_history:
-            for value in dict.values():
-                combined_chat_history.append(value)
+    converted_chat_history = []
+    for message in chat_history:
+        if message.get("human") is not None:
+            converted_chat_history.append(HumanMessage(content=message["human"]))
+        if message.get("ai") is not None:
+            converted_chat_history.append(AIMessage(content=message["ai"]))
     data.get("conversation_id")
 
     print("Recieved question: ", question)
@@ -203,19 +204,26 @@ async def chat_endpoint(request: Request):
             callbacks=[QueueCallback(q)],
         )
 
+        llm_without_callback = ChatOpenAI(
+            model="gpt-3.5-turbo-16k",
+            streaming=True,
+            temperature=0,
+        )
+
         def task():
-            retriever_chain = create_retriever_chain(combined_chat_history, llm, get_retriever())
+            retriever_chain = create_retriever_chain(chat_history, llm_without_callback, get_retriever())
             chain = create_chain(llm, retriever_chain)
-            docs = retriever_chain.invoke({"question": question, "chat_history": combined_chat_history}, config=runnable_config)
+            docs = retriever_chain.invoke({"question": question, "chat_history": chat_history}, config=runnable_config)
             url_set = set()
             for doc in docs:
                 if doc.metadata['source'] in url_set:
                     continue
+                print(doc)
                 q.put(doc.metadata['source']+"\n")
                 url_set.add(doc.metadata['source'])
             if len(docs) > 0:
                 q.put("SOURCES:----------------------------")
-            chain.invoke({"question": question, "chat_history": combined_chat_history, "context": docs}, config=runnable_config)
+            chain.invoke({"question": question, "chat_history": converted_chat_history, "context": docs}, config=runnable_config)
             q.put(job_done)
         t = Thread(target=task)
         t.start()
