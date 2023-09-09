@@ -85,7 +85,7 @@ def get_retriever():
         search_kwargs=dict(k=3)
     )
 
-def create_retriever(chat_history, llm, retriever: BaseRetriever):
+def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
     _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
     Chat History:
@@ -113,6 +113,14 @@ def create_retriever(chat_history, llm, retriever: BaseRetriever):
     return retriever_chain
 
 
+def format_docs(docs):
+    formatted_docs = []
+    for i, doc in enumerate(docs):
+        doc_string = f"<doc id='{i}'>{doc.page_content}</doc>"
+        formatted_docs.append(doc_string)
+    return "\n".join(formatted_docs)
+
+
 def create_chain(
     llm,
     retriever_chain,
@@ -130,7 +138,7 @@ def create_chain(
 
     
     _context = {
-        "context": retriever_chain,
+        "context": retriever_chain | format_docs,
         "question": lambda x: x["question"],
         "chat_history": lambda x: x["chat_history"],
     }
@@ -173,6 +181,11 @@ async def chat_endpoint(request: Request):
     data = await request.json()
     question = data.get("message")
     chat_history = data.get("history", [])
+    combined_chat_history = []
+    if chat_history is not None:
+        for dict in chat_history:
+            for value in dict.values():
+                combined_chat_history.append(value)
     data.get("conversation_id")
 
     print("Recieved question: ", question)
@@ -191,9 +204,9 @@ async def chat_endpoint(request: Request):
         )
 
         def task():
-            retriever_chain = create_retriever(chat_history, llm, get_retriever())
+            retriever_chain = create_retriever_chain(combined_chat_history, llm, get_retriever())
             chain = create_chain(llm, retriever_chain)
-            docs = retriever_chain.invoke({"question": question, "chat_history": chat_history}, config=runnable_config)
+            docs = retriever_chain.invoke({"question": question, "chat_history": combined_chat_history}, config=runnable_config)
             url_set = set()
             for doc in docs:
                 if doc.metadata['source'] in url_set:
@@ -202,7 +215,7 @@ async def chat_endpoint(request: Request):
                 url_set.add(doc.metadata['source'])
             if len(docs) > 0:
                 q.put("SOURCES:----------------------------")
-            chain.invoke({"question": question, "chat_history": chat_history, "context": docs}, config=runnable_config)
+            chain.invoke({"question": question, "chat_history": combined_chat_history, "context": docs}, config=runnable_config)
             q.put(job_done)
         t = Thread(target=task)
         t.start()
