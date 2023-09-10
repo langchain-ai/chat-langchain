@@ -46,10 +46,10 @@ export function ChatMessageBubble(props: {
   };
 
   function parseUrls(text:string) {
-    if (!text.includes('SOURCES:----------------------------')) {
+    if (!text.includes(urlDelimiter)) {
       return [];
     }
-    const parts = text.split('SOURCES:----------------------------');
+    const parts = text.split(urlDelimiter);
     
     if (parts.length <1) {
       return [];
@@ -60,7 +60,8 @@ export function ChatMessageBubble(props: {
     let sources = urls.map((url) => {
       let urlParts = url.split('"');
       let titleParts = url.split(':');
-      return {url: urlParts[1], title: titleParts[0]};
+      let title = titleParts[0].split(" |")[0];
+      return {url: urlParts[1], title: title};
     });
     
     return sources;
@@ -68,7 +69,7 @@ export function ChatMessageBubble(props: {
 
   const sources = parseUrls(props.message.content);
   const messageParts = props.message.content.split(urlDelimiter);
-  const aiResponse = messageParts.length > 1 ? messageParts[1] : props.message.content.includes(urlDelimiter) ? "" : props.message.content;
+  const aiResponse = messageParts.length > 1 ? messageParts.slice(-1) : props.message.content.includes(urlDelimiter) ? "" : props.message.content;
 
   const animateButton = (buttonId: string) => {
     const button = document.getElementById(buttonId);
@@ -102,7 +103,7 @@ export function ChatMessageBubble(props: {
           <HStack spacing={'10px'}>
             {
             sources.map((source, index) => (
-              <Box key={index}><SourceBubble source={source}/></Box>
+              <Box key={index} alignSelf={"stretch"} width={40}><SourceBubble source={source}/></Box>
             ))
             }
           </HStack> 

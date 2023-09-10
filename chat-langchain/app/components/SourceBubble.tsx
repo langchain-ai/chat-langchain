@@ -2,7 +2,7 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { emojisplosion } from "emojisplosion";
 import { useState } from "react";
-import { ChakraProvider, Card, CardHeader, CardBody, CardFooter, Text, Heading } from '@chakra-ui/react'
+import { ChakraProvider, Card, CardHeader, CardBody, CardFooter, Text, Heading, Image, Box} from '@chakra-ui/react'
 
 export type Source = {
   url: string;
@@ -12,7 +12,6 @@ export type Source = {
 export function SourceBubble(props: {
   source: Source;
 }) {
-
   const [feedbackColor, setFeedbackColor] = useState("");
   const [isMouseOver, setIsMouseOver] = useState(false);
 
@@ -62,10 +61,10 @@ export function SourceBubble(props: {
         onMouseOver={() => {setIsMouseOver(true)}}
         onMouseLeave={() => {setIsMouseOver(false)}}
         cursor={"pointer"}
-        height={20}
-        width={40}
+        alignSelf={"stretch"}
+        height="100%"
         overflow={"hidden"}>
-            <CardBody><Heading size={"xs"} fontWeight={"normal"} color={"white"}>{props.source.title}</Heading></CardBody>
+            <CardBody><Heading size={"sm"} fontWeight={"normal"} color={"white"}>{props.source.title}</Heading></CardBody>
         </Card>
   );
 }
