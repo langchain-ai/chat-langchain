@@ -69,7 +69,7 @@ export function ChatMessageBubble(props: {
 
   const sources = parseUrls(props.message.content);
   const messageParts = props.message.content.split(urlDelimiter);
-  const aiResponse = messageParts.length > 1 ? messageParts.slice(-1) : props.message.content.includes(urlDelimiter) ? "" : props.message.content;
+  const standaloneMessage = messageParts.length > 1 ? messageParts.slice(-1) : props.message.content.includes(urlDelimiter) ? "" : props.message.content;
 
   const animateButton = (buttonId: string) => {
     const button = document.getElementById(buttonId);
@@ -112,10 +112,10 @@ export function ChatMessageBubble(props: {
 
       <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"blue.300"} paddingTop={"20px"}>Answer</Heading></>)
 }
-      {isUser ? <Heading size={"lg"} fontWeight={"medium"} color={"white"}>{aiResponse}</Heading> : <div
+      {isUser ? <Heading size={"lg"} fontWeight={"medium"} color={"white"}>{standaloneMessage}</Heading> : <div
           className="whitespace-pre-wrap"
           style={{"color": "white"}}
-          dangerouslySetInnerHTML={{ __html: aiResponse }}
+          dangerouslySetInnerHTML={{ __html: standaloneMessage }}
         ></div>}
       {props.message.role !== "user" && props.isMostRecent && props.messageCompleted && (
         <div className="relative flex space-x-1 items-start justify-start">
