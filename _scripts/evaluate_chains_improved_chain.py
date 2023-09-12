@@ -1,7 +1,9 @@
 import argparse
+import datetime
 import functools
 import os
 from typing import Literal, Optional, Union
+from langchain.output_parsers import CommaSeparatedListOutputParser
 
 from langsmith.evaluation.evaluator import EvaluationResult
 from langsmith.schemas import Example, Run
@@ -27,9 +29,73 @@ _PROVIDER_MAP = {
 }
 
 _MODEL_MAP = {
-    "openai": "gpt-3.5-turbo",
+    "openai": "gpt-3.5-turbo-16k",
     "anthropic": "claude-2",
 }
+
+def search(search_queries, retriever: BaseRetriever):
+    results = []
+    for q in search_queries:
+        results.extend(retriever.get_relevant_documents(q))
+    return results
+
+def create_search_queries_chain(retriever: BaseRetriever,
+    model_provider: Union[Literal["openai"], Literal["anthropic"]],
+    model: Optional[str] = None,
+    temperature: float = 0.0,
+    include_question_and_chat_history = True) -> Runnable:
+    model_name = model or _MODEL_MAP[model_provider]
+    model = _PROVIDER_MAP[model_provider](model=model_name, temperature=temperature)
+    output_parser = CommaSeparatedListOutputParser()
+
+    _template = """Given the following conversation and a follow up question, generate a list of search queries within LangChain's internal documentation. Keep the total number of search queries to be less than 3, and try to minimize the number of search queries if possible. We want to search as few times as possible, only retrieving the information that is absolutely necessary for answering the user's questions.
+
+1. If the user's question is a straightforward greeting or unrelated to LangChain, there's no need for any searches. In this case, output an empty list.
+
+2. If the user's question pertains to a specific topic or feature within LangChain, identify up to two key terms or phrases that should be searched for in the documentation. If you think there are more than two relevant terms or phrases, then choose the two that you deem to be the most important/unique.
+
+{format_instructions}
+
+EXAMPLES:
+    Chat History:
+
+    Follow Up Input: Hi LangChain!
+    Search Queries: 
+
+    Chat History:
+    What are vector stores?
+    Follow Up Input: How do I use the Chroma vector store?
+    Search Queries: Chroma vector store
+
+    Chat History:
+    What are agents?
+    Follow Up Input: "How do I use a ReAct agent with an Anthropic model?"
+    Search Queries: ReAct Agent, Anthropic Model
+
+END EXAMPLES. BEGIN REAL USER INPUTS. ONLY RESPOND WITH A COMMA-SEPARATED LIST. REMEMBER TO GIVE NO MORE THAN TWO RESULTS.
+
+    Chat History:
+    {chat_history}
+    Follow Up Input: {question}
+    Search Queries: """
+
+    SEARCH_QUERIES_PROMPT = PromptTemplate.from_template(_template, partial_variables={"format_instructions": output_parser.get_format_instructions()})
+    
+    chain_map = {
+            "answer": {
+                "question": lambda x: x["question"],
+                "chat_history": lambda x: x.get("chat_history", []),
+            }
+            | SEARCH_QUERIES_PROMPT
+            | model
+            | output_parser,
+        }
+    
+    if include_question_and_chat_history:
+        chain_map["question"] = lambda x: x["question"]
+        chain_map["chat_history"] = lambda x: x.get("chat_history", [])
+
+    return RunnableMap(chain_map)
 
 
 def create_chain(
@@ -39,17 +105,9 @@ def create_chain(
     model: Optional[str] = None,
     temperature: float = 0.0,
 ) -> Runnable:
+    _inputs = create_search_queries_chain(retriever, model_provider, model, temperature)
     model_name = model or _MODEL_MAP[model_provider]
     model = _PROVIDER_MAP[model_provider](model=model_name, temperature=temperature)
-
-    _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
-
-    Chat History:
-    {chat_history}
-    Follow Up Input: {question}
-    Standalone Question:"""
-
-    CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
 
     _template = """
     You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
@@ -59,48 +117,19 @@ def create_chain(
         {context} 
     <context/>"""
 
-    if chat_history:
-        _inputs = RunnableMap(
-            {
-                "standalone_question": {
-                    "question": lambda x: x["question"],
-                    "chat_history": lambda x: x["chat_history"],
-                }
-                | CONDENSE_QUESTION_PROMPT
-                | model
-                | StrOutputParser(),
-                "question": lambda x: x["question"],
-                "chat_history": lambda x: x["chat_history"],
-            }
-        )
-        _context = {
-            "context": itemgetter("standalone_question") | retriever,
-            "question": lambda x: x["question"],
-            "chat_history": lambda x: x["chat_history"],
-        }
-        prompt = ChatPromptTemplate.from_messages([
+    _context = {
+        "context": lambda x: search(x["answer"], retriever),
+        "question": lambda x: x["question"],
+        "chat_history": lambda x: x.get("chat_history", []),
+    }
+    prompt = ChatPromptTemplate.from_messages(
+        [
             ("system", _template),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{question}"),
-        ])
-    else:
-        _inputs = RunnableMap(
-            {
-                "question": lambda x: x["question"],
-                "chat_history": lambda x: [],
-            }
-        )
-        _context = {
-            "context": itemgetter("question") | retriever,
-            "question": lambda x: x["question"],
-            "chat_history": lambda x: [],
-        }
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", _template),
-                ("human", "{question}"),
-            ]
-        )
+        ]
+    )
+
 
     chain = _inputs | _context | prompt | model | StrOutputParser()
 
@@ -155,7 +184,8 @@ class CustomHallucinationEvaluator(RunEvaluator):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset-name", default="Chat LangChain Complex Questions")
+    parser.add_argument("--dataset-name", default="Chat LangChain Simple Questions")
+    parser.add_argument("--search-queries-dataset-name", default="Chat LangChain Search Queries")
     parser.add_argument("--model-provider", default="openai")
     parser.add_argument("--prompt-type", default="chat")
     args = parser.parse_args()
@@ -172,9 +202,21 @@ if __name__ == "__main__":
     eval_config = RunEvalConfig(evaluators=["qa"], prediction_key="output")
     results = client.run_on_dataset(
         dataset_name=args.dataset_name,
+        project_name=f"improved_chain {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         llm_or_chain_factory=constructor,
         evaluation=eval_config,
-        tags=["simple_chain"],
+        tags=["improved_chain"],
+        verbose=True,
+    )
+    eval_config_search_queries = RunEvalConfig(evaluators=["qa"])
+    search_queries_constructor = functools.partial(create_search_queries_chain, retriever=retriever, model_provider=args.model_provider, include_question_and_chat_history=False)
+    search_queries_chain = search_queries_constructor()
+    results = client.run_on_dataset(
+        dataset_name=args.search_queries_dataset_name,
+        project_name=f"improved_chain {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        llm_or_chain_factory=search_queries_chain,
+        evaluation=eval_config_search_queries,
+        tags=["improved_chain"],
         verbose=True,
     )
     print(results)

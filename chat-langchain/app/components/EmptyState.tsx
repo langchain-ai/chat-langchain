@@ -1,4 +1,6 @@
 import { MouseEvent, MouseEventHandler } from "react";
+import { Heading, Link, Card, CardHeader, Flex, Spacer } from "@chakra-ui/react";
+import { ExternalLinkIcon } from '@chakra-ui/icons'
 
 export function EmptyState(props: {
   onChoice: (question: string) => any
@@ -7,30 +9,38 @@ export function EmptyState(props: {
     props.onChoice((e.target as HTMLDivElement).innerText);
   }
   return (
-    <div className="p-8 rounded bg-[#25252d] flex flex-col items-center">
-      <h1 className="text-4xl mb-4">Chat LangChain 🦜🔗</h1>
-      <div>
-        Ask me anything about LangChain&apos;s{" "}
-        <a href="https://python.langchain.com/" target="_blank">
-          Python Documentation!
-        </a>{" "}
-      </div>
-      <div className="flex w-full mt-12">
-        <div onMouseUp={handleClick} className="p-4 mr-4 border rounded grow max-w-[50%] flex items-center justify-center text-center min-h-[84px] cursor-pointer hover:border-sky-600">
-          How do I use a RecursiveUrlLoader to load content from a page?
-        </div>
-        <div onMouseUp={handleClick} className="p-4 ml-4 border rounded grow max-w-[50%] flex items-center justify-center text-center min-h-[84px] cursor-pointer hover:border-sky-600">
-          What is LangChain Expression Language?
-        </div>
-      </div>
-      <div className="flex w-full mt-4">
-        <div onMouseUp={handleClick} className="p-4 mr-4 border rounded grow max-w-[50%] flex items-center justify-center text-center min-h-[84px] cursor-pointer hover:border-sky-600">
-          What are some ways of doing retrieval augmented generation?
-        </div>
-        <div onMouseUp={handleClick} className="p-4 ml-4 border rounded grow max-w-[50%] flex items-center justify-center text-center min-h-[84px] cursor-pointer hover:border-sky-600">
-          How do I run a model locally?
-        </div>
-      </div>
+    <div className="p-8 rounded flex flex-col items-center">
+      <Heading fontSize="3xl" fontWeight={"medium"} mb={1} color={"white"}>Chat LangChain 🦜🔗</Heading>
+      <Heading fontSize="xl" fontWeight={"normal"} mb={1} color={"white"} marginTop={"10px"} textAlign={"center"}>Ask me anything about LangChain&apos;s{" "}
+      <Link href='https://python.langchain.com/' color={"blue.200"}>
+        Python documentation!
+      </Link></Heading>
+      <Flex marginTop={"25px"} grow={1} maxWidth={"800px"}>
+        <Card onMouseUp={handleClick} width={"48%"}  backgroundColor={"rgb(58, 58, 61)"} _hover={{"background-color": "rgb(78,78,81)"}} cursor={"pointer"} justifyContent={"center"}>
+          <CardHeader justifyContent={"center"}>
+            <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"gray.200"} textAlign={"center"}>How do I use a RecursiveUrlLoader to load content from a page?</Heading>
+          </CardHeader>
+        </Card>
+        <Spacer />
+        <Card onMouseUp={handleClick} width={"48%"}  backgroundColor={"rgb(58, 58, 61)"} _hover={{"background-color": "rgb(78,78,81)"}} cursor={"pointer"} justifyContent={"center"}>
+          <CardHeader justifyContent={"center"}>
+            <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"gray.200"} textAlign={"center"}>What is LangChain Expression Language?</Heading>
+          </CardHeader>
+        </Card>
+      </Flex>
+      <Flex marginTop={"25px"} grow={1} maxWidth={"800px"}>
+        <Card onMouseUp={handleClick} width={"48%"}  backgroundColor={"rgb(58, 58, 61)"} _hover={{"background-color": "rgb(78,78,81)"}} cursor={"pointer"} justifyContent={"center"}>
+          <CardHeader justifyContent={"center"}>
+            <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"gray.200"} textAlign={"center"}>What are some ways of doing retrieval augmented generation?</Heading>
+          </CardHeader>
+        </Card>
+        <Spacer />
+        <Card onMouseUp={handleClick} width={"48%"}  backgroundColor={"rgb(58, 58, 61)"} _hover={{"background-color": "rgb(78,78,81)"}} cursor={"pointer"} justifyContent={"center"}>
+          <CardHeader justifyContent={"center"}>
+            <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"gray.200"} textAlign={"center"}>How do I run a model locally?</Heading>
+          </CardHeader>
+        </Card>
+      </Flex>
     </div>
   );
 }

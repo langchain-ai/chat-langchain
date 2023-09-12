@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "chat-langchain"
+version = "0.1.0"
+description = ""
+authors = ["SN <6432132+samnoyes@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+openai = "^0.28.0"
+fastapi = "^0.103.1"
+black = "^23.7.0"
+isort = "^5.12.0"
+websockets = "^11.0.3"
+pydantic = "^2.3.0"
+langchain = "^0.0.281"
+uvicorn = "^0.23.2"
+Jinja2 = "^3.1.2"
+faiss-cpu = "^1.7.4"
+beautifulsoup4 = "^4.12.2"
+unstructured = "^0.10.12"
+libmagic = "^1.0"
+tiktoken = "^0.4.0"
+weaviate-client = "^3.23.2"
+anthropic = "^0.3.11"
+html2text = "^2020.1.16"
+GitPython = "^3.1.34"
+psycopg2 = "^2.9.7"
+lxml = "^4.9.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -11,6 +11,8 @@ import "highlight.js/styles/gradient-dark.css";
 
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { Heading, Flex, Button, IconButton, Input, InputGroup, InputRightElement, Spinner} from '@chakra-ui/react'
+import { ArrowUpIcon, SpinnerIcon } from "@chakra-ui/icons";
 
 export function ChatWindow(props: {
   apiBaseUrl: string;
@@ -31,7 +33,7 @@ export function ChatWindow(props: {
   const [feedback, setFeedback] = useState<number | null>(null);
 
   const [chatHistory, setChatHistory] = useState<
-    { question: string; result: string }[]
+    { human: string; ai: string }[]
   >([]);
 
   const {
@@ -111,7 +113,7 @@ export function ChatWindow(props: {
           console.log("Stream complete");
           setChatHistory((prevChatHistory) => [
             ...prevChatHistory,
-            { question: messageValue, result: accumulatedMessage },
+            { human: messageValue, ai: accumulatedMessage },
           ]);
           return Promise.resolve();
         }
@@ -205,13 +207,16 @@ export function ChatWindow(props: {
   return (
     <div
       className="flex flex-col items-center p-8 rounded grow max-h-full"
+      background-color="black"
     >
-      <h2 className={`${messages.length > 0 ? "" : "hidden"} text-2xl mb-1`}>
-        {titleText}
-      </h2>
-      <h4 className={`${messages.length > 0 ? "" : "hidden"} text-sm mb-4`}>
-        We appreciate feedback!
-      </h4>
+      {messages.length > 0 && (
+        <Flex direction={"column"} alignItems={"center"} paddingBottom={"20px"}>
+          <Heading fontSize="2xl" fontWeight={"medium"} mb={1} color={"white"}>{titleText}</Heading>
+          <Heading fontSize="md" fontWeight={"normal"} mb={1} color={"white"}>
+            We appreciate feedback!
+          </Heading>
+        </Flex>
+      )}
       <div
         className="flex flex-col-reverse w-full mb-2 overflow-auto"
         ref={messageContainerRef}
@@ -234,22 +239,25 @@ export function ChatWindow(props: {
       </div>
 
       <div className="flex w-full flex-row-reverse mb-2">
-            <button
-              type="button"
-              className="text-xs border rounded p-1 float-right"
-              onClick={() => viewTrace()}
-            >
+              <Button onClick={() => viewTrace()} textColor={"white"} backgroundColor={"rgb(58, 58, 61)"} _hover={{"background-color": "rgb(78,78,81)"}} size="sm">
               🛠️ view trace
-            </button>
+              </Button>
         </div>
 
-      <form onSubmit={() => sendMessage()} className="flex w-full">
-        <textarea
-          className="flex-grow mr-2 p-2 rounded max-h-[40px]"
-          placeholder={placeholder}
+      <InputGroup size='md' alignItems={"center"} >
+        <Input
+        value={input}
+          height={"55px"}
+          rounded={"full"}
+          type={'text'}
+          placeholder='What is LangChain Expression Language?'
+          textColor={"white"}
+          borderColor={"rgb(58, 58, 61)"}
+          onSubmit={(e) => {
+            e.preventDefault();
+            sendMessage()
+            }}
           onChange={(e) => setInput(e.target.value)}
-          value={input}
-          style={{ minWidth: "50px" }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -257,35 +265,20 @@ export function ChatWindow(props: {
             }
           }}
         />
-        <button
-          type="submit"
-          className="flex-shrink p-2 w-16 sm:w-auto bg-sky-600 rounded max-h-[40px]"
-        >
-          <div
-            role="status"
-            className={`${isLoading ? "" : "hidden"} flex justify-center`}
-          >
-            <svg
-              aria-hidden="true"
-              className="w-6 h-6 text-white animate-spin dark:text-white fill-sky-800"
-              viewBox="0 0 100 101"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
-                fill="currentColor"
-              />
-              <path
-                d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
-                fill="currentFill"
-              />
-            </svg>
-            <span className="sr-only">Loading...</span>
-          </div>
-          <span className={`${isLoading ? "hidden" : ""}`}>Send</span>
-        </button>
-      </form>
+        <InputRightElement h="full" paddingRight={"15px"}>
+          <IconButton
+            colorScheme="blue"
+            rounded={"full"}
+            aria-label="Send"
+            icon={isLoading ? <Spinner /> : <ArrowUpIcon />}
+            type="submit"
+            onClick={(e) => {
+              e.preventDefault();
+              sendMessage()
+              }}
+          />
+        </InputRightElement>
+      </InputGroup>
     </div>
   );
 }
