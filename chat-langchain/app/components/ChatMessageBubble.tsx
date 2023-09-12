@@ -2,6 +2,8 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { emojisplosion } from "emojisplosion";
 import { useState } from "react";
+import { SourceBubble, Source } from './SourceBubble';
+import { Flex, Spacer, Box, Heading, HStack, VStack, Divider, Text} from '@chakra-ui/react'
 
 export type Message = {
   id: string;
@@ -20,11 +22,12 @@ export function ChatMessageBubble(props: {
   isMostRecent: boolean;
   messageCompleted: boolean;
 }) {
+  const isUser = props.message.role === "user";
   const colorClassName =
     props.message.role === "user" ? "bg-sky-600" : "bg-slate-50 text-black";
   const alignmentClassName =
     props.message.role === "user" ? "ml-auto" : "mr-auto";
-  const prefix = props.message.role === "user" ? "🧑" : props.aiEmoji;
+  const urlDelimiter = "SOURCES:----------------------------";
 
   const [feedbackColor, setFeedbackColor] = useState("");
 
@@ -41,6 +44,32 @@ export function ChatMessageBubble(props: {
           left: left
       };
   };
+
+  function parseUrls(text:string) {
+    if (!text.includes(urlDelimiter)) {
+      return [];
+    }
+    const parts = text.split(urlDelimiter);
+    
+    if (parts.length <1) {
+      return [];
+    }
+  
+    let urls = parts[0].trim().split('\n');
+
+    let sources = urls.map((url) => {
+      let urlParts = url.split('"');
+      let titleParts = url.split(':');
+      let title = titleParts[0].split(" |")[0];
+      return {url: urlParts[1], title: title};
+    });
+    
+    return sources;
+  }
+
+  const sources = parseUrls(props.message.content);
+  const messageParts = props.message.content.split(urlDelimiter);
+  const standaloneMessage = messageParts.length > 1 ? messageParts.slice(-1) : props.message.content.includes(urlDelimiter) ? "" : props.message.content;
 
   const animateButton = (buttonId: string) => {
     const button = document.getElementById(buttonId);
@@ -65,16 +94,29 @@ export function ChatMessageBubble(props: {
   };
 
   return (
-    <div className="mt-4 flex flex-col">
-      <div
-        className={`${alignmentClassName} ${colorClassName} ${feedbackColor} rounded px-4 py-2 max-w-[80%] mb-1 flex break-words`}
-      >
-        <div className="mr-2">{prefix}</div>
-        <div
+    <VStack align={"start"} paddingBottom={"20px"}>
+    {!isUser && sources.length > 0 && (
+      <>
+      <Flex direction={"column"} width={"100%"}>
+        <VStack spacing={"5px"} align={"start"} width={"100%"}>
+          <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"blue.300"} paddingBottom={"10px"}>Sources</Heading>
+          <HStack spacing={'10px'}>
+            {
+            sources.map((source, index) => (
+              <Box key={index} alignSelf={"stretch"} width={40}><SourceBubble source={source}/></Box>
+            ))
+            }
+          </HStack> 
+        </VStack>
+      </Flex>
+
+      <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"blue.300"} paddingTop={"20px"}>Answer</Heading></>)
+}
+      {isUser ? <Heading size={"lg"} fontWeight={"medium"} color={"white"}>{standaloneMessage}</Heading> : <div
           className="whitespace-pre-wrap"
-          dangerouslySetInnerHTML={{ __html: props.message.content }}
-        ></div>
-      </div>
+          style={{"color": "white"}}
+          dangerouslySetInnerHTML={{ __html: standaloneMessage }}
+        ></div>}
       {props.message.role !== "user" && props.isMostRecent && props.messageCompleted && (
         <div className="relative flex space-x-1 items-start justify-start">
           <button
@@ -111,6 +153,8 @@ export function ChatMessageBubble(props: {
           </button>
         </div>
       )}
-    </div>
+
+      {!isUser && <Divider marginTop={"20px"} marginBottom={"20px"}/>}
+    </VStack>
   );
 }
