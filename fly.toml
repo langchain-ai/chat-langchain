@@ -7,7 +7,7 @@ app = "chat-langchain"
 primary_region = "lax"
 
 [build]
-  builder = "paketobuildpacks/builder:base"
+  builder = "paketobuildpacks/builder:full"
 
 [env]
   PORT = "8080"
