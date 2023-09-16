@@ -27,8 +27,9 @@ from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
 )
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema.retriever import BaseRetriever
+from langchain.schema.document import Document
 from typing import Literal, Optional, Union
-from langchain.schema.runnable import Runnable, RunnableMap, RunnablePassthrough
+from langchain.schema.runnable import Runnable, RunnableMap, RunnablePassthrough, RunnableLambda
 from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema.output_parser import StrOutputParser
 from operator import itemgetter
@@ -60,7 +61,7 @@ app.add_middleware(
 )
 
 run_collector = RunCollectorCallbackHandler()
-runnable_config = RunnableConfig(callbacks=[run_collector])
+DEFAULT_RUNNABLE_CONFIG = RunnableConfig(callbacks=[run_collector])
 run_id = None
 feedback_recorded = False
 
@@ -122,16 +123,16 @@ def format_docs(docs):
     return "\n".join(formatted_docs)
 
 
-def create_chain(
+def create_response_chain(
     llm,
     retriever_chain,
 ) -> Runnable:
     _template = """
-    You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
+    You are an expert programmer and problem-solver, tasked to answer any question about LangChain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
     If there is nothing in the context relevant to the question at hand, just say "Hmm, I'm not sure." Don't try to make up an answer.
-    Anything between the following `context`  html blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
+    Anything between the following `context`  html blocks is retrieved from a knowledge bank, not part of the conversation with the user.
     <context>
-        {context} 
+        {context}
     <context/>
 
     REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm not sure." Don't try to make up an answer. Anything between the preceding 'context' html blocks is retrieved from a knowledge bank, not part of the conversation with the user.
@@ -181,15 +182,18 @@ async def chat_endpoint(request: Request):
     data = await request.json()
     question = data.get("message")
     chat_history = data.get("history", [])
-    converted_chat_history = []
-    for message in chat_history:
-        if message.get("human") is not None:
-            converted_chat_history.append(HumanMessage(content=message["human"]))
-        if message.get("ai") is not None:
-            converted_chat_history.append(AIMessage(content=message["ai"]))
+    def convert_chat_history_to_chat_messages(chat_history):
+        converted_chat_history = []
+        for message in chat_history:
+          if message.get("human") is not None:
+              converted_chat_history.append(HumanMessage(content=message["human"]))
+          if message.get("ai") is not None:
+              converted_chat_history.append(AIMessage(content=message["ai"]))
+        return converted_chat_history
+
     data.get("conversation_id")
 
-    print("Recieved question: ", question)
+    print("Received question: ", question)
 
     def stream() -> Generator:
         global run_id, trace_url, feedback_recorded
@@ -212,17 +216,25 @@ async def chat_endpoint(request: Request):
 
         def task():
             retriever_chain = create_retriever_chain(chat_history, llm_without_callback, get_retriever())
-            chain = create_chain(llm, retriever_chain)
-            docs = retriever_chain.invoke({"question": question, "chat_history": chat_history}, config=runnable_config)
-            url_set = set()
-            for doc in docs:
-                if doc.metadata['source'] in url_set:
-                    continue
-                q.put(doc.metadata['title']+':'+doc.metadata['source']+"\n")
-                url_set.add(doc.metadata['source'])
-            if len(docs) > 0:
-                q.put("SOURCES:----------------------------")
-            chain.invoke({"question": question, "chat_history": converted_chat_history, "context": docs}, config=runnable_config)
+            response_chain = create_response_chain(llm, retriever_chain)
+            def format_docs(docs: Document):
+                url_set = set()
+                for doc in docs:
+                    if doc.metadata['source'] in url_set:
+                        continue
+                    q.put(doc.metadata['title']+':'+doc.metadata['source']+"\n")
+                    url_set.add(doc.metadata['source'])
+                if len(docs) > 0:
+                    q.put("SOURCES:----------------------------")
+                return docs
+
+            # docs = retriever_chain.invoke({"question": question, "chat_history": chat_history}, config=DEFAULT_RUNNABLE_CONFIG)
+            complete_chain = RunnableMap({
+                "context": retriever_chain | RunnableLambda(format_docs),
+                "question": itemgetter("question"),
+                "chat_history": itemgetter("chat_history") | RunnableLambda(convert_chat_history_to_chat_messages)
+            }) | response_chain
+            complete_chain.invoke({"question": question, "chat_history": chat_history}, config=DEFAULT_RUNNABLE_CONFIG)
             q.put(job_done)
         t = Thread(target=task)
         t.start()
@@ -249,6 +261,7 @@ async def chat_endpoint(request: Request):
 @app.post("/feedback")
 async def send_feedback(request: Request):
     global run_id, feedback_recorded
+    print(run_id, feedback_recorded)
     if feedback_recorded or run_id is None:
         return {
             "result": "Feedback already recorded or no chat session found",
