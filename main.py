@@ -261,7 +261,6 @@ async def chat_endpoint(request: Request):
 @app.post("/feedback")
 async def send_feedback(request: Request):
     global run_id, feedback_recorded
-    print(run_id, feedback_recorded)
     if feedback_recorded or run_id is None:
         return {
             "result": "Feedback already recorded or no chat session found",
