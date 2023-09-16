@@ -207,6 +207,7 @@ export function ChatWindow(props: {
   return (
     <div
       className="flex flex-col items-center p-8 rounded grow max-h-full"
+      background-color="black"
     >
       {messages.length > 0 && (
         <Flex direction={"column"} alignItems={"center"} paddingBottom={"20px"}>
