@@ -228,7 +228,6 @@ async def chat_endpoint(request: Request):
                     q.put("SOURCES:----------------------------")
                 return docs
 
-            # docs = retriever_chain.invoke({"question": question, "chat_history": chat_history}, config=DEFAULT_RUNNABLE_CONFIG)
             complete_chain = RunnableMap({
                 "context": retriever_chain | RunnableLambda(format_docs),
                 "question": itemgetter("question"),
