@@ -32,6 +32,7 @@ def ingest_docs():
         "https://python.langchain.com/docs/ecosystem",
         "https://python.langchain.com/docs/additional_resources",
         "https://python.langchain.com/docs/community",
+        "https://python.langchain.com/docs/expression_language",
     ]
 
     documents = []
