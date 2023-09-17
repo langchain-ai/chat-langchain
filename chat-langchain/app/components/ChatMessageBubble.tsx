@@ -93,7 +93,6 @@ export function ChatMessageBubble(props: {
         onMouseEnter={() => setHighlightedSourceLinkStates(sources.map((_, i) => i === sourceNumber))}
         onMouseLeave={() => setHighlightedSourceLinkStates(sources.map(() => false))}
       ></InlineCitation>);
-      // console.log(highlighedSourceLinkStates[sourceNumber], highlighedSourceLinkStates)
       previousSliceIndex = match.index + match[0].length;
     }
   }
