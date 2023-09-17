@@ -235,7 +235,7 @@ export function ChatWindow(props: {
           : <EmptyState onChoice={sendInitialQuestion} />}
       </div>
 
-      <div className="flex w-full flex-row-reverse mb-2">
+      <div className="flex w-full flex-row-reverse mb-2 hidden">
         <Button onClick={() => viewTrace()} textColor={"white"} backgroundColor={"rgb(58, 58, 61)"} _hover={{"backgroundColor": "rgb(78,78,81)"}} size="sm">
           🛠️ view trace
         </Button>
