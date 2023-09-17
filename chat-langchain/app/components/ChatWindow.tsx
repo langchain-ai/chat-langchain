@@ -89,7 +89,7 @@ export function ChatWindow(props: {
 
     let renderer = new Renderer();
     renderer.paragraph = function (text) {
-      return text;
+      return text + "\n";
     };
     renderer.code = function (code, language) {
       const validLanguage = hljs.getLanguage(language || "")

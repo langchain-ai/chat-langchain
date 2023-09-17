@@ -3,7 +3,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import { emojisplosion } from "emojisplosion";
 import { useState } from "react";
 import { SourceBubble, Source } from './SourceBubble';
-import { Flex, Spacer, Box, Heading, HStack, VStack, Divider, Text} from '@chakra-ui/react'
+import { Flex, Box, Heading, HStack, VStack, Divider} from '@chakra-ui/react'
+import { InlineCitation } from './InlineCitation';
 
 export type Message = {
   id: string;
@@ -23,10 +24,6 @@ export function ChatMessageBubble(props: {
   messageCompleted: boolean;
 }) {
   const isUser = props.message.role === "user";
-  const colorClassName =
-    props.message.role === "user" ? "bg-sky-600" : "bg-slate-50 text-black";
-  const alignmentClassName =
-    props.message.role === "user" ? "ml-auto" : "mr-auto";
   const urlDelimiter = "SOURCES:----------------------------";
 
   const [feedbackColor, setFeedbackColor] = useState("");
@@ -37,7 +34,7 @@ export function ChatMessageBubble(props: {
           top += element?.offsetTop  || 0;
           left += element?.offsetLeft || 0;
           element = (element?.offsetParent as HTMLElement) || null;
-      } while(element);
+      } while (element);
 
       return {
           top: top,
@@ -45,31 +42,61 @@ export function ChatMessageBubble(props: {
       };
   };
 
-  function parseUrls(text:string) {
+  function parseUrls(text: string) {
     if (!text.includes(urlDelimiter)) {
       return [];
     }
     const parts = text.split(urlDelimiter);
-    
+
     if (parts.length <1) {
       return [];
     }
-  
+
     let urls = parts[0].trim().split('\n');
 
-    let sources = urls.map((url) => {
+    let sources: Source[] = urls.map((url) => {
       let urlParts = url.split('"');
       let titleParts = url.split(':');
       let title = titleParts[0].split(" |")[0];
       return {url: urlParts[1], title: title};
     });
-    
+
     return sources;
   }
 
   const sources = parseUrls(props.message.content);
+  const activeSourceLinkStates = sources.map((_) => useState(false));
   const messageParts = props.message.content.split(urlDelimiter);
-  const standaloneMessage = messageParts.length > 1 ? messageParts.slice(-1) : props.message.content.includes(urlDelimiter) ? "" : props.message.content;
+  let standaloneMessage = messageParts.length > 1
+    ? messageParts.slice(-1)[0]
+    : (props.message.content.includes(urlDelimiter) ? "" : props.message.content);
+
+  const matches = Array.from(standaloneMessage.matchAll(/\[(\d+)\]/g));
+  const answerElements = [];
+
+  let previousSliceIndex = 0;
+  for (const match of matches) {
+    const sourceNumber = parseInt(match[1], 10);
+    if (match.index && sources[sourceNumber]) {
+      answerElements.push(<span
+        key={`content:${previousSliceIndex}`}
+        dangerouslySetInnerHTML={{__html: standaloneMessage.slice(previousSliceIndex, match.index)}}
+      ></span>);
+      answerElements.push(<InlineCitation
+        key={`citation:${previousSliceIndex}`}
+        source={sources[sourceNumber]}
+        sourceNumber={sourceNumber}
+        highlighted={activeSourceLinkStates[sourceNumber][0]}
+        onMouseEnter={() => activeSourceLinkStates[sourceNumber][1](true)}
+        onMouseLeave={() => activeSourceLinkStates[sourceNumber][1](false)}
+      ></InlineCitation>);
+      previousSliceIndex = match.index + match[0].length;
+    }
+  }
+  answerElements.push(<span
+    key={`content:${previousSliceIndex}`}
+    dangerouslySetInnerHTML={{__html: standaloneMessage.slice(previousSliceIndex)}}
+  ></span>);
 
   const animateButton = (buttonId: string) => {
     const button = document.getElementById(buttonId);
@@ -103,10 +130,15 @@ export function ChatMessageBubble(props: {
           <HStack spacing={'10px'}>
             {
             sources.map((source, index) => (
-              <Box key={index} alignSelf={"stretch"} width={40}><SourceBubble source={source}/></Box>
+              <Box key={index} alignSelf={"stretch"} width={40}>
+                <SourceBubble source={source}
+                  highlighted={activeSourceLinkStates[index][0]}
+                  onMouseEnter={() => activeSourceLinkStates[index][1](true)}
+                  onMouseLeave={() => activeSourceLinkStates[index][1](false)}/>
+              </Box>
             ))
             }
-          </HStack> 
+          </HStack>
         </VStack>
       </Flex>
 
@@ -115,8 +147,7 @@ export function ChatMessageBubble(props: {
       {isUser ? <Heading size={"lg"} fontWeight={"medium"} color={"white"}>{standaloneMessage}</Heading> : <div
           className="whitespace-pre-wrap"
           style={{"color": "white"}}
-          dangerouslySetInnerHTML={{ __html: standaloneMessage }}
-        ></div>}
+        >{answerElements}</div>}
       {props.message.role !== "user" && props.isMostRecent && props.messageCompleted && (
         <div className="relative flex space-x-1 items-start justify-start">
           <button

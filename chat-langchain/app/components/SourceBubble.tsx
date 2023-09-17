@@ -11,10 +11,10 @@ export type Source = {
 
 export function SourceBubble(props: {
   source: Source;
+  highlighted: boolean;
+  onMouseEnter: () => any;
+  onMouseLeave: () => any;
 }) {
-  const [feedbackColor, setFeedbackColor] = useState("");
-  const [isMouseOver, setIsMouseOver] = useState(false);
-
   const cumulativeOffset = function(element: HTMLElement | null) {
       var top = 0, left = 0;
       do {
@@ -51,15 +51,13 @@ export function SourceBubble(props: {
     });
   };
 
-  console.log(props.source.url)
-
   return (
         <Card onClick={() => {
             window.open(props.source.url, "_blank");
         }}
-        backgroundColor={isMouseOver ? "rgb(78,78,81)" : "rgb(58, 58, 61)"}
-        onMouseOver={() => {setIsMouseOver(true)}}
-        onMouseLeave={() => {setIsMouseOver(false)}}
+        backgroundColor={props.highlighted ? "rgb(58, 58, 61)" : "rgb(78,78,81)"}
+        onMouseEnter={props.onMouseEnter}
+        onMouseLeave={props.onMouseLeave}
         cursor={"pointer"}
         alignSelf={"stretch"}
         height="100%"
