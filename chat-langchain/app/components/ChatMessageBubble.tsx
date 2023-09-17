@@ -65,10 +65,10 @@ export function ChatMessageBubble(props: {
   }
 
   const sources = parseUrls(props.message.content);
-  const activeSourceLinkStates: [boolean, Dispatch<SetStateAction<boolean>>][] = [];
-  for (const source of sources) {
-    activeSourceLinkStates.push(useState(false));
-  }
+
+  // Use an array of highlighted states as a state since React
+  // complains when creating states in a loop
+  const [highlighedSourceLinkStates, setHighlightedSourceLinkStates] = useState(sources.map(() => false));
   const messageParts = props.message.content.split(urlDelimiter);
   let standaloneMessage = messageParts.length > 1
     ? messageParts.slice(-1)[0]
@@ -89,10 +89,11 @@ export function ChatMessageBubble(props: {
         key={`citation:${previousSliceIndex}`}
         source={sources[sourceNumber]}
         sourceNumber={sourceNumber}
-        highlighted={activeSourceLinkStates[sourceNumber][0]}
-        onMouseEnter={() => activeSourceLinkStates[sourceNumber][1](true)}
-        onMouseLeave={() => activeSourceLinkStates[sourceNumber][1](false)}
+        highlighted={highlighedSourceLinkStates[sourceNumber]}
+        onMouseEnter={() => setHighlightedSourceLinkStates(sources.map((_, i) => i === sourceNumber))}
+        onMouseLeave={() => setHighlightedSourceLinkStates(sources.map(() => false))}
       ></InlineCitation>);
+      // console.log(highlighedSourceLinkStates[sourceNumber], highlighedSourceLinkStates)
       previousSliceIndex = match.index + match[0].length;
     }
   }
@@ -125,28 +126,30 @@ export function ChatMessageBubble(props: {
 
   return (
     <VStack align={"start"} paddingBottom={"20px"}>
-    {!isUser && sources.length > 0 && (
-      <>
-      <Flex direction={"column"} width={"100%"}>
-        <VStack spacing={"5px"} align={"start"} width={"100%"}>
-          <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"blue.300"} paddingBottom={"10px"}>Sources</Heading>
-          <HStack spacing={'10px'}>
-            {
-            sources.map((source, index) => (
-              <Box key={index} alignSelf={"stretch"} width={40}>
-                <SourceBubble source={source}
-                  highlighted={activeSourceLinkStates[index][0]}
-                  onMouseEnter={() => activeSourceLinkStates[index][1](true)}
-                  onMouseLeave={() => activeSourceLinkStates[index][1](false)}/>
-              </Box>
-            ))
-            }
-          </HStack>
-        </VStack>
-      </Flex>
+      {!isUser && sources.length > 0 && (
+        <>
+        <Flex direction={"column"} width={"100%"}>
+          <VStack spacing={"5px"} align={"start"} width={"100%"}>
+            <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"blue.300"} paddingBottom={"10px"}>Sources</Heading>
+            <HStack spacing={'10px'}>
+              {
+              sources.map((source, index) => (
+                <Box key={index} alignSelf={"stretch"} width={40}>
+                  <SourceBubble source={source}
+                    highlighted={highlighedSourceLinkStates[index]}
+                    onMouseEnter={() => setHighlightedSourceLinkStates(sources.map((_, i) => i === index))}
+                    onMouseLeave={() => setHighlightedSourceLinkStates(sources.map(() => false))}
+                  />
+                </Box>
+              ))
+              }
+            </HStack>
+          </VStack>
+        </Flex>
 
-      <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"blue.300"} paddingTop={"20px"}>Answer</Heading></>)
-}
+        <Heading fontSize="lg" fontWeight={"medium"} mb={1} color={"blue.300"} paddingTop={"20px"}>Answer</Heading>
+        </>
+      )}
       {isUser ? <Heading size={"lg"} fontWeight={"medium"} color={"white"}>{standaloneMessage}</Heading> : <div
           className="whitespace-pre-wrap"
           style={{"color": "white"}}
