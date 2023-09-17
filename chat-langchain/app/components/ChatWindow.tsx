@@ -205,10 +205,7 @@ export function ChatWindow(props: {
   };
 
   return (
-    <div
-      className="flex flex-col items-center p-8 rounded grow max-h-full"
-      background-color="black"
-    >
+    <div className="flex flex-col items-center p-8 rounded grow max-h-full">
       {messages.length > 0 && (
         <Flex direction={"column"} alignItems={"center"} paddingBottom={"20px"}>
           <Heading fontSize="2xl" fontWeight={"medium"} mb={1} color={"white"}>{titleText}</Heading>
@@ -239,10 +236,10 @@ export function ChatWindow(props: {
       </div>
 
       <div className="flex w-full flex-row-reverse mb-2">
-              <Button onClick={() => viewTrace()} textColor={"white"} backgroundColor={"rgb(58, 58, 61)"} _hover={{"background-color": "rgb(78,78,81)"}} size="sm">
-              🛠️ view trace
-              </Button>
-        </div>
+        <Button onClick={() => viewTrace()} textColor={"white"} backgroundColor={"rgb(58, 58, 61)"} _hover={{"backgroundColor": "rgb(78,78,81)"}} size="sm">
+          🛠️ view trace
+        </Button>
+      </div>
 
       <InputGroup size='md' alignItems={"center"} >
         <Input
