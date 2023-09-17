@@ -1,7 +1,7 @@
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { emojisplosion } from "emojisplosion";
-import { Dispatch, SetStateAction, useState } from "react";
+import { useState } from "react";
 import { SourceBubble, Source } from './SourceBubble';
 import { Flex, Box, Heading, HStack, VStack, Divider} from '@chakra-ui/react'
 import { InlineCitation } from './InlineCitation';
