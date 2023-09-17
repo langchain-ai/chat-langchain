@@ -1,7 +1,7 @@
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { emojisplosion } from "emojisplosion";
-import { useState } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import { SourceBubble, Source } from './SourceBubble';
 import { Flex, Box, Heading, HStack, VStack, Divider} from '@chakra-ui/react'
 import { InlineCitation } from './InlineCitation';
@@ -65,7 +65,10 @@ export function ChatMessageBubble(props: {
   }
 
   const sources = parseUrls(props.message.content);
-  const activeSourceLinkStates = sources.map((_) => useState(false));
+  const activeSourceLinkStates: [boolean, Dispatch<SetStateAction<boolean>>][] = [];
+  for (const source of sources) {
+    activeSourceLinkStates.push(useState(false));
+  }
   const messageParts = props.message.content.split(urlDelimiter);
   let standaloneMessage = messageParts.length > 1
     ? messageParts.slice(-1)[0]
