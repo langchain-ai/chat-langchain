@@ -9,9 +9,18 @@ import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import { Heading, Flex, Button, IconButton, Input, InputGroup, InputRightElement, Spinner} from '@chakra-ui/react'
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import {
+  Heading,
+  Flex,
+  Button,
+  IconButton,
+  Input,
+  InputGroup,
+  InputRightElement,
+  Spinner,
+} from "@chakra-ui/react";
 import { ArrowUpIcon, SpinnerIcon } from "@chakra-ui/icons";
 
 export function ChatWindow(props: {
@@ -36,12 +45,7 @@ export function ChatWindow(props: {
     { human: string; ai: string }[]
   >([]);
 
-  const {
-    apiBaseUrl,
-    placeholder,
-    titleText = "An LLM",
-  } = props;
-
+  const { apiBaseUrl, placeholder, titleText = "An LLM" } = props;
 
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
@@ -142,7 +146,7 @@ export function ChatWindow(props: {
       .catch((error) => {
         console.error("Error:", error);
       });
-}
+  };
 
   const sendFeedback = async (score: number | null) => {
     if (feedback !== null) return;
@@ -176,32 +180,8 @@ export function ChatWindow(props: {
     }, 500);
   };
 
-  const viewTrace = async () => {
-    try {
-      const response = await fetch(apiBaseUrl + "/get_trace", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (data.code === 400 && data.result === "No chat session found") {
-        toast.error("Unable to view trace");
-        throw new Error("Unable to view trace");
-      } else {
-        const url = data.replace(/['"]+/g, "");
-        window.open(url, "_blank");
-      }
-    } catch (e: any) {
-      console.error("Error:", e);
-      toast.error(e.message);
-    }
-  };
-
   const sendInitialQuestion = async (question: string) => {
-    await sendMessage(question)
+    await sendMessage(question);
   };
 
   return (
@@ -211,7 +191,9 @@ export function ChatWindow(props: {
     >
       {messages.length > 0 && (
         <Flex direction={"column"} alignItems={"center"} paddingBottom={"20px"}>
-          <Heading fontSize="2xl" fontWeight={"medium"} mb={1} color={"white"}>{titleText}</Heading>
+          <Heading fontSize="2xl" fontWeight={"medium"} mb={1} color={"white"}>
+            {titleText}
+          </Heading>
           <Heading fontSize="md" fontWeight={"normal"} mb={1} color={"white"}>
             We appreciate feedback!
           </Heading>
@@ -221,42 +203,38 @@ export function ChatWindow(props: {
         className="flex flex-col-reverse w-full mb-2 overflow-auto"
         ref={messageContainerRef}
       >
-        {messages.length > 0
-          ? [...messages]
-              .reverse()
-              .map((m, index) => (
-                <ChatMessageBubble
-                  key={m.id}
-                  message={{ id: m.id, content: m.message, role: m.role }}
-                  aiEmoji="🦜"
-                  sendFeedback={sendFeedback}
-                  feedback={feedback}
-                  isMostRecent={index === 0}
-                  messageCompleted={!isLoading}
-                ></ChatMessageBubble>
-              ))
-          : <EmptyState onChoice={sendInitialQuestion} />}
+        {messages.length > 0 ? (
+          [...messages]
+            .reverse()
+            .map((m, index) => (
+              <ChatMessageBubble
+                key={m.id}
+                message={{ id: m.id, content: m.message, role: m.role }}
+                aiEmoji="🦜"
+                sendFeedback={sendFeedback}
+                feedback={feedback}
+                isMostRecent={index === 0}
+                messageCompleted={!isLoading}
+              ></ChatMessageBubble>
+            ))
+        ) : (
+          <EmptyState onChoice={sendInitialQuestion} />
+        )}
       </div>
 
-      <div className="flex w-full flex-row-reverse mb-2">
-              <Button onClick={() => viewTrace()} textColor={"white"} backgroundColor={"rgb(58, 58, 61)"} _hover={{"background-color": "rgb(78,78,81)"}} size="sm">
-              🛠️ view trace
-              </Button>
-        </div>
-
-      <InputGroup size='md' alignItems={"center"} >
+      <InputGroup size="md" alignItems={"center"}>
         <Input
-        value={input}
+          value={input}
           height={"55px"}
           rounded={"full"}
-          type={'text'}
-          placeholder='What is LangChain Expression Language?'
+          type={"text"}
+          placeholder="What is LangChain Expression Language?"
           textColor={"white"}
           borderColor={"rgb(58, 58, 61)"}
           onSubmit={(e) => {
             e.preventDefault();
-            sendMessage()
-            }}
+            sendMessage();
+          }}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -274,8 +252,8 @@ export function ChatWindow(props: {
             type="submit"
             onClick={(e) => {
               e.preventDefault();
-              sendMessage()
-              }}
+              sendMessage();
+            }}
           />
         </InputRightElement>
       </InputGroup>

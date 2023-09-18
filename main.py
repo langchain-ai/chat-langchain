@@ -263,11 +263,20 @@ trace_url = None
 @app.post("/get_trace")
 async def get_trace(request: Request):
     global run_id, trace_url
-    if trace_url is None and run_id is not None:
-        trace_url = client.share_run(run_id)
-    if run_id is None:
-        return {"result": "No chat session found", "code": 400}
-    return trace_url if trace_url else {"result": "Trace URL not found", "code": 400}
+    try:
+        # TODO: Add support for ?polling=true to run URLs to circumvent the write queue
+        if trace_url is None and run_id is not None:
+            trace_url = client.share_run(run_id)
+        if run_id is None:
+            return {"result": "No chat session found", "code": 400}
+        return (
+            trace_url if trace_url else {"result": "Trace URL not found", "code": 400}
+        )
+    except Exception as e:
+        return {
+            "result": f"Trace for run with ID {run_id} currently not available. {repr(e)}",
+            "code": 400,
+        }
 
 
 if __name__ == "__main__":
