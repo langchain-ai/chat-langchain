@@ -25,7 +25,6 @@ from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
     AgentTokenBufferMemory,
 )
-import pickle
 
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
@@ -196,7 +195,7 @@ if __name__ == "__main__":
     results = run_on_dataset(
         client,
         dataset_name=args.dataset_name,
-        llm_or_chain_factory=lambda x : get_agent(llm),
+        llm_or_chain_factory=lambda x: get_agent(llm),
         evaluation=eval_config,
         verbose=False,
         concurrency_level=0,  # Add this to not go async

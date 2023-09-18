@@ -20,7 +20,6 @@ from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceh
 from langsmith import Client
 from langsmith import RunEvaluator
 from langchain import load as langchain_load
-from operator import itemgetter
 import json
 
 _PROVIDER_MAP = {
@@ -33,17 +32,21 @@ _MODEL_MAP = {
     "anthropic": "claude-2",
 }
 
+
 def search(search_queries, retriever: BaseRetriever):
     results = []
     for q in search_queries:
         results.extend(retriever.get_relevant_documents(q))
     return results
 
-def create_search_queries_chain(retriever: BaseRetriever,
+
+def create_search_queries_chain(
+    retriever: BaseRetriever,
     model_provider: Union[Literal["openai"], Literal["anthropic"]],
     model: Optional[str] = None,
     temperature: float = 0.0,
-    include_question_and_chat_history = True) -> Runnable:
+    include_question_and_chat_history=True,
+) -> Runnable:
     model_name = model or _MODEL_MAP[model_provider]
     model = _PROVIDER_MAP[model_provider](model=model_name, temperature=temperature)
     output_parser = CommaSeparatedListOutputParser()
@@ -79,18 +82,23 @@ END EXAMPLES. BEGIN REAL USER INPUTS. ONLY RESPOND WITH A COMMA-SEPARATED LIST. 
     Follow Up Input: {question}
     Search Queries: """
 
-    SEARCH_QUERIES_PROMPT = PromptTemplate.from_template(_template, partial_variables={"format_instructions": output_parser.get_format_instructions()})
-    
+    SEARCH_QUERIES_PROMPT = PromptTemplate.from_template(
+        _template,
+        partial_variables={
+            "format_instructions": output_parser.get_format_instructions()
+        },
+    )
+
     chain_map = {
-            "answer": {
-                "question": lambda x: x["question"],
-                "chat_history": lambda x: x.get("chat_history", []),
-            }
-            | SEARCH_QUERIES_PROMPT
-            | model
-            | output_parser,
+        "answer": {
+            "question": lambda x: x["question"],
+            "chat_history": lambda x: x.get("chat_history", []),
         }
-    
+        | SEARCH_QUERIES_PROMPT
+        | model
+        | output_parser,
+    }
+
     if include_question_and_chat_history:
         chain_map["question"] = lambda x: x["question"]
         chain_map["chat_history"] = lambda x: x.get("chat_history", [])
@@ -130,7 +138,6 @@ def create_chain(
         ]
     )
 
-
     chain = _inputs | _context | prompt | model | StrOutputParser()
 
     return chain
@@ -152,9 +159,7 @@ def _get_retriever():
         by_text=False,
         attributes=["source"],
     )
-    return weaviate_client.as_retriever(
-        search_kwargs=dict(k=3)
-    )
+    return weaviate_client.as_retriever(search_kwargs=dict(k=3))
 
 
 class CustomHallucinationEvaluator(RunEvaluator):
@@ -185,7 +190,9 @@ class CustomHallucinationEvaluator(RunEvaluator):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset-name", default="Chat LangChain Simple Questions")
-    parser.add_argument("--search-queries-dataset-name", default="Chat LangChain Search Queries")
+    parser.add_argument(
+        "--search-queries-dataset-name", default="Chat LangChain Search Queries"
+    )
     parser.add_argument("--model-provider", default="openai")
     parser.add_argument("--prompt-type", default="chat")
     args = parser.parse_args()
@@ -209,7 +216,12 @@ if __name__ == "__main__":
         verbose=True,
     )
     eval_config_search_queries = RunEvalConfig(evaluators=["qa"])
-    search_queries_constructor = functools.partial(create_search_queries_chain, retriever=retriever, model_provider=args.model_provider, include_question_and_chat_history=False)
+    search_queries_constructor = functools.partial(
+        create_search_queries_chain,
+        retriever=retriever,
+        model_provider=args.model_provider,
+        include_question_and_chat_history=False,
+    )
     search_queries_chain = search_queries_constructor()
     results = client.run_on_dataset(
         dataset_name=args.search_queries_dataset_name,
