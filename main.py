@@ -1,5 +1,6 @@
 """Main entrypoint for the app."""
 import os
+from typing import AsyncIterator
 
 import weaviate
 from fastapi import FastAPI, Request
@@ -11,17 +12,11 @@ from langchain.prompts import MessagesPlaceholder
 from langchain.schema.messages import HumanMessage, AIMessage
 from langchain.vectorstores import Weaviate
 from langsmith import Client
-from threading import Thread
-from queue import Queue, Empty
-from collections.abc import Generator
-from langchain.callbacks.base import BaseCallbackHandler
+from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import Runnable
 from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema.output_parser import StrOutputParser
-from langchain.callbacks.manager import (
-    trace_as_chain_group,
-)
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -136,19 +131,27 @@ def create_chain(
     return chain
 
 
-class QueueCallback(BaseCallbackHandler):
-    """Callback handler for streaming LLM responses to a queue."""
+async def transform_stream_for_client(
+    stream: AsyncIterator[RunLogPatch],
+) -> AsyncIterator[str]:
+    async for chunk in stream:
+        for op in chunk.ops:
+            if op["path"] == "/logs/0/final_output":
+                # Send source urls when they become available
+                url_set = set()
+                for doc in op["value"]["output"]:
+                    if doc.metadata["source"] in url_set:
+                        continue
 
-    # https://gist.github.com/mortymike/70711b028311681e5f3c6511031d5d43
+                    url_set.add(doc.metadata["source"])
+                    yield doc.metadata["title"] + ":" + doc.metadata["source"] + "\n"
 
-    def __init__(self, q):
-        self.q = q
+                if len(url_set) > 0:
+                    yield "SOURCES:----------------------------"
 
-    def on_llm_new_token(self, token: str, **kwargs: any) -> None:
-        self.q.put(token)
-
-    def on_llm_end(self, *args, **kwargs: any) -> None:
-        return self.q.empty()
+            elif op["path"] == "/streamed_output/-":
+                # Send stream output
+                yield op["value"]
 
 
 @app.post("/chat")
@@ -167,73 +170,25 @@ async def chat_endpoint(request: Request):
             converted_chat_history.append(HumanMessage(content=message["human"]))
         if message.get("ai") is not None:
             converted_chat_history.append(AIMessage(content=message["ai"]))
-    data.get("conversation_id")
 
-    print("Recieved question: ", question)
+    llm = ChatOpenAI(
+        model="gpt-3.5-turbo-16k",
+        streaming=True,
+        temperature=0,
+    )
 
-    def stream() -> Generator:
-        global run_id, trace_url, feedback_recorded
+    docs_chain = create_retriever_chain(chat_history, llm, get_retriever())
+    answer_chain = create_chain(llm, docs_chain.with_config(run_name="FindDocs"))
+    stream = answer_chain.astream_log(
+        {
+            "question": question,
+            "chat_history": chat_history,
+            "converted_chat_history": converted_chat_history,
+        },
+        include_names=["FindDocs"],
+    )
 
-        q = Queue()
-        job_done = object()
-
-        llm = ChatOpenAI(
-            model="gpt-3.5-turbo-16k",
-            streaming=True,
-            temperature=0,
-            callbacks=[QueueCallback(q)],
-        )
-
-        llm_without_callback = ChatOpenAI(
-            model="gpt-3.5-turbo-16k",
-            streaming=True,
-            temperature=0,
-        )
-
-        def task():
-            retriever_chain = create_retriever_chain(
-                chat_history, llm_without_callback, get_retriever()
-            )
-            chain = create_chain(llm, retriever_chain)
-            with trace_as_chain_group("end_to_end_chain") as group_manager:
-                docs = retriever_chain.invoke(
-                    {"question": question, "chat_history": chat_history},
-                    config={"callbacks": group_manager},
-                )
-                url_set = set()
-                for doc in docs:
-                    if doc.metadata["source"] in url_set:
-                        continue
-                    q.put(doc.metadata["title"] + ":" + doc.metadata["source"] + "\n")
-                    url_set.add(doc.metadata["source"])
-                if len(docs) > 0:
-                    q.put("SOURCES:----------------------------")
-                chain.invoke(
-                    {
-                        "question": question,
-                        "chat_history": converted_chat_history,
-                        "context": docs,
-                    },
-                    config={"callbacks": group_manager},
-                )
-            q.put(job_done)
-
-        t = Thread(target=task)
-        t.start()
-
-        content = ""
-
-        while True:
-            try:
-                next_token = q.get(True, timeout=1)
-                if next_token is job_done:
-                    break
-                content += next_token
-                yield next_token
-            except Empty:
-                continue
-
-    return StreamingResponse(stream())
+    return StreamingResponse(transform_stream_for_client(stream))
 
 
 @app.post("/feedback")
