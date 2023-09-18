@@ -1,6 +1,5 @@
 """Main entrypoint for the app."""
 import os
-from typing import Optional
 
 import weaviate
 from fastapi import FastAPI, Request
@@ -10,30 +9,18 @@ from langchain.callbacks.tracers.run_collector import RunCollectorCallbackHandle
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import MessagesPlaceholder
-from langchain.schema.messages import SystemMessage, HumanMessage, AIMessage
+from langchain.schema.messages import HumanMessage, AIMessage
 from langchain.schema.runnable import RunnableConfig
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from threading import Thread
 from queue import Queue, Empty
 from collections.abc import Generator
-from langchain.agents import (
-    Tool,
-    AgentExecutor,
-)
-from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
-from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
-    AgentTokenBufferMemory,
-)
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema.retriever import BaseRetriever
-from typing import Literal, Optional, Union
-from langchain.schema.runnable import Runnable, RunnableMap, RunnablePassthrough
+from langchain.schema.runnable import Runnable
 from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema.output_parser import StrOutputParser
-from operator import itemgetter
-import urllib3
-from bs4 import BeautifulSoup
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -81,9 +68,7 @@ def get_retriever():
         by_text=False,
         attributes=["source", "title"],
     )
-    return weaviate_client.as_retriever(
-        search_kwargs=dict(k=3)
-    )
+    return weaviate_client.as_retriever(search_kwargs=dict(k=3))
 
 
 def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
@@ -98,19 +83,17 @@ def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
 
     if chat_history:
         retriever_chain = (
-        {
-            "question": lambda x: x["question"],
-            "chat_history": lambda x: x["chat_history"],
-        }
-        | CONDENSE_QUESTION_PROMPT
-        | llm
-        | StrOutputParser()
-        | retriever
+            {
+                "question": lambda x: x["question"],
+                "chat_history": lambda x: x["chat_history"],
+            }
+            | CONDENSE_QUESTION_PROMPT
+            | llm
+            | StrOutputParser()
+            | retriever
         )
     else:
-        retriever_chain = (
-            (lambda x: x["question"]) | retriever
-        )
+        retriever_chain = (lambda x: x["question"]) | retriever
     return retriever_chain
 
 
@@ -142,15 +125,15 @@ def create_chain(
         "question": lambda x: x["question"],
         "chat_history": lambda x: x["chat_history"],
     }
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", _template),
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{question}"),
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", _template),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("human", "{question}"),
+        ]
+    )
 
     chain = _context | prompt | llm | StrOutputParser()
-
-
 
     return chain
 
@@ -211,19 +194,32 @@ async def chat_endpoint(request: Request):
         )
 
         def task():
-            retriever_chain = create_retriever_chain(chat_history, llm_without_callback, get_retriever())
+            retriever_chain = create_retriever_chain(
+                chat_history, llm_without_callback, get_retriever()
+            )
             chain = create_chain(llm, retriever_chain)
-            docs = retriever_chain.invoke({"question": question, "chat_history": chat_history}, config=runnable_config)
+            docs = retriever_chain.invoke(
+                {"question": question, "chat_history": chat_history},
+                config=runnable_config,
+            )
             url_set = set()
             for doc in docs:
-                if doc.metadata['source'] in url_set:
+                if doc.metadata["source"] in url_set:
                     continue
-                q.put(doc.metadata['title']+':'+doc.metadata['source']+"\n")
-                url_set.add(doc.metadata['source'])
+                q.put(doc.metadata["title"] + ":" + doc.metadata["source"] + "\n")
+                url_set.add(doc.metadata["source"])
             if len(docs) > 0:
                 q.put("SOURCES:----------------------------")
-            chain.invoke({"question": question, "chat_history": converted_chat_history, "context": docs}, config=runnable_config)
+            chain.invoke(
+                {
+                    "question": question,
+                    "chat_history": converted_chat_history,
+                    "context": docs,
+                },
+                config=runnable_config,
+            )
             q.put(job_done)
+
         t = Thread(target=task)
         t.start()
 
