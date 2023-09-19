@@ -1,4 +1,5 @@
 """Main entrypoint for the app."""
+import logging
 import os
 from collections.abc import Generator
 from operator import itemgetter
@@ -24,6 +25,9 @@ from langsmith import Client
 from pydantic import BaseModel
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 _PROVIDER_MAP = {
     "openai": ChatOpenAI,
@@ -80,6 +84,13 @@ def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
 
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
 
+    chain_meta = {
+        "run_name": "retrieve_docs",
+        "metadata": {
+            "subchain": "retriever_chain",
+        },
+    }
+
     if chat_history:
         retriever_chain = (
             {
@@ -90,23 +101,9 @@ def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
             | llm
             | StrOutputParser()
             | retriever
-        ).with_config(
-            {
-                "run_name": "retrieve_docs",
-                "metadata": {
-                    "subchain": "retriever_chain",
-                },
-            }
-        )
+        ).with_config(chain_meta)
     else:
-        retriever_chain = ((itemgetter("question")) | retriever).with_config(
-            {
-                "run_name": "retrieve_docs",
-                "metadata": {
-                    "subchain": "retriever_chain",
-                },
-            }
-        )
+        retriever_chain = ((itemgetter("question")) | retriever).with_config(chain_meta)
     return retriever_chain
 
 
@@ -155,7 +152,6 @@ def create_chain(
         }
     )
     chain = _context | response_synthesizer
-
     return chain
 
 
@@ -198,7 +194,6 @@ async def chat_endpoint(request: ChatRequest):
     tags = []
     if request.conversation_id is not None:
         tags.append(request.conversation_id)
-    print("Received question: ", question)
 
     def stream() -> Generator:
         global run_id, trace_url, feedback_recorded
