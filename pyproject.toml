@@ -6,7 +6,7 @@ authors = ["SN <6432132+samnoyes@users.noreply.github.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10"
 openai = "^0.28.0"
 fastapi = "^0.103.1"
 black = "^23.7.0"
