@@ -1,26 +1,25 @@
 """Main entrypoint for the app."""
 import os
+from collections.abc import Generator
+from operator import itemgetter
+from queue import Empty, Queue
+from threading import Thread
 
 import weaviate
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from langchain.callbacks.base import BaseCallbackHandler
 from langchain.callbacks.tracers.run_collector import RunCollectorCallbackHandler
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import MessagesPlaceholder
-from langchain.schema.messages import HumanMessage, AIMessage
-from langchain.schema.runnable import RunnableConfig
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
+from langchain.schema.messages import AIMessage, HumanMessage
+from langchain.schema.output_parser import StrOutputParser
+from langchain.schema.retriever import BaseRetriever
+from langchain.schema.runnable import Runnable, RunnableConfig
 from langchain.vectorstores import Weaviate
 from langsmith import Client
-from threading import Thread
-from queue import Queue, Empty
-from collections.abc import Generator
-from langchain.callbacks.base import BaseCallbackHandler
-from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import Runnable
-from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
-from langchain.schema.output_parser import StrOutputParser
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -84,16 +83,30 @@ def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
     if chat_history:
         retriever_chain = (
             {
-                "question": lambda x: x["question"],
-                "chat_history": lambda x: x["chat_history"],
+                "question": itemgetter("question"),
+                "chat_history": itemgetter("chat_history"),
             }
             | CONDENSE_QUESTION_PROMPT
             | llm
             | StrOutputParser()
             | retriever
+        ).with_config(
+            {
+                "run_name": "retrieve_docs",
+                "metadata": {
+                    "subchain": "retriever_chain",
+                },
+            }
         )
     else:
-        retriever_chain = (lambda x: x["question"]) | retriever
+        retriever_chain = ((itemgetter("question")) | retriever).with_config(
+            {
+                "run_name": "retrieve_docs",
+                "metadata": {
+                    "subchain": "retriever_chain",
+                },
+            }
+        )
     return retriever_chain
 
 
@@ -122,8 +135,8 @@ def create_chain(
 
     _context = {
         "context": retriever_chain | format_docs,
-        "question": lambda x: x["question"],
-        "chat_history": lambda x: x["chat_history"],
+        "question": itemgetter("question"),
+        "chat_history": itemgetter("chat_history"),
     }
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -133,7 +146,15 @@ def create_chain(
         ]
     )
 
-    chain = _context | prompt | llm | StrOutputParser()
+    response_synthesizer = (prompt | llm | StrOutputParser()).with_config(
+        {
+            "run_name": "synthesize_response",
+            "metadata": {
+                "subchain": "response_synthesizer",
+            },
+        }
+    )
+    chain = _context | response_synthesizer
 
     return chain
 
