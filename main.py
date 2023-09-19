@@ -1,6 +1,5 @@
 """Main entrypoint for the app."""
 import os
-from typing import Optional
 
 import weaviate
 from fastapi import FastAPI, Request
@@ -10,25 +9,16 @@ from langchain.callbacks.tracers.run_collector import RunCollectorCallbackHandle
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import MessagesPlaceholder
-from langchain.schema.messages import SystemMessage, HumanMessage, AIMessage
+from langchain.schema.messages import HumanMessage, AIMessage
 from langchain.schema.runnable import RunnableConfig
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from threading import Thread
 from queue import Queue, Empty
 from collections.abc import Generator
-from langchain.agents import (
-    Tool,
-    AgentExecutor,
-)
-from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
-from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
-    AgentTokenBufferMemory,
-)
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema.retriever import BaseRetriever
-from typing import Literal, Optional, Union
-from langchain.schema.runnable import Runnable, RunnableMap, RunnablePassthrough
+from langchain.schema.runnable import Runnable
 from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema.output_parser import StrOutputParser
 from operator import itemgetter
@@ -50,7 +40,7 @@ Anything between the following `context`  html blocks is retrieved from a knowle
 
 REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm not sure." Don't try to make up an answer. Anything between the preceding 'context' html blocks is retrieved from a knowledge bank, not part of the conversation with the user."""
 
-REPRASE_TEMPLATE = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
+REPHRASE_TEMPLATE = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
 Chat History:
 {chat_history}
@@ -107,23 +97,21 @@ def get_retriever():
 def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
 
 
-    CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPRASE_TEMPLATE)
+    CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
 
     if chat_history:
         retriever_chain = (
-        {
-            "question": lambda x: x["question"],
-            "chat_history": lambda x: x["chat_history"],
-        }
-        | CONDENSE_QUESTION_PROMPT
-        | llm
-        | StrOutputParser()
-        | retriever
+            {
+                "question": lambda x: x["question"],
+                "chat_history": lambda x: x["chat_history"],
+            }
+            | CONDENSE_QUESTION_PROMPT
+            | llm
+            | StrOutputParser()
+            | retriever
         )
     else:
-        retriever_chain = (
-            (lambda x: x["question"]) | retriever
-        )
+        retriever_chain = (lambda x: x["question"]) | retriever
     return retriever_chain
 
 
@@ -153,8 +141,6 @@ def create_chain(
     ])
 
     chain = _context | prompt | llm | StrOutputParser()
-
-
 
     return chain
 
@@ -214,9 +200,10 @@ async def chat_endpoint(request: Request):
         )
 
         def task():
-            retriever_chain = create_retriever_chain(chat_history, llm_without_callback, get_retriever())
+            retriever_chain = create_retriever_chain(
+                chat_history, llm_without_callback, get_retriever()
+            )
             chain = create_chain(llm, retriever_chain)
-
             with trace_as_chain_group("end_to_end_chain") as group_manager:
                 docs = retriever_chain.invoke({"question": question, "chat_history": chat_history}, config={"callbacks": group_manager})
                 url_set = set()
@@ -229,6 +216,7 @@ async def chat_endpoint(request: Request):
                     q.put("SOURCES:----------------------------")
                 chain.invoke({"question": question, "chat_history": converted_chat_history, "context": docs}, config={"callbacks": group_manager})
             q.put(job_done)
+
         t = Thread(target=task)
         t.start()
 
