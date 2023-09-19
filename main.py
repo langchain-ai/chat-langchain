@@ -4,22 +4,24 @@ from collections.abc import Generator
 from operator import itemgetter
 from queue import Empty, Queue
 from threading import Thread
+from typing import Dict, Generator, List, Optional
 
 import weaviate
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain.callbacks.base import BaseCallbackHandler
-from langchain.callbacks.tracers.run_collector import RunCollectorCallbackHandler
+from langchain.callbacks.manager import collect_runs, trace_as_chain_group
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import Runnable, RunnableConfig
+from langchain.schema.runnable import Runnable
 from langchain.vectorstores import Weaviate
 from langsmith import Client
+from pydantic import BaseModel
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -45,8 +47,6 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-run_collector = RunCollectorCallbackHandler()
-runnable_config = RunnableConfig(callbacks=[run_collector])
 run_id = None
 feedback_recorded = False
 
@@ -174,26 +174,31 @@ class QueueCallback(BaseCallbackHandler):
         return self.q.empty()
 
 
+class ChatRequest(BaseModel):
+    message: str
+    history: Optional[List[Dict[str, str]]]
+    conversation_id: Optional[str]
+
+
 @app.post("/chat")
-async def chat_endpoint(request: Request):
+async def chat_endpoint(request: ChatRequest):
     global run_id, feedback_recorded, trace_url
     run_id = None
     trace_url = None
     feedback_recorded = False
-    run_collector.traced_runs = []
 
-    data = await request.json()
-    question = data.get("message")
-    chat_history = data.get("history", [])
+    question = request.message
+    chat_history = request.history or []
     converted_chat_history = []
     for message in chat_history:
         if message.get("human") is not None:
             converted_chat_history.append(HumanMessage(content=message["human"]))
         if message.get("ai") is not None:
             converted_chat_history.append(AIMessage(content=message["ai"]))
-    data.get("conversation_id")
-
-    print("Recieved question: ", question)
+    tags = []
+    if request.conversation_id is not None:
+        tags.append(request.conversation_id)
+    print("Received question: ", question)
 
     def stream() -> Generator:
         global run_id, trace_url, feedback_recorded
@@ -215,31 +220,41 @@ async def chat_endpoint(request: Request):
         )
 
         def task():
-            retriever_chain = create_retriever_chain(
-                chat_history, llm_without_callback, get_retriever()
-            )
-            chain = create_chain(llm, retriever_chain)
-            docs = retriever_chain.invoke(
-                {"question": question, "chat_history": chat_history},
-                config=runnable_config,
-            )
-            url_set = set()
-            for doc in docs:
-                if doc.metadata["source"] in url_set:
-                    continue
-                q.put(doc.metadata["title"] + ":" + doc.metadata["source"] + "\n")
-                url_set.add(doc.metadata["source"])
-            if len(docs) > 0:
-                q.put("SOURCES:----------------------------")
-            chain.invoke(
-                {
-                    "question": question,
-                    "chat_history": converted_chat_history,
-                    "context": docs,
-                },
-                config=runnable_config,
-            )
-            q.put(job_done)
+            global run_id
+            with collect_runs() as run_collector:
+                with trace_as_chain_group(
+                    "chat-langchain",
+                    inputs={"question": question, "chat_history": chat_history},
+                ) as group_manager:
+                    retriever_chain = create_retriever_chain(
+                        chat_history, llm_without_callback, get_retriever()
+                    )
+                    chain = create_chain(llm, retriever_chain)
+                    docs = retriever_chain.invoke(
+                        {"question": question, "chat_history": chat_history},
+                        config={"tags": tags, "callbacks": group_manager},
+                    )
+                    url_set = set()
+                    for doc in docs:
+                        if doc.metadata["source"] in url_set:
+                            continue
+                        q.put(
+                            doc.metadata["title"] + ":" + doc.metadata["source"] + "\n"
+                        )
+                        url_set.add(doc.metadata["source"])
+                    if len(docs) > 0:
+                        q.put("SOURCES:----------------------------")
+                    res = chain.invoke(
+                        {
+                            "question": question,
+                            "chat_history": converted_chat_history,
+                            "context": docs,
+                        },
+                        config={"tags": tags, "callbacks": group_manager},
+                    )
+                    q.put(job_done)
+                    group_manager.on_chain_end({"output": res})
+                run_id = run_collector.traced_runs[0].id
 
         t = Thread(target=task)
         t.start()
@@ -255,10 +270,6 @@ async def chat_endpoint(request: Request):
                 yield next_token
             except Empty:
                 continue
-
-        if not run_id and run_collector.traced_runs:
-            run = run_collector.traced_runs[0]
-            run_id = run.id
 
     return StreamingResponse(stream())
 
