@@ -78,11 +78,13 @@ def create_chain(
             "question": lambda x: x["question"],
             "chat_history": lambda x: x["chat_history"],
         }
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", _template),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{question}"),
-        ])
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", _template),
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("human", "{question}"),
+            ]
+        )
     else:
         _inputs = RunnableMap(
             {
@@ -123,9 +125,7 @@ def _get_retriever():
         by_text=False,
         attributes=["source"],
     )
-    return weaviate_client.as_retriever(
-        search_kwargs=dict(k=3)
-    )
+    return weaviate_client.as_retriever(search_kwargs=dict(k=3))
 
 
 class CustomHallucinationEvaluator(RunEvaluator):
