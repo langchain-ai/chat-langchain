@@ -191,9 +191,9 @@ async def chat_endpoint(request: ChatRequest):
             converted_chat_history.append(HumanMessage(content=message["human"]))
         if message.get("ai") is not None:
             converted_chat_history.append(AIMessage(content=message["ai"]))
-    tags = []
-    if request.conversation_id is not None:
-        tags.append(request.conversation_id)
+    metadata = {
+        "conversation_id": request.conversation_id,
+    }
 
     def stream() -> Generator:
         global run_id, trace_url, feedback_recorded
@@ -227,7 +227,7 @@ async def chat_endpoint(request: ChatRequest):
                     chain = create_chain(llm, retriever_chain)
                     docs = retriever_chain.invoke(
                         {"question": question, "chat_history": chat_history},
-                        config={"tags": tags, "callbacks": group_manager},
+                        config={"metadata": metadata, "callbacks": group_manager},
                     )
                     url_set = set()
                     for doc in docs:
@@ -245,10 +245,11 @@ async def chat_endpoint(request: ChatRequest):
                             "chat_history": converted_chat_history,
                             "context": docs,
                         },
-                        config={"tags": tags, "callbacks": group_manager},
+                        config={"metadata": metadata, "callbacks": group_manager},
                     )
                     q.put(job_done)
                     group_manager.on_chain_end({"output": res})
+                # The run ID for the grouped trace
                 run_id = run_collector.traced_runs[0].id
 
         t = Thread(target=task)
