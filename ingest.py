@@ -8,6 +8,7 @@ from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain.vectorstores import Weaviate
 
 from constants import (
@@ -72,7 +73,6 @@ def ingest_docs():
         "https://python.langchain.com/docs/integrations",
         "https://python.langchain.com/docs/modules",
         "https://python.langchain.com/docs/guides",
-        "https://python.langchain.com/docs/ecosystem",
         "https://python.langchain.com/docs/additional_resources",
         "https://python.langchain.com/docs/community",
         "https://python.langchain.com/docs/expression_language",
@@ -80,20 +80,22 @@ def ingest_docs():
     urls = [(url, _simple_extractor) for url in simple_urls] + [
         (url, _doc_extractor) for url in doc_urls
     ]
-
+    # Drop trailing "/" to avoid duplicate documents.
+    link_regex = (
+        f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
+        f"(?:[\#'\"]|\/[\#'\"])"
+    )
     documents = []
-
     for url, extractor in urls:
-        loader = RecursiveUrlLoader(
+        documents += RecursiveUrlLoader(
             url=url,
             max_depth=8,
             extractor=extractor,
             prevent_outside=True,
             use_async=True,
-            timeout=None,
-        )
-        temp_docs = loader.load()
-        documents += temp_docs
+            timeout=600,
+            link_regex=link_regex,
+        ).load()
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     docs_transformed = text_splitter.split_documents(documents)

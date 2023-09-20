@@ -5,12 +5,10 @@ import weaviate
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from langchain.callbacks.tracers.run_collector import RunCollectorCallbackHandler
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import MessagesPlaceholder
 from langchain.schema.messages import HumanMessage, AIMessage
-from langchain.schema.runnable import RunnableConfig
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from threading import Thread
@@ -21,9 +19,6 @@ from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import Runnable
 from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema.output_parser import StrOutputParser
-from operator import itemgetter
-import urllib3
-from bs4 import BeautifulSoup
 from langchain.callbacks.manager import (
     trace_as_chain_group,
 )
@@ -89,14 +84,10 @@ def get_retriever():
         by_text=False,
         attributes=["source", "title"],
     )
-    return weaviate_client.as_retriever(
-        search_kwargs=dict(k=6)
-    )
+    return weaviate_client.as_retriever(search_kwargs=dict(k=6))
 
 
 def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
-
-
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
 
     if chat_history:
@@ -127,18 +118,18 @@ def create_chain(
     llm,
     retriever_chain,
 ) -> Runnable:
-
-
     _context = {
         "context": retriever_chain | format_docs,
         "question": lambda x: x["question"],
         "chat_history": lambda x: x["chat_history"],
     }
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", RESPONSE_TEMPLATE),
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{question}"),
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", RESPONSE_TEMPLATE),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("human", "{question}"),
+        ]
+    )
 
     chain = _context | prompt | llm | StrOutputParser()
 
@@ -205,16 +196,26 @@ async def chat_endpoint(request: Request):
             )
             chain = create_chain(llm, retriever_chain)
             with trace_as_chain_group("end_to_end_chain") as group_manager:
-                docs = retriever_chain.invoke({"question": question, "chat_history": chat_history}, config={"callbacks": group_manager})
+                docs = retriever_chain.invoke(
+                    {"question": question, "chat_history": chat_history},
+                    config={"callbacks": group_manager},
+                )
                 url_set = set()
                 for doc in docs:
-                    if doc.metadata['source'] in url_set:
+                    if doc.metadata["source"] in url_set:
                         continue
-                    q.put(doc.metadata['title']+':'+doc.metadata['source']+"\n")
-                    url_set.add(doc.metadata['source'])
+                    q.put(doc.metadata["title"] + ":" + doc.metadata["source"] + "\n")
+                    url_set.add(doc.metadata["source"])
                 if len(docs) > 0:
                     q.put("SOURCES:----------------------------")
-                chain.invoke({"question": question, "chat_history": converted_chat_history, "context": docs}, config={"callbacks": group_manager})
+                chain.invoke(
+                    {
+                        "question": question,
+                        "chat_history": converted_chat_history,
+                        "context": docs,
+                    },
+                    config={"callbacks": group_manager},
+                )
             q.put(job_done)
 
         t = Thread(target=task)
