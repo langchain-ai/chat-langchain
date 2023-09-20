@@ -89,13 +89,9 @@ def ingest_docs():
             max_depth=8,
             extractor=extractor,
             prevent_outside=True,
+            use_async=True
         )
         temp_docs = loader.load()
-        temp_docs = [
-            doc
-            for i, doc in enumerate(temp_docs)
-            if doc not in temp_docs[:i] and doc not in documents
-        ]
         documents += temp_docs
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
