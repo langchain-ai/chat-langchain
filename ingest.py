@@ -1,14 +1,14 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
 import logging
 import os
-from bs4 import BeautifulSoup
+import re
+from bs4 import BeautifulSoup, SoupStrainer, Tag
 import weaviate
 from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import Weaviate
-from langchain.document_transformers import Html2TextTransformer
 
 from constants import (
     WEAVIATE_DOCS_INDEX_NAME,
@@ -21,9 +21,52 @@ WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
 
+def _get_text(tag):
+    new_line_elements = {"h1", "h2", "h3", "h4", "code", "p", "li"}
+    code_elements = {"code"}
+    skip_elements = {"button"}
+    for child in tag.children:
+        if isinstance(child, Tag):
+            # if the tag is a block type tag then yield new lines before after
+            is_code_element = child.name in code_elements
+            is_block_element = is_code_element and "codeBlockLines_e6Vv" in child.get(
+                "class", ""
+            )
+            if is_block_element:
+                yield "\n```python\n"
+            elif is_code_element:
+                yield "`"
+            elif child.name in new_line_elements:
+                yield "\n"
+            if child.name == "br":
+                yield from ["\n"]
+            elif child.name not in skip_elements:
+                yield from _get_text(child)
+
+            if is_block_element:
+                yield "```\n"
+            elif is_code_element:
+                yield "`"
+        else:
+            yield child.text
+
+
+def _doc_extractor(html):
+    soup = BeautifulSoup(html, "lxml", parse_only=SoupStrainer("article"))
+    for tag in soup.find_all(["nav", "footer", "aside"]):
+        tag.decompose()
+    joined = "".join(_get_text(soup))
+    return re.sub(r"\n\n+", "\n\n", joined)
+
+
+def _simple_extractor(html):
+    soup = BeautifulSoup(html, "lxml")
+    return re.sub(r"\n\n+", "\n\n", soup.text)
+
+
 def ingest_docs():
-    urls = [
-        "https://api.python.langchain.com/en/latest/api_reference.html#module-langchain",
+    simple_urls = ["https://api.python.langchain.com/en/latest/"]
+    doc_urls = [
         "https://python.langchain.com/docs/get_started",
         "https://python.langchain.com/docs/use_cases",
         "https://python.langchain.com/docs/integrations",
@@ -34,25 +77,25 @@ def ingest_docs():
         "https://python.langchain.com/docs/community",
         "https://python.langchain.com/docs/expression_language",
     ]
+    urls = [(url, _simple_extractor) for url in simple_urls] + [
+        (url, _doc_extractor) for url in doc_urls
+    ]
 
     documents = []
-    for url in urls:
+
+    for url, extractor in urls:
         loader = RecursiveUrlLoader(
             url=url,
             max_depth=8,
-            extractor=lambda x: BeautifulSoup(x, "lxml").text,
+            extractor=extractor,
             prevent_outside=True,
+            use_async=True
         )
         temp_docs = loader.load()
-        temp_docs = [doc for i, doc in enumerate(temp_docs) if doc not in temp_docs[:i]]
         documents += temp_docs
 
-    html2text = Html2TextTransformer()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
-
-    docs_transformed = html2text.transform_documents(documents)
-    docs_transformed = text_splitter.split_documents(docs_transformed)
-
+    docs_transformed = text_splitter.split_documents(documents)
     # We try to return 'source' and 'title' metadata when querying vector store and
     # Weaviate will error at query time if one of the attributes is missing from a
     # retrieved document.
