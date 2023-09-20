@@ -89,7 +89,8 @@ def ingest_docs():
             max_depth=8,
             extractor=extractor,
             prevent_outside=True,
-            use_async=True
+            use_async=True,
+            timeout=None,
         )
         temp_docs = loader.load()
         documents += temp_docs
