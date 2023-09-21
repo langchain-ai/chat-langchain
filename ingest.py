@@ -95,6 +95,7 @@ def ingest_docs():
             use_async=True,
             timeout=600,
             link_regex=link_regex,
+            check_response_status=True,
         ).load()
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
