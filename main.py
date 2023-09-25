@@ -2,7 +2,7 @@
 import os
 from operator import itemgetter
 from typing import AsyncIterator, Dict, List, Optional
-
+import json
 import weaviate
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +18,7 @@ from langchain.schema.runnable import Runnable, RunnableMap
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from pydantic import BaseModel
+from langchain.schema.messages import messages_from_dict
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -87,15 +88,8 @@ def get_retriever():
 def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
 
-    chain_config = {
-        "run_name": "retrieve_docs",
-        "metadata": {
-            "subchain": "retriever_chain",
-        },
-    }
-
     if chat_history:
-        retriever_chain = (
+        condense_question_chain = (
             {
                 "question": itemgetter("question"),
                 "chat_history": itemgetter("chat_history"),
@@ -103,12 +97,14 @@ def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
             | CONDENSE_QUESTION_PROMPT
             | llm
             | StrOutputParser()
-            | retriever
-        ).with_config(chain_config)
-    else:
-        retriever_chain = ((itemgetter("question")) | retriever).with_config(
-            chain_config
+        ).with_config(
+            {
+                "run_name": "condense_question",
+            }
         )
+        retriever_chain = condense_question_chain | retriever
+    else:
+        retriever_chain = (itemgetter("question")) | retriever
     return retriever_chain
 
 
@@ -130,14 +126,7 @@ def create_chain(
             "question": itemgetter("question"),
             "chat_history": itemgetter("chat_history"),
         }
-    ).with_config(
-        {
-            "run_name": "Retrieve Docs",
-            "metadata": {
-                "subchain": "retriever_map",
-            },
-        }
-    )
+    ).with_config(run_name="RetrieveDocs")
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", RESPONSE_TEMPLATE),
@@ -147,15 +136,9 @@ def create_chain(
     )
 
     response_synthesizer = (prompt | llm | StrOutputParser()).with_config(
-        {
-            "run_name": "synthesize_response",
-            "metadata": {
-                "subchain": "response_synthesizer",
-            },
-        }
+        run_name="GenerateResponse",
     )
-    chain = _context | response_synthesizer
-    return chain
+    return _context | response_synthesizer
 
 
 async def transform_stream_for_client(
@@ -163,6 +146,7 @@ async def transform_stream_for_client(
 ) -> AsyncIterator[str]:
     async for chunk in stream:
         for op in chunk.ops:
+            all_sources = []
             if op["path"] == "/logs/0/final_output":
                 # Send source urls when they become available
                 url_set = set()
@@ -171,14 +155,20 @@ async def transform_stream_for_client(
                         continue
 
                     url_set.add(doc.metadata["source"])
-                    yield doc.metadata["title"] + ":" + doc.metadata["source"] + "\n"
-
-                if len(url_set) > 0:
-                    yield "SOURCES:----------------------------"
+                    all_sources.append(
+                        doc.metadata["title"] + ":" + doc.metadata["source"]
+                    )
+                if all_sources:
+                    src = {"sources": "\n".join(all_sources)}
+                    yield f"{json.dumps(src)}\n"
 
             elif op["path"] == "/streamed_output/-":
                 # Send stream output
-                yield op["value"]
+                yield f'{json.dumps({"tok": op["value"]})}\n'
+
+            elif not op["path"] and op["op"] == "replace":
+                # Send final output
+                yield f'{json.dumps({"run_id": str(op["value"]["id"])})}\n'
 
 
 class ChatRequest(BaseModel):
@@ -211,32 +201,33 @@ async def chat_endpoint(request: ChatRequest):
         streaming=True,
         temperature=0,
     )
-
-    docs_chain = create_retriever_chain(chat_history, llm, get_retriever())
+    docs_chain = create_retriever_chain(converted_chat_history, llm, get_retriever())
     answer_chain = create_chain(llm, docs_chain.with_config(run_name="FindDocs"))
     stream = answer_chain.astream_log(
         {
             "question": question,
-            "chat_history": chat_history,
+            "chat_history": converted_chat_history,
             "converted_chat_history": converted_chat_history,
         },
+        config={"metadata": metadata},
         include_names=["FindDocs"],
+        include_tags=["FindDocs"],
     )
     return StreamingResponse(transform_stream_for_client(stream))
 
 
 @app.post("/feedback")
 async def send_feedback(request: Request):
-    global run_id, feedback_recorded
-    if feedback_recorded or run_id is None:
+    data = await request.json()
+    score = data.get("score")
+    run_id = data.get("run_id")  # TODO：prevent duplicate feedback
+    if run_id is None:
         return {
             "result": "Feedback already recorded or no chat session found",
             "code": 400,
         }
-    data = await request.json()
-    score = data.get("score")
+
     client.create_feedback(run_id, "user_score", score=score)
-    feedback_recorded = True
     return {"result": "posted feedback successfully", "code": 200}
 
 
