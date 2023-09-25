@@ -1,7 +1,6 @@
 """Main entrypoint for the app."""
 import logging
 import os
-from collections.abc import Generator
 from operator import itemgetter
 from queue import Empty, Queue
 from threading import Thread
@@ -19,7 +18,7 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTem
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import Runnable
+from langchain.schema.runnable import Runnable, RunnableMap
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from pydantic import BaseModel
@@ -28,6 +27,23 @@ from constants import WEAVIATE_DOCS_INDEX_NAME
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+RESPONSE_TEMPLATE = """You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
+Generate a comprehensive and informative answer (but no more than 80 words) for a given question based solely on the provided search results (URL and content). You must only use information from the provided search results. Use an unbiased and journalistic tone. Combine search results together into a coherent answer. Do not repeat text. Cite search results using [${{number}}] notation. Only cite the most relevant results that answer the question accurately. Place these citations at the end of the sentence or paragraph that reference them - do not put them all at the end. If different results refer to different entities within the same name, write separate answers for each entity.
+If there is nothing in the context relevant to the question at hand, just say "Hmm, I'm not sure." Don't try to make up an answer.
+Anything between the following `context`  html blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
+<context>
+    {context} 
+<context/>
+
+REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm not sure." Don't try to make up an answer. Anything between the preceding 'context' html blocks is retrieved from a knowledge bank, not part of the conversation with the user."""
+
+REPHRASE_TEMPLATE = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
+
+Chat History:
+{chat_history}
+Follow Up Input: {question}
+Standalone Question:"""
 
 _PROVIDER_MAP = {
     "openai": ChatOpenAI,
@@ -71,20 +87,13 @@ def get_retriever():
         by_text=False,
         attributes=["source", "title"],
     )
-    return weaviate_client.as_retriever(search_kwargs=dict(k=3))
+    return weaviate_client.as_retriever(search_kwargs=dict(k=6))
 
 
 def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
-    _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
+    CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
 
-    Chat History:
-    {chat_history}
-    Follow Up Input: {question}
-    Standalone Question:"""
-
-    CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
-
-    chain_meta = {
+    chain_config = {
         "run_name": "retrieve_docs",
         "metadata": {
             "subchain": "retriever_chain",
@@ -101,13 +110,13 @@ def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
             | llm
             | StrOutputParser()
             | retriever
-        ).with_config(chain_meta)
+        ).with_config(chain_config)
     else:
-        retriever_chain = ((itemgetter("question")) | retriever).with_config(chain_meta)
+        retriever_chain = ((itemgetter("question")) | retriever).with_config(chain_config)
     return retriever_chain
 
 
-def format_docs(docs):
+def format_docs(docs, max_tokens=200):
     formatted_docs = []
     for i, doc in enumerate(docs):
         doc_string = f"<doc id='{i}'>{doc.page_content}</doc>"
@@ -119,25 +128,19 @@ def create_chain(
     llm,
     retriever_chain,
 ) -> Runnable:
-    _template = """
-    You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
-    If there is nothing in the context relevant to the question at hand, just say "Hmm, I'm not sure." Don't try to make up an answer.
-    Anything between the following `context`  html blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
-    <context>
-        {context} 
-    <context/>
-
-    REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm not sure." Don't try to make up an answer. Anything between the preceding 'context' html blocks is retrieved from a knowledge bank, not part of the conversation with the user.
-    """
-
-    _context = {
+    _context = RunnableMap({
         "context": retriever_chain | format_docs,
         "question": itemgetter("question"),
         "chat_history": itemgetter("chat_history"),
-    }
+    }).with_config({
+        "run_name": "Really just a context creator",
+        "metadata": {
+            "subchain": "context_creator",
+        },
+    })
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", _template),
+            ("system", RESPONSE_TEMPLATE),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{question}"),
         ]
@@ -216,18 +219,18 @@ async def chat_endpoint(request: ChatRequest):
 
         def task():
             global run_id
+            retriever_chain = create_retriever_chain(
+                chat_history, llm_without_callback, get_retriever()
+            )
+            chain = create_chain(llm, retriever_chain)
             with collect_runs() as run_collector:
                 with trace_as_chain_group(
-                    "chat-langchain",
+                    "end_to_end_chain",
                     inputs={"question": question, "chat_history": chat_history},
                 ) as group_manager:
-                    retriever_chain = create_retriever_chain(
-                        chat_history, llm_without_callback, get_retriever()
-                    )
-                    chain = create_chain(llm, retriever_chain)
                     docs = retriever_chain.invoke(
                         {"question": question, "chat_history": chat_history},
-                        config={"metadata": metadata, "callbacks": group_manager},
+                        config={"callbacks": group_manager, "metadata": metadata},
                     )
                     url_set = set()
                     for doc in docs:
@@ -239,18 +242,18 @@ async def chat_endpoint(request: ChatRequest):
                         url_set.add(doc.metadata["source"])
                     if len(docs) > 0:
                         q.put("SOURCES:----------------------------")
-                    res = chain.invoke(
+                    result = chain.invoke(
                         {
                             "question": question,
                             "chat_history": converted_chat_history,
                             "context": docs,
                         },
-                        config={"metadata": metadata, "callbacks": group_manager},
+                        config={"callbacks": group_manager, "metadata": metadata},
                     )
-                    q.put(job_done)
-                    group_manager.on_chain_end({"output": res})
+                    group_manager.on_chain_end({"output": result})
                 # The run ID for the grouped trace
                 run_id = run_collector.traced_runs[0].id
+            q.put(job_done)
 
         t = Thread(target=task)
         t.start()

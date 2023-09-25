@@ -6,14 +6,14 @@ authors = ["SN <6432132+samnoyes@users.noreply.github.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10"
 openai = "^0.28.0"
 fastapi = "^0.103.1"
 black = "^23.7.0"
 isort = "^5.12.0"
 websockets = "^11.0.3"
 pydantic = "^2.3.0"
-langchain = "^0.0.295"
+langchain = { git = "https://github.com/langchain-ai/langchain", subdirectory = "libs/langchain" }
 uvicorn = "^0.23.2"
 Jinja2 = "^3.1.2"
 faiss-cpu = "^1.7.4"
