@@ -39,15 +39,6 @@ Chat History:
 Follow Up Input: {question}
 Standalone Question:"""
 
-_PROVIDER_MAP = {
-    "openai": ChatOpenAI,
-    "anthropic": ChatAnthropic,
-}
-
-_MODEL_MAP = {
-    "openai": "gpt-3.5-turbo-16k",
-    "anthropic": "claude-2",
-}
 
 client = Client()
 
