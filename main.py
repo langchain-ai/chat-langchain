@@ -18,7 +18,6 @@ from langchain.schema.runnable import Runnable, RunnableMap
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from pydantic import BaseModel
-from langchain.schema.messages import messages_from_dict
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -167,7 +166,7 @@ async def transform_stream_for_client(
                 yield f'{json.dumps({"tok": op["value"]})}\n'
 
             elif not op["path"] and op["op"] == "replace":
-                # Send final output
+for                # Send final output
                 yield f'{json.dumps({"run_id": str(op["value"]["id"])})}\n'
 
 

@@ -20,7 +20,7 @@ export type Message = {
 export function ChatMessageBubble(props: {
   message: Message;
   aiEmoji?: string;
-  feedback: number | null;
+  feedback?: number;
   sendFeedback: (feedback?: number, run_id?: string) => void;
   isMostRecent: boolean;
   messageCompleted: boolean;

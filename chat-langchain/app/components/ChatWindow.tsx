@@ -33,7 +33,7 @@ export function ChatWindow(props: {
   const [messages, setMessages] = useState<Array<Message>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [feedback, setFeedback] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<number | undefined>(undefined);
 
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
@@ -55,7 +55,7 @@ export function ChatWindow(props: {
       ...prevMessages,
       { id: Math.random().toString(), content: messageValue, role: "user" },
     ]);
-    setFeedback(null);
+    setFeedback(undefined);
     setIsLoading(true);
     let response;
     try {
@@ -165,7 +165,7 @@ export function ChatWindow(props: {
       });
   };
 
-  const sendFeedback = async (score: number | null, run_id: string | null) => {
+  const sendFeedback = async (score?: number, run_id?: string) => {
     if (feedback !== null) return;
 
     setFeedback(score);
