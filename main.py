@@ -1,17 +1,13 @@
 """Main entrypoint for the app."""
-import logging
 import os
 from operator import itemgetter
-from queue import Empty, Queue
-from threading import Thread
-from typing import Dict, Generator, List, Optional
+from typing import AsyncIterator, Dict, List, Optional
 
 import weaviate
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from langchain.callbacks.base import BaseCallbackHandler
-from langchain.callbacks.manager import collect_runs, trace_as_chain_group
+from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
@@ -25,8 +21,6 @@ from pydantic import BaseModel
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 RESPONSE_TEMPLATE = """You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
 Generate a comprehensive and informative answer (but no more than 80 words) for a given question based solely on the provided search results (URL and content). You must only use information from the provided search results. Use an unbiased and journalistic tone. Combine search results together into a coherent answer. Do not repeat text. Cite search results using [${{number}}] notation. Only cite the most relevant results that answer the question accurately. Place these citations at the end of the sentence or paragraph that reference them - do not put them all at the end. If different results refer to different entities within the same name, write separate answers for each entity.
@@ -112,7 +106,9 @@ def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
             | retriever
         ).with_config(chain_config)
     else:
-        retriever_chain = ((itemgetter("question")) | retriever).with_config(chain_config)
+        retriever_chain = ((itemgetter("question")) | retriever).with_config(
+            chain_config
+        )
     return retriever_chain
 
 
@@ -128,16 +124,20 @@ def create_chain(
     llm,
     retriever_chain,
 ) -> Runnable:
-    _context = RunnableMap({
-        "context": retriever_chain | format_docs,
-        "question": itemgetter("question"),
-        "chat_history": itemgetter("chat_history"),
-    }).with_config({
-        "run_name": "Really just a context creator",
-        "metadata": {
-            "subchain": "context_creator",
-        },
-    })
+    _context = RunnableMap(
+        {
+            "context": retriever_chain | format_docs,
+            "question": itemgetter("question"),
+            "chat_history": itemgetter("chat_history"),
+        }
+    ).with_config(
+        {
+            "run_name": "Retrieve Docs",
+            "metadata": {
+                "subchain": "retriever_map",
+            },
+        }
+    )
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", RESPONSE_TEMPLATE),
@@ -158,19 +158,27 @@ def create_chain(
     return chain
 
 
-class QueueCallback(BaseCallbackHandler):
-    """Callback handler for streaming LLM responses to a queue."""
+async def transform_stream_for_client(
+    stream: AsyncIterator[RunLogPatch],
+) -> AsyncIterator[str]:
+    async for chunk in stream:
+        for op in chunk.ops:
+            if op["path"] == "/logs/0/final_output":
+                # Send source urls when they become available
+                url_set = set()
+                for doc in op["value"]["output"]:
+                    if doc.metadata["source"] in url_set:
+                        continue
 
-    # https://gist.github.com/mortymike/70711b028311681e5f3c6511031d5d43
+                    url_set.add(doc.metadata["source"])
+                    yield doc.metadata["title"] + ":" + doc.metadata["source"] + "\n"
 
-    def __init__(self, q):
-        self.q = q
+                if len(url_set) > 0:
+                    yield "SOURCES:----------------------------"
 
-    def on_llm_new_token(self, token: str, **kwargs: any) -> None:
-        self.q.put(token)
-
-    def on_llm_end(self, *args, **kwargs: any) -> None:
-        return self.q.empty()
+            elif op["path"] == "/streamed_output/-":
+                # Send stream output
+                yield op["value"]
 
 
 class ChatRequest(BaseModel):
@@ -185,7 +193,6 @@ async def chat_endpoint(request: ChatRequest):
     run_id = None
     trace_url = None
     feedback_recorded = False
-
     question = request.message
     chat_history = request.history or []
     converted_chat_history = []
@@ -194,83 +201,28 @@ async def chat_endpoint(request: ChatRequest):
             converted_chat_history.append(HumanMessage(content=message["human"]))
         if message.get("ai") is not None:
             converted_chat_history.append(AIMessage(content=message["ai"]))
+
     metadata = {
         "conversation_id": request.conversation_id,
     }
 
-    def stream() -> Generator:
-        global run_id, trace_url, feedback_recorded
+    llm = ChatOpenAI(
+        model="gpt-3.5-turbo-16k",
+        streaming=True,
+        temperature=0,
+    )
 
-        q = Queue()
-        job_done = object()
-
-        llm = ChatOpenAI(
-            model="gpt-3.5-turbo-16k",
-            streaming=True,
-            temperature=0,
-            callbacks=[QueueCallback(q)],
-        )
-
-        llm_without_callback = ChatOpenAI(
-            model="gpt-3.5-turbo-16k",
-            streaming=True,
-            temperature=0,
-        )
-
-        def task():
-            global run_id
-            retriever_chain = create_retriever_chain(
-                chat_history, llm_without_callback, get_retriever()
-            )
-            chain = create_chain(llm, retriever_chain)
-            with collect_runs() as run_collector:
-                with trace_as_chain_group(
-                    "end_to_end_chain",
-                    inputs={"question": question, "chat_history": chat_history},
-                ) as group_manager:
-                    docs = retriever_chain.invoke(
-                        {"question": question, "chat_history": chat_history},
-                        config={"callbacks": group_manager, "metadata": metadata},
-                    )
-                    url_set = set()
-                    for doc in docs:
-                        if doc.metadata["source"] in url_set:
-                            continue
-                        q.put(
-                            doc.metadata["title"] + ":" + doc.metadata["source"] + "\n"
-                        )
-                        url_set.add(doc.metadata["source"])
-                    if len(docs) > 0:
-                        q.put("SOURCES:----------------------------")
-                    result = chain.invoke(
-                        {
-                            "question": question,
-                            "chat_history": converted_chat_history,
-                            "context": docs,
-                        },
-                        config={"callbacks": group_manager, "metadata": metadata},
-                    )
-                    group_manager.on_chain_end({"output": result})
-                # The run ID for the grouped trace
-                run_id = run_collector.traced_runs[0].id
-            q.put(job_done)
-
-        t = Thread(target=task)
-        t.start()
-
-        content = ""
-
-        while True:
-            try:
-                next_token = q.get(True, timeout=1)
-                if next_token is job_done:
-                    break
-                content += next_token
-                yield next_token
-            except Empty:
-                continue
-
-    return StreamingResponse(stream())
+    docs_chain = create_retriever_chain(chat_history, llm, get_retriever())
+    answer_chain = create_chain(llm, docs_chain.with_config(run_name="FindDocs"))
+    stream = answer_chain.astream_log(
+        {
+            "question": question,
+            "chat_history": chat_history,
+            "converted_chat_history": converted_chat_history,
+        },
+        include_names=["FindDocs"],
+    )
+    return StreamingResponse(transform_stream_for_client(stream))
 
 
 @app.post("/feedback")
