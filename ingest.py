@@ -53,7 +53,10 @@ def load_api_docs():
             r"(?:[\#'\"]|\/[\#'\"])"
         ),
         check_response_status=True,
-        exclude_dirs=("https://api.python.langchain.com/en/latest/_sources",),
+        exclude_dirs=(
+            "https://api.python.langchain.com/en/latest/_sources",
+            "https://api.python.langchain.com/en/latest/_modules",
+        ),
     ).load()
 
 
