@@ -21,6 +21,7 @@ WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
+
 def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
     title = soup.find("title")
     description = soup.find("meta", attrs={"name": "description"})
@@ -30,7 +31,7 @@ def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
         "title": title.get_text() if title else "",
         "description": description.get("content", "") if description else "",
         "language": html.get("lang", "") if html else "",
-        **meta
+        **meta,
     }
 
 
@@ -41,7 +42,9 @@ def load_langchain_docs():
         parsing_function=langchain_docs_extractor,
         default_parser="lxml",
         bs_kwargs={
-            "parse_only": SoupStrainer(name="article"),
+            "parse_only": SoupStrainer(
+                name=("article", "title", "html", "lang", "content")
+            ),
         },
         meta_function=metadata_extractor,
     ).load()
@@ -49,7 +52,7 @@ def load_langchain_docs():
 
 def simple_extractor(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
-    return re.sub(r"\n\n+", "\n\n", soup.text)
+    return re.sub(r"\n\n+", "\n\n", soup.text).strip()
 
 
 def load_api_docs():

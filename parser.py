@@ -106,4 +106,5 @@ def langchain_docs_extractor(soup: BeautifulSoup) -> str:
                 else:
                     yield from get_text(child)
 
-    return "".join(get_text(soup))
+    joined = "".join(get_text(soup))
+    return re.sub(r"\n\n+", "\n\n", joined).strip()
