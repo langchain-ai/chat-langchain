@@ -182,8 +182,7 @@ async def chat_endpoint(request: Request):
     stream = answer_chain.astream_log(
         {
             "question": question,
-            "chat_history": chat_history,
-            "converted_chat_history": converted_chat_history,
+            "chat_history": converted_chat_history,
         },
         include_names=["FindDocs"],
     )
