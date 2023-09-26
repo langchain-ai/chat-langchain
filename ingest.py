@@ -2,18 +2,18 @@
 import logging
 import os
 import re
-from bs4 import BeautifulSoup, SoupStrainer, Tag
+
 import weaviate
-from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
+from bs4 import BeautifulSoup, SoupStrainer
+from langchain.document_loaders import SitemapLoader, RecursiveUrlLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain.vectorstores import Weaviate
 
-from constants import (
-    WEAVIATE_DOCS_INDEX_NAME,
-)
+from constants import WEAVIATE_DOCS_INDEX_NAME
+from parser import langchain_docs_extractor
 
 logger = logging.getLogger(__name__)
 
@@ -22,84 +22,52 @@ WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
 
-def _get_text(tag):
-    new_line_elements = {"h1", "h2", "h3", "h4", "code", "p", "li"}
-    code_elements = {"code"}
-    skip_elements = {"button"}
-    for child in tag.children:
-        if isinstance(child, Tag):
-            # if the tag is a block type tag then yield new lines before after
-            is_code_element = child.name in code_elements
-            is_block_element = is_code_element and "codeBlockLines_e6Vv" in child.get(
-                "class", ""
-            )
-            if is_block_element:
-                yield "\n```python\n"
-            elif is_code_element:
-                yield "`"
-            elif child.name in new_line_elements:
-                yield "\n"
-            if child.name == "br":
-                yield from ["\n"]
-            elif child.name not in skip_elements:
-                yield from _get_text(child)
-
-            if is_block_element:
-                yield "```\n"
-            elif is_code_element:
-                yield "`"
-        else:
-            yield child.text
+def load_langchain_docs():
+    return SitemapLoader(
+        "https://python.langchain.com/sitemap.xml",
+        filter_urls=["https://python.langchain.com/"],
+        parsing_function=langchain_docs_extractor,
+        default_parser="lxml",
+        bs_parse_kwargs={
+            "parse_only": SoupStrainer(name="article"),
+        },
+    ).load()
 
 
-def _doc_extractor(html):
-    soup = BeautifulSoup(html, "lxml", parse_only=SoupStrainer("article"))
-    for tag in soup.find_all(["nav", "footer", "aside"]):
-        tag.decompose()
-    joined = "".join(_get_text(soup))
-    return re.sub(r"\n\n+", "\n\n", joined)
-
-
-def _simple_extractor(html):
+def simple_extractor(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
     return re.sub(r"\n\n+", "\n\n", soup.text)
 
 
+def load_api_docs():
+    return RecursiveUrlLoader(
+        url="https://api.python.langchain.com/en/latest/",
+        max_depth=8,
+        extractor=simple_extractor,
+        prevent_outside=True,
+        use_async=True,
+        timeout=600,
+        # Drop trailing / to avoid duplicate pages.
+        link_regex=(
+            f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
+            r"(?:[\#'\"]|\/[\#'\"])"
+        ),
+        check_response_status=True,
+        exclude_dirs=("https://api.python.langchain.com/en/latest/_sources",),
+    ).load()
+
+
 def ingest_docs():
-    simple_urls = ["https://api.python.langchain.com/en/latest/"]
-    doc_urls = [
-        "https://python.langchain.com/docs/get_started",
-        "https://python.langchain.com/docs/use_cases",
-        "https://python.langchain.com/docs/integrations",
-        "https://python.langchain.com/docs/modules",
-        "https://python.langchain.com/docs/guides",
-        "https://python.langchain.com/docs/additional_resources",
-        "https://python.langchain.com/docs/community",
-        "https://python.langchain.com/docs/expression_language",
-    ]
-    urls = [(url, _simple_extractor) for url in simple_urls] + [
-        (url, _doc_extractor) for url in doc_urls
-    ]
-    # Drop trailing "/" to avoid duplicate documents.
-    link_regex = (
-        f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
-        f"(?:[\#'\"]|\/[\#'\"])"
-    )
-    documents = []
-    for url, extractor in urls:
-        documents += RecursiveUrlLoader(
-            url=url,
-            max_depth=8,
-            extractor=extractor,
-            prevent_outside=True,
-            use_async=True,
-            timeout=600,
-            link_regex=link_regex,
-            check_response_status=True,
-        ).load()
+    docs_from_documentation = load_langchain_docs()
+    logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
+    docs_from_api = load_api_docs()
+    logger.info(f"Loaded {len(docs_from_api)} docs from API")
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
-    docs_transformed = text_splitter.split_documents(documents)
+    docs_transformed = text_splitter.split_documents(
+        docs_from_documentation + docs_from_api
+    )
+
     # We try to return 'source' and 'title' metadata when querying vector store and
     # Weaviate will error at query time if one of the attributes is missing from a
     # retrieved document.
@@ -113,11 +81,13 @@ def ingest_docs():
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
-    embedding = OpenAIEmbeddings(chunk_size=200)  # rate limit
+    embedding = OpenAIEmbeddings(
+        chunk_size=200,
+    )  # rate limit
     vectorstore = Weaviate(
-        client,
-        WEAVIATE_DOCS_INDEX_NAME,
-        "text",
+        client=client,
+        index_name=WEAVIATE_DOCS_INDEX_NAME,
+        text_key="text",
         embedding=embedding,
         by_text=False,
         attributes=["source", "title"],
@@ -127,7 +97,8 @@ def ingest_docs():
         f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
     )
     record_manager.create_schema()
-    index(
+
+    indexing_stats = index(
         docs_transformed,
         record_manager,
         vectorstore,
@@ -135,6 +106,7 @@ def ingest_docs():
         source_id_key="source",
     )
 
+    logger.info("Indexing stats: ", indexing_stats)
     logger.info(
         "LangChain now has this many vectors: ",
         client.query.aggregate(WEAVIATE_DOCS_INDEX_NAME).with_meta_count().do(),
