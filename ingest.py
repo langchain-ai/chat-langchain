@@ -28,7 +28,7 @@ def load_langchain_docs():
         filter_urls=["https://python.langchain.com/"],
         parsing_function=langchain_docs_extractor,
         default_parser="lxml",
-        bs_parse_kwargs={
+        bs_kwargs={
             "parse_only": SoupStrainer(name="article"),
         },
     ).load()
