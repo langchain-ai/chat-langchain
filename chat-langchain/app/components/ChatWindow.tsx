@@ -3,15 +3,24 @@
 import React, { useRef, useState, FormEventHandler, FormEvent } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
-import { ChatMessageBubble } from "../components/ChatMessageBubble";
+import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
 import { marked } from "marked";
 import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import { Heading, Flex, Button, IconButton, Input, InputGroup, InputRightElement, Spinner} from '@chakra-ui/react'
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import {
+  Heading,
+  Flex,
+  Button,
+  IconButton,
+  Input,
+  InputGroup,
+  InputRightElement,
+  Spinner,
+} from "@chakra-ui/react";
 import { ArrowUpIcon, SpinnerIcon } from "@chakra-ui/icons";
 
 export function ChatWindow(props: {
@@ -21,27 +30,16 @@ export function ChatWindow(props: {
 }) {
   const conversationId = uuidv4();
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
-  const [messages, setMessages] = useState<
-    Array<{
-      id: string;
-      message: string;
-      role: "function" | "user" | "assistant" | "system";
-    }>
-  >([]);
+  const [messages, setMessages] = useState<Array<Message>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [feedback, setFeedback] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<number | undefined>(undefined);
 
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
   >([]);
 
-  const {
-    apiBaseUrl,
-    placeholder,
-    titleText = "An LLM",
-  } = props;
-
+  const { apiBaseUrl, placeholder, titleText = "An LLM" } = props;
 
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
@@ -55,9 +53,9 @@ export function ChatWindow(props: {
     setInput("");
     setMessages((prevMessages) => [
       ...prevMessages,
-      { id: Math.random().toString(), message: messageValue, role: "user" },
+      { id: Math.random().toString(), content: messageValue, role: "user" },
     ]);
-    setFeedback(null);
+    setFeedback(undefined);
     setIsLoading(true);
     let response;
     try {
@@ -85,6 +83,8 @@ export function ChatWindow(props: {
     let decoder = new TextDecoder();
 
     let accumulatedMessage = "";
+    let runId: string | undefined = undefined;
+    let sources: string | undefined = undefined;
     let messageIndex: number | null = null;
 
     let renderer = new Renderer();
@@ -116,7 +116,6 @@ export function ChatWindow(props: {
       ): Promise<void> {
         const { done, value } = res;
         if (done) {
-          console.log("Stream complete");
           setChatHistory((prevChatHistory) => [
             ...prevChatHistory,
             { human: messageValue, ai: accumulatedMessage },
@@ -124,8 +123,21 @@ export function ChatWindow(props: {
           return Promise.resolve();
         }
 
-        let result = decoder.decode(value);
-        accumulatedMessage += result;
+        decoder
+          .decode(value)
+          .trim()
+          .split("\n")
+          .map((s) => {
+            let parsed = JSON.parse(s);
+            if ("tok" in parsed) {
+              accumulatedMessage += parsed.tok;
+            } else if ("run_id" in parsed) {
+              runId = parsed.run_id;
+            } else if ("sources" in parsed) {
+              sources = parsed.sources;
+            }
+          });
+
         let parsedResult = marked.parse(accumulatedMessage);
 
         setMessages((prevMessages) => {
@@ -134,11 +146,13 @@ export function ChatWindow(props: {
             messageIndex = newMessages.length;
             newMessages.push({
               id: Math.random().toString(),
-              message: parsedResult.trim(),
+              content: parsedResult.trim(),
+              runId: runId,
+              sources: sources,
               role: "assistant",
             });
           } else {
-            newMessages[messageIndex].message = parsedResult.trim();
+            newMessages[messageIndex].content = parsedResult.trim();
           }
           return newMessages;
         });
@@ -148,9 +162,9 @@ export function ChatWindow(props: {
       .catch((error) => {
         console.error("Error:", error);
       });
-}
+  };
 
-  const sendFeedback = async (score: number | null) => {
+  const sendFeedback = async (score?: number, run_id?: string) => {
     if (feedback !== null) return;
 
     setFeedback(score);
@@ -162,6 +176,7 @@ export function ChatWindow(props: {
         },
         body: JSON.stringify({
           score: score,
+          run_id: run_id,
         }),
       });
       const data = await response.json();
@@ -207,14 +222,16 @@ export function ChatWindow(props: {
   };
 
   const sendInitialQuestion = async (question: string) => {
-    await sendMessage(question)
+    await sendMessage(question);
   };
 
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
       {messages.length > 0 && (
         <Flex direction={"column"} alignItems={"center"} paddingBottom={"20px"}>
-          <Heading fontSize="2xl" fontWeight={"medium"} mb={1} color={"white"}>{titleText}</Heading>
+          <Heading fontSize="2xl" fontWeight={"medium"} mb={1} color={"white"}>
+            {titleText}
+          </Heading>
           <Heading fontSize="md" fontWeight={"normal"} mb={1} color={"white"}>
             We appreciate feedback!
           </Heading>
@@ -224,42 +241,50 @@ export function ChatWindow(props: {
         className="flex flex-col-reverse w-full mb-2 overflow-auto"
         ref={messageContainerRef}
       >
-        {messages.length > 0
-          ? [...messages]
-              .reverse()
-              .map((m, index) => (
-                <ChatMessageBubble
-                  key={m.id}
-                  message={{ id: m.id, content: m.message, role: m.role }}
-                  aiEmoji="🦜"
-                  sendFeedback={sendFeedback}
-                  feedback={feedback}
-                  isMostRecent={index === 0}
-                  messageCompleted={!isLoading}
-                ></ChatMessageBubble>
-              ))
-          : <EmptyState onChoice={sendInitialQuestion} />}
+        {messages.length > 0 ? (
+          [...messages]
+            .reverse()
+            .map((m, index) => (
+              <ChatMessageBubble
+                key={m.id}
+                message={{ ...m }}
+                aiEmoji="🦜"
+                sendFeedback={sendFeedback}
+                feedback={feedback}
+                isMostRecent={index === 0}
+                messageCompleted={!isLoading}
+              ></ChatMessageBubble>
+            ))
+        ) : (
+          <EmptyState onChoice={sendInitialQuestion} />
+        )}
       </div>
 
       <div className="flex w-full flex-row-reverse mb-2 hidden">
-        <Button onClick={() => viewTrace()} textColor={"white"} backgroundColor={"rgb(58, 58, 61)"} _hover={{"backgroundColor": "rgb(78,78,81)"}} size="sm">
+        <Button
+          onClick={() => viewTrace()}
+          textColor={"white"}
+          backgroundColor={"rgb(58, 58, 61)"}
+          _hover={{ backgroundColor: "rgb(78,78,81)" }}
+          size="sm"
+        >
           🛠️ view trace
         </Button>
       </div>
 
-      <InputGroup size='md' alignItems={"center"} >
+      <InputGroup size="md" alignItems={"center"}>
         <Input
-        value={input}
+          value={input}
           height={"55px"}
           rounded={"full"}
-          type={'text'}
-          placeholder='What is LangChain Expression Language?'
+          type={"text"}
+          placeholder="What is LangChain Expression Language?"
           textColor={"white"}
           borderColor={"rgb(58, 58, 61)"}
           onSubmit={(e) => {
             e.preventDefault();
-            sendMessage()
-            }}
+            sendMessage();
+          }}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -277,8 +302,8 @@ export function ChatWindow(props: {
             type="submit"
             onClick={(e) => {
               e.preventDefault();
-              sendMessage()
-              }}
+              sendMessage();
+            }}
           />
         </InputRightElement>
       </InputGroup>

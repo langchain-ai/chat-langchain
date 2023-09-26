@@ -1,31 +1,24 @@
 import argparse
+import json
 import os
 from typing import Optional
 
-from langsmith.evaluation.evaluator import EvaluationResult
-from langsmith.schemas import Example, Run
-from langchain.smith import run_on_dataset
-
 import weaviate
-from langchain.chat_models import ChatOpenAI
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.schema.messages import SystemMessage
-from langchain.smith import RunEvalConfig
-from langchain.vectorstores import Weaviate
-from langchain.prompts import MessagesPlaceholder
-from langsmith import Client
-from langsmith import RunEvaluator
 from langchain import load as langchain_load
-import json
-from langchain.agents import (
-    Tool,
-    AgentExecutor,
-)
-from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
+from langchain.agents import AgentExecutor, Tool
 from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
     AgentTokenBufferMemory,
 )
-
+from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
+from langchain.chat_models import ChatOpenAI
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.prompts import MessagesPlaceholder
+from langchain.schema.messages import SystemMessage
+from langchain.smith import RunEvalConfig, run_on_dataset
+from langchain.vectorstores import Weaviate
+from langsmith import Client, RunEvaluator
+from langsmith.evaluation.evaluator import EvaluationResult
+from langsmith.schemas import Example, Run
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]

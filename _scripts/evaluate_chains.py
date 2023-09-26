@@ -1,25 +1,23 @@
 import argparse
 import functools
+import json
 import os
+from operator import itemgetter
 from typing import Literal, Optional, Union
 
-from langsmith.evaluation.evaluator import EvaluationResult
-from langsmith.schemas import Example, Run
-
 import weaviate
+from langchain import load as langchain_load
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
+from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import Runnable, RunnableMap
-from langchain.schema.output_parser import StrOutputParser
 from langchain.smith import RunEvalConfig
 from langchain.vectorstores import Weaviate
-from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
-from langsmith import Client
-from langsmith import RunEvaluator
-from langchain import load as langchain_load
-from operator import itemgetter
-import json
+from langsmith import Client, RunEvaluator
+from langsmith.evaluation.evaluator import EvaluationResult
+from langsmith.schemas import Example, Run
 
 _PROVIDER_MAP = {
     "openai": ChatOpenAI,

@@ -1,22 +1,24 @@
 """Main entrypoint for the app."""
+import json
 import os
-from typing import AsyncIterator
+from operator import itemgetter
+from typing import AsyncIterator, Dict, List, Optional
 
 import weaviate
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from langchain.chat_models import ChatAnthropic, ChatOpenAI
+from langchain.callbacks.tracers.log_stream import RunLogPatch
+from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import MessagesPlaceholder
-from langchain.schema.messages import HumanMessage, AIMessage
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
+from langchain.schema.messages import AIMessage, HumanMessage
+from langchain.schema.output_parser import StrOutputParser
+from langchain.schema.retriever import BaseRetriever
+from langchain.schema.runnable import Runnable, RunnableMap
 from langchain.vectorstores import Weaviate
 from langsmith import Client
-from langchain.callbacks.tracers.log_stream import RunLogPatch
-from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import Runnable
-from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
-from langchain.schema.output_parser import StrOutputParser
+from pydantic import BaseModel
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -37,15 +39,6 @@ Chat History:
 Follow Up Input: {question}
 Standalone Question:"""
 
-_PROVIDER_MAP = {
-    "openai": ChatOpenAI,
-    "anthropic": ChatAnthropic,
-}
-
-_MODEL_MAP = {
-    "openai": "gpt-3.5-turbo-16k",
-    "anthropic": "claude-2",
-}
 
 client = Client()
 
@@ -59,8 +52,6 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-run_id = None
-feedback_recorded = False
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
@@ -86,18 +77,22 @@ def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
 
     if chat_history:
-        retriever_chain = (
+        condense_question_chain = (
             {
-                "question": lambda x: x["question"],
-                "chat_history": lambda x: x["chat_history"],
+                "question": itemgetter("question"),
+                "chat_history": itemgetter("chat_history"),
             }
             | CONDENSE_QUESTION_PROMPT
             | llm
             | StrOutputParser()
-            | retriever
+        ).with_config(
+            {
+                "run_name": "CondenseQuestion",
+            }
         )
+        retriever_chain = condense_question_chain | retriever
     else:
-        retriever_chain = (lambda x: x["question"]) | retriever
+        retriever_chain = (itemgetter("question")) | retriever
     return retriever_chain
 
 
@@ -113,11 +108,13 @@ def create_chain(
     llm,
     retriever_chain,
 ) -> Runnable:
-    _context = {
-        "context": retriever_chain | format_docs,
-        "question": lambda x: x["question"],
-        "chat_history": lambda x: x["chat_history"],
-    }
+    _context = RunnableMap(
+        {
+            "context": retriever_chain | format_docs,
+            "question": itemgetter("question"),
+            "chat_history": itemgetter("chat_history"),
+        }
+    ).with_config(run_name="RetrieveDocs")
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", RESPONSE_TEMPLATE),
@@ -126,9 +123,10 @@ def create_chain(
         ]
     )
 
-    chain = _context | prompt | llm | StrOutputParser()
-
-    return chain
+    response_synthesizer = (prompt | llm | StrOutputParser()).with_config(
+        run_name="GenerateResponse",
+    )
+    return _context | response_synthesizer
 
 
 async def transform_stream_for_client(
@@ -136,6 +134,7 @@ async def transform_stream_for_client(
 ) -> AsyncIterator[str]:
     async for chunk in stream:
         for op in chunk.ops:
+            all_sources = []
             if op["path"] == "/logs/0/final_output":
                 # Send source urls when they become available
                 url_set = set()
@@ -144,26 +143,33 @@ async def transform_stream_for_client(
                         continue
 
                     url_set.add(doc.metadata["source"])
-                    yield doc.metadata["title"] + ":" + doc.metadata["source"] + "\n"
-
-                if len(url_set) > 0:
-                    yield "SOURCES:----------------------------"
+                    all_sources.append(
+                        doc.metadata["title"] + ":" + doc.metadata["source"]
+                    )
+                if all_sources:
+                    src = {"sources": "\n".join(all_sources)}
+                    yield f"{json.dumps(src)}\n"
 
             elif op["path"] == "/streamed_output/-":
                 # Send stream output
-                yield op["value"]
+                yield f'{json.dumps({"tok": op["value"]})}\n'
+
+            elif not op["path"] and op["op"] == "replace":
+                yield f'{json.dumps({"run_id": str(op["value"]["id"])})}\n'
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: Optional[List[Dict[str, str]]]
+    conversation_id: Optional[str]
 
 
 @app.post("/chat")
-async def chat_endpoint(request: Request):
-    global run_id, feedback_recorded, trace_url
-    run_id = None
+async def chat_endpoint(request: ChatRequest):
+    global trace_url
     trace_url = None
-    feedback_recorded = False
-
-    data = await request.json()
-    question = data.get("message")
-    chat_history = data.get("history", [])
+    question = request.message
+    chat_history = request.history or []
     converted_chat_history = []
     for message in chat_history:
         if message.get("human") is not None:
@@ -171,37 +177,41 @@ async def chat_endpoint(request: Request):
         if message.get("ai") is not None:
             converted_chat_history.append(AIMessage(content=message["ai"]))
 
+    metadata = {
+        "conversation_id": request.conversation_id,
+    }
+
     llm = ChatOpenAI(
         model="gpt-3.5-turbo-16k",
         streaming=True,
         temperature=0,
     )
-
-    docs_chain = create_retriever_chain(chat_history, llm, get_retriever())
+    docs_chain = create_retriever_chain(converted_chat_history, llm, get_retriever())
     answer_chain = create_chain(llm, docs_chain.with_config(run_name="FindDocs"))
     stream = answer_chain.astream_log(
         {
             "question": question,
             "chat_history": converted_chat_history,
         },
+        config={"metadata": metadata},
         include_names=["FindDocs"],
+        include_tags=["FindDocs"],
     )
-
     return StreamingResponse(transform_stream_for_client(stream))
 
 
 @app.post("/feedback")
 async def send_feedback(request: Request):
-    global run_id, feedback_recorded
-    if feedback_recorded or run_id is None:
-        return {
-            "result": "Feedback already recorded or no chat session found",
-            "code": 400,
-        }
     data = await request.json()
     score = data.get("score")
+    run_id = data.get("run_id")  # TODO：prevent duplicate feedback
+    if run_id is None:
+        return {
+            "result": "No LangSmith run ID provided",
+            "code": 400,
+        }
+
     client.create_feedback(run_id, "user_score", score=score)
-    feedback_recorded = True
     return {"result": "posted feedback successfully", "code": 200}
 
 
@@ -210,6 +220,8 @@ trace_url = None
 
 @app.post("/get_trace")
 async def get_trace(request: Request):
+    # We don't use this right now because there isn't a
+    # well-supported way to share runs synchronously
     global run_id, trace_url
     if trace_url is None and run_id is not None:
         trace_url = client.share_run(run_id)
