@@ -1101,7 +1101,7 @@ text-helpers = ["chardet (>=5.1.0,<6.0.0)"]
 type = "git"
 url = "https://github.com/langchain-ai/langchain"
 reference = "HEAD"
-resolved_reference = "7ee8b2d1bf7a58a21b2bee8d5e45fb3835c3a3c5"
+resolved_reference = "d85339b9f28f465b99af624078c51753a6328645"
 subdirectory = "libs/langchain"
 
 [[package]]
