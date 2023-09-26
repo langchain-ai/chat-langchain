@@ -19,6 +19,7 @@ from langchain.schema.runnable import Runnable, RunnableMap
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from pydantic import BaseModel
+from langchain.schema.runnable import RunnableBranch
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -73,27 +74,27 @@ def get_retriever():
     return weaviate_client.as_retriever(search_kwargs=dict(k=6))
 
 
-def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
+def create_retriever_chain(llm, retriever: BaseRetriever):
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
 
-    if chat_history:
-        condense_question_chain = (
-            {
-                "question": itemgetter("question"),
-                "chat_history": itemgetter("chat_history"),
-            }
-            | CONDENSE_QUESTION_PROMPT
-            | llm
-            | StrOutputParser()
-        ).with_config(
-            {
-                "run_name": "CondenseQuestion",
-            }
-        )
-        retriever_chain = condense_question_chain | retriever
-    else:
-        retriever_chain = (itemgetter("question")) | retriever
-    return retriever_chain
+    initial_chain = (itemgetter("question")) | retriever
+    condense_question_chain = (
+        {
+            "question": itemgetter("question"),
+            "chat_history": itemgetter("chat_history"),
+        }
+        | CONDENSE_QUESTION_PROMPT
+        | llm
+        | StrOutputParser()
+    ).with_config(
+        run_name="CondenseQuestion",
+    )
+    conversation_chain = condense_question_chain | retriever
+
+    return RunnableBranch(
+        ((lambda x: "chat_history" in x), conversation_chain),
+        initial_chain,
+    )
 
 
 def format_docs(docs, max_tokens=200):
@@ -106,8 +107,11 @@ def format_docs(docs, max_tokens=200):
 
 def create_chain(
     llm,
-    retriever_chain,
+    retriever,
 ) -> Runnable:
+    retriever_chain = create_retriever_chain(llm, retriever).with_config(
+        run_name="FindDocs"
+    )
     _context = RunnableMap(
         {
             "context": retriever_chain | format_docs,
@@ -189,8 +193,11 @@ async def chat_endpoint(request: ChatRequest):
         streaming=True,
         temperature=0,
     )
-    docs_chain = create_retriever_chain(converted_chat_history, llm, get_retriever())
-    answer_chain = create_chain(llm, docs_chain.with_config(run_name="FindDocs"))
+    retriever = get_retriever()
+    answer_chain = create_chain(
+        llm,
+        retriever,
+    )
     stream = answer_chain.astream_log(
         {
             "question": question,
