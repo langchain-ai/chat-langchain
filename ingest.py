@@ -44,7 +44,9 @@ def load_langchain_docs():
         parsing_function=langchain_docs_extractor,
         default_parser="lxml",
         bs_kwargs={
-            "parse_only": SoupStrainer(name="article"),
+            "parse_only": SoupStrainer(
+                name=("article", "title", "html", "lang", "content")
+            ),
         },
         meta_function=metadata_extractor,
     ).load()
@@ -52,7 +54,7 @@ def load_langchain_docs():
 
 def simple_extractor(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
-    return re.sub(r"\n\n+", "\n\n", soup.text)
+    return re.sub(r"\n\n+", "\n\n", soup.text).strip()
 
 
 def load_api_docs():
