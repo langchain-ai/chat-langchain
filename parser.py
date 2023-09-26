@@ -4,7 +4,7 @@ from typing import Generator
 from bs4 import BeautifulSoup, Doctype, NavigableString, Tag
 
 
-def langchain_docs_extractor(soup: BeautifulSoup, include_output_cells: bool) -> str:
+def langchain_docs_extractor(soup: BeautifulSoup) -> str:
     # Remove all the tags that are not meaningful for the extraction.
     SCAPE_TAGS = ["nav", "footer", "aside", "script", "style"]
     [tag.decompose() for tag in soup.find_all(SCAPE_TAGS)]
@@ -42,9 +42,6 @@ def langchain_docs_extractor(soup: BeautifulSoup, include_output_cells: bool) ->
                             language = ""
                         else:
                             language = language.split("-")[1]
-
-                        if language in ["pycon", "text"] and not include_output_cells:
-                            continue
 
                         lines: list[str] = []
                         for span in child.find_all("span", class_="token-line"):
