@@ -22,15 +22,16 @@ WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
 def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
-    metadata = {"source": meta["loc"], **meta}
-    if title := soup.find("title"):
-        metadata["title"] = title.get_text()
-    if description := soup.find("meta", attrs={"name": "description"}):
-        metadata["description"] = description.get("content",
-                                                  "No description found.")
-    if html := soup.find("html"):
-        metadata["language"] = html.get("lang", "No language found.")
-    return metadata
+    title = soup.find("title")
+    description = soup.find("meta", attrs={"name": "description"})
+    html = soup.find("html")
+    return {
+        "source": meta["loc"],
+        "title": title.get_text() if title else "",
+        "description": description.get("content", "") if description else "",
+        "language": html.get("lang", "") if html else "",
+        **meta
+    }
 
 
 def load_langchain_docs():
