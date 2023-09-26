@@ -21,6 +21,17 @@ WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
+def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
+    metadata = {"source": meta["loc"], **meta}
+    if title := soup.find("title"):
+        metadata["title"] = title.get_text()
+    if description := soup.find("meta", attrs={"name": "description"}):
+        metadata["description"] = description.get("content",
+                                                  "No description found.")
+    if html := soup.find("html"):
+        metadata["language"] = html.get("lang", "No language found.")
+    return metadata
+
 
 def load_langchain_docs():
     return SitemapLoader(
@@ -31,6 +42,7 @@ def load_langchain_docs():
         bs_kwargs={
             "parse_only": SoupStrainer(name="article"),
         },
+        meta_function=metadata_extractor,
     ).load()
 
 
