@@ -1,8 +1,9 @@
 """Main entrypoint for the app."""
+import json
 import os
 from operator import itemgetter
 from typing import AsyncIterator, Dict, List, Optional
-import json
+
 import weaviate
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +11,8 @@ from fastapi.responses import StreamingResponse
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
+from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
+                               PromptTemplate)
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
@@ -20,7 +22,6 @@ from langsmith import Client
 from pydantic import BaseModel
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
-
 
 RESPONSE_TEMPLATE = """You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
 Generate a comprehensive and informative answer (but no more than 80 words) for a given question based solely on the provided search results (URL and content). You must only use information from the provided search results. Use an unbiased and journalistic tone. Combine search results together into a coherent answer. Do not repeat text. Cite search results using [${{number}}] notation. Only cite the most relevant results that answer the question accurately. Place these citations at the end of the sentence or paragraph that reference them - do not put them all at the end. If different results refer to different entities within the same name, write separate answers for each entity.
@@ -157,7 +158,6 @@ async def transform_stream_for_client(
                 yield f'{json.dumps({"tok": op["value"]})}\n'
 
             elif not op["path"] and op["op"] == "replace":
-for                # Send final output
                 yield f'{json.dumps({"run_id": str(op["value"]["id"])})}\n'
 
 
@@ -165,6 +165,7 @@ class ChatRequest(BaseModel):
     message: str
     history: Optional[List[Dict[str, str]]]
     conversation_id: Optional[str]
+
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
