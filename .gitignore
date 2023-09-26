@@ -142,3 +142,4 @@ langchain.readthedocs.io/
 bin/
 pyvenv.cfg
 node_modules/
+.envrc
