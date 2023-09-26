@@ -4,8 +4,8 @@ import os
 import re
 
 import weaviate
-from bs4 import BeautifulSoup
-from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
+from bs4 import BeautifulSoup, SoupStrainer
+from langchain.document_loaders import SitemapLoader, RecursiveUrlLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -13,7 +13,7 @@ from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_RE
 from langchain.vectorstores import Weaviate
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
-from langchain_documentation_loader import LangchainDocsLoader
+from parser import langchain_docs_extractor
 
 logger = logging.getLogger(__name__)
 
@@ -23,34 +23,38 @@ RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
 
 def load_langchain_docs():
-    loader = LangchainDocsLoader(include_output_cells=True, number_threads=20)
-    docs_from_documentation = loader.load()
-    return docs_from_documentation
+    return SitemapLoader(
+        "https://python.langchain.com/sitemap.xml",
+        filter_urls=["https://python.langchain.com/"],
+        parsing_function=langchain_docs_extractor,
+        default_parser="lxml",
+        bs_parse_kwargs={
+            "parse_only": SoupStrainer(name="article"),
+        },
+    ).load()
+
+
+def simple_extractor(html: str) -> str:
+    soup = BeautifulSoup(html, "lxml")
+    return re.sub(r"\n\n+", "\n\n", soup.text)
 
 
 def load_api_docs():
-    api_url = "https://api.python.langchain.com/en/latest/"
-
-    def simple_extractor(html: str) -> str:
-        soup = BeautifulSoup(html, "lxml")
-        return re.sub(r"\n\n+", "\n\n", soup.text)
-
-    loader = RecursiveUrlLoader(
-        url=api_url,
+    return RecursiveUrlLoader(
+        url="https://api.python.langchain.com/en/latest/",
         max_depth=8,
         extractor=simple_extractor,
         prevent_outside=True,
         use_async=True,
         timeout=600,
+        # Drop trailing / to avoid duplicate pages.
         link_regex=(
             f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
             r"(?:[\#'\"]|\/[\#'\"])"
         ),
         check_response_status=True,
-    )
-
-    docs_from_api = loader.load()
-    return docs_from_api
+        exclude_dirs=("https://api.python.langchain.com/en/latest/_sources",),
+    ).load()
 
 
 def ingest_docs():
@@ -61,7 +65,7 @@ def ingest_docs():
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     docs_transformed = text_splitter.split_documents(
-        docs_from_documentation  # + docs_from_api
+        docs_from_documentation + docs_from_api
     )
 
     # We try to return 'source' and 'title' metadata when querying vector store and
