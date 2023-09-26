@@ -12,7 +12,7 @@ export type Message = {
   content: string;
   role: "system" | "user" | "assistant" | "function";
   runId?: string;
-  sources?: string;
+  sources?: Source[];
   name?: string;
   function_call?: { name: string };
 };
@@ -44,24 +44,8 @@ export function ChatMessageBubble(props: {
     };
   };
 
-  function parseUrls(text?: string) {
-    if (!text) {
-      return [];
-    }
 
-    let urls = text.trim().split("\n");
-
-    let sources: Source[] = urls.map((url) => {
-      let urlParts = url.split('"');
-      let titleParts = url.split(":");
-      let title = titleParts[0].split(" |")[0];
-      return { url: urlParts[1], title: title };
-    });
-
-    return sources;
-  }
-
-  const sources = parseUrls(props.message.sources);
+  const sources = props.message.sources ?? [];
 
   // Use an array of highlighted states as a state since React
   // complains when creating states in a loop

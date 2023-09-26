@@ -144,10 +144,13 @@ async def transform_stream_for_client(
 
                     url_set.add(doc.metadata["source"])
                     all_sources.append(
-                        doc.metadata["title"] + ":" + doc.metadata["source"]
+                        {
+                            "url": doc.metadata["source"],
+                            "title": doc.metadata["title"],
+                        }
                     )
                 if all_sources:
-                    src = {"sources": "\n".join(all_sources)}
+                    src = {"sources": all_sources}
                     yield f"{json.dumps(src)}\n"
 
             elif op["path"] == "/streamed_output/-":
