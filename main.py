@@ -166,7 +166,6 @@ class ChatRequest(BaseModel):
     history: Optional[List[Dict[str, str]]]
     conversation_id: Optional[str]
 
-
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     global run_id, feedback_recorded, trace_url
