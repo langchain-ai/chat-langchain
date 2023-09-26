@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, FormEventHandler, FormEvent } from "react";
+import React, { useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
@@ -22,6 +22,7 @@ import {
   Spinner,
 } from "@chakra-ui/react";
 import { ArrowUpIcon, SpinnerIcon } from "@chakra-ui/icons";
+import { Source } from "./SourceBubble";
 
 export function ChatWindow(props: {
   apiBaseUrl: string;
@@ -84,7 +85,7 @@ export function ChatWindow(props: {
 
     let accumulatedMessage = "";
     let runId: string | undefined = undefined;
-    let sources: string | undefined = undefined;
+    let sources: Source[] | undefined = undefined;
     let messageIndex: number | null = null;
 
     let renderer = new Renderer();
@@ -134,7 +135,7 @@ export function ChatWindow(props: {
             } else if ("run_id" in parsed) {
               runId = parsed.run_id;
             } else if ("sources" in parsed) {
-              sources = parsed.sources;
+              sources = parsed.sources as Source[];
             }
           });
 
@@ -153,6 +154,8 @@ export function ChatWindow(props: {
             });
           } else {
             newMessages[messageIndex].content = parsedResult.trim();
+            newMessages[messageIndex].runId = runId;
+            newMessages[messageIndex].sources = sources;
           }
           return newMessages;
         });
