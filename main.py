@@ -53,8 +53,6 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-run_id = None
-feedback_recorded = False
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
@@ -169,10 +167,8 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
-    global run_id, feedback_recorded, trace_url
-    run_id = None
+    global trace_url
     trace_url = None
-    feedback_recorded = False
     question = request.message
     chat_history = request.history or []
     converted_chat_history = []

@@ -196,12 +196,12 @@ export function ChatMessageBubble(props: {
           <div className="relative flex space-x-1 items-start justify-start">
             <button
               className={`text-sm rounded ${
-                props.feedback === null ? "hover:bg-green-200" : ""
+                props.feedback === undefined ? "hover:bg-green-200" : ""
               }`}
               id="upButton"
               type="button"
               onClick={() => {
-                if (props.feedback === null) {
+                if (props.feedback === undefined) {
                   props.sendFeedback(1, props.message.runId);
                   animateButton("upButton");
                   setFeedbackColor("border-4 border-green-300");
@@ -214,12 +214,12 @@ export function ChatMessageBubble(props: {
             </button>
             <button
               className={`text-sm rounded ${
-                props.feedback === null ? "hover:bg-red-200" : ""
+                props.feedback === undefined ? "hover:bg-red-200" : ""
               }`}
               id="downButton"
               type="button"
               onClick={() => {
-                if (props.feedback === null) {
+                if (props.feedback === undefined) {
                   props.sendFeedback(0, props.message.runId);
                   animateButton("downButton");
                   setFeedbackColor("border-4 border-red-300");

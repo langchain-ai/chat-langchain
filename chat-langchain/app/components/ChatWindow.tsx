@@ -116,7 +116,6 @@ export function ChatWindow(props: {
       ): Promise<void> {
         const { done, value } = res;
         if (done) {
-          console.log("Stream complete");
           setChatHistory((prevChatHistory) => [
             ...prevChatHistory,
             { human: messageValue, ai: accumulatedMessage },
