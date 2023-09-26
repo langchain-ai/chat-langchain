@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain.callbacks.tracers.log_stream import RunLogPatch
-from langchain.chat_models import ChatAnthropic, ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
                                PromptTemplate)
@@ -90,7 +90,7 @@ def create_retriever_chain(chat_history, llm, retriever: BaseRetriever):
             | StrOutputParser()
         ).with_config(
             {
-                "run_name": "condense_question",
+                "run_name": "CondenseQuestion",
             }
         )
         retriever_chain = condense_question_chain | retriever
@@ -197,7 +197,6 @@ async def chat_endpoint(request: ChatRequest):
         {
             "question": question,
             "chat_history": converted_chat_history,
-            "converted_chat_history": converted_chat_history,
         },
         config={"metadata": metadata},
         include_names=["FindDocs"],
@@ -213,7 +212,7 @@ async def send_feedback(request: Request):
     run_id = data.get("run_id")  # TODO：prevent duplicate feedback
     if run_id is None:
         return {
-            "result": "Feedback already recorded or no chat session found",
+            "result": "No LangSmith run ID provided",
             "code": 400,
         }
 
@@ -226,6 +225,8 @@ trace_url = None
 
 @app.post("/get_trace")
 async def get_trace(request: Request):
+    # We don't use this right now because there isn't a
+    # well-supported way to share runs synchronously
     global run_id, trace_url
     if trace_url is None and run_id is not None:
         trace_url = client.share_run(run_id)
