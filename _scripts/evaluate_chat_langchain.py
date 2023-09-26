@@ -62,6 +62,8 @@ if __name__ == "__main__":
         model=_MODEL_MAP[args.model_provider], temperature=0
     )
 
+    # In app, we always pass in a chat history, but for evaluation we don't
+    # necessarily do that. Add that handling here.
     def construct_eval_chain():
         chain = create_chain(
             retriever=retriever,
