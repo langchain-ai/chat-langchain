@@ -34,7 +34,6 @@ export function ChatWindow(props: {
   const [messages, setMessages] = useState<Array<Message>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [feedback, setFeedback] = useState<number | undefined>(undefined);
 
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
@@ -56,7 +55,6 @@ export function ChatWindow(props: {
       ...prevMessages,
       { id: Math.random().toString(), content: messageValue, role: "user" },
     ]);
-    setFeedback(undefined);
     setIsLoading(true);
     let response;
     try {
@@ -167,31 +165,6 @@ export function ChatWindow(props: {
       });
   };
 
-  const sendFeedback = async (score?: number, run_id?: string) => {
-    if (feedback !== null) return;
-
-    setFeedback(score);
-    try {
-      const response = await fetch(apiBaseUrl + "/feedback", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          score: score,
-          run_id: run_id,
-        }),
-      });
-      const data = await response.json();
-      if (data.code === 200) {
-        score == 1 ? animateButton("upButton") : animateButton("downButton");
-      }
-    } catch (e: any) {
-      console.error("Error:", e);
-      toast.error(e.message);
-    }
-  };
-
   const animateButton = (buttonId: string) => {
     const button = document.getElementById(buttonId);
     button!.classList.add("animate-ping");
@@ -252,8 +225,7 @@ export function ChatWindow(props: {
                 key={m.id}
                 message={{ ...m }}
                 aiEmoji="🦜"
-                sendFeedback={sendFeedback}
-                feedback={feedback}
+                apiBaseUrl={apiBaseUrl}
                 isMostRecent={index === 0}
                 messageCompleted={!isLoading}
               ></ChatMessageBubble>
