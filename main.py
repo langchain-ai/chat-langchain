@@ -2,7 +2,7 @@
 import json
 import os
 from operator import itemgetter
-from typing import AsyncIterator, Dict, List, Optional
+from typing import AsyncIterator, Dict, List, Optional, TYPE_CHECKING, Sequence
 
 import weaviate
 from fastapi import FastAPI, Request
@@ -12,28 +12,54 @@ from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import Runnable, RunnableMap
+from langchain.schema.runnable import RunnableMap
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from pydantic import BaseModel
 
+if TYPE_CHECKING:
+    from langchain.schema import Document
+    from langchain.schema.language_model import BaseLanguageModel
+    from langchain.schema.retriever import BaseRetriever
+    from langchain.schema.runnable import Runnable
+
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
-RESPONSE_TEMPLATE = """You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
-Generate a comprehensive and informative answer (but no more than 80 words) for a given question based solely on the provided search results (URL and content). You must only use information from the provided search results. Use an unbiased and journalistic tone. Combine search results together into a coherent answer. Do not repeat text. Cite search results using [${{number}}] notation. Only cite the most relevant results that answer the question accurately. Place these citations at the end of the sentence or paragraph that reference them - do not put them all at the end. If different results refer to different entities within the same name, write separate answers for each entity.
-If there is nothing in the context relevant to the question at hand, just say "Hmm, I'm not sure." Don't try to make up an answer.
-Anything between the following `context`  html blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
+RESPONSE_TEMPLATE = """\
+You are an expert programmer and problem-solver, tasked with answering any question \
+about Langchain.
+
+Generate a comprehensive and informative answer of 80 words or less for the \
+given question based solely on the provided search results (URL and content). You must \
+only use information from the provided search results. Use an unbiased and \
+journalistic tone. Combine search results together into a coherent answer. Do not \
+repeat text. Cite search results using [${{number}}] notation. Only cite the most \
+relevant results that answer the question accurately. Place these citations at the end \
+of the sentence or paragraph that reference them - do not put them all at the end. If \
+different results refer to different entities within the same name, write separate \
+answers for each entity.
+
+If there is nothing in the context relevant to the question at hand, just say "Hmm, \
+I'm not sure." Don't try to make up an answer.
+
+Anything between the following `context`  html blocks is retrieved from a knowledge \
+bank, not part of the conversation with the user. 
+
 <context>
     {context} 
 <context/>
 
-REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm not sure." Don't try to make up an answer. Anything between the preceding 'context' html blocks is retrieved from a knowledge bank, not part of the conversation with the user."""
+REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm \
+not sure." Don't try to make up an answer. Anything between the preceding 'context' \
+html blocks is retrieved from a knowledge bank, not part of the conversation with the \
+user.\
+"""
 
-REPHRASE_TEMPLATE = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
+REPHRASE_TEMPLATE = """\
+Given the following conversation and a follow up question, rephrase the follow up \
+question to be a standalone question.
 
 Chat History:
 {chat_history}
@@ -58,7 +84,7 @@ WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
 
-def get_retriever():
+def get_retriever() -> BaseRetriever:
     weaviate_client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
@@ -74,7 +100,9 @@ def get_retriever():
     return weaviate_client.as_retriever(search_kwargs=dict(k=6))
 
 
-def create_retriever_chain(llm, retriever: BaseRetriever, use_chat_history: bool):
+def create_retriever_chain(
+    llm: BaseLanguageModel, retriever: BaseRetriever, use_chat_history: bool
+) -> Runnable:
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
     if not use_chat_history:
         initial_chain = (itemgetter("question")) | retriever
@@ -95,7 +123,7 @@ def create_retriever_chain(llm, retriever: BaseRetriever, use_chat_history: bool
         return conversation_chain
 
 
-def format_docs(docs, max_tokens=200):
+def format_docs(docs: Sequence[Document]) -> str:
     formatted_docs = []
     for i, doc in enumerate(docs):
         doc_string = f"<doc id='{i}'>{doc.page_content}</doc>"
@@ -104,8 +132,8 @@ def format_docs(docs, max_tokens=200):
 
 
 def create_chain(
-    llm,
-    retriever,
+    llm: BaseLanguageModel,
+    retriever: BaseRetriever,
     use_chat_history: bool = False,
 ) -> Runnable:
     retriever_chain = create_retriever_chain(
