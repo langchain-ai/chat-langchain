@@ -2,7 +2,7 @@
 import json
 import os
 from operator import itemgetter
-from typing import AsyncIterator, Dict, List, Optional, TYPE_CHECKING, Sequence
+from typing import AsyncIterator, Dict, List, Optional, Sequence
 
 import weaviate
 from fastapi import FastAPI, Request
@@ -18,12 +18,10 @@ from langchain.schema.runnable import RunnableMap
 from langchain.vectorstores import Weaviate
 from langsmith import Client
 from pydantic import BaseModel
-
-if TYPE_CHECKING:
-    from langchain.schema import Document
-    from langchain.schema.language_model import BaseLanguageModel
-    from langchain.schema.retriever import BaseRetriever
-    from langchain.schema.runnable import Runnable
+from langchain.schema import Document
+from langchain.schema.language_model import BaseLanguageModel
+from langchain.schema.retriever import BaseRetriever
+from langchain.schema.runnable import Runnable
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
