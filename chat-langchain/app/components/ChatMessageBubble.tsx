@@ -230,7 +230,7 @@ export function ChatMessageBubble(props: {
               >
                 Sources
               </Heading>
-              <HStack spacing={"10px"} maxWidth={"100%"}>
+              <HStack spacing={"10px"} maxWidth={"100%"} overflow={"auto"}>
                 {filteredSources.map((source, index) => (
                   <Box key={index} alignSelf={"stretch"} width={40}>
                     <SourceBubble
