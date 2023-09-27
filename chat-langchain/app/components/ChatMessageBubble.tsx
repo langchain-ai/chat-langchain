@@ -1,10 +1,19 @@
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { emojisplosion } from "emojisplosion";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { SourceBubble, Source } from "./SourceBubble";
-import { Flex, Box, Heading, HStack, VStack, Divider } from "@chakra-ui/react";
+import {
+  Flex,
+  Box,
+  Heading,
+  HStack,
+  VStack,
+  Divider,
+  filter,
+} from "@chakra-ui/react";
 import { InlineCitation } from "./InlineCitation";
+import { v4 as uuidv4 } from "uuid";
 
 export type Message = {
   id: string;
@@ -16,17 +25,98 @@ export type Message = {
   name?: string;
   function_call?: { name: string };
 };
+export interface Feedback {
+  feedback_id: string;
+  run_id: string;
+  key: string;
+  score: number;
+  comment?: string;
+}
+
+const filterSources = (sources: Source[]) => {
+  const filtered: Source[] = [];
+  const urlMap = new Map<string, number>();
+  const indexMap = new Map<number, number>();
+  sources.forEach((source, i) => {
+    const { url } = source;
+    const index = urlMap.get(url);
+    if (index === undefined) {
+      urlMap.set(url, i);
+      indexMap.set(i, filtered.length);
+      filtered.push(source);
+    } else {
+      indexMap.set(i, index);
+    }
+  });
+  return { filtered, indexMap };
+};
+
+const createAnswerElements = (
+  content: string,
+  filteredSources: Source[],
+  sourceIndexMap: Map<number, number>,
+  highlighedSourceLinkStates: boolean[],
+  setHighlightedSourceLinkStates: React.Dispatch<
+    React.SetStateAction<boolean[]>
+  >
+) => {
+  const matches = Array.from(content.matchAll(/\[\^?(\d+)\^?\]/g));
+  const elements: JSX.Element[] = [];
+  let prevIndex = 0;
+
+  matches.forEach((match) => {
+    const sourceNum = parseInt(match[1], 10);
+    const resolvedNum = sourceIndexMap.get(sourceNum) ?? 10;
+    if (match.index !== null && resolvedNum < filteredSources.length) {
+      elements.push(
+        <span
+          key={`content:${prevIndex}`}
+          dangerouslySetInnerHTML={{
+            __html: content.slice(prevIndex, match.index),
+          }}
+        ></span>
+      );
+      elements.push(
+        <InlineCitation
+          key={`citation:${prevIndex}`}
+          source={filteredSources[resolvedNum]}
+          sourceNumber={resolvedNum}
+          highlighted={highlighedSourceLinkStates[resolvedNum]}
+          onMouseEnter={() =>
+            setHighlightedSourceLinkStates(
+              filteredSources.map((_, i) => i === resolvedNum)
+            )
+          }
+          onMouseLeave={() =>
+            setHighlightedSourceLinkStates(filteredSources.map(() => false))
+          }
+        />
+      );
+      prevIndex = (match?.index ?? 0) + match[0].length;
+    }
+  });
+  elements.push(
+    <span
+      key={`content:${prevIndex}`}
+      dangerouslySetInnerHTML={{ __html: content.slice(prevIndex) }}
+    ></span>
+  );
+  return elements;
+};
 
 export function ChatMessageBubble(props: {
   message: Message;
   aiEmoji?: string;
-  feedback?: number;
-  sendFeedback: (feedback?: number, run_id?: string) => void;
   isMostRecent: boolean;
   messageCompleted: boolean;
+  apiBaseUrl: string;
 }) {
-  const isUser = props.message.role === "user";
+  const { role, content, runId } = props.message;
+  const isUser = role === "user";
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [comment, setComment] = useState("");
   const [feedbackColor, setFeedbackColor] = useState("");
 
   const cumulativeOffset = function (element: HTMLElement | null) {
@@ -44,58 +134,65 @@ export function ChatMessageBubble(props: {
     };
   };
 
+  const sendFeedback = async (score: number, key: string) => {
+    let run_id = runId;
+    if (run_id === undefined) {
+      return;
+    }
+    if (isLoading) {
+      return;
+    }
+    setIsLoading(true);
+    let apiBaseUrl = props.apiBaseUrl;
+    let feedback_id = feedback?.feedback_id ?? uuidv4();
+    try {
+      const response = await fetch(apiBaseUrl + "/feedback", {
+        method: feedback?.feedback_id ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          score,
+          run_id,
+          key,
+          feedback_id,
+          comment,
+        }),
+      });
+      const data = await response.json();
+      if (data.code === 200) {
+        setFeedback({ run_id, score, key, feedback_id });
+        score == 1 ? animateButton("upButton") : animateButton("downButton");
+        if (comment) {
+          setComment("");
+        }
+      }
+    } catch (e: any) {
+      console.error("Error:", e);
+      toast.error(e.message);
+    }
+    setIsLoading(false);
+  };
 
   const sources = props.message.sources ?? [];
+  const { filtered: filteredSources, indexMap: sourceIndexMap } =
+    filterSources(sources);
 
   // Use an array of highlighted states as a state since React
   // complains when creating states in a loop
   const [highlighedSourceLinkStates, setHighlightedSourceLinkStates] = useState(
-    sources.map(() => false)
+    filteredSources.map(() => false)
   );
-  let standaloneMessage = props.message.content;
-  const matches = Array.from(standaloneMessage.matchAll(/\[(\d+)\]/g));
-  const answerElements = [];
-
-  let previousSliceIndex = 0;
-  for (const match of matches) {
-    const sourceNumber = parseInt(match[1], 10);
-    if (match.index && sources[sourceNumber]) {
-      answerElements.push(
-        <span
-          key={`content:${previousSliceIndex}`}
-          dangerouslySetInnerHTML={{
-            __html: standaloneMessage.slice(previousSliceIndex, match.index),
-          }}
-        ></span>
-      );
-      answerElements.push(
-        <InlineCitation
-          key={`citation:${previousSliceIndex}`}
-          source={sources[sourceNumber]}
-          sourceNumber={sourceNumber}
-          highlighted={highlighedSourceLinkStates[sourceNumber]}
-          onMouseEnter={() =>
-            setHighlightedSourceLinkStates(
-              sources.map((_, i) => i === sourceNumber)
-            )
-          }
-          onMouseLeave={() =>
-            setHighlightedSourceLinkStates(sources.map(() => false))
-          }
-        ></InlineCitation>
-      );
-      previousSliceIndex = match.index + match[0].length;
-    }
-  }
-  answerElements.push(
-    <span
-      key={`content:${previousSliceIndex}`}
-      dangerouslySetInnerHTML={{
-        __html: standaloneMessage.slice(previousSliceIndex),
-      }}
-    ></span>
-  );
-
+  const answerElements =
+    role === "assistant"
+      ? createAnswerElements(
+          content,
+          filteredSources,
+          sourceIndexMap,
+          highlighedSourceLinkStates,
+          setHighlightedSourceLinkStates
+        )
+      : [];
   const animateButton = (buttonId: string) => {
     const button = document.getElementById(buttonId);
     button!.classList.add("animate-ping");
@@ -120,7 +217,7 @@ export function ChatMessageBubble(props: {
 
   return (
     <VStack align={"start"} paddingBottom={"20px"}>
-      {!isUser && sources.length > 0 && (
+      {!isUser && filteredSources.length > 0 && (
         <>
           <Flex direction={"column"} width={"100%"}>
             <VStack spacing={"5px"} align={"start"} width={"100%"}>
@@ -134,18 +231,20 @@ export function ChatMessageBubble(props: {
                 Sources
               </Heading>
               <HStack spacing={"10px"} maxWidth={"100%"}>
-                {sources.map((source, index) => (
+                {filteredSources.map((source, index) => (
                   <Box key={index} alignSelf={"stretch"} width={40}>
                     <SourceBubble
                       source={source}
                       highlighted={highlighedSourceLinkStates[index]}
                       onMouseEnter={() =>
                         setHighlightedSourceLinkStates(
-                          sources.map((_, i) => i === index)
+                          filteredSources.map((_, i) => i === index)
                         )
                       }
                       onMouseLeave={() =>
-                        setHighlightedSourceLinkStates(sources.map(() => false))
+                        setHighlightedSourceLinkStates(
+                          filteredSources.map(() => false)
+                        )
                       }
                     />
                   </Box>
@@ -167,7 +266,7 @@ export function ChatMessageBubble(props: {
       )}
       {isUser ? (
         <Heading size={"lg"} fontWeight={"medium"} color={"white"}>
-          {standaloneMessage}
+          {content}
         </Heading>
       ) : (
         <div className="whitespace-pre-wrap" style={{ color: "white" }}>
@@ -180,13 +279,13 @@ export function ChatMessageBubble(props: {
           <div className="relative flex space-x-1 items-start justify-start">
             <button
               className={`text-sm rounded ${
-                props.feedback === undefined ? "hover:bg-green-200" : ""
+                feedback === null ? "hover:bg-green-200" : ""
               }`}
               id="upButton"
               type="button"
               onClick={() => {
-                if (props.feedback === undefined) {
-                  props.sendFeedback(1, props.message.runId);
+                if (feedback === null && props.message.runId) {
+                  sendFeedback(1, "user_score");
                   animateButton("upButton");
                   setFeedbackColor("border-4 border-green-300");
                 } else {
@@ -198,13 +297,13 @@ export function ChatMessageBubble(props: {
             </button>
             <button
               className={`text-sm rounded ${
-                props.feedback === undefined ? "hover:bg-red-200" : ""
+                feedback === null ? "hover:bg-red-200" : ""
               }`}
               id="downButton"
               type="button"
               onClick={() => {
-                if (props.feedback === undefined) {
-                  props.sendFeedback(0, props.message.runId);
+                if (feedback === null && props.message.runId) {
+                  sendFeedback(0, "user_score");
                   animateButton("downButton");
                   setFeedbackColor("border-4 border-red-300");
                 } else {
