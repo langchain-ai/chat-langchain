@@ -12,4 +12,4 @@ COPY ./*.py ./
 
 RUN poetry install  --no-interaction --no-ansi
 
-CMD exec uvicorn main:app --reload --port 8080
+CMD exec uvicorn main:app --host 0.0.0.0 --port 8080
