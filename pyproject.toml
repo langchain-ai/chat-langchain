@@ -15,7 +15,6 @@ websockets = "^11.0.3"
 pydantic = "^2.3.0"
 langchain = { git = "https://github.com/langchain-ai/langchain", subdirectory = "libs/langchain" }
 uvicorn = "^0.23.2"
-Jinja2 = "^3.1.2"
 beautifulsoup4 = "^4.12.2"
 unstructured = "^0.10.12"
 libmagic = "^1.0"
