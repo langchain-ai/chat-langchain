@@ -137,21 +137,14 @@ async def transform_stream_for_client(
 ) -> AsyncIterator[str]:
     async for chunk in stream:
         for op in chunk.ops:
-            all_sources = []
             if op["path"] == "/logs/0/final_output":
-                # Send source urls when they become available
-                url_set = set()
-                for doc in op["value"]["output"]:
-                    if doc.metadata["source"] in url_set:
-                        continue
-
-                    url_set.add(doc.metadata["source"])
-                    all_sources.append(
-                        {
-                            "url": doc.metadata["source"],
-                            "title": doc.metadata["title"],
-                        }
-                    )
+                all_sources = [
+                    {
+                        "url": doc.metadata["source"],
+                        "title": doc.metadata["title"],
+                    }
+                    for doc in op["value"]["output"]
+                ]
                 if all_sources:
                     src = {"sources": all_sources}
                     yield f"{json.dumps(src)}\n"
