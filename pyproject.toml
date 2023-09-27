@@ -16,13 +16,9 @@ pydantic = "^2.3.0"
 langchain = { git = "https://github.com/langchain-ai/langchain", subdirectory = "libs/langchain" }
 uvicorn = "^0.23.2"
 beautifulsoup4 = "^4.12.2"
-unstructured = "^0.10.12"
 libmagic = "^1.0"
 tiktoken = "^0.4.0"
 weaviate-client = "^3.23.2"
-anthropic = "^0.3.11"
-html2text = "^2020.1.16"
-GitPython = "^3.1.34"
 psycopg2 = "^2.9.7"
 lxml = "^4.9.3"
 
