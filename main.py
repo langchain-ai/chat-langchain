@@ -76,7 +76,7 @@ def get_retriever():
 
 def create_retriever_chain(llm, retriever: BaseRetriever, use_chat_history: bool):
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
-    if use_chat_history:
+    if not use_chat_history:
         initial_chain = (itemgetter("question")) | retriever
         return initial_chain
     else:
