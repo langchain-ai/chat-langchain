@@ -17,6 +17,7 @@ The app leverages LangChain's streaming support and async API to update the page
    export OPENAI_API_KEY=
    export WEAVIATE_URL=
    export WEAVIATE_API_KEY=
+   export RECORD_MANAGER_DB_URL=
 
    # for tracing
    export LANGCHAIN_TRACING_V2=true
