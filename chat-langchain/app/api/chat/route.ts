@@ -1,3 +1,5 @@
+// JS backend not used by default, see README for instructions.
+
 import { NextRequest, NextResponse } from "next/server";
 
 import type { BaseLanguageModel } from "langchain/base_language";
