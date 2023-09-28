@@ -14,7 +14,6 @@ import "react-toastify/dist/ReactToastify.css";
 import {
   Heading,
   Flex,
-  Button,
   IconButton,
   Input,
   InputGroup,
@@ -173,30 +172,6 @@ export function ChatWindow(props: {
     }, 500);
   };
 
-  const viewTrace = async () => {
-    try {
-      const response = await fetch(apiBaseUrl + "/get_trace", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (data.code === 400 && data.result === "No chat session found") {
-        toast.error("Unable to view trace");
-        throw new Error("Unable to view trace");
-      } else {
-        const url = data.replace(/['"]+/g, "");
-        window.open(url, "_blank");
-      }
-    } catch (e: any) {
-      console.error("Error:", e);
-      toast.error(e.message);
-    }
-  };
-
   const sendInitialQuestion = async (question: string) => {
     await sendMessage(question);
   };
@@ -234,19 +209,6 @@ export function ChatWindow(props: {
           <EmptyState onChoice={sendInitialQuestion} />
         )}
       </div>
-
-      <div className="flex w-full flex-row-reverse mb-2 hidden">
-        <Button
-          onClick={() => viewTrace()}
-          textColor={"white"}
-          backgroundColor={"rgb(58, 58, 61)"}
-          _hover={{ backgroundColor: "rgb(78,78,81)" }}
-          size="sm"
-        >
-          🛠️ view trace
-        </Button>
-      </div>
-
       <InputGroup size="md" alignItems={"center"}>
         <Input
           value={input}

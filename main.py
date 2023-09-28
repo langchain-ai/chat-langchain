@@ -12,14 +12,15 @@ from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import Runnable, RunnableMap
 from langchain.vectorstores import Weaviate
+import langsmith
 from langsmith import Client
 from pydantic import BaseModel
+import asyncio
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -235,19 +236,33 @@ async def update_feedback(request: Request):
     return {"result": "patched feedback successfully", "code": 200}
 
 
-trace_url = None
+async def _arun(func, *args, **kwargs):
+    return await asyncio.get_running_loop().run_in_executor(None, func, *args, **kwargs)
+
+
+async def aget_trace_url(run_id: str) -> str:
+    for i in range(5):
+        try:
+            await _arun(client.read_run, run_id)
+            break
+        except langsmith.utils.LangSmithError:
+            await asyncio.sleep(1**i)
+
+    if await _arun(client.run_is_shared, run_id):
+        return await _arun(client.read_run_shared_link, run_id)
+    return await _arun(client.share_run, run_id)
 
 
 @app.post("/get_trace")
 async def get_trace(request: Request):
-    # We don't use this right now because there isn't a
-    # well-supported way to share runs synchronously
-    global run_id, trace_url
-    if trace_url is None and run_id is not None:
-        trace_url = client.share_run(run_id)
+    data = await request.json()
+    run_id = data.get("run_id")
     if run_id is None:
-        return {"result": "No chat session found", "code": 400}
-    return trace_url if trace_url else {"result": "Trace URL not found", "code": 400}
+        return {
+            "result": "No LangSmith run ID provided",
+            "code": 400,
+        }
+    return await aget_trace_url(run_id)
 
 
 if __name__ == "__main__":

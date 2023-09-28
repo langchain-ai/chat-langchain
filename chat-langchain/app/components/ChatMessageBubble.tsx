@@ -1,16 +1,17 @@
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { emojisplosion } from "emojisplosion";
-import { FormEvent, useState } from "react";
+import { useState, useRef } from "react";
 import { SourceBubble, Source } from "./SourceBubble";
 import {
+  VStack,
   Flex,
-  Box,
   Heading,
   HStack,
-  VStack,
+  Box,
+  Button,
   Divider,
-  filter,
+  Spacer,
 } from "@chakra-ui/react";
 import { InlineCitation } from "./InlineCitation";
 import { v4 as uuidv4 } from "uuid";
@@ -113,11 +114,13 @@ export function ChatMessageBubble(props: {
 }) {
   const { role, content, runId } = props.message;
   const isUser = role === "user";
-
   const [isLoading, setIsLoading] = useState(false);
+  const [traceIsLoading, setTraceIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [comment, setComment] = useState("");
   const [feedbackColor, setFeedbackColor] = useState("");
+  const upButtonRef = useRef(null);
+  const downButtonRef = useRef(null);
 
   const cumulativeOffset = function (element: HTMLElement | null) {
     var top = 0,
@@ -173,6 +176,37 @@ export function ChatMessageBubble(props: {
     }
     setIsLoading(false);
   };
+  const viewTrace = async () => {
+    try {
+      setTraceIsLoading(true);
+      let apiBaseUrl = props.apiBaseUrl;
+      const response = await fetch(apiBaseUrl + "/get_trace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          run_id: runId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.code === 400) {
+        toast.error("Unable to view trace");
+        throw new Error("Unable to view trace");
+      } else {
+        console.log(data);
+        const url = data.replace(/['"]+/g, "");
+        window.open(url, "_blank");
+        setTraceIsLoading(false);
+      }
+    } catch (e: any) {
+      console.error("Error:", e);
+      setTraceIsLoading(false);
+      toast.error(e.message);
+    }
+  };
 
   const sources = props.message.sources ?? [];
   const { filtered: filteredSources, indexMap: sourceIndexMap } =
@@ -193,11 +227,23 @@ export function ChatMessageBubble(props: {
           setHighlightedSourceLinkStates
         )
       : [];
+
   const animateButton = (buttonId: string) => {
-    const button = document.getElementById(buttonId);
-    button!.classList.add("animate-ping");
+    let button: HTMLButtonElement | null;
+    if (buttonId === "upButton") {
+      button = upButtonRef.current;
+    } else if (buttonId === "downButton") {
+      button = downButtonRef.current;
+    } else {
+      return;
+    }
+
+    // Ensure button is not null before proceeding
+    if (!button) return;
+    let resolvedButton = button as HTMLButtonElement;
+    resolvedButton.classList.add("animate-ping");
     setTimeout(() => {
-      button!.classList.remove("animate-ping");
+      resolvedButton.classList.remove("animate-ping");
     }, 500);
 
     emojisplosion({
@@ -207,8 +253,8 @@ export function ChatMessageBubble(props: {
         const offset = cumulativeOffset(button);
 
         return {
-          x: offset.left + button!.clientWidth / 2,
-          y: offset.top + button!.clientHeight / 2,
+          x: offset.left + resolvedButton.clientWidth / 2,
+          y: offset.top + resolvedButton.clientHeight / 2,
         };
       },
       emojis: buttonId === "upButton" ? ["👍"] : ["👎"],
@@ -216,23 +262,17 @@ export function ChatMessageBubble(props: {
   };
 
   return (
-    <VStack align={"start"} paddingBottom={"20px"}>
+    <VStack align="start" spacing={5} pb={5}>
       {!isUser && filteredSources.length > 0 && (
         <>
-          <Flex direction={"column"} width={"100%"}>
-            <VStack spacing={"5px"} align={"start"} width={"100%"}>
-              <Heading
-                fontSize="lg"
-                fontWeight={"medium"}
-                mb={1}
-                color={"blue.300"}
-                paddingBottom={"10px"}
-              >
+          <Flex direction="column" w="100%">
+            <VStack spacing={2} align="start" w="100%">
+              <Heading size="lg" fontWeight="medium" color="blue.300">
                 Sources
               </Heading>
-              <HStack spacing={"10px"} maxWidth={"100%"}>
+              <HStack spacing={4} w="100%">
                 {filteredSources.map((source, index) => (
-                  <Box key={index} alignSelf={"stretch"} width={40}>
+                  <Box key={index} flexShrink={0}>
                     <SourceBubble
                       source={source}
                       highlighted={highlighedSourceLinkStates[index]}
@@ -253,36 +293,31 @@ export function ChatMessageBubble(props: {
             </VStack>
           </Flex>
 
-          <Heading
-            fontSize="lg"
-            fontWeight={"medium"}
-            mb={1}
-            color={"blue.300"}
-            paddingTop={"20px"}
-          >
+          <Heading size="lg" fontWeight="medium" color="blue.300">
             Answer
           </Heading>
         </>
       )}
+
       {isUser ? (
-        <Heading size={"lg"} fontWeight={"medium"} color={"white"}>
+        <Heading size="lg" fontWeight="medium" color="white">
           {content}
         </Heading>
       ) : (
-        <div className="whitespace-pre-wrap" style={{ color: "white" }}>
+        <Box className="whitespace-pre-wrap" color="white">
           {answerElements}
-        </div>
+        </Box>
       )}
+
       {props.message.role !== "user" &&
         props.isMostRecent &&
         props.messageCompleted && (
-          <div className="relative flex space-x-1 items-start justify-start">
-            <button
-              className={`text-sm rounded ${
-                feedback === null ? "hover:bg-green-200" : ""
-              }`}
-              id="upButton"
-              type="button"
+          <HStack spacing={2}>
+            <Button
+              ref={upButtonRef}
+              size="sm"
+              variant="outline"
+              colorScheme={feedback === null ? "green" : "gray"}
               onClick={() => {
                 if (feedback === null && props.message.runId) {
                   sendFeedback(1, "user_score");
@@ -294,13 +329,12 @@ export function ChatMessageBubble(props: {
               }}
             >
               👍
-            </button>
-            <button
-              className={`text-sm rounded ${
-                feedback === null ? "hover:bg-red-200" : ""
-              }`}
-              id="downButton"
-              type="button"
+            </Button>
+            <Button
+              ref={downButtonRef}
+              size="sm"
+              variant="outline"
+              colorScheme={feedback === null ? "red" : "gray"}
               onClick={() => {
                 if (feedback === null && props.message.runId) {
                   sendFeedback(0, "user_score");
@@ -312,11 +346,144 @@ export function ChatMessageBubble(props: {
               }}
             >
               👎
-            </button>
-          </div>
+            </Button>
+            <Spacer />
+            <Button
+              size="sm"
+              variant="outline"
+              colorScheme={runId === null ? "blue" : "gray"}
+              onClick={(e) => {
+                e.preventDefault();
+                viewTrace();
+              }}
+              isLoading={traceIsLoading}
+              loadingText="🔄"
+            >
+              🛠️🔗
+            </Button>
+          </HStack>
         )}
 
-      {!isUser && <Divider marginTop={"20px"} marginBottom={"20px"} />}
+      {!isUser && <Divider mt={4} mb={4} />}
     </VStack>
   );
 }
+
+//   return (
+//     <VStack align={"start"} paddingBottom={"20px"}>
+//       {!isUser && filteredSources.length > 0 && (
+//         <>
+//           <Flex direction={"column"} width={"100%"}>
+//             <VStack spacing={"5px"} align={"start"} width={"100%"}>
+//               <Heading
+//                 fontSize="lg"
+//                 fontWeight={"medium"}
+//                 mb={1}
+//                 color={"blue.300"}
+//                 paddingBottom={"10px"}
+//               >
+//                 Sources
+//               </Heading>
+//               <HStack spacing={"10px"} maxWidth={"100%"}>
+//                 {filteredSources.map((source, index) => (
+//                   <Box key={index} alignSelf={"stretch"} width={40}>
+//                     <SourceBubble
+//                       source={source}
+//                       highlighted={highlighedSourceLinkStates[index]}
+//                       onMouseEnter={() =>
+//                         setHighlightedSourceLinkStates(
+//                           filteredSources.map((_, i) => i === index)
+//                         )
+//                       }
+//                       onMouseLeave={() =>
+//                         setHighlightedSourceLinkStates(
+//                           filteredSources.map(() => false)
+//                         )
+//                       }
+//                     />
+//                   </Box>
+//                 ))}
+//               </HStack>
+//             </VStack>
+//           </Flex>
+
+//           <Heading
+//             fontSize="lg"
+//             fontWeight={"medium"}
+//             mb={1}
+//             color={"blue.300"}
+//             paddingTop={"20px"}
+//           >
+//             Answer
+//           </Heading>
+//         </>
+//       )}
+//       {isUser ? (
+//         <Heading size={"lg"} fontWeight={"medium"} color={"white"}>
+//           {content}
+//         </Heading>
+//       ) : (
+//         <div className="whitespace-pre-wrap" style={{ color: "white" }}>
+//           {answerElements}
+//         </div>
+//       )}
+//       {props.message.role !== "user" &&
+//         props.isMostRecent &&
+//         props.messageCompleted && (
+//           <div className="relative flex space-x-1 items-start justify-start">
+//             <button
+//               className={`text-sm rounded ${
+//                 feedback === null ? "hover:bg-green-200" : ""
+//               }`}
+//               id="upButton"
+//               type="button"
+//               onClick={() => {
+//                 if (feedback === null && props.message.runId) {
+//                   sendFeedback(1, "user_score");
+//                   animateButton("upButton");
+//                   setFeedbackColor("border-4 border-green-300");
+//                 } else {
+//                   toast.error("You have already provided your feedback.");
+//                 }
+//               }}
+//             >
+//               👍
+//             </button>
+//             <button
+//               className={`text-sm rounded ${
+//                 feedback === null ? "hover:bg-red-200" : ""
+//               }`}
+//               id="downButton"
+//               type="button"
+//               onClick={() => {
+//                 if (feedback === null && props.message.runId) {
+//                   sendFeedback(0, "user_score");
+//                   animateButton("downButton");
+//                   setFeedbackColor("border-4 border-red-300");
+//                 } else {
+//                   toast.error("You have already provided your feedback.");
+//                 }
+//               }}
+//             >
+//               👎
+//             </button>
+//             <button
+//               className={`text-sm rounded ${
+//                 runId === null ? "hover:bg-red-200" : ""
+//               }`}
+//               id="linkButton"
+//               type="button"
+//               onClick={(e) => {
+//                 e.preventDefault();
+//                 viewTrace();
+//               }}
+//             >
+//             {traceIsLoading ? '🔄' : '🛠️🔗'}
+//             </button>
+//           </div>
+//         )}
+
+//       {!isUser && <Divider marginTop={"20px"} marginBottom={"20px"} />}
+//     </VStack>
+//   );
+// }
