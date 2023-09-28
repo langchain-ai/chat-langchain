@@ -11,7 +11,7 @@ The app leverages LangChain's streaming support and async API to update the page
 1. Install backend dependencies: `poetry install`.
 1. Run `python ingest.py` to ingest LangChain docs data into the Weaviate vectorstore (only needs to be done once).
    1. You can use other [Document Loaders](https://langchain.readthedocs.io/en/latest/modules/document_loaders.html) to load your own data into the vectorstore.
-1. Run the backend with `make start`.
+1. Run the backend with `poetry run make start` to start the Python backend.
    1. Make sure to enter your environment variables to configure the application:
    ```
    export OPENAI_API_KEY=
@@ -25,6 +25,7 @@ The app leverages LangChain's streaming support and async API to update the page
    export LANGCHAIN_API_KEY=
    export LANGCHAIN_PROJECT=
    ```
+  1. If you would like to use the JS backend instead, you'll to populate a `.env.local` file with your own versions of keys from the `.env.example` file in this repo.
 1. Install frontend dependencies by running `cd chat-langchain`, then `yarn`.
 1. Run the frontend with `yarn dev` for frontend.
 1. Open [localhost:3000](http://localhost:3000) in your browser.
