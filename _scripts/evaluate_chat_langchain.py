@@ -1,15 +1,10 @@
 # TODO: Consolidate all these scripts into a single script
 # This is ugly
 import argparse
-import functools
-import json
 
-from langchain import load as langchain_load
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.smith import RunEvalConfig
-from langsmith import Client, RunEvaluator
-from langsmith.evaluation.evaluator import EvaluationResult
-from langsmith.schemas import Example, Run
+from langsmith import Client
 
 # Ugly. Requires PYTHONATH=$(PWD) to run
 from main import create_chain, get_retriever

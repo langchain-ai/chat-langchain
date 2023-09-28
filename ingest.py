@@ -7,7 +7,6 @@ from parser import langchain_docs_extractor
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
-from langchain.document_loaders.recursive_url_loader import RecursiveUrlLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
 from langchain.text_splitter import RecursiveCharacterTextSplitter

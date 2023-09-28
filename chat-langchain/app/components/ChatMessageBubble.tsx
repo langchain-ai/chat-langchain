@@ -268,7 +268,7 @@ export function ChatMessageBubble(props: {
               <Heading size="lg" fontWeight="medium" color="blue.300">
                 Sources
               </Heading>
-              <HStack spacing={4} w="100%">
+              <HStack spacing={4} maxWidth={"100%"} overflow={"auto"}>
                 {filteredSources.map((source, index) => (
                   <Box key={index} flexShrink={0}>
                     <SourceBubble
@@ -366,4 +366,3 @@ export function ChatMessageBubble(props: {
     </VStack>
   );
 }
-
