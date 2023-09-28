@@ -263,14 +263,20 @@ export function ChatMessageBubble(props: {
     <VStack align="start" spacing={5} pb={5}>
       {!isUser && filteredSources.length > 0 && (
         <>
-          <Flex direction="column" w="100%">
-            <VStack spacing={2} align="start" w="100%">
-              <Heading size="lg" fontWeight="medium" color="blue.300">
+          <Flex direction={"column"} width={"100%"}>
+            <VStack spacing={"5px"} align={"start"} width={"100%"}>
+              <Heading
+                fontSize="lg"
+                fontWeight={"medium"}
+                mb={1}
+                color={"blue.300"}
+                paddingBottom={"10px"}
+              >
                 Sources
               </Heading>
-              <HStack spacing={4} maxWidth={"100%"} overflow={"auto"}>
+              <HStack spacing={"10px"} maxWidth={"100%"} overflow={"auto"}>
                 {filteredSources.map((source, index) => (
-                  <Box key={index} flexShrink={0}>
+                  <Box key={index} alignSelf={"stretch"} width={40}>
                     <SourceBubble
                       source={source}
                       highlighted={highlighedSourceLinkStates[index]}
