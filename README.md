@@ -39,7 +39,7 @@ Ingestion has the following steps:
 3. Split documents with LangChain's [RecursiveCharacterTextSplitter](https://api.python.langchain.com/en/latest/text_splitter/langchain.text_splitter.RecursiveCharacterTextSplitter.html)
 4. Create a vectorstore of embeddings, using LangChain's [Weaviate vectorstore wrapper](https://python.langchain.com/docs/integrations/vectorstores/weaviate) (with OpenAI's embeddings).
 
-Question-Answering has the following steps, all handled by [OpenAIFunctionsAgent](https://python.langchain.com/docs/modules/agents/agent_types/openai_functions_agent):
+Question-Answering has the following steps:
 
 1. Given the chat history and new user input, determine what a standalone question would be using GPT-3.5.
 2. Given that standalone question, look up relevant documents from the vectorstore.
