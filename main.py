@@ -236,6 +236,7 @@ async def update_feedback(request: Request):
     return {"result": "patched feedback successfully", "code": 200}
 
 
+# TODO: Update when async API is available
 async def _arun(func, *args, **kwargs):
     return await asyncio.get_running_loop().run_in_executor(None, func, *args, **kwargs)
 

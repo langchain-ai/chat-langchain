@@ -237,8 +237,6 @@ export function ChatMessageBubble(props: {
     } else {
       return;
     }
-
-    // Ensure button is not null before proceeding
     if (!button) return;
     let resolvedButton = button as HTMLButtonElement;
     resolvedButton.classList.add("animate-ping");
