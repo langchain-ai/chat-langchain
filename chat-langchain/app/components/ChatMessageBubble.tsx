@@ -46,7 +46,10 @@ const filterSources = (sources: Source[]) => {
       indexMap.set(i, filtered.length);
       filtered.push(source);
     } else {
-      indexMap.set(i, index);
+      const resolvedIndex = indexMap.get(index);
+      if (resolvedIndex !== undefined) {
+        indexMap.set(i, resolvedIndex);
+      }
     }
   });
   return { filtered, indexMap };
