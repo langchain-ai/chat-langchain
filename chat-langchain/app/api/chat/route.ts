@@ -53,6 +53,8 @@ const getRetriever = async () => {
 };
 
 const createRetrieverChain = (llm: BaseLanguageModel, retriever: BaseRetriever, useChatHistory: boolean) => {
+  // Small speed/accuracy optimization: no need to rephrase the first question
+  // since there shouldn't be any meta-references to prior chat history
   if (!useChatHistory) {
     return RunnableSequence.from([
       ({ question }) => question,
@@ -132,8 +134,14 @@ export async function POST(req: NextRequest) {
     const retriever = await getRetriever();
     const answerChain = createChain(llm, retriever, !!convertedChatHistory.length);
 
-    // Narrows streamed log output down to final output and the FindDocs tagged chain to
-    // selectively stream back sources.
+    /**
+     * Narrows streamed log output down to final output and the FindDocs tagged chain to
+     * selectively stream back sources.
+     *
+     * You can use .stream() to create a ReadableStream with just the final output which
+     * you can pass directly to the Response as well:
+     * https://js.langchain.com/docs/expression_language/interface#stream
+     */
     const stream = await answerChain.streamLog({
       question,
       chat_history: convertedChatHistory,
