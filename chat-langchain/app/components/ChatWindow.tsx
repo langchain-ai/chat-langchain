@@ -199,7 +199,6 @@ export function ChatWindow(props: {
                 key={m.id}
                 message={{ ...m }}
                 aiEmoji="🦜"
-                apiBaseUrl={apiBaseUrl}
                 isMostRecent={index === 0}
                 messageCompleted={!isLoading}
               ></ChatMessageBubble>

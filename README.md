@@ -9,23 +9,31 @@ The app leverages LangChain's streaming support and async API to update the page
 
 ## ✅ Running locally
 1. Install backend dependencies: `poetry install`.
+1. Make sure to enter your environment variables to configure the application:
+```
+export OPENAI_API_KEY=
+export WEAVIATE_URL=
+export WEAVIATE_API_KEY=
+export RECORD_MANAGER_DB_URL=
+
+# for tracing
+export LANGCHAIN_TRACING_V2=true
+export LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"
+export LANGCHAIN_API_KEY=
+export LANGCHAIN_PROJECT=
+```
 1. Run `python ingest.py` to ingest LangChain docs data into the Weaviate vectorstore (only needs to be done once).
    1. You can use other [Document Loaders](https://langchain.readthedocs.io/en/latest/modules/document_loaders.html) to load your own data into the vectorstore.
-1. Run the backend with `make start`.
-   1. Make sure to enter your environment variables to configure the application:
-   ```
-   export OPENAI_API_KEY=
-   export WEAVIATE_URL=
-   export WEAVIATE_API_KEY=
-
-   # for tracing
-   export LANGCHAIN_TRACING_V2=true
-   export LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"
-   export LANGCHAIN_API_KEY=
-   export LANGCHAIN_PROJECT=
-   ```
+1. Start the Python backend with `poetry run make start`.
 1. Install frontend dependencies by running `cd chat-langchain`, then `yarn`.
 1. Run the frontend with `yarn dev` for frontend.
+1. Open [localhost:3000](http://localhost:3000) in your browser.
+
+## ☕ Running locally (JS backend)
+1. Follow the first three steps above to ingest LangChain docs data into the vectorstore.
+1. Install frontend dependencies by running `cd chat-langchain`, then `yarn`.
+1. Populate a `chat-langchain/.env.local` file with your own versions of keys from the `chat-langchain/.env.example` file, and set `NEXT_PUBLIC_API_BASE_URL` to `"http://localhost:3000/api"`.
+1. Run the app with `yarn dev`.
 1. Open [localhost:3000](http://localhost:3000) in your browser.
 
 ## 📚 Technical description
@@ -39,7 +47,7 @@ Ingestion has the following steps:
 3. Split documents with LangChain's [RecursiveCharacterTextSplitter](https://api.python.langchain.com/en/latest/text_splitter/langchain.text_splitter.RecursiveCharacterTextSplitter.html)
 4. Create a vectorstore of embeddings, using LangChain's [Weaviate vectorstore wrapper](https://python.langchain.com/docs/integrations/vectorstores/weaviate) (with OpenAI's embeddings).
 
-Question-Answering has the following steps, all handled by [OpenAIFunctionsAgent](https://python.langchain.com/docs/modules/agents/agent_types/openai_functions_agent):
+Question-Answering has the following steps:
 
 1. Given the chat history and new user input, determine what a standalone question would be using GPT-3.5.
 2. Given that standalone question, look up relevant documents from the vectorstore.

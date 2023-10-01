@@ -2,6 +2,7 @@
   "name": "chat-langchain",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "yarn@1.22.19",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -23,8 +24,10 @@
     "eslint": "8.46.0",
     "eslint-config-next": "13.4.13",
     "framer-motion": "^10.16.4",
+    "graphql": "^16.8.1",
     "highlight.js": "^11.8.0",
-    "langchain": "^0.0.127",
+    "langchain": "^0.0.155",
+    "langsmith": "^0.0.41",
     "marked": "^7.0.2",
     "next": "13.4.13",
     "postcss": "8.4.27",
@@ -35,6 +38,8 @@
     "typescript": "5.1.6"
   },
   "devDependencies": {
-    "prettier": "^3.0.3"
+    "prettier": "^3.0.3",
+    "typescript": "5.1.6",
+    "weaviate-ts-client": "^1.5.0"
   }
 }
