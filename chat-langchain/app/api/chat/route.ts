@@ -10,7 +10,11 @@ import { RunnableSequence, RunnableMap } from "langchain/schema/runnable";
 import { HumanMessage, AIMessage, BaseMessage } from "langchain/schema";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import { StringOutputParser } from "langchain/schema/output_parser";
-import { PromptTemplate, ChatPromptTemplate, MessagesPlaceholder } from "langchain/prompts";
+import {
+  PromptTemplate,
+  ChatPromptTemplate,
+  MessagesPlaceholder,
+} from "langchain/prompts";
 
 import weaviate from "weaviate-ts-client";
 import { WeaviateStore } from "langchain/vectorstores/weaviate";
@@ -39,60 +43,78 @@ const getRetriever = async () => {
   const client = weaviate.client({
     scheme: "https",
     host: process.env.WEAVIATE_HOST!,
-    apiKey: new weaviate.ApiKey(
-      process.env.WEAVIATE_API_KEY!
-    ),
+    apiKey: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY!),
   });
-  const vectorstore = await WeaviateStore.fromExistingIndex(new OpenAIEmbeddings({}), {
-    client,
-    indexName: process.env.WEAVIATE_INDEX_NAME!,
-    textKey: "text",
-    metadataKeys: ["source", "title"],
-  });
+  const vectorstore = await WeaviateStore.fromExistingIndex(
+    new OpenAIEmbeddings({}),
+    {
+      client,
+      indexName: process.env.WEAVIATE_INDEX_NAME!,
+      textKey: "text",
+      metadataKeys: ["source", "title"],
+    },
+  );
   return vectorstore.asRetriever({ k: 6 });
 };
 
-const createRetrieverChain = (llm: BaseLanguageModel, retriever: BaseRetriever, useChatHistory: boolean) => {
+const createRetrieverChain = (
+  llm: BaseLanguageModel,
+  retriever: BaseRetriever,
+  useChatHistory: boolean,
+) => {
   // Small speed/accuracy optimization: no need to rephrase the first question
   // since there shouldn't be any meta-references to prior chat history
   if (!useChatHistory) {
-    return RunnableSequence.from([
-      ({ question }) => question,
-      retriever
-    ]);
+    return RunnableSequence.from([({ question }) => question, retriever]);
   } else {
-    const CONDENSE_QUESTION_PROMPT = PromptTemplate.fromTemplate(REPHRASE_TEMPLATE);
+    const CONDENSE_QUESTION_PROMPT =
+      PromptTemplate.fromTemplate(REPHRASE_TEMPLATE);
     const condenseQuestionChain = RunnableSequence.from([
       CONDENSE_QUESTION_PROMPT,
       llm,
-      new StringOutputParser()
+      new StringOutputParser(),
     ]).withConfig({
-      tags: ["CondenseQuestion"]
+      tags: ["CondenseQuestion"],
     });
     return condenseQuestionChain.pipe(retriever);
   }
 };
 
 const formatDocs = (docs: Document[]) => {
-  return docs.map((doc, i) => `<doc id='${i}'>${doc.pageContent}</doc>`).join("\n");
+  return docs
+    .map((doc, i) => `<doc id='${i}'>${doc.pageContent}</doc>`)
+    .join("\n");
 };
 
 const formatChatHistoryAsString = (history: BaseMessage[]) => {
-  return history.map((message) => `${message._getType()}: ${message.content}`).join('\n');
-}
+  return history
+    .map((message) => `${message._getType()}: ${message.content}`)
+    .join("\n");
+};
 
-const createChain = (llm: BaseLanguageModel, retriever: BaseRetriever, useChatHistory: boolean) => {
-  const retrieverChain = createRetrieverChain(llm, retriever, useChatHistory).withConfig({ tags: ["FindDocs"] });
+const createChain = (
+  llm: BaseLanguageModel,
+  retriever: BaseRetriever,
+  useChatHistory: boolean,
+) => {
+  const retrieverChain = createRetrieverChain(
+    llm,
+    retriever,
+    useChatHistory,
+  ).withConfig({ tags: ["FindDocs"] });
   const context = new RunnableMap({
     steps: {
       context: RunnableSequence.from([
-        ({question, chat_history}) => ({question, chat_history: formatChatHistoryAsString(chat_history)}),
+        ({ question, chat_history }) => ({
+          question,
+          chat_history: formatChatHistoryAsString(chat_history),
+        }),
         retrieverChain,
-        formatDocs
+        formatDocs,
       ]),
       question: ({ question }) => question,
-      chat_history: ({ chat_history }) => chat_history
-    }
+      chat_history: ({ chat_history }) => chat_history,
+    },
   }).withConfig({ tags: ["RetrieveDocs"] });
   const prompt = ChatPromptTemplate.fromMessages([
     ["system", RESPONSE_TEMPLATE],
@@ -100,11 +122,14 @@ const createChain = (llm: BaseLanguageModel, retriever: BaseRetriever, useChatHi
     ["human", "{question}"],
   ]);
 
-  const responseSynthesizerChain = prompt.pipe(llm).pipe(new StringOutputParser()).withConfig({
-    tags: ["GenerateResponse"],
-  });
+  const responseSynthesizerChain = prompt
+    .pipe(llm)
+    .pipe(new StringOutputParser())
+    .withConfig({
+      tags: ["GenerateResponse"],
+    });
   return context.pipe(responseSynthesizerChain);
-}
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -114,15 +139,22 @@ export async function POST(req: NextRequest) {
     const conversationId = body.conversation_id;
 
     if (question === undefined || typeof question !== "string") {
-      return NextResponse.json({ error: `Invalid "message" parameter.` }, { status: 400 });
+      return NextResponse.json(
+        { error: `Invalid "message" parameter.` },
+        { status: 400 },
+      );
     }
 
     const convertedChatHistory = [];
     for (const historyMessage of chatHistory) {
       if (historyMessage.human) {
-        convertedChatHistory.push(new HumanMessage({ content: historyMessage.human }));
+        convertedChatHistory.push(
+          new HumanMessage({ content: historyMessage.human }),
+        );
       } else if (historyMessage.ai) {
-        convertedChatHistory.push(new AIMessage({ content: historyMessage.ai }));
+        convertedChatHistory.push(
+          new AIMessage({ content: historyMessage.ai }),
+        );
       }
     }
 
@@ -132,7 +164,11 @@ export async function POST(req: NextRequest) {
       temperature: 0,
     });
     const retriever = await getRetriever();
-    const answerChain = createChain(llm, retriever, !!convertedChatHistory.length);
+    const answerChain = createChain(
+      llm,
+      retriever,
+      !!convertedChatHistory.length,
+    );
 
     /**
      * Narrows streamed log output down to final output and the FindDocs tagged chain to
@@ -142,14 +178,18 @@ export async function POST(req: NextRequest) {
      * you can pass directly to the Response as well:
      * https://js.langchain.com/docs/expression_language/interface#stream
      */
-    const stream = await answerChain.streamLog({
-      question,
-      chat_history: convertedChatHistory,
-    }, {
-      metadata
-    }, {
-      includeTags: ["FindDocs"],
-    });
+    const stream = await answerChain.streamLog(
+      {
+        question,
+        chat_history: convertedChatHistory,
+      },
+      {
+        metadata,
+      },
+      {
+        includeTags: ["FindDocs"],
+      },
+    );
 
     // Only return a selection of output to the frontend
     const textEncoder = new TextEncoder();
@@ -162,24 +202,33 @@ export async function POST(req: NextRequest) {
           let hasEnqueued = false;
           for (const op of value.ops) {
             if ("value" in op) {
-              if (op.path === "/logs/0/final_output" && Array.isArray(op.value.output)) {
+              if (
+                op.path === "/logs/0/final_output" &&
+                Array.isArray(op.value.output)
+              ) {
                 const allSources = op.value.output.map((doc: Document) => {
                   return {
                     url: doc.metadata.source,
                     title: doc.metadata.title,
-                  }
+                  };
                 });
                 if (allSources.length) {
-                  const chunk = textEncoder.encode(JSON.stringify({ sources: allSources }) + "\n");
+                  const chunk = textEncoder.encode(
+                    JSON.stringify({ sources: allSources }) + "\n",
+                  );
                   controller.enqueue(chunk);
                   hasEnqueued = true;
                 }
               } else if (op.path === "/streamed_output/-") {
-                const chunk = textEncoder.encode(JSON.stringify({tok: op.value}) + "\n");
+                const chunk = textEncoder.encode(
+                  JSON.stringify({ tok: op.value }) + "\n",
+                );
                 controller.enqueue(chunk);
                 hasEnqueued = true;
               } else if (op.path === "" && op.op === "replace") {
-                const chunk = textEncoder.encode(JSON.stringify({run_id: op.value.id}) + "\n");
+                const chunk = textEncoder.encode(
+                  JSON.stringify({ run_id: op.value.id }) + "\n",
+                );
                 controller.enqueue(chunk);
                 hasEnqueued = true;
               }

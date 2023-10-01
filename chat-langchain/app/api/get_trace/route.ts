@@ -9,7 +9,9 @@ export const runtime = "edge";
 const client = new Client();
 
 const pollForRun = async (runId: string, retryCount = 0): Promise<string> => {
-  await new Promise((resolve) => setTimeout(resolve, retryCount * retryCount * 100));
+  await new Promise((resolve) =>
+    setTimeout(resolve, retryCount * retryCount * 100),
+  );
   try {
     await client.readRun(runId);
   } catch (e) {
@@ -24,14 +26,17 @@ const pollForRun = async (runId: string, retryCount = 0): Promise<string> => {
   } catch (e) {
     return client.shareRun(runId);
   }
-}
+};
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { run_id } = body;
     if (run_id === undefined) {
-      return NextResponse.json({ error: "No run ID provided" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No run ID provided" },
+        { status: 400 },
+      );
     }
     const response = await pollForRun(run_id);
     return NextResponse.json(response, { status: 200 });

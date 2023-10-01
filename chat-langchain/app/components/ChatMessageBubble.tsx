@@ -13,8 +13,9 @@ import {
   Divider,
   Spacer,
 } from "@chakra-ui/react";
+import { sendFeedback } from "../utils/sendFeedback";
+import { apiBaseUrl } from "../utils/constants";
 import { InlineCitation } from "./InlineCitation";
-import { v4 as uuidv4 } from "uuid";
 
 export type Message = {
   id: string;
@@ -26,13 +27,13 @@ export type Message = {
   name?: string;
   function_call?: { name: string };
 };
-export interface Feedback {
+export type Feedback = {
   feedback_id: string;
   run_id: string;
   key: string;
   score: number;
   comment?: string;
-}
+};
 
 const filterSources = (sources: Source[]) => {
   const filtered: Source[] = [];
@@ -62,7 +63,7 @@ const createAnswerElements = (
   highlighedSourceLinkStates: boolean[],
   setHighlightedSourceLinkStates: React.Dispatch<
     React.SetStateAction<boolean[]>
-  >
+  >,
 ) => {
   const matches = Array.from(content.matchAll(/\[\^?(\d+)\^?\]/g));
   const elements: JSX.Element[] = [];
@@ -78,7 +79,7 @@ const createAnswerElements = (
           dangerouslySetInnerHTML={{
             __html: content.slice(prevIndex, match.index),
           }}
-        ></span>
+        ></span>,
       );
       elements.push(
         <InlineCitation
@@ -88,13 +89,13 @@ const createAnswerElements = (
           highlighted={highlighedSourceLinkStates[resolvedNum]}
           onMouseEnter={() =>
             setHighlightedSourceLinkStates(
-              filteredSources.map((_, i) => i === resolvedNum)
+              filteredSources.map((_, i) => i === resolvedNum),
             )
           }
           onMouseLeave={() =>
             setHighlightedSourceLinkStates(filteredSources.map(() => false))
           }
-        />
+        />,
       );
       prevIndex = (match?.index ?? 0) + match[0].length;
     }
@@ -103,7 +104,7 @@ const createAnswerElements = (
     <span
       key={`content:${prevIndex}`}
       dangerouslySetInnerHTML={{ __html: content.slice(prevIndex) }}
-    ></span>
+    ></span>,
   );
   return elements;
 };
@@ -113,7 +114,6 @@ export function ChatMessageBubble(props: {
   aiEmoji?: string;
   isMostRecent: boolean;
   messageCompleted: boolean;
-  apiBaseUrl: string;
 }) {
   const { role, content, runId } = props.message;
   const isUser = role === "user";
@@ -140,7 +140,7 @@ export function ChatMessageBubble(props: {
     };
   };
 
-  const sendFeedback = async (score: number, key: string) => {
+  const sendUserFeedback = async (score: number, key: string) => {
     let run_id = runId;
     if (run_id === undefined) {
       return;
@@ -149,25 +149,17 @@ export function ChatMessageBubble(props: {
       return;
     }
     setIsLoading(true);
-    let apiBaseUrl = props.apiBaseUrl;
-    let feedback_id = feedback?.feedback_id ?? uuidv4();
     try {
-      const response = await fetch(apiBaseUrl + "/feedback", {
-        method: feedback?.feedback_id ? "PATCH" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          score,
-          run_id,
-          key,
-          feedback_id,
-          comment,
-        }),
+      const data = await sendFeedback({
+        score,
+        runId: run_id,
+        key,
+        feedbackId: feedback?.feedback_id,
+        comment,
+        isExplicit: true,
       });
-      const data = await response.json();
       if (data.code === 200) {
-        setFeedback({ run_id, score, key, feedback_id });
+        setFeedback({ run_id, score, key, feedback_id: data.feedbackId });
         score == 1 ? animateButton("upButton") : animateButton("downButton");
         if (comment) {
           setComment("");
@@ -182,7 +174,6 @@ export function ChatMessageBubble(props: {
   const viewTrace = async () => {
     try {
       setTraceIsLoading(true);
-      let apiBaseUrl = props.apiBaseUrl;
       const response = await fetch(apiBaseUrl + "/get_trace", {
         method: "POST",
         headers: {
@@ -199,7 +190,6 @@ export function ChatMessageBubble(props: {
         toast.error("Unable to view trace");
         throw new Error("Unable to view trace");
       } else {
-        console.log(data);
         const url = data.replace(/['"]+/g, "");
         window.open(url, "_blank");
         setTraceIsLoading(false);
@@ -218,7 +208,7 @@ export function ChatMessageBubble(props: {
   // Use an array of highlighted states as a state since React
   // complains when creating states in a loop
   const [highlighedSourceLinkStates, setHighlightedSourceLinkStates] = useState(
-    filteredSources.map(() => false)
+    filteredSources.map(() => false),
   );
   const answerElements =
     role === "assistant"
@@ -227,7 +217,7 @@ export function ChatMessageBubble(props: {
           filteredSources,
           sourceIndexMap,
           highlighedSourceLinkStates,
-          setHighlightedSourceLinkStates
+          setHighlightedSourceLinkStates,
         )
       : [];
 
@@ -285,14 +275,15 @@ export function ChatMessageBubble(props: {
                       highlighted={highlighedSourceLinkStates[index]}
                       onMouseEnter={() =>
                         setHighlightedSourceLinkStates(
-                          filteredSources.map((_, i) => i === index)
+                          filteredSources.map((_, i) => i === index),
                         )
                       }
                       onMouseLeave={() =>
                         setHighlightedSourceLinkStates(
-                          filteredSources.map(() => false)
+                          filteredSources.map(() => false),
                         )
                       }
+                      runId={runId}
                     />
                   </Box>
                 ))}
@@ -327,7 +318,7 @@ export function ChatMessageBubble(props: {
               colorScheme={feedback === null ? "green" : "gray"}
               onClick={() => {
                 if (feedback === null && props.message.runId) {
-                  sendFeedback(1, "user_score");
+                  sendUserFeedback(1, "user_score");
                   animateButton("upButton");
                   setFeedbackColor("border-4 border-green-300");
                 } else {
@@ -344,7 +335,7 @@ export function ChatMessageBubble(props: {
               colorScheme={feedback === null ? "red" : "gray"}
               onClick={() => {
                 if (feedback === null && props.message.runId) {
-                  sendFeedback(0, "user_score");
+                  sendUserFeedback(0, "user_score");
                   animateButton("downButton");
                   setFeedbackColor("border-4 border-red-300");
                 } else {
