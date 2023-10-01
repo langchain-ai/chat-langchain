@@ -9,7 +9,6 @@ import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 
-import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import {
   Heading,
@@ -20,11 +19,11 @@ import {
   InputRightElement,
   Spinner,
 } from "@chakra-ui/react";
-import { ArrowUpIcon, SpinnerIcon } from "@chakra-ui/icons";
+import { ArrowUpIcon } from "@chakra-ui/icons";
 import { Source } from "./SourceBubble";
+import { apiBaseUrl } from "../utils/constants";
 
 export function ChatWindow(props: {
-  apiBaseUrl: string;
   placeholder?: string;
   titleText?: string;
 }) {
@@ -38,7 +37,7 @@ export function ChatWindow(props: {
     { human: string; ai: string }[]
   >([]);
 
-  const { apiBaseUrl, placeholder, titleText = "An LLM" } = props;
+  const { placeholder, titleText = "An LLM" } = props;
 
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
@@ -101,7 +100,7 @@ export function ChatWindow(props: {
         : "plaintext";
       const highlightedCode = hljs.highlight(
         validLanguage || "plaintext",
-        code
+        code,
       ).value;
       return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; display: block; line-height: 1.2"><code class="${language}" style="color: #d6e2ef; font-size: 12px; ">${highlightedCode}</code></pre>`;
     };
@@ -110,7 +109,7 @@ export function ChatWindow(props: {
     reader
       .read()
       .then(function processText(
-        res: ReadableStreamReadResult<Uint8Array>
+        res: ReadableStreamReadResult<Uint8Array>,
       ): Promise<void> {
         const { done, value } = res;
         if (done) {
