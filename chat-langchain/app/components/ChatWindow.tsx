@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
+import { AutoResizeTextarea } from "./AutoResizeTextarea";
 import { marked } from "marked";
 import { Renderer } from "marked";
 import hljs from "highlight.js";
@@ -14,7 +15,6 @@ import {
   Heading,
   Flex,
   IconButton,
-  Input,
   InputGroup,
   InputRightElement,
   Spinner,
@@ -163,14 +163,6 @@ export function ChatWindow(props: {
       });
   };
 
-  const animateButton = (buttonId: string) => {
-    const button = document.getElementById(buttonId);
-    button!.classList.add("animate-ping");
-    setTimeout(() => {
-      button!.classList.remove("animate-ping");
-    }, 500);
-  };
-
   const sendInitialQuestion = async (question: string) => {
     await sendMessage(question);
   };
@@ -208,23 +200,21 @@ export function ChatWindow(props: {
         )}
       </div>
       <InputGroup size="md" alignItems={"center"}>
-        <Input
+        <AutoResizeTextarea
           value={input}
-          height={"55px"}
-          rounded={"full"}
-          type={"text"}
+          maxRows={5}
+          rounded={"md"}
           placeholder="What is LangChain Expression Language?"
           textColor={"white"}
           borderColor={"rgb(58, 58, 61)"}
-          onSubmit={(e) => {
-            e.preventDefault();
-            sendMessage();
-          }}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               sendMessage();
+            } else if (e.key === "Enter" && e.shiftKey) {
+              e.preventDefault();
+              setInput(input + "\n");
             }
           }}
         />
