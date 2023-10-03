@@ -163,14 +163,6 @@ export function ChatWindow(props: {
       });
   };
 
-  const animateButton = (buttonId: string) => {
-    const button = document.getElementById(buttonId);
-    button!.classList.add("animate-ping");
-    setTimeout(() => {
-      button!.classList.remove("animate-ping");
-    }, 500);
-  };
-
   const sendInitialQuestion = async (question: string) => {
     await sendMessage(question);
   };
