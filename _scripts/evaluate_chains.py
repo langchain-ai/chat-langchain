@@ -9,7 +9,8 @@ import weaviate
 from langchain import load as langchain_load
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
+from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
+                               PromptTemplate)
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import Runnable, RunnableMap
