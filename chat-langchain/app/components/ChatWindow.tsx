@@ -10,7 +10,9 @@ import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 
+import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { applyPatch } from "fast-json-patch";
+
 import "react-toastify/dist/ReactToastify.css";
 import {
   Heading,
@@ -55,30 +57,6 @@ export function ChatWindow(props: {
       { id: Math.random().toString(), content: messageValue, role: "user" },
     ]);
     setIsLoading(true);
-    let response;
-    try {
-      response = await fetch(apiBaseUrl + "/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: messageValue,
-          history: chatHistory,
-          conversation_id: conversationId,
-        }),
-      });
-    } catch (e) {
-      setMessages((prevMessages) => prevMessages.slice(0, -1));
-      setIsLoading(false);
-      setInput(messageValue);
-      throw e;
-    }
-    if (!response.body) {
-      throw new Error("Response body is null");
-    }
-    const reader = response.body.getReader();
-    let decoder = new TextDecoder();
 
     let streamedResponse: Record<string, any> = {};
     let accumulatedMessage = "";
@@ -107,71 +85,83 @@ export function ChatWindow(props: {
       return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; display: block; line-height: 1.2"><code class="${language}" style="color: #d6e2ef; font-size: 12px; ">${highlightedCode}</code></pre>`;
     };
     marked.setOptions({ renderer });
-
-    reader
-      .read()
-      .then(function processText(
-        res: ReadableStreamReadResult<Uint8Array>,
-      ): Promise<void> {
-        const { done, value } = res;
-        if (done) {
-          setChatHistory((prevChatHistory) => [
-            ...prevChatHistory,
-            { human: messageValue, ai: accumulatedMessage },
-          ]);
-          return Promise.resolve();
-        }
-        const chunks = decoder.decode(value).trim().split("\n");
-        for (const chunk of chunks) {
-          const parsedChunk = JSON.parse(chunk.trim());
-          if (parsedChunk.ops) {
+    try {
+      const sourceStepName = "FindDocs";
+      await fetchEventSource(apiBaseUrl + "/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: messageValue,
+          history: chatHistory,
+          conversation_id: conversationId,
+        }),
+        onerror(err) {
+          throw err;
+        },
+        onmessage(msg) {
+          if (msg.event === "end") {
+            setChatHistory((prevChatHistory) => [
+              ...prevChatHistory,
+              { human: messageValue, ai: accumulatedMessage },
+            ]);
+            setIsLoading(false);
+            return;
+          }
+          if (msg.event === "data" && msg.data) {
+            const chunk = JSON.parse(msg.data);
             streamedResponse = applyPatch(
               streamedResponse,
-              parsedChunk.ops,
+              chunk.ops,
             ).newDocument;
-            accumulatedMessage = (streamedResponse.streamed_output ?? []).join(
-              "",
-            );
-            runId = streamedResponse.id;
-            sources = streamedResponse?.logs?.[
-              "FindDocs"
-            ]?.final_output?.output?.map(
-              (doc: { metadata: Record<string, any> }) => {
-                return {
-                  url: doc.metadata.source,
-                  title: doc.metadata.title,
-                };
-              },
-            );
-          }
-        }
+            if (
+              Array.isArray(
+                streamedResponse?.logs?.[sourceStepName]?.final_output?.output,
+              )
+            ) {
+              sources = streamedResponse.logs[
+                sourceStepName
+              ].final_output.output.map((doc: Record<string, any>) => ({
+                url: doc.metadata.source,
+                title: doc.metadata.title,
+              }));
+            }
+            if (streamedResponse.id !== undefined) {
+              runId = streamedResponse.id;
+            }
+            if (Array.isArray(streamedResponse?.streamed_output)) {
+              accumulatedMessage = streamedResponse.streamed_output.join("");
+            }
+            const parsedResult = marked.parse(accumulatedMessage);
 
-        let parsedResult = marked.parse(accumulatedMessage);
-
-        setMessages((prevMessages) => {
-          let newMessages = [...prevMessages];
-          if (messageIndex === null) {
-            messageIndex = newMessages.length;
-            newMessages.push({
-              id: Math.random().toString(),
-              content: parsedResult.trim(),
-              runId: runId,
-              sources: sources,
-              role: "assistant",
+            setMessages((prevMessages) => {
+              let newMessages = [...prevMessages];
+              if (messageIndex === null) {
+                messageIndex = newMessages.length;
+                newMessages.push({
+                  id: Math.random().toString(),
+                  content: parsedResult.trim(),
+                  runId: runId,
+                  sources: sources,
+                  role: "assistant",
+                });
+              } else {
+                newMessages[messageIndex].content = parsedResult.trim();
+                newMessages[messageIndex].runId = runId;
+                newMessages[messageIndex].sources = sources;
+              }
+              return newMessages;
             });
-          } else {
-            newMessages[messageIndex].content = parsedResult.trim();
-            newMessages[messageIndex].runId = runId;
-            newMessages[messageIndex].sources = sources;
           }
-          return newMessages;
-        });
-        setIsLoading(false);
-        return reader.read().then(processText);
-      })
-      .catch((error) => {
-        console.error("Error:", error);
+        },
       });
+    } catch (e) {
+      setMessages((prevMessages) => prevMessages.slice(0, -1));
+      setIsLoading(false);
+      setInput(messageValue);
+      throw e;
+    }
   };
 
   const sendInitialQuestion = async (question: string) => {

@@ -42,6 +42,9 @@ of the sentence or paragraph that reference them - do not put them all at the en
 different results refer to different entities within the same name, write separate \
 answers for each entity.
 
+You should use bullet points in your answer for readability. Put citations where they apply
+rather than putting them all at the end.
+
 If there is nothing in the context relevant to the question at hand, just say "Hmm, \
 I'm not sure." Don't try to make up an answer.
 
@@ -165,7 +168,8 @@ async def transform_stream_for_client(
     stream: AsyncIterator[RunLogPatch],
 ) -> AsyncIterator[str]:
     async for chunk in stream:
-        yield f"{json.dumps(jsonable_encoder(chunk))}\n"
+        yield f"event: data\ndata: {json.dumps(jsonable_encoder(chunk))}\n\n"
+    yield "event: end\n\n"
 
 
 class ChatRequest(BaseModel):
@@ -209,9 +213,11 @@ async def chat_endpoint(request: ChatRequest):
         },
         config={"metadata": metadata},
         include_names=["FindDocs"],
-        include_tags=["FindDocs"],
     )
-    return StreamingResponse(transform_stream_for_client(stream))
+    return StreamingResponse(
+        transform_stream_for_client(stream),
+        headers={"Content-Type": "text/event-stream"},
+    )
 
 
 @app.post("/feedback")
