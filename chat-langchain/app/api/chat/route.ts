@@ -25,7 +25,12 @@ export const runtime = "edge";
 const RESPONSE_TEMPLATE = `You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
 Generate a comprehensive and informative answer (but no more than 80 words) for a given question based solely on the provided search results (URL and content). You must only use information from the provided search results. Use an unbiased and journalistic tone. Combine search results together into a coherent answer. Do not repeat text. Cite search results using [\${{number}}] notation. Only cite the most relevant results that answer the question accurately. Place these citations at the end of the sentence or paragraph that reference them - do not put them all at the end. If different results refer to different entities within the same name, write separate answers for each entity.
 If there is nothing in the context relevant to the question at hand, just say "Hmm, I'm not sure." Don't try to make up an answer.
+
+You should use bullet points in your answer for readability. Put citations where they apply
+rather than putting them all at the end.
+
 Anything between the following \`context\`  html blocks is retrieved from a knowledge bank, not part of the conversation with the user.
+
 <context>
     {context}
 <context/>
@@ -74,7 +79,7 @@ const createRetrieverChain = (
       llm,
       new StringOutputParser(),
     ]).withConfig({
-      tags: ["CondenseQuestion"],
+      runName: "CondenseQuestion",
     });
     return condenseQuestionChain.pipe(retriever);
   }
@@ -101,7 +106,7 @@ const createChain = (
     llm,
     retriever,
     useChatHistory,
-  ).withConfig({ tags: ["FindDocs"] });
+  ).withConfig({ runName: "FindDocs" });
   const context = new RunnableMap({
     steps: {
       context: RunnableSequence.from([
@@ -115,7 +120,7 @@ const createChain = (
       question: ({ question }) => question,
       chat_history: ({ chat_history }) => chat_history,
     },
-  }).withConfig({ tags: ["RetrieveDocs"] });
+  }).withConfig({ runName: "RetrieveDocs" });
   const prompt = ChatPromptTemplate.fromMessages([
     ["system", RESPONSE_TEMPLATE],
     new MessagesPlaceholder("chat_history"),
@@ -126,7 +131,7 @@ const createChain = (
     .pipe(llm)
     .pipe(new StringOutputParser())
     .withConfig({
-      tags: ["GenerateResponse"],
+      runName: "GenerateResponse",
     });
   return context.pipe(responseSynthesizerChain);
 };
@@ -187,62 +192,29 @@ export async function POST(req: NextRequest) {
         metadata,
       },
       {
-        includeTags: ["FindDocs"],
+        includeNames: ["FindDocs"],
       },
     );
 
     // Only return a selection of output to the frontend
     const textEncoder = new TextEncoder();
     const clientStream = new ReadableStream({
-      async pull(controller) {
-        const { value, done } = await stream.next();
-        if (done) {
-          controller.close();
-        } else if (value) {
-          let hasEnqueued = false;
-          for (const op of value.ops) {
-            if ("value" in op) {
-              if (
-                op.path === "/logs/0/final_output" &&
-                Array.isArray(op.value.output)
-              ) {
-                const allSources = op.value.output.map((doc: Document) => {
-                  return {
-                    url: doc.metadata.source,
-                    title: doc.metadata.title,
-                  };
-                });
-                if (allSources.length) {
-                  const chunk = textEncoder.encode(
-                    JSON.stringify({ sources: allSources }) + "\n",
-                  );
-                  controller.enqueue(chunk);
-                  hasEnqueued = true;
-                }
-              } else if (op.path === "/streamed_output/-") {
-                const chunk = textEncoder.encode(
-                  JSON.stringify({ tok: op.value }) + "\n",
-                );
-                controller.enqueue(chunk);
-                hasEnqueued = true;
-              } else if (op.path === "" && op.op === "replace") {
-                const chunk = textEncoder.encode(
-                  JSON.stringify({ run_id: op.value.id }) + "\n",
-                );
-                controller.enqueue(chunk);
-                hasEnqueued = true;
-              }
-            }
-          }
-          // Pull must always enqueue a value
-          if (!hasEnqueued) {
-            controller.enqueue(textEncoder.encode(""));
-          }
+      async start(controller) {
+        for await (const chunk of stream) {
+          controller.enqueue(
+            textEncoder.encode(
+              "event: data\ndata: " + JSON.stringify(chunk) + "\n\n",
+            ),
+          );
         }
+        controller.enqueue(textEncoder.encode("event: end\n\n"));
+        controller.close();
       },
     });
 
-    return new Response(clientStream);
+    return new Response(clientStream, {
+      headers: { "Content-Type": "text/event-stream" },
+    });
   } catch (e: any) {
     console.log(e);
     return NextResponse.json({ error: e.message }, { status: 500 });
