@@ -137,7 +137,7 @@ export function ChatWindow(props: {
 
             setMessages((prevMessages) => {
               let newMessages = [...prevMessages];
-              if (messageIndex === null) {
+              if (messageIndex === null || newMessages[messageIndex] === undefined) {
                 messageIndex = newMessages.length;
                 newMessages.push({
                   id: Math.random().toString(),
@@ -146,7 +146,7 @@ export function ChatWindow(props: {
                   sources: sources,
                   role: "assistant",
                 });
-              } else {
+              } else if (newMessages[messageIndex] !== undefined) {
                 newMessages[messageIndex].content = parsedResult.trim();
                 newMessages[messageIndex].runId = runId;
                 newMessages[messageIndex].sources = sources;
