@@ -8,12 +8,14 @@ from typing import AsyncIterator, Dict, List, Optional, Sequence
 import langsmith
 import weaviate
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
+from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
+                               PromptTemplate)
 from langchain.schema import Document
 from langchain.schema.language_model import BaseLanguageModel
 from langchain.schema.messages import AIMessage, HumanMessage
@@ -163,25 +165,28 @@ async def transform_stream_for_client(
     stream: AsyncIterator[RunLogPatch],
 ) -> AsyncIterator[str]:
     async for chunk in stream:
-        for op in chunk.ops:
-            if op["path"] == "/logs/0/final_output":
-                all_sources = [
-                    {
-                        "url": doc.metadata["source"],
-                        "title": doc.metadata["title"],
-                    }
-                    for doc in op["value"]["output"]
-                ]
-                if all_sources:
-                    src = {"sources": all_sources}
-                    yield f"{json.dumps(src)}\n"
+        # print(chunk)
+        # print(dict(chunk))
+        yield f"{json.dumps(jsonable_encoder(chunk))}\n"
+        # for op in chunk.ops:
+        #     if op["path"] == "/logs/0/final_output":
+        #         all_sources = [
+        #             {
+        #                 "url": doc.metadata["source"],
+        #                 "title": doc.metadata["title"],
+        #             }
+        #             for doc in op["value"]["output"]
+        #         ]
+        #         if all_sources:
+        #             src = {"sources": all_sources}
+        #             yield f"{json.dumps(src)}\n"
 
-            elif op["path"] == "/streamed_output/-":
-                # Send stream output
-                yield f'{json.dumps({"tok": op["value"]})}\n'
+        #     elif op["path"] == "/streamed_output/-":
+        #         # Send stream output
+        #         yield f'{json.dumps({"tok": op["value"]})}\n'
 
-            elif not op["path"] and op["op"] == "replace":
-                yield f'{json.dumps({"run_id": str(op["value"]["id"])})}\n'
+        #     elif not op["path"] and op["op"] == "replace":
+        #         yield f'{json.dumps({"run_id": str(op["value"]["id"])})}\n'
 
 
 class ChatRequest(BaseModel):
