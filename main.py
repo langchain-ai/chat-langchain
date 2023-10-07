@@ -165,28 +165,7 @@ async def transform_stream_for_client(
     stream: AsyncIterator[RunLogPatch],
 ) -> AsyncIterator[str]:
     async for chunk in stream:
-        # print(chunk)
-        # print(dict(chunk))
         yield f"{json.dumps(jsonable_encoder(chunk))}\n"
-        # for op in chunk.ops:
-        #     if op["path"] == "/logs/0/final_output":
-        #         all_sources = [
-        #             {
-        #                 "url": doc.metadata["source"],
-        #                 "title": doc.metadata["title"],
-        #             }
-        #             for doc in op["value"]["output"]
-        #         ]
-        #         if all_sources:
-        #             src = {"sources": all_sources}
-        #             yield f"{json.dumps(src)}\n"
-
-        #     elif op["path"] == "/streamed_output/-":
-        #         # Send stream output
-        #         yield f'{json.dumps({"tok": op["value"]})}\n'
-
-        #     elif not op["path"] and op["op"] == "replace":
-        #         yield f'{json.dumps({"run_id": str(op["value"]["id"])})}\n'
 
 
 class ChatRequest(BaseModel):
