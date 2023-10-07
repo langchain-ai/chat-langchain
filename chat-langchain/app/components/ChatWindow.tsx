@@ -10,6 +10,7 @@ import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 
+import { applyPatch } from "fast-json-patch";
 import "react-toastify/dist/ReactToastify.css";
 import {
   Heading,
@@ -79,6 +80,7 @@ export function ChatWindow(props: {
     const reader = response.body.getReader();
     let decoder = new TextDecoder();
 
+    let streamedResponse: Record<string, any> = {};
     let accumulatedMessage = "";
     let runId: string | undefined = undefined;
     let sources: Source[] | undefined = undefined;
@@ -119,21 +121,30 @@ export function ChatWindow(props: {
           ]);
           return Promise.resolve();
         }
-
-        decoder
-          .decode(value)
-          .trim()
-          .split("\n")
-          .map((s) => {
-            let parsed = JSON.parse(s);
-            if ("tok" in parsed) {
-              accumulatedMessage += parsed.tok;
-            } else if ("run_id" in parsed) {
-              runId = parsed.run_id;
-            } else if ("sources" in parsed) {
-              sources = parsed.sources as Source[];
-            }
-          });
+        const chunks = decoder.decode(value).trim().split("\n");
+        for (const chunk of chunks) {
+          const parsedChunk = JSON.parse(chunk.trim());
+          if (parsedChunk.ops) {
+            streamedResponse = applyPatch(
+              streamedResponse,
+              parsedChunk.ops,
+            ).newDocument;
+            accumulatedMessage = (streamedResponse.streamed_output ?? []).join(
+              "",
+            );
+            runId = streamedResponse.id;
+            sources = streamedResponse?.logs?.[
+              "FindDocs"
+            ]?.final_output?.output?.map(
+              (doc: { metadata: Record<string, any> }) => {
+                return {
+                  url: doc.metadata.source,
+                  title: doc.metadata.title,
+                };
+              },
+            );
+          }
+        }
 
         let parsedResult = marked.parse(accumulatedMessage);
 
@@ -203,7 +214,8 @@ export function ChatWindow(props: {
         <AutoResizeTextarea
           value={input}
           maxRows={5}
-          rounded={"md"}
+          rounded={"full"}
+          marginRight={"56px"}
           placeholder="What is LangChain Expression Language?"
           textColor={"white"}
           borderColor={"rgb(58, 58, 61)"}
@@ -218,7 +230,7 @@ export function ChatWindow(props: {
             }
           }}
         />
-        <InputRightElement h="full" paddingRight={"15px"}>
+        <InputRightElement h="full">
           <IconButton
             colorScheme="blue"
             rounded={"full"}

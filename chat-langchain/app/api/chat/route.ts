@@ -74,7 +74,7 @@ const createRetrieverChain = (
       llm,
       new StringOutputParser(),
     ]).withConfig({
-      tags: ["CondenseQuestion"],
+      runName: "CondenseQuestion",
     });
     return condenseQuestionChain.pipe(retriever);
   }
@@ -101,7 +101,7 @@ const createChain = (
     llm,
     retriever,
     useChatHistory,
-  ).withConfig({ tags: ["FindDocs"] });
+  ).withConfig({ runName: "FindDocs" });
   const context = new RunnableMap({
     steps: {
       context: RunnableSequence.from([
@@ -115,7 +115,7 @@ const createChain = (
       question: ({ question }) => question,
       chat_history: ({ chat_history }) => chat_history,
     },
-  }).withConfig({ tags: ["RetrieveDocs"] });
+  }).withConfig({ runName: "RetrieveDocs" });
   const prompt = ChatPromptTemplate.fromMessages([
     ["system", RESPONSE_TEMPLATE],
     new MessagesPlaceholder("chat_history"),
@@ -126,7 +126,7 @@ const createChain = (
     .pipe(llm)
     .pipe(new StringOutputParser())
     .withConfig({
-      tags: ["GenerateResponse"],
+      runName: "GenerateResponse",
     });
   return context.pipe(responseSynthesizerChain);
 };
@@ -187,57 +187,16 @@ export async function POST(req: NextRequest) {
         metadata,
       },
       {
-        includeTags: ["FindDocs"],
+        includeNames: ["FindDocs"],
       },
     );
 
     // Only return a selection of output to the frontend
     const textEncoder = new TextEncoder();
     const clientStream = new ReadableStream({
-      async pull(controller) {
-        const { value, done } = await stream.next();
-        if (done) {
-          controller.close();
-        } else if (value) {
-          let hasEnqueued = false;
-          for (const op of value.ops) {
-            if ("value" in op) {
-              if (
-                op.path === "/logs/0/final_output" &&
-                Array.isArray(op.value.output)
-              ) {
-                const allSources = op.value.output.map((doc: Document) => {
-                  return {
-                    url: doc.metadata.source,
-                    title: doc.metadata.title,
-                  };
-                });
-                if (allSources.length) {
-                  const chunk = textEncoder.encode(
-                    JSON.stringify({ sources: allSources }) + "\n",
-                  );
-                  controller.enqueue(chunk);
-                  hasEnqueued = true;
-                }
-              } else if (op.path === "/streamed_output/-") {
-                const chunk = textEncoder.encode(
-                  JSON.stringify({ tok: op.value }) + "\n",
-                );
-                controller.enqueue(chunk);
-                hasEnqueued = true;
-              } else if (op.path === "" && op.op === "replace") {
-                const chunk = textEncoder.encode(
-                  JSON.stringify({ run_id: op.value.id }) + "\n",
-                );
-                controller.enqueue(chunk);
-                hasEnqueued = true;
-              }
-            }
-          }
-          // Pull must always enqueue a value
-          if (!hasEnqueued) {
-            controller.enqueue(textEncoder.encode(""));
-          }
+      async start(controller) {
+        for await (const chunk of stream) {
+          controller.enqueue(textEncoder.encode(JSON.stringify(chunk) + "\n"));
         }
       },
     });

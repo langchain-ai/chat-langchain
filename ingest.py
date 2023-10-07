@@ -10,7 +10,8 @@ from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
+from langchain.utils.html import (PREFIXES_TO_IGNORE_REGEX,
+                                  SUFFIXES_TO_IGNORE_REGEX)
 from langchain.vectorstores import Weaviate
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
