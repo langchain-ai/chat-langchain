@@ -32,7 +32,7 @@
     "langsmith": "^0.0.41",
     "marked": "^7.0.2",
     "next": "13.5.4",
-    "postcss": "8.4.27",
+    "postcss": "8.4.31",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-textarea-autosize": "^8.5.3",
