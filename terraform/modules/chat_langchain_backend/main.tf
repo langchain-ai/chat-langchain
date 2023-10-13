@@ -1,13 +1,13 @@
 # Common environment variables
 locals {
   env_vars = {
-    OPENAI_API_KEY = var.openai_api_key
-    WEAVIATE_URL = var.weaviate_url
-    WEAVIATE_API_KEY = var.weaviate_api_key
+    OPENAI_API_KEY       = var.openai_api_key
+    WEAVIATE_URL         = var.weaviate_url
+    WEAVIATE_API_KEY     = var.weaviate_api_key
     LANGCHAIN_TRACING_V2 = true
-    LANGCHAIN_ENDPOINT = "https://api.smith.langchain.com"
-    LANGCHAIN_API_KEY = var.langsmith_api_key
-    LANGCHAIN_PROJECT = var.langchain_project
+    LANGCHAIN_ENDPOINT   = "https://api.smith.langchain.com"
+    LANGCHAIN_API_KEY    = var.langsmith_api_key
+    LANGCHAIN_PROJECT    = var.langchain_project
   }
 }
 
