@@ -25,4 +25,5 @@ module "chat_langchain_backend" {
   openai_api_key              = local.secret_json["openai_api_key"]
   weaviate_api_key            = local.secret_json["weaviate_api_key"]
   weaviate_url                = local.secret_json["weaviate_url"]
+  langsmith_api_key           = local.secret_json["langsmith_api_key"]
 }
