@@ -61,7 +61,7 @@ variable "max_instance_count" {
   default     = 50
 }
 
-variable max_instance_request_concurrency {
+variable "max_instance_request_concurrency" {
   description = "Maximum number of requests to process concurrently per instance"
   type        = number
   default     = 50
