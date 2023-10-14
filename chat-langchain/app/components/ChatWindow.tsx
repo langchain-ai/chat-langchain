@@ -58,7 +58,6 @@ export function ChatWindow(props: {
     ]);
     setIsLoading(true);
 
-    let streamedResponse: Record<string, any> = {};
     let accumulatedMessage = "";
     let runId: string | undefined = undefined;
     let sources: Source[] | undefined = undefined;
@@ -87,15 +86,24 @@ export function ChatWindow(props: {
     marked.setOptions({ renderer });
     try {
       const sourceStepName = "FindDocs";
-      await fetchEventSource(apiBaseUrl + "/chat", {
+      let streamedResponse: Record<string, any> = {};
+      await fetchEventSource(apiBaseUrl + "/chat/stream_log", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "text/event-stream",
         },
         body: JSON.stringify({
-          message: messageValue,
-          history: chatHistory,
-          conversation_id: conversationId,
+          input: {
+            question: messageValue,
+            chat_history: chatHistory,
+          },
+          config: {
+            metadata: {
+              conversation_id: conversationId,
+            },
+          },
+          include_names: [sourceStepName],
         }),
         onerror(err) {
           throw err;
@@ -137,7 +145,10 @@ export function ChatWindow(props: {
 
             setMessages((prevMessages) => {
               let newMessages = [...prevMessages];
-              if (messageIndex === null || newMessages[messageIndex] === undefined) {
+              if (
+                messageIndex === null ||
+                newMessages[messageIndex] === undefined
+              ) {
                 messageIndex = newMessages.length;
                 newMessages.push({
                   id: Math.random().toString(),

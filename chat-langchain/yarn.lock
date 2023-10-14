@@ -3008,10 +3008,10 @@ keyv@^4.5.3:
   dependencies:
     json-buffer "3.0.1"
 
-langchain@^0.0.162:
-  version "0.0.162"
-  resolved "https://registry.yarnpkg.com/langchain/-/langchain-0.0.162.tgz#fc48be643c5fec4fdd32945fda3dedd260a1071a"
-  integrity sha512-b8LfCpGarsdMM1MDTIZsVg/U5DfV9uxFvzJwYSCnMJ7YWfPgTI6W8c/zYMc532jnoU3bUmax2JLXsDLH6IgnPg==
+langchain@^0.0.166:
+  version "0.0.166"
+  resolved "https://registry.yarnpkg.com/langchain/-/langchain-0.0.166.tgz#f1a11d8d9a8be105d7131f99c2cfabd3e525eb87"
+  integrity sha512-ZO3hwZmvMaeR2bcGJGjyt8llCkzeGVso0c1KAj+StHZhf/piDgRMlxEL+4Hb8iFVCZboT228MY7xdgjaSGDMsg==
   dependencies:
     "@anthropic-ai/sdk" "^0.6.2"
     ansi-styles "^5.0.0"
