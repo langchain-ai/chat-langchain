@@ -4,9 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 import type { BaseLanguageModel } from "langchain/base_language";
 import type { Document } from "langchain/document";
-import type { BaseRetriever } from "langchain/schema/retriever";
 
-import { RunnableSequence, RunnableMap } from "langchain/schema/runnable";
+import {
+  Runnable,
+  RunnableSequence,
+  RunnableMap,
+  RunnableBranch,
+  RunnableLambda,
+} from "langchain/schema/runnable";
 import { HumanMessage, AIMessage, BaseMessage } from "langchain/schema";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import { StringOutputParser } from "langchain/schema/output_parser";
@@ -44,6 +49,11 @@ Chat History:
 Follow Up Input: {question}
 Standalone Question:`;
 
+type RetrievalChainInput = {
+  chat_history: string;
+  question: string;
+};
+
 const getRetriever = async () => {
   const client = weaviate.client({
     scheme: "https",
@@ -62,27 +72,39 @@ const getRetriever = async () => {
   return vectorstore.asRetriever({ k: 6 });
 };
 
-const createRetrieverChain = (
-  llm: BaseLanguageModel,
-  retriever: BaseRetriever,
-  useChatHistory: boolean,
-) => {
+const createRetrieverChain = (llm: BaseLanguageModel, retriever: Runnable) => {
   // Small speed/accuracy optimization: no need to rephrase the first question
   // since there shouldn't be any meta-references to prior chat history
-  if (!useChatHistory) {
-    return RunnableSequence.from([({ question }) => question, retriever]);
-  } else {
-    const CONDENSE_QUESTION_PROMPT =
-      PromptTemplate.fromTemplate(REPHRASE_TEMPLATE);
-    const condenseQuestionChain = RunnableSequence.from([
-      CONDENSE_QUESTION_PROMPT,
-      llm,
-      new StringOutputParser(),
-    ]).withConfig({
-      runName: "CondenseQuestion",
-    });
-    return condenseQuestionChain.pipe(retriever);
-  }
+  const CONDENSE_QUESTION_PROMPT =
+    PromptTemplate.fromTemplate(REPHRASE_TEMPLATE);
+  const condenseQuestionChain = RunnableSequence.from([
+    CONDENSE_QUESTION_PROMPT,
+    llm,
+    new StringOutputParser(),
+  ]).withConfig({
+    runName: "CondenseQuestion",
+  });
+  const hasHistoryCheckFn = RunnableLambda.from(
+    (input: RetrievalChainInput) => input.chat_history.length > 0,
+  ).withConfig({ runName: "HasChatHistoryCheck" });
+  const conversationChain = condenseQuestionChain.pipe(retriever).withConfig({
+    runName: "RetrievalChainWithHistory",
+  });
+  const basicRetrievalChain = RunnableLambda.from(
+    (input: RetrievalChainInput) => input.question,
+  )
+    .withConfig({
+      runName: "Itemgetter:question",
+    })
+    .pipe(retriever)
+    .withConfig({ runName: "RetrievalChainWithNoHistory" });
+
+  return RunnableBranch.from([
+    [hasHistoryCheckFn, conversationChain],
+    basicRetrievalChain,
+  ]).withConfig({
+    runName: "FindDocs",
+  });
 };
 
 const formatDocs = (docs: Document[]) => {
@@ -97,83 +119,85 @@ const formatChatHistoryAsString = (history: BaseMessage[]) => {
     .join("\n");
 };
 
-const createChain = (
-  llm: BaseLanguageModel,
-  retriever: BaseRetriever,
-  useChatHistory: boolean,
-) => {
-  const retrieverChain = createRetrieverChain(
-    llm,
-    retriever,
-    useChatHistory,
-  ).withConfig({ runName: "FindDocs" });
-  const context = new RunnableMap({
-    steps: {
-      context: RunnableSequence.from([
-        ({ question, chat_history }) => ({
-          question,
-          chat_history: formatChatHistoryAsString(chat_history),
-        }),
-        retrieverChain,
-        formatDocs,
-      ]),
-      question: ({ question }) => question,
-      chat_history: ({ chat_history }) => chat_history,
-    },
-  }).withConfig({ runName: "RetrieveDocs" });
+const serializeHistory = (input: any) => {
+  const chatHistory = input.chat_history || [];
+  const convertedChatHistory = [];
+  for (const message of chatHistory) {
+    if (message.human !== undefined) {
+      convertedChatHistory.push(new HumanMessage({ content: message.human }));
+    }
+    if (message["ai"] !== undefined) {
+      convertedChatHistory.push(new AIMessage({ content: message.ai }));
+    }
+  }
+  return convertedChatHistory;
+};
+
+const createChain = (llm: BaseLanguageModel, retriever: Runnable) => {
+  const retrieverChain = createRetrieverChain(llm, retriever);
+  const context = RunnableMap.from({
+    context: RunnableSequence.from([
+      ({ question, chat_history }) => ({
+        question,
+        chat_history: formatChatHistoryAsString(chat_history),
+      }),
+      retrieverChain,
+      RunnableLambda.from(formatDocs).withConfig({
+        runName: "FormatDocumentChunks",
+      }),
+    ]),
+    question: RunnableLambda.from(
+      (input: RetrievalChainInput) => input.question,
+    ).withConfig({
+      runName: "Itemgetter:question",
+    }),
+    chat_history: RunnableLambda.from(
+      (input: RetrievalChainInput) => input.chat_history,
+    ).withConfig({
+      runName: "Itemgetter:chat_history",
+    }),
+  }).withConfig({ tags: ["RetrieveDocs"] });
   const prompt = ChatPromptTemplate.fromMessages([
     ["system", RESPONSE_TEMPLATE],
     new MessagesPlaceholder("chat_history"),
     ["human", "{question}"],
   ]);
 
-  const responseSynthesizerChain = prompt
-    .pipe(llm)
-    .pipe(new StringOutputParser())
-    .withConfig({
-      runName: "GenerateResponse",
-    });
-  return context.pipe(responseSynthesizerChain);
+  const responseSynthesizerChain = RunnableSequence.from([
+    prompt,
+    llm,
+    new StringOutputParser(),
+  ]).withConfig({
+    tags: ["GenerateResponse"],
+  });
+  return RunnableSequence.from([
+    {
+      question: RunnableLambda.from(
+        (input: RetrievalChainInput) => input.question,
+      ).withConfig({
+        runName: "Itemgetter:question",
+      }),
+      chat_history: RunnableLambda.from(serializeHistory).withConfig({
+        runName: "SerializeHistory",
+      }),
+    },
+    context,
+    responseSynthesizerChain,
+  ]);
 };
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const question = body.message;
-    const chatHistory = (Array.isArray(body.history) && body.history) ?? [];
-    const conversationId = body.conversation_id;
+    const input = body.input;
+    const config = body.config;
 
-    if (question === undefined || typeof question !== "string") {
-      return NextResponse.json(
-        { error: `Invalid "message" parameter.` },
-        { status: 400 },
-      );
-    }
-
-    const convertedChatHistory = [];
-    for (const historyMessage of chatHistory) {
-      if (historyMessage.human) {
-        convertedChatHistory.push(
-          new HumanMessage({ content: historyMessage.human }),
-        );
-      } else if (historyMessage.ai) {
-        convertedChatHistory.push(
-          new AIMessage({ content: historyMessage.ai }),
-        );
-      }
-    }
-
-    const metadata = { conversation_id: conversationId };
     const llm = new ChatOpenAI({
       modelName: "gpt-3.5-turbo-16k",
       temperature: 0,
     });
     const retriever = await getRetriever();
-    const answerChain = createChain(
-      llm,
-      retriever,
-      !!convertedChatHistory.length,
-    );
+    const answerChain = createChain(llm, retriever);
 
     /**
      * Narrows streamed log output down to final output and the FindDocs tagged chain to
@@ -183,18 +207,9 @@ export async function POST(req: NextRequest) {
      * you can pass directly to the Response as well:
      * https://js.langchain.com/docs/expression_language/interface#stream
      */
-    const stream = await answerChain.streamLog(
-      {
-        question,
-        chat_history: convertedChatHistory,
-      },
-      {
-        metadata,
-      },
-      {
-        includeNames: ["FindDocs"],
-      },
-    );
+    const stream = await answerChain.streamLog(input, config, {
+      includeNames: body.include_names,
+    });
 
     // Only return a selection of output to the frontend
     const textEncoder = new TextEncoder();

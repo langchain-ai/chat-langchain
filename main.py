@@ -1,17 +1,13 @@
 """Main entrypoint for the app."""
 import asyncio
-import json
 import os
 from operator import itemgetter
-from typing import AsyncIterator, Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 import langsmith
 import weaviate
 from fastapi import FastAPI, Request
-from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from langchain.callbacks.tracers.log_stream import RunLogPatch
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
@@ -21,8 +17,10 @@ from langchain.schema.language_model import BaseLanguageModel
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import Runnable, RunnableMap
+from langchain.schema.runnable import (Runnable, RunnableBranch,
+                                       RunnableLambda, RunnableMap)
 from langchain.vectorstores import Weaviate
+from langserve import add_routes
 from langsmith import Client
 from pydantic import BaseModel
 
@@ -88,6 +86,11 @@ WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
 
+class ChatRequest(BaseModel):
+    question: str
+    chat_history: Optional[List[Dict[str, str]]]
+
+
 def get_retriever() -> BaseRetriever:
     weaviate_client = weaviate.Client(
         url=WEAVIATE_URL,
@@ -105,26 +108,29 @@ def get_retriever() -> BaseRetriever:
 
 
 def create_retriever_chain(
-    llm: BaseLanguageModel, retriever: BaseRetriever, use_chat_history: bool
+    llm: BaseLanguageModel, retriever: BaseRetriever
 ) -> Runnable:
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
-    if not use_chat_history:
-        initial_chain = (itemgetter("question")) | retriever
-        return initial_chain
-    else:
-        condense_question_chain = (
-            {
-                "question": itemgetter("question"),
-                "chat_history": itemgetter("chat_history"),
-            }
-            | CONDENSE_QUESTION_PROMPT
-            | llm
-            | StrOutputParser()
-        ).with_config(
-            run_name="CondenseQuestion",
-        )
-        conversation_chain = condense_question_chain | retriever
-        return conversation_chain
+    condense_question_chain = (
+        CONDENSE_QUESTION_PROMPT | llm | StrOutputParser()
+    ).with_config(
+        run_name="CondenseQuestion",
+    )
+    conversation_chain = condense_question_chain | retriever
+    return RunnableBranch(
+        (
+            RunnableLambda(lambda x: bool(x.get("chat_history"))).with_config(
+                run_name="HasChatHistoryCheck"
+            ),
+            conversation_chain.with_config(run_name="RetrievalChainWithHistory"),
+        ),
+        (
+            RunnableLambda(itemgetter("question")).with_config(
+                run_name="Itemgetter:question"
+            )
+            | retriever
+        ).with_config(run_name="RetrievalChainWithNoHistory"),
+    ).with_config(run_name="RouteDependingOnChatHistory")
 
 
 def format_docs(docs: Sequence[Document]) -> str:
@@ -135,13 +141,24 @@ def format_docs(docs: Sequence[Document]) -> str:
     return "\n".join(formatted_docs)
 
 
+def serialize_history(request: ChatRequest):
+    chat_history = request["chat_history"] or []
+    converted_chat_history = []
+    for message in chat_history:
+        if message.get("human") is not None:
+            converted_chat_history.append(HumanMessage(content=message["human"]))
+        if message.get("ai") is not None:
+            converted_chat_history.append(AIMessage(content=message["ai"]))
+    return converted_chat_history
+
+
 def create_chain(
     llm: BaseLanguageModel,
     retriever: BaseRetriever,
-    use_chat_history: bool = False,
 ) -> Runnable:
     retriever_chain = create_retriever_chain(
-        llm, retriever, use_chat_history
+        llm,
+        retriever,
     ).with_config(run_name="FindDocs")
     _context = RunnableMap(
         {
@@ -161,63 +178,33 @@ def create_chain(
     response_synthesizer = (prompt | llm | StrOutputParser()).with_config(
         run_name="GenerateResponse",
     )
-    return _context | response_synthesizer
-
-
-async def transform_stream_for_client(
-    stream: AsyncIterator[RunLogPatch],
-) -> AsyncIterator[str]:
-    async for chunk in stream:
-        yield f"event: data\ndata: {json.dumps(jsonable_encoder(chunk))}\n\n"
-    yield "event: end\n\n"
-
-
-class ChatRequest(BaseModel):
-    message: str
-    history: Optional[List[Dict[str, str]]]
-    conversation_id: Optional[str]
-
-
-@app.post("/chat")
-async def chat_endpoint(request: ChatRequest):
-    global trace_url
-    trace_url = None
-    question = request.message
-    chat_history = request.history or []
-    converted_chat_history = []
-    for message in chat_history:
-        if message.get("human") is not None:
-            converted_chat_history.append(HumanMessage(content=message["human"]))
-        if message.get("ai") is not None:
-            converted_chat_history.append(AIMessage(content=message["ai"]))
-
-    metadata = {
-        "conversation_id": request.conversation_id,
-    }
-
-    llm = ChatOpenAI(
-        model="gpt-3.5-turbo-16k",
-        streaming=True,
-        temperature=0,
-    )
-    retriever = get_retriever()
-    answer_chain = create_chain(
-        llm,
-        retriever,
-        use_chat_history=bool(converted_chat_history),
-    )
-    stream = answer_chain.astream_log(
+    return (
         {
-            "question": question,
-            "chat_history": converted_chat_history,
-        },
-        config={"metadata": metadata},
-        include_names=["FindDocs"],
+            "question": RunnableLambda(itemgetter("question")).with_config(
+                run_name="Itemgetter:question"
+            ),
+            "chat_history": RunnableLambda(serialize_history).with_config(
+                run_name="SerializeHistory"
+            ),
+        }
+        | _context
+        | response_synthesizer
     )
-    return StreamingResponse(
-        transform_stream_for_client(stream),
-        headers={"Content-Type": "text/event-stream"},
-    )
+
+
+llm = ChatOpenAI(
+    model="gpt-3.5-turbo-16k",
+    streaming=True,
+    temperature=0,
+)
+retriever = get_retriever()
+answer_chain = create_chain(
+    llm,
+    retriever,
+)
+
+
+add_routes(app, answer_chain, path="/chat", input_type=ChatRequest)
 
 
 @app.post("/feedback")
