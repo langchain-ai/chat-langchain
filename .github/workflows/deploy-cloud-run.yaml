@@ -2,7 +2,7 @@ name: Build, Push, and Deploy Chat Langchain Backend
 
 on:
   push:
-    branches: [main, infra/autodeploy-backend]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -47,7 +47,7 @@ jobs:
       run: |
         cd deployments/environments/langchain/chat-langchain
         # Modify the main.tf terraform file
-        sed -i "s|image_tag  = \"docker.io/langchain/chat-langchain-backend:[^\"]*\"|image_tag  = \"docker.io/langchain/chat-langchain-backend:${{ env.GIT_SHORT_SHA }}\"|" main.tf
+        sed -i "s|image_tag                   = \"docker.io/langchain/chat-langchain-backend:[^\"]*\"|image_tag                   = \"docker.io/langchain/chat-langchain-backend:${{ env.GIT_SHORT_SHA }}\"|" main.tf
 
     - name: Create Pull Request
       id: create-pr
