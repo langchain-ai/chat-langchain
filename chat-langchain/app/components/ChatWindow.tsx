@@ -105,6 +105,7 @@ export function ChatWindow(props: {
           },
           include_names: [sourceStepName],
         }),
+        openWhenHidden: true,
         onerror(err) {
           throw err;
         },
@@ -215,7 +216,6 @@ export function ChatWindow(props: {
         <AutoResizeTextarea
           value={input}
           maxRows={5}
-          rounded={"full"}
           marginRight={"56px"}
           placeholder="What is LangChain Expression Language?"
           textColor={"white"}
