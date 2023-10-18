@@ -1,4 +1,4 @@
-import { MouseEvent, MouseEventHandler } from "react";
+import { MouseEvent } from "react";
 import {
   Heading,
   Link,
@@ -7,7 +7,6 @@ import {
   Flex,
   Spacer,
 } from "@chakra-ui/react";
-import { ExternalLinkIcon } from "@chakra-ui/icons";
 
 export function EmptyState(props: { onChoice: (question: string) => any }) {
   const handleClick = (e: MouseEvent) => {
