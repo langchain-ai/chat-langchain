@@ -356,8 +356,9 @@ export function ChatMessageBubble(props: {
               }}
               isLoading={traceIsLoading}
               loadingText="🔄"
+              color="white"
             >
-              🛠️🔗
+              🦜🛠️ View trace
             </Button>
           </HStack>
         )}
