@@ -1,5 +1,5 @@
 // JS backend not used by default, see README for instructions.
-
+import { SecretStr } from "pydantic" 
 import { NextRequest, NextResponse } from "next/server";
 
 import type { BaseLanguageModel } from "langchain/base_language";
@@ -26,6 +26,7 @@ import { WeaviateStore } from "langchain/vectorstores/weaviate";
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 
 export const runtime = "edge";
+const weaviateApiKey = new SecretStr(process.env.WEAVIATE_API_KEY!)
 
 const RESPONSE_TEMPLATE = `You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
 Generate a comprehensive and informative answer (but no more than 80 words) for a given question based solely on the provided search results (URL and content). You must only use information from the provided search results. Use an unbiased and journalistic tone. Combine search results together into a coherent answer. Do not repeat text. Cite search results using [\${{number}}] notation. Only cite the most relevant results that answer the question accurately. Place these citations at the end of the sentence or paragraph that reference them - do not put them all at the end. If different results refer to different entities within the same name, write separate answers for each entity.
@@ -58,7 +59,7 @@ const getRetriever = async () => {
   const client = weaviate.client({
     scheme: "https",
     host: process.env.WEAVIATE_HOST!,
-    apiKey: new weaviate.ApiKey(process.env.WEAVIATE_API_KEY!),
+    apiKey: new weaviate.ApiKey(weaviate_api_key.get_secret_value()),
   });
   const vectorstore = await WeaviateStore.fromExistingIndex(
     new OpenAIEmbeddings({}),
