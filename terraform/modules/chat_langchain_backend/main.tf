@@ -4,6 +4,8 @@ locals {
     OPENAI_API_KEY       = var.openai_api_key
     WEAVIATE_URL         = var.weaviate_url
     WEAVIATE_API_KEY     = var.weaviate_api_key
+    VOYAGE_AI_MODEL      = var.voyage_ai_model
+    VOYAGE_AI_URL        = var.voyage_ai_url
     LANGCHAIN_TRACING_V2 = true
     LANGCHAIN_ENDPOINT   = "https://api.smith.langchain.com"
     LANGCHAIN_API_KEY    = var.langsmith_api_key
