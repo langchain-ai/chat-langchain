@@ -10,15 +10,18 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
-                               PromptTemplate)
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain.schema import Document
 from langchain.schema.language_model import BaseLanguageModel
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import (Runnable, RunnableBranch,
-                                       RunnableLambda, RunnableMap)
+from langchain.schema.runnable import (
+    Runnable,
+    RunnableBranch,
+    RunnableLambda,
+    RunnableMap,
+)
 from langchain.vectorstores import Weaviate
 from langserve import add_routes
 from langsmith import Client
