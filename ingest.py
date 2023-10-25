@@ -9,11 +9,13 @@ from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
+from langchain.schema.embeddings import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain.vectorstores import Weaviate
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
+from voyage import VoyageEmbeddings
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +78,12 @@ def load_api_docs():
     ).load()
 
 
+def get_embeddings_model() -> Embeddings:
+    if os.environ.get("VOYAGE_AI_URL") and os.environ.get("VOYAGE_AI_MODEL"):
+        return VoyageEmbeddings()
+    return OpenAIEmbeddings(chunk_size=200)
+
+
 def ingest_docs():
     docs_from_documentation = load_langchain_docs()
     logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
@@ -100,9 +108,7 @@ def ingest_docs():
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
-    embedding = OpenAIEmbeddings(
-        chunk_size=200,
-    )  # rate limit
+    embedding = get_embeddings_model()
     vectorstore = Weaviate(
         client=client,
         index_name=WEAVIATE_DOCS_INDEX_NAME,

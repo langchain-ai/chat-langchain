@@ -1,6 +1,10 @@
 # Common environment variables
 locals {
-  env_vars = {
+  voyager_vars = var.voyage_ai_url && var.voyage_ai_model ? {
+    VOYAGE_AI_URL        = var.voyage_ai_url
+    VOYAGE_AI_MODEL      = var.voyage_ai_model
+  }: {}
+  env_vars = merge(local.voyager_vars, {
     OPENAI_API_KEY       = var.openai_api_key
     WEAVIATE_URL         = var.weaviate_url
     WEAVIATE_API_KEY     = var.weaviate_api_key
@@ -8,7 +12,8 @@ locals {
     LANGCHAIN_ENDPOINT   = "https://api.smith.langchain.com"
     LANGCHAIN_API_KEY    = var.langsmith_api_key
     LANGCHAIN_PROJECT    = var.langchain_project
-  }
+    }
+  )
 }
 
 # No auth policy since auth is handled by Supabase or internal API Key auth
