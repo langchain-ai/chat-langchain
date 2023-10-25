@@ -38,6 +38,18 @@ variable "weaviate_api_key" {
   type        = string
 }
 
+variable "voyage_ai_model" {
+  description = "Voyage AI model to use for the backend"
+  type        = string
+  default     = ""
+}
+
+variable "voyage_ai_url" {
+  description = "Voyage AI url to use for the backend"
+  type        = string
+  default     = ""
+}
+
 variable "langsmith_api_key" {
   description = "Langsmith api key to use for the backend"
   type        = string
