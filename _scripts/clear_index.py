@@ -7,13 +7,12 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
 from langchain.vectorstores import Weaviate
 
-from constants import WEAVIATE_DOCS_INDEX_NAME
-
 logger = logging.getLogger(__name__)
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_agent_docs"
 
 
 def clear():
