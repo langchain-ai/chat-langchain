@@ -1,4 +1,4 @@
-name: Clear index
+name: Clear and update index
 
 on:
   workflow_dispatch:
