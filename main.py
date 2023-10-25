@@ -12,6 +12,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain.schema import Document
+from langchain.schema.embeddings import Embeddings
 from langchain.schema.language_model import BaseLanguageModel
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
@@ -28,6 +29,7 @@ from langsmith import Client
 from pydantic import BaseModel
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
+from voyage import VoyageEmbeddings
 
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
@@ -94,6 +96,12 @@ class ChatRequest(BaseModel):
     chat_history: Optional[List[Dict[str, str]]]
 
 
+def get_embeddings_model() -> Embeddings:
+    if os.environ.get("VOYAGE_AI_URL") and os.environ.get("VOYAGE_AI_MODEL"):
+        return VoyageEmbeddings()
+    return OpenAIEmbeddings(chunk_size=200)
+
+
 def get_retriever() -> BaseRetriever:
     weaviate_client = weaviate.Client(
         url=WEAVIATE_URL,
@@ -103,7 +111,7 @@ def get_retriever() -> BaseRetriever:
         client=weaviate_client,
         index_name=WEAVIATE_DOCS_INDEX_NAME,
         text_key="text",
-        embedding=OpenAIEmbeddings(chunk_size=200),
+        embedding=get_embeddings_model(),
         by_text=False,
         attributes=["source", "title"],
     )
