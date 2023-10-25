@@ -1,9 +1,9 @@
 # Common environment variables
 locals {
-  voyager_vars = var.voyage_ai_url && var.voyage_ai_model ? {
-    VOYAGE_AI_URL        = var.voyage_ai_url
-    VOYAGE_AI_MODEL      = var.voyage_ai_model
-  }: {}
+  voyager_vars = var.voyage_ai_url != "" && var.voyage_ai_model != "" ? {
+    VOYAGE_AI_URL   = var.voyage_ai_url
+    VOYAGE_AI_MODEL = var.voyage_ai_model
+  } : {}
   env_vars = merge(local.voyager_vars, {
     OPENAI_API_KEY       = var.openai_api_key
     WEAVIATE_URL         = var.weaviate_url
