@@ -10,19 +10,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
-from langchain.schema import Document
+from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
+                               PromptTemplate)
+from langchain.schema import BaseMessage, Document
 from langchain.schema.embeddings import Embeddings
 from langchain.schema.language_model import BaseLanguageModel
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import (
-    Runnable,
-    RunnableBranch,
-    RunnableLambda,
-    RunnableMap,
-)
+from langchain.schema.runnable import (Runnable, RunnableBranch,
+                                       RunnableLambda, RunnableMap)
 from langchain.vectorstores import Weaviate
 from langserve import add_routes
 from langsmith import Client
@@ -93,7 +90,7 @@ WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
 class ChatRequest(BaseModel):
     question: str
-    chat_history: Optional[List[Dict[str, str]]]
+    chat_history: List[BaseMessage]
 
 
 def get_embeddings_model() -> Embeddings:

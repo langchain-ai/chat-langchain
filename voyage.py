@@ -1,11 +1,10 @@
+import json
 from typing import List, Optional
 
 import requests
-import json
-
 from langchain.schema.embeddings import Embeddings
-from langchain.utils.iter import batch_iterate
 from langchain.utils import get_from_env
+from langchain.utils.iter import batch_iterate
 
 BATCH_SIZE = 6
 

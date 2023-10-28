@@ -10,14 +10,15 @@ python = "^3.10"
 openai = "^0.28.0"
 fastapi = "^0.103.1"
 pydantic = "1.10"
-langchain = "^0.0.314"
+langchain = "^0.0.325"
 uvicorn = "^0.23.2"
 beautifulsoup4 = "^4.12.2"
 tiktoken = "^0.4.0"
 weaviate-client = "^3.23.2"
 psycopg2 = "^2.9.7"
 lxml = "^4.9.3"
-langserve = {extras = ["server"], version = "^0.0.8"}
+langserve = "^0.0.19"
+sse-starlette = "^1.6.5"
 
 
 [tool.poetry.group.dev.dependencies]
