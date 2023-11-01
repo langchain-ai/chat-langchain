@@ -26,9 +26,17 @@ app.add_middleware(
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
+INCLUDE_CALLBACK_EVENTS = (
+    os.environ.get("INCLUDE_CALLBACK_EVENTS", "false").lower() == "true"
+)
 
-
-add_routes(app, answer_chain, path="/chat", input_type=ChatRequest)
+add_routes(
+    app,
+    answer_chain,
+    path="/chat",
+    input_type=ChatRequest,
+    include_callback_events=INCLUDE_CALLBACK_EVENTS,
+)
 
 
 @app.post("/feedback")
