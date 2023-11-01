@@ -14,7 +14,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain.vectorstores import Weaviate
 
-from constants import WEAVIATE_DOCS_INDEX_NAME
+from chat_langchain_engine.constants import WEAVIATE_DOCS_INDEX_NAME
 from voyage import VoyageEmbeddings
 
 logger = logging.getLogger(__name__)
