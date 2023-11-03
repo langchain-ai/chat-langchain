@@ -78,3 +78,9 @@ variable "max_instance_request_concurrency" {
   type        = number
   default     = 50
 }
+
+variable "langchain_endpoint" {
+  description = "Endpoint to use for LangSmith tracing"
+  type        = string
+  default     = "https://api.smith.langchain.com"
+}
