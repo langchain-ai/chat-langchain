@@ -44,8 +44,8 @@ variable "voyage_ai_model" {
   default     = ""
 }
 
-variable "voyage_ai_url" {
-  description = "Voyage AI url to use for the backend"
+variable "voyage_api_key" {
+  description = "Voyage API key url to use for the backend"
   type        = string
   default     = ""
 }
