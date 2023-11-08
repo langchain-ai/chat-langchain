@@ -11,11 +11,12 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
 from langchain.schema.embeddings import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
+from langchain.utils.html import (PREFIXES_TO_IGNORE_REGEX,
+                                  SUFFIXES_TO_IGNORE_REGEX)
 from langchain.vectorstores import Weaviate
+from voyage import VoyageEmbeddings
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
-from voyage import VoyageEmbeddings
 
 logger = logging.getLogger(__name__)
 
