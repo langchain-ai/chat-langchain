@@ -1,2 +1,1 @@
-WEAVIATE_DOCS_INDEX_NAME = "DBDocuments"
-
+WEAVIATE_DOCS_INDEX_NAME = "VectorDocuments"
