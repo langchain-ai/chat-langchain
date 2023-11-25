@@ -7,8 +7,9 @@ from uuid import UUID
 
 import langsmith
 import weaviate
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.embeddings.voyageai import VoyageEmbeddings
@@ -28,6 +29,17 @@ from langsmith import Client
 from pydantic import BaseModel
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
+
+class APIKeyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        api_key_header = request.headers.get("X-API-Key")
+        expected_api_key = os.getenv("CHAT_API_KEY")  # Your API Key stored in an environment variable
+
+        if not api_key_header or api_key_header != expected_api_key:
+            raise HTTPException(status_code=401, detail="Invalid or missing API Key")
+
+        response = await call_next(request)
+        return response
 
 RESPONSE_TEMPLATE = """\
 You are an expert Volksbank assistant, tasked with answering any question \
@@ -72,6 +84,7 @@ Standalone Question:"""
 client = Client()
 
 app = FastAPI()
+app.add_middleware(APIKeyMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
