@@ -27,8 +27,12 @@ from langchain.vectorstores import Weaviate
 from langserve import add_routes
 from langsmith import Client
 from pydantic import BaseModel
+from crawler.i3_crawler import i3_crawler
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
+
+class CrawlerRequest(BaseModel):
+    document_id: str
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -300,6 +304,15 @@ async def get_trace(body: GetTraceBody):
             "code": 400,
         }
     return await aget_trace_url(str(run_id))
+
+
+@app.post("/i3-crawler")
+def crawl_document(request: CrawlerRequest):
+    try:
+        scraped_data = i3_crawler(request.document_id)
+        return {"data": scraped_data}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 if __name__ == "__main__":
