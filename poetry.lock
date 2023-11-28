@@ -1833,6 +1833,24 @@ files = [
 diagrams = ["jinja2", "railroad-diagrams"]
 
 [[package]]
+name = "pypdf2"
+version = "3.0.0"
+description = "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "PyPDF2-3.0.0.tar.gz", hash = "sha256:340dcc7fd62ad3dc4a132df13617e9c33f1c4c15379846cb95ef14aec9f106f9"},
+    {file = "pypdf2-3.0.0-py3-none-any.whl", hash = "sha256:6758cf78e913ea4bb49facbc85fb6ae78c91f1991367632a07299c9505c18714"},
+]
+
+[package.extras]
+crypto = ["PyCryptodome"]
+dev = ["black", "flit", "pip-tools", "pre-commit (<2.18.0)", "pytest-cov", "wheel"]
+docs = ["myst_parser", "sphinx", "sphinx_rtd_theme"]
+full = ["Pillow", "PyCryptodome"]
+image = ["Pillow"]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.1"
 description = "YAML parser and emitter for Python"
@@ -2475,4 +2493,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "2c23e5d76610753d84a0110ab0270157a61103f371758e7b12aceff886d557c8"
+content-hash = "04a59b0ec31b437dd0c7502b1ce99a769383d13359b9b0e716fbbc8d902e17fb"
