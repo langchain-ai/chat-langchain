@@ -306,7 +306,7 @@ async def get_trace(body: GetTraceBody):
     return await aget_trace_url(str(run_id))
 
 
-@app.post("/i3-crawler")
+@app.post("/i3_crawler")
 def crawl_document(request: CrawlerRequest):
     try:
         scraped_data = i3_crawler(request.document_id)
