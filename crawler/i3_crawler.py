@@ -105,7 +105,37 @@ def i3_crawler(document_id: str):
             for entry_concept_body in entry_concept_bodies:
                 scraped_text += extract_text_with_formatting(entry_concept_body)
 
-            return scraped_text
+            # Preparing the document for the FastAPI server upload
+            doc_data = doc.to_dict()  # This is the data fetched from Firestore.
+            BEARER_TOKEN = os.environ.get("BEARER_TOKEN")
+            headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
+    
+            document = {
+                'id': document_id,
+                'text': scraped_text,
+                'metadata': {
+                    'source': doc_data.get('source'),
+                    'source_id': doc_data.get('source_id'),
+                    'url': doc_data.get('url'),
+                    'created_at': doc_data.get('created_at'),
+                    'author': doc_data.get('author')
+                }
+            }
+    
+            endpoint_url = "https://chat-retrieval-api-avygm4cpgq-ey.a.run.app/upsert"
+            response = requests.post(endpoint_url, headers=headers, json={"documents": [document]})
+    
+            # Check the response and maybe act upon it
+            if response.status_code == 200:
+                # Update Firestore document with the scraped text
+                try:
+                    doc_ref.update({'newText': scraped_text})
+                except Exception as e:
+                    raise Exception(f"Failed to update Firestore document for Document ID {document_id}. Error: {e}")
+                return response.json()  # Returning the response from the API call
+            else:
+                raise Exception(f"Failed to upload data for Document ID {document_id}. Status: {response.status_code}, Response: {response.json()}")
+
 
     try:
         return scrape_site(document_id)
