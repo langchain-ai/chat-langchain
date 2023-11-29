@@ -1,7 +1,6 @@
 from bs4 import BeautifulSoup
 import requests
 import os
-import main
 import firebase_admin
 from firebase_admin import credentials, firestore
 from fastapi import FastAPI, File, Form, HTTPException, Depends, Body, UploadFile
@@ -143,6 +142,7 @@ async def i3_crawler(document_id: str, db, datastore):
 
             # Call the upsert function
             try:
+                print("Trying to upsert with datastore:", datastore) 
                 upsert_response = await upsert(upsert_request)
                 # Update Firestore document with the scraped text
                 try:
