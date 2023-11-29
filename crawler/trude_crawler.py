@@ -6,13 +6,6 @@ import os
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# Initialize Firebase Admin SDK
-cred = credentials.ApplicationDefault()
-firebase_admin.initialize_app(cred, {
-    'project_id': os.environ.get('GCP_PROJECT')
-})
-db = firestore.client()
-
 def convert_to_pdf_url(target_url: str) -> str:
     match = re.search(r'/incident/(\d+)/?', target_url)
     if match:
