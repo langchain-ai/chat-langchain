@@ -324,7 +324,7 @@ async def get_trace(body: GetTraceBody):
 
 
 @app.post("/i3_crawler")
-def crawl_document(request: CrawlerRequest):
+async def crawl_document(request: CrawlerRequest):
     try:
         respons = i3_crawler(request.document_id, db)
         return respons
