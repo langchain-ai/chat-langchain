@@ -347,6 +347,7 @@ def trude_crawl_endpoint(request: CrawlerRequest):
 async def startup():
     global datastore
     datastore = await get_datastore()
+    print("Datastore initialized:", datastore) 
 
 
 if __name__ == "__main__":
