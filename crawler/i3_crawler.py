@@ -52,7 +52,7 @@ async def i3_crawler(document_id: str, db):
             table_data.append('\t'.join(row_data))
         return '\n'.join(table_data)
 
-    def scrape_site(document_id):
+    async def scrape_site(document_id):
         doc_ref = db.collection('files').document(document_id)
         doc = doc_ref.get()
         if not doc.exists:
@@ -67,6 +67,7 @@ async def i3_crawler(document_id: str, db):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
 
+        # Note: Consider using aiohttp for asynchronous HTTP requests
         with requests.Session() as session:
             response = session.get(login_url, headers=headers)
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -151,7 +152,7 @@ async def i3_crawler(document_id: str, db):
                 raise Exception(f"Failed to upsert data for Document ID {document_id}. Error: {e}")
 
     try:
-        return scrape_site(document_id)
+        return await scrape_site(document_id)
     except Exception as e:
         raise e
 
