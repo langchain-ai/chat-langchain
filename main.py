@@ -27,7 +27,9 @@ from langchain.vectorstores import Weaviate
 from langserve import add_routes
 from langsmith import Client
 from pydantic import BaseModel
+
 from crawler.i3_crawler import i3_crawler
+from crawler.trude_crawler import trude_crawler
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -309,8 +311,17 @@ async def get_trace(body: GetTraceBody):
 @app.post("/i3_crawler")
 def crawl_document(request: CrawlerRequest):
     try:
-        scraped_data = i3_crawler(request.document_id)
-        return {"data": scraped_data}
+        respons = i3_crawler(request.document_id)
+        return respons
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/trude_crawler")
+def trude_crawl_endpoint(request: CrawlerRequest):
+    try:
+        response = trude_crawler(request.document_id)
+        return response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
