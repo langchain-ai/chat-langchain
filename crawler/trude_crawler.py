@@ -28,7 +28,7 @@ def extract_text_from_pdf_stream(pdf_stream: io.BytesIO) -> str:
     except Exception as e:
         return f"Error processing file: {e}"
 
-def trude_crawler(document_id: str):
+def trude_crawler(document_id: str, db):
     doc_ref = db.collection('files').document(document_id)
     doc = doc_ref.get()
     if not doc.exists:
