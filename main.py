@@ -326,8 +326,9 @@ async def get_trace(body: GetTraceBody):
 @app.post("/i3_crawler")
 async def crawl_document(request: CrawlerRequest):
     try:
-        respons = i3_crawler(request.document_id, db)
-        return respons
+        # Use `await` to get the actual response from the async function
+        response = await i3_crawler(request.document_id, db)
+        return response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
