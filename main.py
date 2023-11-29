@@ -33,6 +33,8 @@ from firebase_admin import credentials, firestore
 
 from crawler.i3_crawler import i3_crawler
 from crawler.trude_crawler import trude_crawler
+from datastore.factory import get_datastore
+from services.file import get_document_from_file
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
@@ -337,6 +339,12 @@ def trude_crawl_endpoint(request: CrawlerRequest):
         return response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.on_event("startup")
+async def startup():
+    global datastore
+    datastore = await get_datastore()
 
 
 if __name__ == "__main__":
