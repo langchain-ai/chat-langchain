@@ -28,10 +28,23 @@ from langserve import add_routes
 from langsmith import Client
 from pydantic import BaseModel
 
+import firebase_admin
+from firebase_admin import credentials, firestore
+
 from crawler.i3_crawler import i3_crawler
 from crawler.trude_crawler import trude_crawler
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
+
+
+# Initialize Firebase Admin SDK
+cred = credentials.ApplicationDefault()
+firebase_admin.initialize_app(cred, {
+    'project_id': os.environ.get('GCP_PROJECT')
+})
+
+# Make the Firestore client available globally
+db = firestore.client()
 
 class CrawlerRequest(BaseModel):
     document_id: str
@@ -311,7 +324,7 @@ async def get_trace(body: GetTraceBody):
 @app.post("/i3_crawler")
 def crawl_document(request: CrawlerRequest):
     try:
-        respons = i3_crawler(request.document_id)
+        respons = i3_crawler(request.document_id, db)
         return respons
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -320,7 +333,7 @@ def crawl_document(request: CrawlerRequest):
 @app.post("/trude_crawler")
 def trude_crawl_endpoint(request: CrawlerRequest):
     try:
-        response = trude_crawler(request.document_id)
+        response = trude_crawler(request.document_id, db)
         return response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
