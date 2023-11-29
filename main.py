@@ -38,6 +38,7 @@ from services.file import get_document_from_file
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
+datastore = None
 
 # Initialize Firebase Admin SDK
 cred = credentials.ApplicationDefault()
