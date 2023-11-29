@@ -16,7 +16,9 @@ from models.api import (
 
 from models.models import DocumentMetadata
 
-async def upsert(
+async def i3_crawler(document_id: str, db, datastore):
+    
+    async def upsert(
     request: UpsertRequest = Body(...),
 ):
     try:
@@ -25,8 +27,7 @@ async def upsert(
     except Exception as e:
         print("Error:", e)
         raise HTTPException(status_code=500, detail="Internal Service Error")
-
-async def i3_crawler(document_id: str, db, datastore):
+        
     def extract_text_with_formatting(element):
         text_segments = []
         block_tags = {'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'}
