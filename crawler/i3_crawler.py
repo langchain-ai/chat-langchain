@@ -16,18 +16,17 @@ from models.api import (
 
 from models.models import DocumentMetadata
 
-async def i3_crawler(document_id: str, db, datastore):
-    
-    async def upsert(
-    request: UpsertRequest = Body(...),
-):
+async def upsert(datastore, request: UpsertRequest = Body(...)):
     try:
+        print("Trying to use upsert function with datastore:", datastore)
         ids = await datastore.upsert(request.documents)
         return UpsertResponse(ids=ids)
     except Exception as e:
         print("Error:", e)
         raise HTTPException(status_code=500, detail="Internal Service Error")
-        
+
+async def i3_crawler(document_id: str, db, datastore):
+      
     def extract_text_with_formatting(element):
         text_segments = []
         block_tags = {'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'}
@@ -144,7 +143,7 @@ async def i3_crawler(document_id: str, db, datastore):
             # Call the upsert function
             try:
                 print("Trying to upsert with datastore:", datastore) 
-                upsert_response = await upsert(upsert_request)
+                upsert_response = await upsert(datastore, upsert_request)
                 # Update Firestore document with the scraped text
                 try:
                     doc_ref.update({'newText': scraped_text})
