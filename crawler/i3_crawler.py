@@ -3,6 +3,27 @@ import requests
 import os
 import firebase_admin
 from firebase_admin import credentials, firestore
+from models.api import (
+    DeleteRequest,
+    DeleteResponse,
+    QueryRequest,
+    QueryResponse,
+    UpsertRequest,
+    UpsertResponse,
+    AgentRequest,
+)
+
+from models.models import DocumentMetadata
+
+def upsert(
+    request: UpsertRequest = Body(...),
+):
+    try:
+        ids = await datastore.upsert(request.documents)
+        return UpsertResponse(ids=ids)
+    except Exception as e:
+        print("Error:", e)
+        raise HTTPException(status_code=500, detail="Internal Service Error")
 
 def i3_crawler(document_id: str, db):
     def extract_text_with_formatting(element):
@@ -115,20 +136,19 @@ def i3_crawler(document_id: str, db):
                 }
             }
     
-            endpoint_url = "https://chat-retrieval-api-avygm4cpgq-ey.a.run.app/upsert"
-            response = requests.post(endpoint_url, headers=headers, json={"documents": [document]})
-    
-            # Check the response and maybe act upon it
-            if response.status_code == 200:
+            upsert_request = UpsertRequest(documents=[document])
+
+            # Call the upsert function
+            try:
+                upsert_response = await upsert(upsert_request)
                 # Update Firestore document with the scraped text
                 try:
                     doc_ref.update({'newText': scraped_text})
                 except Exception as e:
                     raise Exception(f"Failed to update Firestore document for Document ID {document_id}. Error: {e}")
-                return response.json()  # Returning the response from the API call
-            else:
-                raise Exception(f"Failed to upload data for Document ID {document_id}. Status: {response.status_code}, Response: {response.json()}")
-
+                return upsert_response  # Returning the response from the upsert function
+            except Exception as e:
+                raise Exception(f"Failed to upsert data for Document ID {document_id}. Error: {e}")
 
     try:
         return scrape_site(document_id)
