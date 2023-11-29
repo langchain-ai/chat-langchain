@@ -154,3 +154,4 @@ async def i3_crawler(document_id: str, db):
         return scrape_site(document_id)
     except Exception as e:
         raise e
+
