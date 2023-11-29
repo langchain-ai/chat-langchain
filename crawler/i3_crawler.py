@@ -4,14 +4,7 @@ import os
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# Initialize Firebase Admin SDK
-cred = credentials.ApplicationDefault()
-firebase_admin.initialize_app(cred, {
-    'project_id': os.environ.get('GCP_PROJECT'),
-})
-db = firestore.client()
-
-def i3_crawler(document_id: str):
+def i3_crawler(document_id: str, db):
     def extract_text_with_formatting(element):
         text_segments = []
         block_tags = {'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'}
