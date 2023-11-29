@@ -328,7 +328,7 @@ async def get_trace(body: GetTraceBody):
 async def crawl_document(request: CrawlerRequest):
     try:
         # Use `await` to get the actual response from the async function
-        response = await i3_crawler(request.document_id, db)
+        response = await i3_crawler(request.document_id, db, datastore)
         return response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
