@@ -96,7 +96,7 @@ async def trude_crawler(document_id: str, db, datastore):
         upsert_response = await upsert(datastore, upsert_request)
         # Update Firestore document with the scraped text
         try:
-            doc_ref.update({'newText': scraped_text})
+            doc_ref.update({'newText': extracted_text})
         except Exception as e:
             raise Exception(f"Failed to update Firestore document for Document ID {document_id}. Error: {e}")
         return upsert_response  # Returning the response from the upsert function
