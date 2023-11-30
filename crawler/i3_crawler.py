@@ -151,10 +151,10 @@ async def i3_crawler(document_id: str, db, datastore):
                 except Exception as e:
                     raise Exception(f"Failed to update Firestore document for Document ID {document_id}. Error: {e}")
                     
-                process_document_response = await process_document(document_id)
+                create_newsfeed_response = await create_newsfeed(document_id)
                 return {
                     "upsert_response": upsert_response,  # Returning the response from the upsert function
-                    "process_document_response": process_document_response
+                    "create_newsfeed_response": create_newsfeed_response
                 }
                 
             except Exception as e:
