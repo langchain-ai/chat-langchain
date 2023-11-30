@@ -9,22 +9,26 @@ openai.api_key = os.getenv('OPENAI_API_KEY')
 
 def summarize_text(text, source_text):
     prompt = f"Fasse kurz zusammen, worum es in folgendem Text geht. Halte dich kurz und nutze maximal 3 Sätze und nicht mehr als 50 Wörter. Beginne deinen ersten Satz direkt mit dem Objekt, um das es geht.:\n\n{text}"
-    completion = openai.Completion.create(
+    completion = openai.ChatCompletion.create(
         model="gpt-4-1106-preview",
-        prompt=prompt,
-        max_tokens=100
+        messages=[
+            {"role": "system", "content": "Du bist ein Assistent der Texte auf Deutsch zusammenfasst und Mitarbeiter über Neuerungen informiert."},
+            {"role": "user", "content": prompt}
+        ]
     )
-    summary = completion.choices[0].text.strip()
+    summary = completion.choices[0].message.content
     return f"{summary} Quelle: {source_text}"
 
 def compare_and_summarize_texts(new_text, old_text, source_text):
     prompt = f"Vergleiche folgende zwei Texte. Fasse zusammen, was es Neues gibt. Halte dich kurz und beziehe dich nur auf die Neuerung. Beginne deinen ersten Satz direkt mit dem Objekt, um das es geht.:\n\nAlt:\n{old_text}\n\nNeu:\n{new_text}"
-    completion = openai.Completion.create(
+    completion = openai.ChatCompletion.create(
         model="gpt-4-1106-preview",
-        prompt=prompt,
-        max_tokens=100
+        messages=[
+            {"role": "system", "content": "Du bist ein Assistent der Mitarbeiter über Neuerungen informiert. Dafür vergleichst du Informationen im Intranet und informierst über Änderungen."},
+            {"role": "user", "content": prompt}
+        ]
     )
-    comparison_summary = completion.choices[0].text.strip()
+    comparison_summary = completion.choices[0].message.content
     return f"{comparison_summary} Quelle: {source_text}"
 
 def update_all_users_with_summary(summary):
