@@ -149,7 +149,7 @@ async def i3_crawler(document_id: str, db, datastore):
                 try:
                     doc_ref.update({'newText': scraped_text})
                     # Run create_newsfeed right after updating Firestore
-                    # await create_newsfeed(document_id)
+                    await create_newsfeed(document_id)
                 except Exception as e:
                     raise Exception(f"Failed to update Firestore document for Document ID {document_id}. Error: {e}")
                 
