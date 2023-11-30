@@ -37,7 +37,7 @@ def update_all_users_with_summary(summary):
         current_news_summary.append(summary)
         users_ref.document(doc.id).update({'newsSummary': current_news_summary})
 
-async def process_document(document_id: str):
+async def create_newsfeed(document_id: str):
     try:
         doc_ref = firestore.client().collection('files').document(document_id)
         doc = doc_ref.get()
