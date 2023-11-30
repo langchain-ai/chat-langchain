@@ -5,6 +5,27 @@ import re
 import os
 import firebase_admin
 from firebase_admin import credentials, firestore
+from fastapi import FastAPI, File, Form, HTTPException, Depends, Body, UploadFile
+from models.api import (
+    DeleteRequest,
+    DeleteResponse,
+    QueryRequest,
+    QueryResponse,
+    UpsertRequest,
+    UpsertResponse,
+    AgentRequest,
+)
+
+from models.models import DocumentMetadata
+
+async def upsert(datastore, request: UpsertRequest = Body(...)):
+    try:
+        print("Trying to use upsert function with datastore:", datastore)
+        ids = await datastore.upsert(request.documents)
+        return UpsertResponse(ids=ids)
+    except Exception as e:
+        print("Error:", e)
+        raise HTTPException(status_code=500, detail="Internal Service Error")
 
 def convert_to_pdf_url(target_url: str) -> str:
     match = re.search(r'/incident/(\d+)/?', target_url)
@@ -21,7 +42,7 @@ def extract_text_from_pdf_stream(pdf_stream: io.BytesIO) -> str:
     except Exception as e:
         return f"Error processing file: {e}"
 
-def trude_crawler(document_id: str, db):
+async def trude_crawler(document_id: str, db, datastore):
     doc_ref = db.collection('files').document(document_id)
     doc = doc_ref.get()
     if not doc.exists:
@@ -32,6 +53,7 @@ def trude_crawler(document_id: str, db):
         raise Exception(f"No URL found in the document with ID {document_id}.")
 
     # Initialize session and make initial request if START_URL is set
+    # Note: Consider using aiohttp for asynchronous HTTP requests
     session = requests.Session()
     start_url = os.environ.get('START_URL')
     if start_url:
@@ -67,15 +89,17 @@ def trude_crawler(document_id: str, db):
         }
     }
 
-    endpoint_url = "https://chat-retrieval-api-avygm4cpgq-ey.a.run.app/upsert"
-    api_response = requests.post(endpoint_url, headers=headers, json={"documents": [document]})
-
-    if api_response.status_code == 200:
+    upsert_request = UpsertRequest(documents=[document])
+    
+    try:
+        print("Trying to upsert with datastore:", datastore) 
+        upsert_response = await upsert(datastore, upsert_request)
+        # Update Firestore document with the scraped text
         try:
-            doc_ref.update({'newText': extracted_text})
+            doc_ref.update({'newText': scraped_text})
         except Exception as e:
-            raise Exception(f"Error updating Firestore document: {e}")
-        return api_response.json()  # Returning the response from the API call
-    else:
-        raise Exception(f"Failed to upload data. Status: {api_response.status_code}, Response: {api_response.json()}")
+            raise Exception(f"Failed to update Firestore document for Document ID {document_id}. Error: {e}")
+        return upsert_response  # Returning the response from the upsert function
+    except Exception as e:
+        raise Exception(f"Failed to upsert data for Document ID {document_id}. Error: {e}")
 
