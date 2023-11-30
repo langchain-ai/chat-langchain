@@ -141,24 +141,24 @@ async def i3_crawler(document_id: str, db, datastore):
     
             upsert_request = UpsertRequest(documents=[document])
 
-            # Call the upsert function
+            # Call the upsert function      
             try:
                 print("Trying to upsert with datastore:", datastore) 
                 upsert_response = await upsert(datastore, upsert_request)
                 # Update Firestore document with the scraped text
                 try:
                     doc_ref.update({'newText': scraped_text})
+                    # Run create_newsfeed right after updating Firestore
+                    await create_newsfeed(document_id)
                 except Exception as e:
                     raise Exception(f"Failed to update Firestore document for Document ID {document_id}. Error: {e}")
-                    
-                create_newsfeed_response = await create_newsfeed(document_id)
-                return {
-                    "upsert_response": upsert_response,  # Returning the response from the upsert function
-                    "create_newsfeed_response": create_newsfeed_response
-                }
                 
+                # Return the upsert_response
+                return upsert_response
+            
             except Exception as e:
                 raise Exception(f"Failed to upsert data for Document ID {document_id}. Error: {e}")
+
 
     try:
         return await scrape_site(document_id)
