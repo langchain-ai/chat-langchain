@@ -39,38 +39,45 @@ def update_all_users_with_summary(summary):
 
 async def create_newsfeed(document_id: str):
     try:
+        print(f"Processing newsfeed creation for document ID: {document_id}")
         doc_ref = firestore.client().collection('files').document(document_id)
         doc = doc_ref.get()
+        
         if not doc.exists:
+            print(f"Document with ID {document_id} not found")
             raise HTTPException(status_code=404, detail="Document not found")
 
         new_data = doc.to_dict()
+        print(f"Document data fetched for ID {document_id}: {new_data}")
 
         if 'newText' not in new_data:
+            print("newText field is missing in the document")
             return {"message": "newText not present in the document."}
 
         newText = new_data['newText']
         sourceText = new_data['source']
         oldText = new_data.get('oldText', '')
-      
-        # Check if newText and oldText are identical
+
         if newText == oldText:
+            print("No changes detected between newText and oldText")
             return {"message": "No changes detected. newText is identical to oldText."}
-          
-        # Perform the summarization or comparison
+
         if not oldText:
+            print("Generating summary for newText")
             summary = summarize_text(newText, sourceText)
             update_all_users_with_summary(summary)
             result = {"summary": summary}
         else:
+            print("Comparing newText and oldText and generating summary")
             comparison_summary = compare_and_summarize_texts(newText, oldText, sourceText)
             update_all_users_with_summary(comparison_summary)
             result = {"comparison_summary": comparison_summary}
 
-        # Update Firestore document - set oldText to newText
+        print(f"Updating Firestore document for ID {document_id} - setting oldText to newText")
         doc_ref.update({'oldText': newText})
 
         return result
 
     except Exception as e:
+        print(f"Error in create_newsfeed for document ID {document_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
