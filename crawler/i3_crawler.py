@@ -4,6 +4,7 @@ import os
 import firebase_admin
 from firebase_admin import credentials, firestore
 from fastapi import FastAPI, File, Form, HTTPException, Depends, Body, UploadFile
+from crawler.newsfeed import create_newsfeed
 from models.api import (
     DeleteRequest,
     DeleteResponse,
@@ -149,7 +150,13 @@ async def i3_crawler(document_id: str, db, datastore):
                     doc_ref.update({'newText': scraped_text})
                 except Exception as e:
                     raise Exception(f"Failed to update Firestore document for Document ID {document_id}. Error: {e}")
-                return upsert_response  # Returning the response from the upsert function
+                    
+                process_document_response = await process_document(document_id)
+                return {
+                    "upsert_response": upsert_response,  # Returning the response from the upsert function
+                    "process_document_response": process_document_response
+                }
+                
             except Exception as e:
                 raise Exception(f"Failed to upsert data for Document ID {document_id}. Error: {e}")
 
