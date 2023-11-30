@@ -337,7 +337,7 @@ async def crawl_document(request: CrawlerRequest):
 @app.post("/trude_crawler")
 def trude_crawl_endpoint(request: CrawlerRequest):
     try:
-        response = trude_crawler(request.document_id, db)
+        response = trude_crawler(request.document_id, db, datastore)
         return response
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
