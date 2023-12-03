@@ -41,7 +41,11 @@ from constants import WEAVIATE_DOCS_INDEX_NAME
 
 class CrawlerRequest(BaseModel):
     document_id: str
-
+  
+class ChatRequest(BaseModel):
+    question: str
+    chat_history: Optional[List[Dict[str, str]]]
+  
 class APIKeyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         api_key_header = request.headers.get("X-API-Key")
