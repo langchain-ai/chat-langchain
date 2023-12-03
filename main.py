@@ -171,25 +171,6 @@ async def upsert_document(request: CrawlerRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/i3_crawler")
-async def crawl_document(request: CrawlerRequest):
-    try:
-        # Use `await` to get the actual response from the async function
-        response = await i3_crawler(request.document_id, db, datastore)
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@app.post("/trude_crawler")
-async def trude_crawl_endpoint(request: CrawlerRequest):
-    try:
-        response = await trude_crawler(request.document_id, db, datastore)
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
 @app.on_event("startup")
 async def startup():
     global datastore
