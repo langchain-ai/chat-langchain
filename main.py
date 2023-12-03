@@ -150,7 +150,7 @@ async def upsert_document(request: CrawlerRequest):
     try:
         # Fetch the document from Firestore
         doc_ref = db.collection("files").document(request.document_id)
-        doc = await doc_ref.get()
+        doc = doc_ref.get()
         if not doc.exists:
             return {"result": "Document not found", "code": 404}
 
