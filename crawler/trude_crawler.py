@@ -6,6 +6,7 @@ import os
 import firebase_admin
 from firebase_admin import credentials, firestore
 from fastapi import FastAPI, File, Form, HTTPException, Depends, Body, UploadFile
+from crawler.newsfeed import create_newsfeed
 from models.api import (
     DeleteRequest,
     DeleteResponse,
@@ -97,6 +98,8 @@ async def trude_crawler(document_id: str, db, datastore):
         # Update Firestore document with the scraped text
         try:
             doc_ref.update({'newText': extracted_text})
+            # Run create_newsfeed right after updating Firestore
+            await create_newsfeed(document_id)
         except Exception as e:
             raise Exception(f"Failed to update Firestore document for Document ID {document_id}. Error: {e}")
         return upsert_response  # Returning the response from the upsert function
