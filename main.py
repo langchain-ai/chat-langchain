@@ -145,6 +145,32 @@ async def get_trace(body: GetTraceBody):
     return await aget_trace_url(str(run_id))
 
 
+@app.post("/upsert")
+async def upsert_document(request: CrawlerRequest):
+    try:
+        # Fetch the document from Firestore
+        doc_ref = db.collection("files").document(request.document_id)
+        doc = await doc_ref.get()
+        if not doc.exists:
+            return {"result": "Document not found", "code": 404}
+
+        # Get the URL from the document
+        url = doc.to_dict().get("url")
+        if url:
+            # Check if the URL matches a specific pattern and call the appropriate crawler
+            if "i3.vblh" in url:
+                response = await i3_crawler(request.document_id, db, datastore)
+            elif "onlinetrude" in url:
+                response = await trude_crawler(request.document_id, db, datastore)
+            else:
+                return {"result": "URL pattern not recognized", "code": 400}
+            return response
+        else:
+            return {"result": "URL not found in document", "code": 400}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/i3_crawler")
 async def crawl_document(request: CrawlerRequest):
     try:
