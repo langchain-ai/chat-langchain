@@ -19,9 +19,7 @@ from models.models import (
     DocumentChunkWithScore,
 )
 
-
-WEAVIATE_HOST = os.environ.get("WEAVIATE_HOST", "http://127.0.0.1")
-WEAVIATE_PORT = os.environ.get("WEAVIATE_PORT", "8080")
+WEAVIATE_URL = os.environ.get("WEAVIATE_URL", None)
 WEAVIATE_USERNAME = os.environ.get("WEAVIATE_USERNAME", None)
 WEAVIATE_PASSWORD = os.environ.get("WEAVIATE_PASSWORD", None)
 WEAVIATE_SCOPES = os.environ.get("WEAVIATE_SCOPES", "offline_access")
@@ -107,7 +105,7 @@ class WeaviateDataStore(DataStore):
         return error_messages
 
     def __init__(self):
-        url = f"{WEAVIATE_HOST}:{WEAVIATE_PORT}"
+        url = f"{WEAVIATE_URL}"
         
         additional_headers = {
             "Authorization": f"Bearer {WEAVIATE_API_KEY}",
