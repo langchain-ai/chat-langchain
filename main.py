@@ -145,6 +145,7 @@ async def get_trace(body: GetTraceBody):
     return await aget_trace_url(str(run_id))
 
 
+# Upsert a single document by providing the document id
 @app.post("/upsert")
 async def upsert_document(request: CrawlerRequest):
     try:
@@ -167,6 +168,29 @@ async def upsert_document(request: CrawlerRequest):
             return response
         else:
             return {"result": "URL not found in document", "code": 400}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Refresh all the documents in Firebase
+@app.post("/refresh")
+async def refresh_documents():
+    try:
+        # Fetch all documents from the "files" collection
+        docs = db.collection("files").stream()
+
+        # Iterate over each document and call upsert_document
+        results = []
+        for doc in docs:
+            document_id = doc.id
+            crawler_request = CrawlerRequest(document_id=document_id)
+            response = await upsert_document(crawler_request)
+            results.append({
+                "document_id": document_id,
+                "response": response
+            })
+
+        return {"results": results, "code": 200}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
