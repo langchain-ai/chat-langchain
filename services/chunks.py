@@ -117,6 +117,10 @@ def create_document_chunks(
     # Generate a document id if not provided
     doc_id = doc.id or str(uuid.uuid4())
 
+    # Get source and title from parent document
+    doc_source = doc.source
+    doc_title = doc.title
+
     # Split the document text into chunks
     text_chunks = get_text_chunks(doc.text, chunk_token_size)
 
@@ -137,6 +141,8 @@ def create_document_chunks(
         doc_chunk = DocumentChunk(
             id=chunk_id,
             text=text_chunk,
+            title=doc_title,
+            source=doc_source,
             metadata=metadata,
         )
         # Append the chunk object to the list of chunks for this document
