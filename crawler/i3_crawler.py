@@ -130,6 +130,8 @@ async def i3_crawler(document_id: str, db, datastore):
             document = {
                 'id': document_id,
                 'text': scraped_text,
+                'title': doc_data.get('name'),
+                'source': doc_data.get('url'),
                 'metadata': {
                     'source': doc_data.get('source'),
                     'source_id': doc_data.get('source_id'),
