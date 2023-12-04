@@ -310,16 +310,16 @@ class WeaviateDataStore(DataStore):
         filter_conditions = {
             "text": {
                 "operator": "Equal",
-                "value_key": "valueText",
+                "value_key": "valueString",
             },
             "source": {
                 "operator": "Equal",
                 "value": "query.filter.source.value",
-                "value_key": "valueText",
+                "value_key": "valueString",
             },
             "start_date": {"operator": "GreaterThanEqual", "value_key": "valueDate"},
             "end_date": {"operator": "LessThanEqual", "value_key": "valueDate"},
-            "default": {"operator": "Equal", "value_key": "valueText"},
+            "default": {"operator": "Equal", "value_key": "valueString"},
         }
 
         for attr, value in filter.__dict__.items():
