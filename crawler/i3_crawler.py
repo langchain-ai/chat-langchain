@@ -131,14 +131,7 @@ async def i3_crawler(document_id: str, db, datastore):
                 'id': document_id,
                 'text': scraped_text,
                 'title': doc_data.get('name'),
-                'source': doc_data.get('url'),
-                'metadata': {
-                    'source': doc_data.get('source'),
-                    'source_id': doc_data.get('source_id'),
-                    'url': doc_data.get('url'),
-                    'created_at': doc_data.get('created_at'),
-                    'author': doc_data.get('author')
-                }
+                'source': doc_data.get('url')
             }
     
             upsert_request = UpsertRequest(documents=[document])
