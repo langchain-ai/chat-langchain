@@ -156,11 +156,6 @@ class WeaviateDataStore(DataStore):
                     for key, value in metadata.dict().items():
                         doc_chunk_dict[key] = value
                     doc_chunk_dict["chunk_id"] = doc_chunk_dict.pop("id")
-                    doc_chunk_dict["source"] = (
-                        doc_chunk_dict.pop("source")
-                        if doc_chunk_dict["source"]
-                        else "unknown"
-                    )
                     embedding = doc_chunk_dict.pop("embedding")
 
                     batch.add_data_object(
