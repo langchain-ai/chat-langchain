@@ -48,12 +48,17 @@ SCHEMA = {
         {
             "name": "text",
             "dataType": ["text"],
-            "description": "The chunk's text",
+            "description": "The main text of the document",
         },
         {
             "name": "source",
             "dataType": ["string"],
-            "description": "The source of the data",
+            "description": "The source of the document",
+        },
+        {
+            "name": "title",
+            "dataType": ["string"],
+            "description": "The title of the document"
         },
         {
             "name": "source_id",
