@@ -60,26 +60,6 @@ SCHEMA = {
             "dataType": ["string"],
             "description": "The title of the document"
         },
-        {
-            "name": "source_id",
-            "dataType": ["string"],
-            "description": "The source id",
-        },
-        {
-            "name": "url",
-            "dataType": ["string"],
-            "description": "The source url",
-        },
-        {
-            "name": "created_at",
-            "dataType": ["date"],
-            "description": "Creation date of document",
-        },
-        {
-            "name": "author",
-            "dataType": ["string"],
-            "description": "Document author",
-        },
     ],
 }
 
@@ -132,6 +112,7 @@ class WeaviateDataStore(DataStore):
         if self.client.schema.contains(SCHEMA):
             current_schema = self.client.schema.get(WEAVIATE_CLASS)
             current_schema_properties = extract_schema_properties(current_schema)
+            print(current_schema_properties)
 
             logger.debug(
                 f"Found index {WEAVIATE_CLASS} with properties {current_schema_properties}"
