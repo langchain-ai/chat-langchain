@@ -190,6 +190,7 @@ def create_answer_chain() -> Runnable:
     )
     """
     llm = AzureChatOpenAI(
+        azure_deployment="gpt-4",
         streaming=True,
         temperature=0,
     )
