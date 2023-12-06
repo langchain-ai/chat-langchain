@@ -7,7 +7,7 @@ import weaviate
 import openai
 from langchain.chat_models import AzureChatOpenAI
 from langchain.chat_models import ChatOpenAI
-from langchain.embeddings import AzureOpenAIEmbeddings
+from langchain.embeddings.azure_openai import AzureOpenAIEmbeddings
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.embeddings.voyageai import VoyageEmbeddings
 from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
@@ -207,6 +207,7 @@ def create_answer_chain() -> Runnable:
     """
     llm = AzureChatOpenAI(
         azure_deployment="gpt-4",
+        openai_api_version="2023-05-15",
         streaming=True,
         temperature=0,
     )
