@@ -73,10 +73,6 @@ Standalone Question:"""
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
-embeddings = AzureOpenAIEmbeddings(
-    azure_deployment="<your-embeddings-deployment-name>",
-    openai_api_version="2023-05-15",
-)
 
 class ChatRequest(BaseModel):
     question: str
