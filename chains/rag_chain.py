@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Sequence, Union
 
 import langsmith
 import weaviate
+from langchain.chat_models import AzureChatOpenAI
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.embeddings.voyageai import VoyageEmbeddings
@@ -181,8 +182,14 @@ def create_chain(
 
 
 def create_answer_chain() -> Runnable:
+    """
     llm = ChatOpenAI(
         model="gpt-4-1106-preview",
+        streaming=True,
+        temperature=0,
+    )
+    """
+    llm = AzureChatOpenAI(
         streaming=True,
         temperature=0,
     )
