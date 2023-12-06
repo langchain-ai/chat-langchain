@@ -25,7 +25,7 @@ from pydantic import BaseModel
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
-openai.api_type = "azure"
+#openai.api_type = "azure"
 
 class CrawlerRequest(BaseModel):
     document_id: str
@@ -79,6 +79,7 @@ class ChatRequest(BaseModel):
     chat_history: Optional[List[Dict[str, str]]]
 
 """
+# Use these for OpenAI Embeddings
 def get_embeddings_model() -> Embeddings:
     if os.environ.get("VOYAGE_API_KEY") and os.environ.get("VOYAGE_AI_MODEL"):
         return VoyageEmbeddings(model=os.environ["VOYAGE_AI_MODEL"])
@@ -191,6 +192,7 @@ def create_chain(
 
 def create_answer_chain() -> Runnable:
     """
+    # Use this for OpenAI API
     llm = ChatOpenAI(
         model="gpt-4-1106-preview",
         streaming=True,
