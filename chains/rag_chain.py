@@ -7,6 +7,7 @@ import weaviate
 import openai
 from langchain.chat_models import AzureChatOpenAI
 from langchain.chat_models import ChatOpenAI
+from langchain.embeddings import AzureOpenAIEmbeddings
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.embeddings.voyageai import VoyageEmbeddings
 from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
@@ -72,16 +73,28 @@ Standalone Question:"""
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
+embeddings = AzureOpenAIEmbeddings(
+    azure_deployment="<your-embeddings-deployment-name>",
+    openai_api_version="2023-05-15",
+)
+
 class ChatRequest(BaseModel):
     question: str
     chat_history: Optional[List[Dict[str, str]]]
 
-
+"""
 def get_embeddings_model() -> Embeddings:
     if os.environ.get("VOYAGE_API_KEY") and os.environ.get("VOYAGE_AI_MODEL"):
         return VoyageEmbeddings(model=os.environ["VOYAGE_AI_MODEL"])
     return OpenAIEmbeddings(chunk_size=200)
+"""
 
+def get_embeddings_model() -> Embeddings:
+    embeddings = AzureOpenAIEmbeddings(
+    azure_deployment="text-embedding-ada-002",
+    openai_api_version="2023-05-15",
+    )
+    return embeddings(chunk_size=200)
 
 def get_retriever() -> BaseRetriever:
     weaviate_client = weaviate.Client(
