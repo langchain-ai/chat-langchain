@@ -81,13 +81,8 @@ async def trude_crawler(document_id: str, db, datastore):
     document = {
         'id': document_id,
         'text': extracted_text,
-        'metadata': {
-            'source': doc_data.get('source'),
-            'source_id': doc_data.get('source_id'),
-            'url': doc_data.get('url'),
-            'created_at': doc_data.get('created_at'),
-            'author': doc_data.get('author')
-        }
+        'title': doc_data.get('name'),
+        'source': doc_data.get('url')
     }
 
     upsert_request = UpsertRequest(documents=[document])
