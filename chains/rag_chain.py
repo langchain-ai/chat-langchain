@@ -86,11 +86,7 @@ def get_embeddings_model() -> Embeddings:
 """
 
 def get_embeddings_model() -> Embeddings:
-    embeddings = AzureOpenAIEmbeddings(
-    azure_deployment="text-embedding-ada-002",
-    openai_api_version="2023-05-15",
-    )
-    return embeddings(chunk_size=200)
+    return AzureOpenAIEmbeddings(azure_deployment="text-embedding-ada-002",openai_api_version="2023-05-15")
 
 def get_retriever() -> BaseRetriever:
     weaviate_client = weaviate.Client(
