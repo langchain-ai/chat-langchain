@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Sequence, Union
 
 import langsmith
 import weaviate
+import openai
 from langchain.chat_models import AzureChatOpenAI
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
@@ -22,6 +23,8 @@ from langchain.vectorstores import Weaviate
 from pydantic import BaseModel
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
+
+openai.api_type = "azure"
 
 class CrawlerRequest(BaseModel):
     document_id: str
