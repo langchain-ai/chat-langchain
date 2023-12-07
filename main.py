@@ -213,7 +213,7 @@ answer_chain = create_chain(
 )
 
 
-add_routes(app, answer_chain, path="/chat", input_type=ChatRequest)
+add_routes(app, answer_chain, path="/chat", input_type=ChatRequest, config_keys=["metadata"])
 
 
 class SendFeedbackBody(BaseModel):

@@ -27,3 +27,4 @@ jobs:
           RECORD_MANAGER_DB_URL: ${{ secrets.RECORD_MANAGER_DB_URL }}
           VOYAGE_AI_MODEL: ${{ secrets.VOYAGE_AI_MODEL }}
           VOYAGE_AI_URL: ${{ secrets.VOYAGE_AI_URL }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
