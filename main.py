@@ -7,27 +7,29 @@ from uuid import UUID
 
 import langsmith
 import weaviate
+from constants import WEAVIATE_DOCS_INDEX_NAME
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.embeddings.voyageai import VoyageEmbeddings
-from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
-                               PromptTemplate)
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain.schema import Document
 from langchain.schema.embeddings import Embeddings
 from langchain.schema.language_model import BaseLanguageModel
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import (Runnable, RunnableBranch,
-                                       RunnableLambda, RunnableMap)
-from langchain.vectorstores import Weaviate
+from langchain.schema.runnable import (
+    Runnable,
+    RunnableBranch,
+    RunnableLambda,
+    RunnableMap,
+)
+from langchain.vectorstores.weaviate import Weaviate
 from langserve import add_routes
 from langsmith import Client
 from pydantic import BaseModel
-
-from constants import WEAVIATE_DOCS_INDEX_NAME
 
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \

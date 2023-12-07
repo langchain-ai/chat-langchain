@@ -18,6 +18,7 @@ weaviate-client = "^3.23.2"
 psycopg2 = "^2.9.7"
 lxml = "^4.9.3"
 langserve = {extras = ["server"], version = "^0.0.8"}
+voyageai = "^0.1.4"
 
 
 [tool.poetry.group.dev.dependencies]
