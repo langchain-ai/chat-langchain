@@ -22,7 +22,7 @@ from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import (Runnable, RunnableBranch,
                                        RunnableLambda, RunnableMap)
-from langchain.vectorstores import Weaviate
+from langchain.vectorstores.weaviate import Weaviate
 from langserve import add_routes
 from langsmith import Client
 from pydantic import BaseModel
