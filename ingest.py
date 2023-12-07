@@ -52,6 +52,7 @@ def load_langchain_docs():
         meta_function=metadata_extractor,
     ).load()
 
+
 def load_langsmith_docs():
     return RecursiveUrlLoader(
         url="https://docs.smith.langchain.com/",
@@ -97,7 +98,7 @@ def load_api_docs():
 
 def get_embeddings_model() -> Embeddings:
     if os.environ.get("VOYAGE_AI_URL") and os.environ.get("VOYAGE_AI_MODEL"):
-        return VoyageEmbeddings()
+        return VoyageEmbeddings(model=os.environ["VOYAGE_AI_MODEL"])
     return OpenAIEmbeddings(chunk_size=200)
 
 
