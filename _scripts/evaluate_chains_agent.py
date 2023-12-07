@@ -6,9 +6,8 @@ from typing import Optional
 import weaviate
 from langchain import load as langchain_load
 from langchain.agents import AgentExecutor, Tool
-from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
-    AgentTokenBufferMemory,
-)
+from langchain.agents.openai_functions_agent.agent_token_buffer_memory import \
+    AgentTokenBufferMemory
 from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
