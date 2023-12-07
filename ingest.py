@@ -7,15 +7,13 @@ from parser import langchain_docs_extractor
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.embeddings.voyageai import VoyageEmbeddings
 from langchain.indexes import SQLRecordManager, index
-from langchain.schema.embeddings import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import (PREFIXES_TO_IGNORE_REGEX,
                                   SUFFIXES_TO_IGNORE_REGEX)
 from langchain.vectorstores.weaviate import Weaviate
 
+from chain import get_embeddings_model
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
 logger = logging.getLogger(__name__)
@@ -94,12 +92,6 @@ def load_api_docs():
             "https://api.python.langchain.com/en/latest/_modules",
         ),
     ).load()
-
-
-def get_embeddings_model() -> Embeddings:
-    if os.environ.get("VOYAGE_AI_URL") and os.environ.get("VOYAGE_AI_MODEL"):
-        return VoyageEmbeddings(model=os.environ["VOYAGE_AI_MODEL"])
-    return OpenAIEmbeddings(chunk_size=200)
 
 
 def ingest_docs():
