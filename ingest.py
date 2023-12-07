@@ -52,6 +52,22 @@ def load_langchain_docs():
         meta_function=metadata_extractor,
     ).load()
 
+def load_langsmith_docs():
+    return RecursiveUrlLoader(
+        url="https://docs.smith.langchain.com/",
+        max_depth=8,
+        extractor=simple_extractor,
+        prevent_outside=True,
+        use_async=True,
+        timeout=600,
+        # Drop trailing / to avoid duplicate pages.
+        link_regex=(
+            f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
+            r"(?:[\#'\"]|\/[\#'\"])"
+        ),
+        check_response_status=True,
+    ).load()
+
 
 def simple_extractor(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
@@ -90,10 +106,12 @@ def ingest_docs():
     logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
     docs_from_api = load_api_docs()
     logger.info(f"Loaded {len(docs_from_api)} docs from API")
+    docs_from_langsmith = load_langsmith_docs()
+    logger.info(f"Loaded {len(docs_from_langsmith)} docs from Langsmith")
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     docs_transformed = text_splitter.split_documents(
-        docs_from_documentation + docs_from_api
+        docs_from_documentation + docs_from_api + docs_from_langsmith
     )
 
     # We try to return 'source' and 'title' metadata when querying vector store and
