@@ -2,6 +2,12 @@ name: Update index
 
 on:
   workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Whether to overwrite documents found in the record manager'
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron:  '0 13 * * *'
 
@@ -28,3 +34,4 @@ jobs:
           VOYAGE_AI_MODEL: ${{ secrets.VOYAGE_AI_MODEL }}
           VOYAGE_AI_URL: ${{ secrets.VOYAGE_AI_URL }}
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          FORCE_UPDATE: ${{ github.event.inputs.force_update }}
