@@ -15,7 +15,7 @@ from langchain.vectorstores.weaviate import Weaviate
 
 from chain import get_embeddings_model
 from constants import WEAVIATE_DOCS_INDEX_NAME
-
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
