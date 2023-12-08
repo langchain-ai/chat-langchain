@@ -5,15 +5,17 @@ import re
 from parser import langchain_docs_extractor
 
 import weaviate
-from _index import index
 from bs4 import BeautifulSoup, SoupStrainer
-from chain import get_embeddings_model
-from constants import WEAVIATE_DOCS_INDEX_NAME
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain.indexes import SQLRecordManager
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
+from langchain.utils.html import (PREFIXES_TO_IGNORE_REGEX,
+                                  SUFFIXES_TO_IGNORE_REGEX)
 from langchain.vectorstores.weaviate import Weaviate
+
+from _index import index
+from chain import get_embeddings_model
+from constants import WEAVIATE_DOCS_INDEX_NAME
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -144,10 +146,10 @@ def ingest_docs():
         force_update=(os.environ.get("FORCE_UPDATE") or "false").lower() == "true",
     )
 
-    logger.info("Indexing stats: ", indexing_stats)
+    logger.info(f"Indexing stats: {indexing_stats}")
+    num_vecs = client.query.aggregate(WEAVIATE_DOCS_INDEX_NAME).with_meta_count().do()
     logger.info(
-        "LangChain now has this many vectors: ",
-        client.query.aggregate(WEAVIATE_DOCS_INDEX_NAME).with_meta_count().do(),
+        f"LangChain now has this many vectors: {num_vecs}",
     )
 
 

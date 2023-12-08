@@ -1,29 +1,14 @@
 from __future__ import annotations
 
-from typing import (
-    Callable,
-    Iterable,
-    Optional,
-    Sequence,
-    Union,
-    Literal,
-    cast,
-)
-
-from langchain_core.documents import Document
-from langchain_core.vectorstores import VectorStore
+from typing import Callable, Iterable, Literal, Optional, Sequence, Union, cast
 
 from langchain.document_loaders.base import BaseLoader
+from langchain.indexes._api import (IndexingResult, _batch,
+                                    _deduplicate_in_order,
+                                    _get_source_id_assigner, _HashedDocument)
 from langchain.indexes.base import RecordManager
-from langchain.indexes._api import (
-    IndexingResult,
-    _get_source_id_assigner,
-    _deduplicate_in_order,
-    _HashedDocument,
-    _batch,
-)
-
-
+from langchain.schema.document import Document
+from langchain.schema.vectorstore import VectorStore
 
 
 def index(
