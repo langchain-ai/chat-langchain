@@ -53,10 +53,10 @@ async def trude_crawler(document_id: str, db, datastore):
     if not target_url:
         raise Exception(f"No URL found in the document with ID {document_id}.")
 
-    # Initialize session and make initial request if START_URL is set
+    # Initialize session and make initial request if TRUDE_LOGIN_LINK is set
     # Note: Consider using aiohttp for asynchronous HTTP requests
     session = requests.Session()
-    start_url = os.environ.get('START_URL')
+    start_url = os.environ.get('TRUDE_LOGIN_LINK')
     if start_url:
         session.get(start_url)
 
