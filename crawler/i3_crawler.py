@@ -75,8 +75,8 @@ async def i3_crawler(document_id: str, db, datastore):
             soup = BeautifulSoup(response.content, 'html.parser')
             token_value = soup.find('input', {'name': '_token'})['value']
             
-            username = os.environ.get('USERNAME')
-            password = os.environ.get('PASSWORD')
+            username = os.environ.get('INNOLYTICS_USER')
+            password = os.environ.get('INNOLYTICS_PW')
 
             login_data = {
                 'username': username,
