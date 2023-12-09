@@ -47,5 +47,3 @@ def get_embeddings(texts: List[str]) -> List[List[float]]:
         # Catch any other exceptions that might occur
         print(f"An unexpected error occurred: {e}")
         raise
-
-
