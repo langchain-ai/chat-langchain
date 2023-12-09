@@ -20,7 +20,7 @@ def get_embeddings(texts: List[str]) -> List[List[float]]:
         Exception: If the OpenAI API call fails.
     """
     # Call the OpenAI API to get the embeddings
-    deployment = None
+    deployment = "text-embedding-ada-002"
 
     try:
         if deployment is None:
