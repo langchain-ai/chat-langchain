@@ -1,12 +1,25 @@
 steps:
-  # Build the container image
+  # Step 1: Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/chat-backend:$COMMIT_SHA', '.']
-  
-  # Push the image to Google Container Registry
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/chat-backend:$COMMIT_SHA']
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/github.com/duob-ai/chat-backend:$COMMIT_SHA', '.']
 
-# Images to be stored in Container Registry
-images:
-  - 'gcr.io/$PROJECT_ID/chat-backend:$COMMIT_SHA'
+  # Step 2: Push the image to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/github.com/duob-ai/chat-backend:$COMMIT_SHA']
+
+  # Step 3: Deploy the image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'chat-backend'
+      - '--image=gcr.io/$PROJECT_ID/github.com/duob-ai/chat-backend:$COMMIT_SHA'
+      - '--region=europe-west3'
+      - '--allow-unauthenticated'
+      - '--platform=managed'
+      - '--project=$PROJECT_ID'
+      - '--set-secrets=WEAVIATE_URL=WEAVIATE_URL:latest,WEAVIATE_API_KEY=WEAVIATE_API_KEY:latest,WEAVIATE_CLASS=WEAVIATE_CLASS:latest,LANGCHAIN_ENDPOINT=LANGCHAIN_ENDPOINT:latest,LANGCHAIN_API_KEY=LANGCHAIN_API_KEY:latest,LANGCHAIN_TRACING_V2=LANGCHAIN_TRACING_V2:latest,LANGCHAIN_PROJECT=LANGCHAIN_PROJECT:latest,TRUDE_LOGIN_LINK=TRUDE_LOGIN_LINK:latest,INNOLYTICS_USER=INNOLYTICS_USER:latest,INNOLYTICS_PW=INNOLYTICS_PW:latest,AZURE_OPENAI_API_KEY=AZURE_OPENAI_API_KEY:latest,AZURE_OPENAI_API_ENDPOINT=AZURE_OPENAI_API_ENDPOINT:latest,OPENAI_API_VERSION=OPENAI_API_VERSION:latest,OPENAI_API_BASE=OPENAI_API_BASE:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,CHAT_API_KEY=CHAT_API_KEY:latest,GCP_PROJECT=GCP_PROJECT:latest'
+
+# Define the timeout for the build (optional, adjust as needed)
+timeout: '600s'
