@@ -60,6 +60,12 @@ SCHEMA = {
             "dataType": ["string"],
             "description": "The source of the document",
         },
+        {
+            "name": "score",
+            "dataType": ["number"],
+            "description": "The relevance score of the document",
+            "optional": True
+        },
     ],
 }
 
