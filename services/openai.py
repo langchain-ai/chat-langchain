@@ -25,12 +25,15 @@ def get_embeddings(texts: List[str]) -> List[List[float]]:
 
     response = {}
     if deployment == None:
+        print("Creating embeddings using Azure")
         response = openai.Embedding.create(input=texts, model="text-embedding-ada-002")
     else:
+        print("Creating embeddings using OpenAI")
         response = openai.Embedding.create(input=texts, deployment_id=deployment)
     
     # Extract the embedding data from the response
     data = response["data"]  # type: ignore
+    print(response)
 
     # Return the embeddings as a list of lists of floats
     return [result["embedding"] for result in data]
