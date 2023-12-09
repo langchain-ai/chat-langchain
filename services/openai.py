@@ -19,8 +19,9 @@ def get_embeddings(texts: List[str]) -> List[List[float]]:
     Raises:
         Exception: If the OpenAI API call fails.
     """
-    # Call the OpenAI API to get the embeddings
+    # Call the OpenAI API to get the embeddings using azure
     openai.api_type = "azure"
+    openai.api_key = os.environ["AZURE_OPENAI_API_KEY"]
     deployment = "text-embedding-ada-002"
 
     try:
