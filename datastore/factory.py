@@ -3,7 +3,7 @@ import os
 
 
 async def get_datastore() -> DataStore:
-    datastore = os.environ.get("DATASTORE")
+    datastore = os.environ.get("DATASTORE", "weaviate")
     assert datastore is not None
 
     match datastore:
