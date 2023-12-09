@@ -6,6 +6,9 @@ from tenacity import retry, wait_random_exponential, stop_after_attempt
 
 
 @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(3))
+import openai
+from typing import List
+
 def get_embeddings(texts: List[str]) -> List[List[float]]:
     """
     Embed texts using OpenAI's ada model.
@@ -20,24 +23,31 @@ def get_embeddings(texts: List[str]) -> List[List[float]]:
         Exception: If the OpenAI API call fails.
     """
     # Call the OpenAI API to get the embeddings
-    # NOTE: Azure Open AI requires deployment id
-    deployment = "text-embedding-ada-002"
+    deployment = None
 
-    response = {}
-    if deployment == None:
-        print("Creating embeddings using OpenAI")
-        response = openai.Embedding.create(input=texts, model="text-embedding-ada-002")
-        print(response)
-    else:
-        print("Creating embeddings using Azure")
-        response = openai.Embedding.create(input=texts, deployment_id=deployment)
-        print(response)
-    
-    # Extract the embedding data from the response
-    data = response["data"]  # type: ignore
+    try:
+        if deployment is None:
+            print("Creating embeddings using OpenAI")
+            response = openai.Embedding.create(input=texts, model="text-embedding-ada-002")
+        else:
+            print("Creating embeddings using Azure")
+            response = openai.Embedding.create(input=texts, deployment_id=deployment)
 
-    # Return the embeddings as a list of lists of floats
-    return [result["embedding"] for result in data]
+        print("Response received:", response)
+        
+        # Extract the embedding data from the response
+        data = response["data"]  # type: ignore
+
+        # Return the embeddings as a list of lists of floats
+        return [result["embedding"] for result in data]
+    except openai.error.OpenAIError as e:
+        # Log more detailed error information
+        print(f"An error occurred: {e}")
+        raise
+    except Exception as e:
+        # Catch any other exceptions that might occur
+        print(f"An unexpected error occurred: {e}")
+        raise
 
 
 @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(3))
