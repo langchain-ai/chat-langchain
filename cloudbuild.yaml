@@ -1,0 +1,12 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/chat-backend:$COMMIT_SHA', '.']
+  
+  # Push the image to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/chat-backend:$COMMIT_SHA']
+
+# Images to be stored in Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/chat-backend:$COMMIT_SHA'
