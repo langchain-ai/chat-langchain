@@ -23,8 +23,6 @@ from langchain.schema.runnable import (Runnable, RunnableBranch,
 from langchain.vectorstores import Weaviate
 from pydantic import BaseModel
 
-from constants import WEAVIATE_DOCS_INDEX_NAME
-
 #openai.api_type = "azure"
 
 class CrawlerRequest(BaseModel):
@@ -96,7 +94,7 @@ def get_retriever() -> BaseRetriever:
     )
     weaviate_client = Weaviate(
         client=weaviate_client,
-        index_name=WEAVIATE_DOCS_INDEX_NAME,
+        index_name=os.environ["WEAVIATE_CLASS"],
         text_key="text",
         embedding=get_embeddings_model(),
         by_text=False,
