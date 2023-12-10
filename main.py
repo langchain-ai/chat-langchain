@@ -23,6 +23,7 @@ from crawler.trude_crawler import trude_crawler
 from datastore.factory import get_datastore
 from services.file import get_document_from_file
 from chains.rag_chain import create_answer_chain
+from models.models import Document
 
 
 class CrawlerRequest(BaseModel):
@@ -143,6 +144,32 @@ async def get_trace(body: GetTraceBody):
             "code": 400,
         }
     return await aget_trace_url(str(run_id))
+
+# Upsert contents from a pdf file
+@app.post(
+    "/upsert-file",
+    response_model=UpsertResponse,
+)
+async def upsert_file(
+    file: UploadFile = File(...),
+    metadata: Optional[str] = Form(None),
+):
+    try:
+        metadata_obj = (
+            Document.parse_raw(metadata)
+        )
+    except Exception as e:
+        print("Error:", e)
+        raise HTTPException(status_code=500, detail=f"str({e})")
+
+    document = await get_document_from_file(file, metadata_obj)
+
+    try:
+        ids = await datastore.upsert([document])
+        return UpsertResponse(ids=ids)
+    except Exception as e:
+        print("Error:", e)
+        raise HTTPException(status_code=500, detail=f"str({e})")
 
 
 # Upsert a single document by providing the document id
