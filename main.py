@@ -24,6 +24,7 @@ from datastore.factory import get_datastore
 from services.file import get_document_from_file
 from chains.rag_chain import create_answer_chain
 from models.models import Document
+from models.api import UpsertResponse
 
 
 class CrawlerRequest(BaseModel):
