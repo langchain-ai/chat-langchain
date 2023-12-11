@@ -31,9 +31,7 @@ def get_embeddings(texts: List[str]) -> List[List[float]]:
         else:
             print("Creating embeddings using Azure")
             response = openai.Embedding.create(input=texts, deployment_id=deployment)
-
-        print("Response received:", response)
-        
+            
         # Extract the embedding data from the response
         data = response["data"]  # type: ignore
 
