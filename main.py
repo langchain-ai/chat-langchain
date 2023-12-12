@@ -24,8 +24,12 @@ from datastore.factory import get_datastore
 from services.file import get_document_from_file
 from chains.rag_chain import create_answer_chain
 from models.models import Document
-from models.api import UpsertResponse
 
+from models.api import (
+    DeleteRequest,
+    DeleteResponse,
+    UpsertResponse,
+)
 
 class CrawlerRequest(BaseModel):
     document_id: str
@@ -222,6 +226,30 @@ async def refresh_documents():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.delete(
+    "/delete",
+    response_model=DeleteResponse,
+)
+async def delete(
+    request: DeleteRequest = Body(...),
+):
+    if not (request.ids or request.filter or request.delete_all):
+        raise HTTPException(
+            status_code=400,
+            detail="One of ids, filter, or delete_all is required",
+        )
+    try:
+        success = await datastore.delete(
+            ids=request.ids,
+            filter=request.filter,
+            delete_all=request.delete_all,
+        )
+        return DeleteResponse(success=success)
+    except Exception as e:
+        print("Error:", e)
+        raise HTTPException(status_code=500, detail="Internal Service Error")
+        
 
 @app.on_event("startup")
 async def startup():
