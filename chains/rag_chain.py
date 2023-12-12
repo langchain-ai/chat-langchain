@@ -40,7 +40,7 @@ journalistic tone. Combine search results together into a coherent answer. Do no
 repeat text. If different results refer to different entities within the same name, write separate \
 answers for each entity.
 
-You should use bullet points in your answer for readability.
+You should answer in short and precise sentences.
 
 If there is nothing in the context relevant to the question at hand, just say "Ich \
 habe leider keine Informationen darüber." Don't try to make up an answer.
