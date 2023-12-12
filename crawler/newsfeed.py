@@ -7,11 +7,11 @@ from fastapi import HTTPException
 # Set OpenAI API key
 openai.api_type = "azure"
 openai.api_key = os.getenv('AZURE_OPENAI_API_KEY')
-openai.deployment_id = "gpt-4"
 
 def summarize_text(text, source_text):
     prompt = f"Fasse kurz zusammen, worum es in folgendem Text geht. Halte dich kurz und nutze maximal 3 Sätze und nicht mehr als 50 Wörter. Beginne deinen ersten Satz direkt mit dem Objekt, um das es geht.:\n\n{text}"
     completion = openai.ChatCompletion.create(
+        deployment_id="gpt-4",
         messages=[
             {"role": "system", "content": "Du bist ein Assistent der Texte auf Deutsch zusammenfasst und Mitarbeiter über Neuerungen informiert."},
             {"role": "user", "content": prompt}
@@ -23,6 +23,7 @@ def summarize_text(text, source_text):
 def compare_and_summarize_texts(new_text, old_text, source_text):
     prompt = f"Vergleiche folgende zwei Texte. Fasse zusammen, was es Neues gibt. Halte dich kurz und beziehe dich nur auf die Neuerung. Beginne deinen ersten Satz direkt mit dem Objekt, um das es geht.:\n\nAlt:\n{old_text}\n\nNeu:\n{new_text}"
     completion = openai.ChatCompletion.create(
+        deployment_id="gpt-4",
         messages=[
             {"role": "system", "content": "Du bist ein Assistent der Mitarbeiter über Neuerungen informiert. Dafür vergleichst du Informationen im Intranet und informierst über Änderungen."},
             {"role": "user", "content": prompt}
