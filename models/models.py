@@ -18,6 +18,7 @@ class DocumentChunk(BaseModel):
     text: str
     title: str
     source: str
+    score: Optional[float] = None
     metadata: Optional[DocumentChunkMetadata] = None
     embedding: Optional[List[float]] = None
 
@@ -31,6 +32,7 @@ class Document(BaseModel):
     text: str
     title: str
     source: str
+    score: Optional[float] = None
     metadata: Optional[DocumentMetadata] = None
 
 
