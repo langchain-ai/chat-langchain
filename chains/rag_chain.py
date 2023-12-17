@@ -100,7 +100,7 @@ def get_retriever() -> BaseRetriever:
         by_text=False,
         attributes=["source", "title", "score"],
     )
-    return weaviate_client..as_retriever(
+    return weaviate_client.as_retriever(
                 search_type="similarity_score_threshold",
                 search_kwargs={'score_threshold': 0.7}
             )
