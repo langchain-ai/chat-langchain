@@ -100,7 +100,10 @@ def get_retriever() -> BaseRetriever:
         by_text=False,
         attributes=["source", "title", "score"],
     )
-    return weaviate_client.as_retriever(search_kwargs=dict(k=6, score=True))
+    return weaviate_client..as_retriever(
+                search_type="similarity_score_threshold",
+                search_kwargs={'score_threshold': 0.7}
+            )
 
 
 def create_retriever_chain(
