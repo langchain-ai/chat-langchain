@@ -100,7 +100,7 @@ def get_retriever() -> BaseRetriever:
         by_text=False,
         attributes=["source", "title"],
     )
-    return weaviate_client.as_retriever(search_kwargs=dict(k=6))
+    return weaviate_client.as_retriever(search_kwargs=dict(k=6, score=True))
 
 
 def create_retriever_chain(
