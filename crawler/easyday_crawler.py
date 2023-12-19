@@ -6,7 +6,7 @@ from firebase_admin import credentials, firestore
 
 # Set OpenAI API configurations for Azure
 openai.api_type = "azure"
-openai.api_key = os.getenv('OPENAI_API_KEY')
+openai.api_key = os.getenv('AZURE_OPENAI_API_KEY')
 openai.api_base = os.getenv('OPENAI_API_BASE')
 openai.api_version = os.getenv('OPENAI_API_VERSION')
 
