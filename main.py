@@ -20,6 +20,7 @@ from firebase_admin import credentials, firestore
 
 from crawler.i3_crawler import i3_crawler
 from crawler.trude_crawler import trude_crawler
+from crawler.easyday_crawler import process_easyday_data
 from datastore.factory import get_datastore
 from services.file import get_document_from_file
 from chains.rag_chain import create_answer_chain
@@ -222,6 +223,15 @@ async def refresh_documents():
                 "response": response
             })
 
+        return {"results": results, "code": 200}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/refresh-easyday")
+async def refresh_easyday():
+    try:
+        response = process_easyday_data(db, datastore)
         return {"results": results, "code": 200}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
