@@ -231,7 +231,7 @@ async def refresh_documents():
 @app.post("/refresh-easyday")
 async def refresh_easyday():
     try:
-        response = process_easyday_data(db, datastore)
+        response = await process_easyday_data(db, datastore)
         return {"response": response, "code": 200}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
