@@ -100,7 +100,7 @@ def process_easyday_data(db, datastore):
             # Call the upsert function      
             try:
                 print("Trying to upsert with datastore:", datastore) 
-                upsert_response = await upsert(datastore, upsert_request)
+                upsert_response = upsert(datastore, upsert_request)
                 
                 # Return the upsert_response
                 # If processed, add the ID to the list
