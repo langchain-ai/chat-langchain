@@ -30,13 +30,13 @@ secureUrl = os.getenv('EASYDAY_SECURE_URL')
 async def upsert(datastore, request: UpsertRequest = Body(...)):
     try:
         print("Trying to use upsert function with datastore:", datastore)
-        ids = datastore.upsert(request.documents)
+        ids = await datastore.upsert(request.documents)
         return UpsertResponse(ids=ids)
     except Exception as e:
         print("Error:", e)
         raise HTTPException(status_code=500, detail="Internal Service Error")
 
-def summarize_text(text):
+async def summarize_text(text):
     prompt = f"Fasse das folgende Transkript ausführlich zusammen. Gliedere deine Zusammenfassung in sinnvolle Abschnitte, die jeweils eine Überschrift enthalten. Nutze deinen inneren Monolog, um deine Zusammenfassung zu prüfen. Es dürfen keine wichtigen Informationen verloren gehen.:\n\nStart des Transkripts:{text}"
     try:
         completion = openai.ChatCompletion.create(
@@ -51,7 +51,7 @@ def summarize_text(text):
         print(f"Error during summarization: {type(e).__name__}: {e}")
         return ""
 
-def process_easyday_data(db, datastore):
+async def process_easyday_data(db, datastore):
     url = "https://app.easyday.coach/methods/api.blocks.getBlocksTranscripts"
     data = {
         "secure": secure,
@@ -100,7 +100,7 @@ def process_easyday_data(db, datastore):
             # Call the upsert function      
             try:
                 print("Trying to upsert with datastore:", datastore) 
-                upsert_response = upsert(datastore, upsert_request)
+                upsert_response = await upsert(datastore, upsert_request)
                 
                 # Return the upsert_response
                 # If processed, add the ID to the list
