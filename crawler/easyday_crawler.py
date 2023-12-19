@@ -35,7 +35,9 @@ def process_easyday_data(db, datastore):
         "secure": secure,
         "apiKey": apiKey
     }
-
+    
+    processed_ids = []
+    
     response = requests.post(url, json=data)
 
     if response.status_code == 200:
@@ -62,5 +64,9 @@ def process_easyday_data(db, datastore):
                 'transcript': transcript,
                 'summary': summary
             })
+            # If processed, add the ID to the list
+            processed_ids.append(item["_id"])
     else:
         print("Error:", response.status_code)
+
+    return processed_ids
