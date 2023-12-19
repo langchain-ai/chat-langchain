@@ -78,7 +78,7 @@ async def process_easyday_data(db, datastore):
                 continue
 
             # If the transcript is new or different, process it
-            summary = summarize_text(transcript)
+            summary = await summarize_text(transcript)
             doc_ref.set({
                 'title': item["title"],
                 'id': item["_id"],
