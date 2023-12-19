@@ -105,7 +105,6 @@ async def process_easyday_data(db, datastore):
                 # Return the upsert_response
                 # If processed, add the ID to the list
                 processed_ids.append(item["_id"])
-                return upsert_response
             
             except Exception as e:
                 raise Exception(f"Failed to upsert data for Document ID {document_id}. Error: {e}")     
