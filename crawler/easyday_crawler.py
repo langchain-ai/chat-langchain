@@ -2,7 +2,20 @@ import requests
 import os
 import firebase_admin
 import openai
+from fastapi import FastAPI, File, Form, HTTPException, Depends, Body, UploadFile
 from firebase_admin import credentials, firestore
+
+from models.api import (
+    DeleteRequest,
+    DeleteResponse,
+    QueryRequest,
+    QueryResponse,
+    UpsertRequest,
+    UpsertResponse,
+    AgentRequest,
+)
+
+from models.models import DocumentMetadata
 
 # Set OpenAI API configurations for Azure
 openai.api_type = "azure"
@@ -13,6 +26,15 @@ openai.api_version = os.getenv('OPENAI_API_VERSION')
 secure = os.getenv('EASYDAY_SECURE')
 apiKey = os.getenv('EASYDAY_API_KEY')
 secureUrl = os.getenv('EASYDAY_SECURE_URL')
+
+async def upsert(datastore, request: UpsertRequest = Body(...)):
+    try:
+        print("Trying to use upsert function with datastore:", datastore)
+        ids = await datastore.upsert(request.documents)
+        return UpsertResponse(ids=ids)
+    except Exception as e:
+        print("Error:", e)
+        raise HTTPException(status_code=500, detail="Internal Service Error")
 
 def summarize_text(text):
     prompt = f"Fasse das folgende Transkript ausführlich zusammen. Gliedere deine Zusammenfassung in sinnvolle Abschnitte, die jeweils eine Überschrift enthalten. Nutze deinen inneren Monolog, um deine Zusammenfassung zu prüfen. Es dürfen keine wichtigen Informationen verloren gehen.:\n\nStart des Transkripts:{text}"
@@ -64,8 +86,30 @@ def process_easyday_data(db, datastore):
                 'transcript': transcript,
                 'summary': summary
             })
-            # If processed, add the ID to the list
-            processed_ids.append(item["_id"])
+
+            # Prepare document to upsert to vector store
+            document = {
+                'id': item["_id"],
+                'text': summary,
+                'title': item["title"],
+                'source': f"https://app.easyday.coach/blockviewcopilot/{item['_id']}/{secureUrl}/{apiKey}"
+            }
+            
+            upsert_request = UpsertRequest(documents=[document])
+
+            # Call the upsert function      
+            try:
+                print("Trying to upsert with datastore:", datastore) 
+                upsert_response = await upsert(datastore, upsert_request)
+                
+                # Return the upsert_response
+                # If processed, add the ID to the list
+                processed_ids.append(item["_id"])
+                return upsert_response
+            
+            except Exception as e:
+                raise Exception(f"Failed to upsert data for Document ID {document_id}. Error: {e}")     
+            
     else:
         print("Error:", response.status_code)
 
