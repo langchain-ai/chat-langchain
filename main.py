@@ -232,7 +232,7 @@ async def refresh_documents():
 async def refresh_easyday():
     try:
         response = process_easyday_data(db, datastore)
-        return {"results": results, "code": 200}
+        return {"response": response, "code": 200}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
