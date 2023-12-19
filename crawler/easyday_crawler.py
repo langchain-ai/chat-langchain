@@ -30,7 +30,7 @@ secureUrl = os.getenv('EASYDAY_SECURE_URL')
 async def upsert(datastore, request: UpsertRequest = Body(...)):
     try:
         print("Trying to use upsert function with datastore:", datastore)
-        ids = await datastore.upsert(request.documents)
+        ids = datastore.upsert(request.documents)
         return UpsertResponse(ids=ids)
     except Exception as e:
         print("Error:", e)
