@@ -217,7 +217,7 @@ export function ChatWindow(props: {
           value={input}
           maxRows={5}
           marginRight={"56px"}
-          placeholder="What is LangChain Expression Language?"
+          placeholder="Type your question here"
           textColor={"white"}
           borderColor={"rgb(58, 58, 61)"}
           onChange={(e) => setInput(e.target.value)}
@@ -249,12 +249,12 @@ export function ChatWindow(props: {
       {messages.length === 0 ? (
         <footer className="flex justify-center absolute bottom-8">
           <a
-            href="https://github.com/langchain-ai/chat-langchain"
+            href="https://cropguard.ai"
             target="_blank"
             className="text-white flex items-center"
           >
-            <img src="/images/github-mark.svg" className="h-4 mr-1" />
-            <span>View Source</span>
+            {/* <img src="/images/github-mark.svg" className="h-4 mr-1" /> */}
+            <span>CropGuard Inc, 2023</span>
           </a>
         </footer>
       ) : (

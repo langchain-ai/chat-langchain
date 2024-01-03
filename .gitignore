@@ -143,3 +143,7 @@ bin/
 pyvenv.cfg
 node_modules/
 .envrc
+
+# Folders to ignore
+temp/
+data/

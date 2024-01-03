@@ -10,8 +10,8 @@ export default function Home() {
     <ChakraProvider>
       <ToastContainer />
       <ChatWindow
-        titleText="Chat LangChain 🦜🔗"
-        placeholder="What is LangChain Expression Language?"
+        titleText="CropTalk 🌿"
+        placeholder="Can I insure my small organic farm?"
       ></ChatWindow>
     </ChakraProvider>
   );

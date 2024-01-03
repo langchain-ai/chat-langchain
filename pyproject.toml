@@ -2,7 +2,7 @@
 name = "chat-langchain"
 version = "0.1.0"
 description = ""
-authors = ["SN <6432132+samnoyes@users.noreply.github.com>"]
+authors = ["CropGuard"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -20,6 +20,13 @@ lxml = "^4.9.3"
 langserve = {extras = ["server"], version = "^0.0.34"}
 voyageai = "^0.1.4"
 
+python-dotenv = "1.0.0"
+chromadb = "0.4.18"
+sentence-transformers = "2.2.2"
+lark = "1.1.8"
+langsmith = "0.0.69"
+langchain-core = "0.0.12"
+# dsmain = "0.0.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"
@@ -28,3 +35,4 @@ isort = "^5.12.0"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
