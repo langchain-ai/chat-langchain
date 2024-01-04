@@ -1,4 +1,5 @@
 """Main entrypoint for the app."""
+import os
 import asyncio
 from typing import Dict, List, Optional, Union
 from uuid import UUID
@@ -27,7 +28,8 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-model = initialize_agent_executor(model="gpt-3.5-turbo-1106", tools=tools)
+model_name = os.getenv("MODEL_NAME")
+model = initialize_agent_executor(model=model_name, tools=tools)
 
 class ChatRequest(BaseModel):
     question: str

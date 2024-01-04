@@ -1,4 +1,5 @@
 
+import os
 import argparse
 import time
 
@@ -13,9 +14,12 @@ load_dotenv()
 
 if __name__ == "__main__":
 
+    model_name = os.getenv("MODEL_NAME")
+    test_dataset = os.getenv("TEST_DATASET")
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-name", default="gpt-3.5-turbo-1106")
-    parser.add_argument("--dataset-name", default="Default Dataset")
+    parser.add_argument("--model-name", default=model_name)
+    parser.add_argument("--dataset-name", default=test_dataset)
     args = parser.parse_args()
 
     client = Client()

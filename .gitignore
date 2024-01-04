@@ -144,6 +144,8 @@ pyvenv.cfg
 node_modules/
 .envrc
 
+..env.local
+
 # Folders to ignore
 temp/
 data/

@@ -1,3 +1,4 @@
+import os
 import chromadb
 from typing import List, Optional, Sequence
 
@@ -10,8 +11,11 @@ from langchain.schema import Document
 
 from croptalk.chromadb_utils import create_chroma_filter
 
+from dotenv import load_dotenv
+load_dotenv()
 
-def get_retriever(vectorestore_dir: str, collection_name: str, k: int=3) -> BaseRetriever:
+
+def get_retriever(vectorestore_dir: str, collection_name: str, k: int = 3) -> BaseRetriever:
     """Creates a langchain version of chromadb retriever that can additionaly filter documents by 'filter' argument"""
 
     # Connect to the existing collection through native Chroma's API
@@ -21,9 +25,10 @@ def get_retriever(vectorestore_dir: str, collection_name: str, k: int=3) -> Base
     # So if we are to use native chromabd retriever, we can specify embedding function as follows:
     # from chromadb.utils import embedding_functions
     # emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
-    
+
     # However here we have to use langchain's SentenceTransformerEmbeddings wrapper
-    lanngchain_emb = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
+    lanngchain_emb = SentenceTransformerEmbeddings(
+        model_name="all-MiniLM-L6-v2")
 
     # Load the collection through langchain's Chroma wrapper
     vectorstore = Chroma(
@@ -40,29 +45,34 @@ def get_retriever(vectorestore_dir: str, collection_name: str, k: int=3) -> Base
         self, query: str, run_manage=None, filter=None, **kwargs
     ) -> List[Document]:
         if self.search_type == "similarity":
-            docs = self.vectorstore.similarity_search(query, filter=filter, **self.search_kwargs, **kwargs)
+            docs = self.vectorstore.similarity_search(
+                query, filter=filter, **self.search_kwargs, **kwargs)
         return docs
 
     VectorStoreRetriever._get_relevant_documents = _get_relevant_documents
     VectorStoreRetriever._expects_other_args = True
-    
+
     return retriever
 
-def retriever_with_filter_function(query: str, doc_category:str=None, 
-                                   commodity:str=None, county:str=None, state:str=None, **kwargs) -> List[Document]:
+
+def retriever_with_filter_function(query: str, doc_category: str = None,
+                                   commodity: str = None, county: str = None, state: str = None, **kwargs) -> List[Document]:
     """Retriever wrapper that allows to create chromadb where_filter and filter documents by there metadata."""
-    
-    where_filter = create_chroma_filter(commodity=commodity, county=county, state=state, 
+
+    where_filter = create_chroma_filter(commodity=commodity, county=county, state=state,
                                         doc_category=doc_category, include_common_docs=False)
-    
+
     return retriever.get_relevant_documents(query, filter=where_filter)
+
 
 class RetrieverInput(BaseModel):
     """Input schema for an llm-toolkit retriever."""
     query: str = Field(description="Query to look up in retriever")
-    commodity: Optional[str] = Field(description="Commodity name. Example: Apples")
+    commodity: Optional[str] = Field(
+        description="Commodity name. Example: Apples")
     state: Optional[str] = Field(description="State name. Example: California")
     county: Optional[str] = Field(description="County name. Example: Ventura")
+
 
 def format_docs(docs: Sequence[Document]) -> str:
     formatted_docs = []
@@ -72,23 +82,28 @@ def format_docs(docs: Sequence[Document]) -> str:
     return formatted_docs
 
 
-def retriever_with_filter_by_category(query: str, commodity:str=None, county:str=None, state:str=None,
+def retriever_with_filter_by_category(query: str, commodity: str = None, county: str = None, state: str = None,
                                       formatted=True, **kwargs) -> List[Document]:
     """Retriever wrapper that allows to create chromadb where_filter and filter documents by there metadata."""
-    #TODO: run requests in async manner
-    cih_docs = retriever.get_relevant_documents(query, filter=create_chroma_filter(doc_category='CIH'))
-    bp_docs = retriever.get_relevant_documents(query, filter=create_chroma_filter(doc_category='BP'))
-    cp_docs = retriever.get_relevant_documents(query, filter=create_chroma_filter(doc_category='CP', commodity=commodity))
-    sp_docs = retriever.get_relevant_documents(query, filter=create_chroma_filter(doc_category='SP', 
+    # TODO: run requests in async manner
+    cih_docs = retriever.get_relevant_documents(
+        query, filter=create_chroma_filter(doc_category='CIH'))
+    bp_docs = retriever.get_relevant_documents(
+        query, filter=create_chroma_filter(doc_category='BP'))
+    cp_docs = retriever.get_relevant_documents(
+        query, filter=create_chroma_filter(doc_category='CP', commodity=commodity))
+    sp_docs = retriever.get_relevant_documents(query, filter=create_chroma_filter(doc_category='SP',
                                                                                   commodity=commodity, state=state, county=county))
-    
+
     docs = cih_docs + bp_docs + cp_docs + sp_docs
     if formatted:
         return "\n".join(format_docs(docs))
     return docs
 
 
+vectorestore_dir = os.getenv("VECTORSTORE_DIR")
+collection = os.getenv("VECTORSTORE_COLLECTION")
+top_k = int(os.getenv("VECTORSTORE_TOP_K"))
 
-vectorestore_dir = '/Users/katerina/Documents/CropGuard/Dec_demo/vectorstore'
-
-retriever = get_retriever(vectorestore_dir, "Demo", k=3)
+retriever = get_retriever(
+    vectorestore_dir, collection_name=collection, k=top_k)
