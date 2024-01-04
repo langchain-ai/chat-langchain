@@ -3,7 +3,7 @@ import argparse
 from langchain.smith import RunEvalConfig
 from langsmith import Client
 
-from croptalk.model import initialize_llm
+from croptalk.model_agent import initialize_llm
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -17,10 +17,13 @@ def main(model_name, dataset_name):
 
     eval_config = RunEvalConfig(
         evaluators=["qa"],
-        prediction_key="output", # The key from the traced run’s outputs dictionary to use to represent the prediction.
-        input_key="Question", # The key from the traced run’s inputs dictionary to use to represent the input. 
+        # The key from the traced run’s outputs dictionary to use to represent the prediction.
+        prediction_key="output",
+        # The key from the traced run’s inputs dictionary to use to represent the input.
+        input_key="Question",
         output_key="result",
-        reference_key="Answer", # The key in the dataset run to use as the reference string.
+        # The key in the dataset run to use as the reference string.
+        reference_key="Answer",
     )
 
     results = client.run_on_dataset(
@@ -33,11 +36,13 @@ def main(model_name, dataset_name):
         verbose=True,
     )
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", help="Name of the model", default="gpt-3.5-turbo-1106")
-    parser.add_argument("--dataset", help="Name of the dataset", default="Default Dataset")
+    parser.add_argument("--model", help="Name of the model",
+                        default="gpt-3.5-turbo-1106")
+    parser.add_argument(
+        "--dataset", help="Name of the dataset", default="Default Dataset")
     args = parser.parse_args()
 
     main(args.model, args.dataset)
-

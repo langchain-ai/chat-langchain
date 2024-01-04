@@ -13,8 +13,7 @@ from langserve import add_routes
 
 from pydantic import BaseModel
 
-from croptalk.model import initialize_agent_executor
-from croptalk.tools import tools
+from croptalk.model_agent import model
 
 client = Client()
 
@@ -28,14 +27,14 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-model_name = os.getenv("MODEL_NAME")
-model = initialize_agent_executor(model=model_name, tools=tools)
 
 class ChatRequest(BaseModel):
     question: str
     chat_history: Optional[List[Dict[str, str]]]
-    
-add_routes(app, model, path="/chat", input_type=ChatRequest, config_keys=["metadata"])
+
+
+add_routes(app, model, path="/chat",
+           input_type=ChatRequest, config_keys=["metadata"])
 
 
 class SendFeedbackBody(BaseModel):

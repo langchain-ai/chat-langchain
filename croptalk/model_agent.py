@@ -1,4 +1,5 @@
-import argparse
+from langchain.globals import set_debug
+import os
 from operator import itemgetter
 
 from langchain.chat_models import ChatOpenAI
@@ -12,13 +13,12 @@ from langchain.agents.format_scratchpad import format_to_openai_function_message
 from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
 from langchain.tools.render import format_tool_to_openai_function
 
-from croptalk.agent_prompt import agent_system_message
+from croptalk.prompts_agent import agent_system_message
 from croptalk.tools import tools
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from langchain.globals import set_debug
 set_debug(True)
 
 
@@ -30,12 +30,15 @@ def initialize_llm(model):
         temperature=0,
     )
 
+
 def initialize_llm_with_tools(model, tools):
 
     llm = initialize_llm(model)
-    llm_with_tools = llm.bind(functions=[format_tool_to_openai_function(t) for t in tools])
+    llm_with_tools = llm.bind(
+        functions=[format_tool_to_openai_function(t) for t in tools])
 
     return llm_with_tools
+
 
 def initialize_agent(model, tools, memory_key="chat_history", eval_mode=False):
     llm_with_tools = initialize_llm_with_tools(model, tools)
@@ -60,14 +63,16 @@ def initialize_agent(model, tools, memory_key="chat_history", eval_mode=False):
 
     # TODO: use OpenAIFunctionsAgent instead of binding
     # openai_agent = OpenAIFunctionsAgent(llm=llm, tools=tools, prompt=prompt)
-        
+
     return agent
 
+
 def initialize_agent_executor(model, tools, memory_key="chat_history", memory_model="gpt-3.5-turbo-1106"):
-    
+
     llm = initialize_llm(memory_model)
 
-    memory = AgentTokenBufferMemory(memory_key=memory_key, llm=llm, max_token_limit=6000)
+    memory = AgentTokenBufferMemory(
+        memory_key=memory_key, llm=llm, max_token_limit=6000)
     agent = initialize_agent(model, tools, memory_key=memory_key)
 
     agent_executor = (
@@ -83,11 +88,6 @@ def initialize_agent_executor(model, tools, memory_key="chat_history", memory_mo
 
     return agent_executor
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Initialize AI Agent")
-    parser.add_argument("--model", type=str, default="gpt-3.5-turbo-1106", help="Specify the model to use")
-    args = parser.parse_args()
 
-    agent_executor = initialize_agent_executor(model=args.model, tools=tools)
-
-    
+model_name = os.getenv("MODEL_NAME")
+model = initialize_agent_executor(model=model_name, tools=tools)
