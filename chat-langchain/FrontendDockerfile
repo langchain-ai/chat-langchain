@@ -1,0 +1,16 @@
+# Frontend Dockerfile
+FROM node:20-bookworm
+
+# Environment variables
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    HOME=/app
+
+# Working directory
+WORKDIR $HOME
+
+# Copy package.json and install dependencies
+COPY package.json .
+RUN yarn install
+
+# Copy rest of the application code
+COPY . .

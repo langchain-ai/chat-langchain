@@ -102,7 +102,6 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
 .venv
 env/
 venv/
@@ -144,8 +143,7 @@ pyvenv.cfg
 node_modules/
 .envrc
 
-..env.local
-
 # Folders to ignore
 temp/
-data/
+data/*
+secrets/*

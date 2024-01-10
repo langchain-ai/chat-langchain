@@ -1,0 +1,32 @@
+# Backend Dockerfile
+FROM python:3.11
+
+SHELL ["/bin/bash", "-c"]
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    HOME=/app
+
+# Working directory
+WORKDIR $HOME
+
+# Install dependencies
+RUN python3 -m venv /chatenv
+ENV PATH="/chatenv/bin:$PATH"
+
+# Install Poetry
+RUN apt-get update && apt-get install -y curl
+RUN curl -sSL https://install.python-poetry.org | python3 -
+ENV PATH="${HOME}/.local/bin:$PATH"
+RUN poetry --version
+
+# Copy only backend related code
+COPY . $HOME/
+RUN poetry install
+
+# Expose necessary ports
+EXPOSE 8080
+
+# Install dsmain
+RUN chmod +x $HOME/install_dsmain.sh
+RUN $HOME/install_dsmain.sh
