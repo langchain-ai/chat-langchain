@@ -129,6 +129,7 @@ export function ChatWindow(props: {
                 streamedResponse?.logs?.[sourceStepName]?.final_output?.output,
               )
             ) {
+              // TODO: fix this to display sources
               sources = streamedResponse.logs[
                 sourceStepName
               ].final_output.output.map((doc: Record<string, any>) => ({

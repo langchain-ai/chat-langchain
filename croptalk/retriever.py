@@ -12,7 +12,8 @@ from langchain.schema import Document
 from croptalk.chromadb_utils import create_chroma_filter
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv('secrets/.env.secret')
+load_dotenv('secrets/.env.shared')
 
 
 def get_retriever(vectorestore_dir: str, collection_name: str, k: int = 3) -> BaseRetriever:
@@ -55,8 +56,8 @@ def get_retriever(vectorestore_dir: str, collection_name: str, k: int = 3) -> Ba
     return retriever
 
 
-def retriever_with_filter_function(query: str, doc_category: str = None,
-                                   commodity: str = None, county: str = None, state: str = None, **kwargs) -> List[Document]:
+def retriever_with_filter(query: str, doc_category: str = None,
+                          commodity: str = None, county: str = None, state: str = None, **kwargs) -> List[Document]:
     """Retriever wrapper that allows to create chromadb where_filter and filter documents by there metadata."""
 
     where_filter = create_chroma_filter(commodity=commodity, county=county, state=state,
@@ -77,13 +78,13 @@ class RetrieverInput(BaseModel):
 def format_docs(docs: Sequence[Document]) -> str:
     formatted_docs = []
     for i, doc in enumerate(docs):
-        doc_string = f"<doc id='{i+1}' page_id={doc.metadata['page']}>{doc.page_content}</doc>"
+        doc_string = f"<doc id='{i+1}' page_id={doc.metadata['page']} doc_category={doc.metadata['doc_category']}>{doc.page_content}</doc>"
         formatted_docs.append(doc_string)
     return formatted_docs
 
 
-def retriever_with_filter_by_category(query: str, commodity: str = None, county: str = None, state: str = None,
-                                      formatted=True, **kwargs) -> List[Document]:
+def retriever_with_filter_each_category(query: str, commodity: str = None, county: str = None, state: str = None,
+                                        formatted=True, **kwargs) -> List[Document]:
     """Retriever wrapper that allows to create chromadb where_filter and filter documents by there metadata."""
     # TODO: run requests in async manner
     cih_docs = retriever.get_relevant_documents(

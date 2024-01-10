@@ -1,29 +1,25 @@
-
-from langchain_core.runnables import RunnableParallel
-from langchain.globals import set_debug
+from dotenv import load_dotenv
 import os
 from operator import itemgetter
-from typing import Dict, List, Optional, Sequence, Union
-from langchain.chat_models import ChatOpenAI
+from typing import Dict, List, Optional
 from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
                                PromptTemplate)
-from langchain.schema import Document
 from langchain.schema.language_model import BaseLanguageModel
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import (Runnable, RunnableBranch,
                                        RunnableLambda, RunnableMap, RunnableParallel)
 
+from langchain.globals import set_debug
 from pydantic import BaseModel
-from croptalk.retriever import retriever, retriever_with_filter_function
+from croptalk.retriever import retriever_with_filter, format_docs
 from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, INS_PLAN_TEMPLATE
 from croptalk.model_agent import initialize_llm
 
-from dotenv import load_dotenv
-load_dotenv()
-
 set_debug(True)
+
+load_dotenv('secrets/.env.secret')
+load_dotenv('secrets/.env.shared')
 
 
 def create_retriever_chain(llm: BaseLanguageModel) -> Runnable:
@@ -57,12 +53,14 @@ def create_retriever_chain(llm: BaseLanguageModel) -> Runnable:
     ins_plan_chain = (INS_PLAN_PROMPT | llm | StrOutputParser()
                       ).with_config(run_name="IndentifyPlan")
 
-    retriever_with_filter = RunnableLambda(lambda x: retriever_with_filter_function(query=x["question"],
-                                                                                    commodity=x['commodity'],
-                                                                                    state=x['state'],
-                                                                                    county=x['county'],
-                                                                                    insurance_plan=x['insurance_plan'],
-                                                                                    include_common_docs=True)).with_config(run_name="RetrieverWithFilter")
+    retriever_func = RunnableLambda(lambda x: retriever_with_filter(query=x["question"],
+                                                                    commodity=x['commodity'],
+                                                                    state=x['state'],
+                                                                    county=x['county'],
+                                                                    insurance_plan=x['insurance_plan'],
+                                                                    include_common_docs=True,
+                                                                    formatted=False)
+                                    ).with_config(run_name="RetrieverWithFilter")
 
     return (
         RunnableParallel(
@@ -76,7 +74,8 @@ def create_retriever_chain(llm: BaseLanguageModel) -> Runnable:
             insurance_plan=ins_plan_chain,
             question=itemgetter("question")
         ).with_config(run_name="CommodityChain")
-        | retriever_with_filter
+        | retriever_func.with_config(run_name="FindDocs")
+        | RunnableLambda(format_docs).with_config(run_name="FormatDocs")
     )
 
 
@@ -97,24 +96,15 @@ def serialize_history(request: ChatRequest):
     return converted_chat_history
 
 
-def format_docs(docs: Sequence[Document]) -> str:
-    formatted_docs = []
-    for i, doc in enumerate(docs):
-        doc_string = f"<doc id='{i+1}' page_id={doc.metadata['page']}>{doc.page_content}</doc>"
-        formatted_docs.append(doc_string)
-    return "\n".join(formatted_docs)
-
-
 def create_chain(
         basic_llm: BaseLanguageModel,
         answer_llm: BaseLanguageModel) -> Runnable:
 
-    retriever_chain = create_retriever_chain(
-        basic_llm).with_config(run_name="FindDocs")
+    retriever_chain = create_retriever_chain(basic_llm)
 
     _context = RunnableMap(
         {
-            "context": retriever_chain | format_docs,
+            "context": retriever_chain,
             "question": itemgetter("question"),
             "chat_history": itemgetter("chat_history"),
 

@@ -10,7 +10,8 @@ from croptalk.model_agent import initialize_agent_executor
 from croptalk.tools import tools
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv('secrets/.env.secret')
+load_dotenv('secrets/.env.shared')
 
 if __name__ == "__main__":
 

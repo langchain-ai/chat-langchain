@@ -13,11 +13,12 @@ from langchain.agents.format_scratchpad import format_to_openai_function_message
 from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
 from langchain.tools.render import format_tool_to_openai_function
 
-from croptalk.prompts_agent import agent_system_message
+from croptalk.prompts_agent import agent_system_message_short
 from croptalk.tools import tools
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv('secrets/.env.secret')
+load_dotenv('secrets/.env.shared')
 
 set_debug(True)
 
@@ -44,7 +45,7 @@ def initialize_agent(model, tools, memory_key="chat_history", eval_mode=False):
     llm_with_tools = initialize_llm_with_tools(model, tools)
 
     prompt = OpenAIFunctionsAgent.create_prompt(
-        system_message=agent_system_message,
+        system_message=agent_system_message_short,
         extra_prompt_messages=[MessagesPlaceholder(variable_name=memory_key)],
     )
 

@@ -1,5 +1,4 @@
 """Main entrypoint for the app."""
-import os
 import asyncio
 from typing import Dict, List, Optional, Union
 from uuid import UUID
@@ -13,7 +12,7 @@ from langserve import add_routes
 
 from pydantic import BaseModel
 
-from croptalk.model_agent import model
+from croptalk.model_llm import model
 
 client = Client()
 

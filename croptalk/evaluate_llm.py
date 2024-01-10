@@ -6,7 +6,8 @@ from langsmith import Client
 from croptalk.model_agent import initialize_llm
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv('secrets/.env.secret')
+load_dotenv('secrets/.env.shared')
 
 
 def main(model_name, dataset_name):
