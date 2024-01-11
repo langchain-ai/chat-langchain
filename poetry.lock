@@ -840,13 +840,13 @@ text-helpers = ["chardet (>=5.1.0,<6.0.0)"]
 
 [[package]]
 name = "langserve"
-version = "0.0.34"
+version = "0.0.39"
 description = ""
 optional = false
 python-versions = ">=3.8.1,<4.0.0"
 files = [
-    {file = "langserve-0.0.34-py3-none-any.whl", hash = "sha256:fca837c8d2df34cf85f561c4afdbd8e77c9bc78c4a5d8b9cff8b3c03fbb5713b"},
-    {file = "langserve-0.0.34.tar.gz", hash = "sha256:2d9b059dd2931e3f38cd3edcdb04e482135f9d6c6490df4b26fcf72d06d60392"},
+    {file = "langserve-0.0.39-py3-none-any.whl", hash = "sha256:3a8dc3af3c4a18b6867f1a32b75968035ea5ecf5481862fd9d4b51bb06f43e65"},
+    {file = "langserve-0.0.39.tar.gz", hash = "sha256:c5ab2a539e7a008ca017cbe93dd6210aca9f382989906eda307464eac7182a41"},
 ]
 
 [package.dependencies]
@@ -1941,4 +1941,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "c43ef7b03070b8bce1ac51971792ea0d4259d221276bd5bed1ced49166e7e369"
+content-hash = "0572cc6f503b9cb7dbbe7102901b536c3dd635283bdf70dbd1754dd9444d3920"
