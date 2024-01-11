@@ -17,7 +17,7 @@ tiktoken = "^0.4.0"
 weaviate-client = "^3.23.2"
 psycopg2 = "^2.9.7"
 lxml = "^4.9.3"
-langserve = {extras = ["server"], version = "^0.0.34"}
+langserve = {extras = ["server"], version = "^0.0.39"}
 voyageai = "^0.1.4"
 
 
