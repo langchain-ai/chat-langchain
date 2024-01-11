@@ -1,2 +1,4 @@
 chat-langchain/
 assets/
+venv/
+.venv

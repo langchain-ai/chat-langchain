@@ -4,6 +4,8 @@
 mkdir -p /root/.ssh/
 chmod 700 /root/.ssh/
 
+cd /app
+
 # Copy the SSH key
 cp "secrets/dsmain_ssh_ec2" "/root/.ssh/"
 

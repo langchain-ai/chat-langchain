@@ -10,10 +10,6 @@ ENV PYTHONUNBUFFERED=1 \
 # Working directory
 WORKDIR $HOME
 
-# Install dependencies
-RUN python3 -m venv /chatenv
-ENV PATH="/chatenv/bin:$PATH"
-
 # Install Poetry
 RUN apt-get update && apt-get install -y curl
 RUN curl -sSL https://install.python-poetry.org | python3 -
@@ -21,12 +17,22 @@ ENV PATH="${HOME}/.local/bin:$PATH"
 RUN poetry --version
 
 # Copy only backend related code
-COPY . $HOME/
-RUN poetry install
+COPY pyproject.toml poetry.lock $HOME/
+RUN poetry config virtualenvs.create false \
+  && poetry install
 
 # Expose necessary ports
 EXPOSE 8080
 
 # Install dsmain
+COPY install_dsmain.sh $HOME
+# RUN pwd
+COPY secrets/ $HOME/secrets
+# RUN ls -l .
+# RUN ls -l $HOME/secrets
+# RUN chmod a+r $HOME/secrets
 RUN chmod +x $HOME/install_dsmain.sh
 RUN $HOME/install_dsmain.sh
+ENV PATH="${HOME}/ds-main:$PATH"
+
+COPY . $HOME/

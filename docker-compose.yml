@@ -11,7 +11,7 @@ services:
     environment:
       - GRAPH_URL_HOST=http://localhost:8080 # http://54.189.174.122:8080
       - DATA_FLD=data_mac
-    entrypoint: /bin/bash -c "/chatenv/bin/uvicorn main:app --host 0.0.0.0 --port 8080"
+    entrypoint: /bin/bash -c "uvicorn main:app --host 0.0.0.0 --port 8080"
 
   frontend:
     build: 
