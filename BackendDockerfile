@@ -25,14 +25,11 @@ RUN poetry config virtualenvs.create false \
 EXPOSE 8080
 
 # Install dsmain
-COPY install_dsmain.sh $HOME
-# RUN pwd
+COPY install_dsmain.sh $HOME/
 COPY secrets/ $HOME/secrets
-# RUN ls -l .
-# RUN ls -l $HOME/secrets
-# RUN chmod a+r $HOME/secrets
 RUN chmod +x $HOME/install_dsmain.sh
 RUN $HOME/install_dsmain.sh
-ENV PATH="${HOME}/ds-main:$PATH"
+ENV PYTHONPATH="${PYTHONPATH}:/app/ds-main"
 
+# Copy the rest of the project
 COPY . $HOME/
