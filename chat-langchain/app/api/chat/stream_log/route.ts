@@ -2,8 +2,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import type { BaseLanguageModel } from "langchain/base_language";
-import type { Document } from "langchain/document";
+import type { BaseLanguageModel } from "@langchain/core/language_models/base";
+import type { Document } from "@langchain/core/documents";
 
 import {
   Runnable,
@@ -11,19 +11,18 @@ import {
   RunnableMap,
   RunnableBranch,
   RunnableLambda,
-} from "langchain/schema/runnable";
-import { HumanMessage, AIMessage, BaseMessage } from "langchain/schema";
-import { ChatOpenAI } from "langchain/chat_models/openai";
-import { StringOutputParser } from "langchain/schema/output_parser";
+} from "@langchain/core/runnables";
+import { HumanMessage, AIMessage, BaseMessage } from "@langchain/core/messages";
+import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { StringOutputParser } from "@langchain/core/output_parsers";
 import {
   PromptTemplate,
   ChatPromptTemplate,
   MessagesPlaceholder,
-} from "langchain/prompts";
+} from "@langchain/core/prompts";
 
 import weaviate from "weaviate-ts-client";
-import { WeaviateStore } from "langchain/vectorstores/weaviate";
-import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { WeaviateStore } from "@langchain/community/vectorstores/weaviate";
 
 export const runtime = "edge";
 
