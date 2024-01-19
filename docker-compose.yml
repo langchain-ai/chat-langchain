@@ -1,24 +1,25 @@
 version: '3'
 services:
   backend:
-    build: 
+    build:
       context: .
       dockerfile: BackendDockerfile
     ports:
       - "8080:8080"
     volumes:
       - ./data:/app/data  # Map the ./data directory on the host to /app/data in the container
+      - /home/ubuntu/code/ds-data/vectorstore/data:/app/data_v00  # Add v00 datastore in the container
     environment:
-      - GRAPH_URL_HOST=http://localhost:8080 # http://54.189.174.122:8080
+      - GRAPH_URL_HOST=http://3.128.203.104:8080 # to run locally, use http://localhost:8080
       - DATA_FLD=data_mac
     entrypoint: /bin/bash -c "uvicorn main:app --host 0.0.0.0 --port 8080"
 
   frontend:
-    build: 
+    build:
       context: ./chat-langchain
       dockerfile: FrontendDockerfile
     ports:
       - "3000:3000" # - "3000:80"
     entrypoint: ["yarn", "dev"]
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8080 # http://54.189.174.122:8080
+      - NEXT_PUBLIC_API_BASE_URL=http://3.128.203.104:8080 # to run locally, use http://localhost:8080
