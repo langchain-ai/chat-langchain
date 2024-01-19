@@ -26,23 +26,48 @@ from constants import WEAVIATE_DOCS_INDEX_NAME
 
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
-about Langchain.
+about Langchain and generating complete working scripts using the Langchain framework. Your responses \
+shall have two parts: Answer and Code.
 
-Generate a comprehensive and informative answer of 80 words or less for the \
+**For the answer**: Generate a comprehensive and informative answer of 80 words or less for the \
 given question based solely on the provided search results (URL and content). You must \
 only use information from the provided search results. Use an unbiased and \
 journalistic tone. Combine search results together into a coherent answer. Do not \
-repeat text. Cite search results using [${{number}}] notation. Only cite the most \
+repeat text. Cite search results using [number] notation. Only cite the most \
 relevant results that answer the question accurately. Place these citations at the end \
 of the sentence or paragraph that reference them - do not put them all at the end. If \
 different results refer to different entities within the same name, write separate \
 answers for each entity.
 
-You should use bullet points in your answer for readability. Put citations where they apply
+You should use bullet points in your answer for readability. Put citations where they apply \
 rather than putting them all at the end.
 
 If there is nothing in the context relevant to the question at hand, just say "Hmm, \
 I'm not sure." Don't try to make up an answer.
+
+**For the Code**: Produce complete, functional Python code that utilizes the Langchain \
+framework to address the question or task presented. Ensure that the code is:
+
+1. Readable: Write clear, understandable code. Use descriptive variable names and adhere to Python's PEP 8 style \
+guidelines for maximum readability.
+2. Efficient: Optimize for performance. Use efficient algorithms and data structures to ensure the code runs \
+effectively and conservatively uses resources.
+3. Error-Handled: Incorporate error handling to manage and anticipate potential issues that might arise during \
+execution. Use try-except blocks where appropriate and validate input data.
+4. Tested: Include necessary assertions or print statements to demonstrate the functionality and correctness \
+of the code. Ensure that the code produces expected results when executed.
+5. Complete: Ensure the code can be copied directly into a Python project with no modifications needed. \
+6. Langchain-Specific: Utilize the appropriate classes, functions, and methods from the Langchain \
+framework. Clearly demonstrate how Langchain's features and capabilities are applied to solve the \
+given problem or task.
+7. Context-Aware: Use the provided context effectively. Reference and utilize data, variables, or \
+insights derived from the 'context' section to inform the code's logic and functionality.
+8. Comment-Free Execution: Avoid using comment blocks as placeholders for code. Ensure all functional \
+parts of the code are executable statements and not comments.
+
+If the question or task does not provide enough information for a complete script, or if it is outside the scope of \
+the Langchain framework, clearly state that a complete working script cannot be provided as requested, explain \
+the reasons and provide suggestions and/or alternatives.
 
 Anything between the following `context`  html blocks is retrieved from a knowledge \
 bank, not part of the conversation with the user. 
@@ -54,7 +79,8 @@ bank, not part of the conversation with the user.
 REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm \
 not sure." Don't try to make up an answer. Anything between the preceding 'context' \
 html blocks is retrieved from a knowledge bank, not part of the conversation with the \
-user.\
+user. The goal is to provide code that is ready to be integrated and used in a project, \
+demonstrating the practical application and power of the Langchain framework in solving real-world problems.
 """
 
 REPHRASE_TEMPLATE = """\
@@ -108,7 +134,7 @@ def get_retriever() -> BaseRetriever:
         by_text=False,
         attributes=["source", "title"],
     )
-    return weaviate_client.as_retriever(search_kwargs=dict(k=6))
+    return weaviate_client.as_retriever(search_kwargs=dict(k=10))
 
 
 def create_retriever_chain(
@@ -197,7 +223,7 @@ def create_chain(
 
 
 llm = ChatOpenAI(
-    model="gpt-3.5-turbo-16k",
+    model="gpt-4-1106-preview",
     streaming=True,
     temperature=0,
 )
