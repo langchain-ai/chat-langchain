@@ -8,6 +8,7 @@ Deployed version: [chat.langchain.com](https://chat.langchain.com)
 The app leverages LangChain's streaming support and async API to update the page in real time for multiple users.
 
 ## ✅ Running locally
+0. Update lock `poetry lock`
 1. Install backend dependencies: `poetry install`.
 1. Make sure to enter your environment variables to configure the application:
 ```
