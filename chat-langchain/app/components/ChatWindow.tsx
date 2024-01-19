@@ -204,7 +204,7 @@ export function ChatWindow(props: {
               <ChatMessageBubble
                 key={m.id}
                 message={{ ...m }}
-                aiEmoji="🦜"
+                aiEmoji="🌿"
                 isMostRecent={index === 0}
                 messageCompleted={!isLoading}
               ></ChatMessageBubble>

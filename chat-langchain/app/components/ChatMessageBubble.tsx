@@ -298,7 +298,8 @@ export function ChatMessageBubble(props: {
       )}
 
       {isUser ? (
-        <Heading size="lg" fontWeight="medium" color="white">
+        // Change question size here
+        <Heading size="sm" fontWeight="medium" color="darkseagreen">
           {content}
         </Heading>
       ) : (

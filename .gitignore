@@ -147,3 +147,5 @@ node_modules/
 temp/
 data/*
 secrets/*
+langchain_1/
+new_langchain/

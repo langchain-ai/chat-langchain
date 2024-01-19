@@ -1,4 +1,5 @@
 """Main entrypoint for the app."""
+from langchain.globals import set_debug
 import asyncio
 from typing import Dict, List, Optional, Union
 from uuid import UUID
@@ -12,7 +13,15 @@ from langserve import add_routes
 
 from pydantic import BaseModel
 
-from croptalk.model_llm import model
+# from croptalk.model_llm import model
+from croptalk.model_openai_functions import model
+
+from dotenv import load_dotenv
+load_dotenv('secrets/.env.secret')
+load_dotenv('secrets/.env.shared')
+
+set_debug(True)
+
 
 client = Client()
 
