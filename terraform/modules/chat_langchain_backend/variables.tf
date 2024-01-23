@@ -84,3 +84,15 @@ variable "langchain_endpoint" {
   type        = string
   default     = "https://api.smith.langchain.com"
 }
+
+variable "fireworks_api_key" {
+  description = "Fireworks api key to use for the backend"
+  type        = string
+  default     = ""
+}
+
+variable "anthropic_api_key" {
+  description = "Anthropic api key to use for the backend"
+  type        = string
+  default     = ""
+}
