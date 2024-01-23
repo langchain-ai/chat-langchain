@@ -231,7 +231,7 @@ export function ChatWindow(props: { conversationId: string }) {
                 insertUrlParam("llm", e.target.value);
                 setLlm(e.target.value);
               }}
-              width={"212px"}
+              width={"240px"}
             >
               <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
               <option value="anthropic_claude_2_1">Claude-2.1</option>
