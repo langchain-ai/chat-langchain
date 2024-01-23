@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Sequence
 import weaviate
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_community.chat_models import ChatAnthropic, ChatFireworks
+from langchain_community.chat_models import ChatAnthropic
 from langchain_community.embeddings.voyageai import VoyageEmbeddings
 from langchain_community.vectorstores.weaviate import Weaviate
 from langchain_core.documents import Document
@@ -19,6 +19,7 @@ from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import (ConfigurableField, Runnable,
                                       RunnableBranch, RunnableLambda,
                                       RunnableMap)
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langsmith import Client
 from pydantic import BaseModel
@@ -212,19 +213,13 @@ llm = ChatOpenAI(
         temperature=0,
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
     ),
-    fireworks_mixtral=ChatFireworks(
-        model="accounts/fireworks/models/mixtral-8x7b-instruct",
+    google_gemini_pro=ChatGoogleGenerativeAI(
+        model="gemini-pro",
         temperature=0,
+        convert_system_message_to_human=True,
         max_tokens=16384,
-        fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
+        google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
     ),
-    # google_genai=ChatFireworks(
-    #     model="gemini-pro",
-    #     temperature=0,
-    #     convert_system_message_to_human=True,
-    #     max_tokens=16384,
-    #     google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided")
-    # )
 )
 
 retriever = get_retriever()
