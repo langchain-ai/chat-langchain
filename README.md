@@ -1,4 +1,12 @@
-# 🦜️🔗 Chat LangChain
+# CropTalk
+
+Create testing dataset
+`python croptalk/create_test_dataset.py`
+Run on the dataset
+`python evaluate_openai_functions.py`
+Check Langsmith datasets for the results.
+
+# 🔗 Chat LangChain
 
 This repo is an implementation of a locally hosted chatbot specifically focused on question answering over the [LangChain documentation](https://langchain.readthedocs.io/en/latest/).
 Built with [LangChain](https://github.com/hwchase17/langchain/), [FastAPI](https://fastapi.tiangolo.com/), and [Next.js](https://nextjs.org).

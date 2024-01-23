@@ -26,7 +26,7 @@ def create_dataset_from_csv(csv_file, name, description, input_keys, output_keys
 
 if __name__ == "__main__":
 
-    filepath = 'data/CropTalk_Knowledge_testset _Nano.csv'
+    filepath = 'data/CropTalk_Knowledge_testset_Nano.csv'
     if not os.path.isfile(filepath):
         print(f"File {filepath} not found")
         exit(1)

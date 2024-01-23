@@ -40,10 +40,13 @@ set_debug(True)
 
 
 # Vectorstore
-vectorestore_dir = '/Users/katerina/Documents/CropGuard/Dec_demo/vectorstore'
+vectorestore_dir = os.getenv("VECTORSTORE_DIR")
+collection_name = os.getenv("VECTORSTORE_COLLECTION")
+
 emb_fn = embedding_functions.DefaultEmbeddingFunction()
 client = chromadb.PersistentClient(path=vectorestore_dir)
-collection = client.get_collection(name="Demo", embedding_function=emb_fn)
+collection = client.get_collection(
+    name=collection_name, embedding_function=emb_fn)
 
 # Tools
 
