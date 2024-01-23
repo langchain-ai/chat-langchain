@@ -14,22 +14,6 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
   };
   return (
     <div className="rounded flex flex-col items-center max-w-full md:p-8">
-      <Heading fontSize="3xl" fontWeight={"medium"} mb={1} color={"white"}>
-        Chat LangChain 🦜🔗
-      </Heading>
-      <Heading
-        fontSize="xl"
-        fontWeight={"normal"}
-        mb={1}
-        color={"white"}
-        marginTop={"10px"}
-        textAlign={"center"}
-      >
-        Ask me anything about LangChain&apos;s{" "}
-        <Link href="https://python.langchain.com/" color={"blue.200"}>
-          Python documentation!
-        </Link>
-      </Heading>
       <Flex marginTop={"25px"} grow={1} maxWidth={"800px"} width={"100%"}>
         <Card
           onMouseUp={handleClick}
@@ -68,7 +52,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What is LangChain Expression Language?
+              What does RunnablePassthrough.assign() do?
             </Heading>
           </CardHeader>
         </Card>
@@ -111,7 +95,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              How do I run a model locally?
+              How do I run a model locally on my laptop with Ollama?
             </Heading>
           </CardHeader>
         </Card>
