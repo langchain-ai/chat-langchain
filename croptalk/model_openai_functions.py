@@ -1,3 +1,5 @@
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_community.tools.convert_to_openai import format_tool_to_openai_function
 from langchain.agents.format_scratchpad.openai_functions import (
     format_to_openai_function_messages,
@@ -7,7 +9,7 @@ from langchain.agents.output_parsers.openai_functions import (
 )
 import os
 from operator import itemgetter
-from typing import Any
+from typing import Any, Optional, List
 
 from langchain_core.documents import Document
 from croptalk.retriever import format_docs
@@ -16,7 +18,8 @@ from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
     AgentTokenBufferMemory,
 )
 from langchain.schema.runnable import (RunnablePassthrough)
-from croptalk.retriever import RetrieverInput
+from croptalk.chromadb_utils import create_chroma_filter
+
 from langchain.tools import StructuredTool
 from chromadb.utils import embedding_functions
 import chromadb
@@ -27,6 +30,7 @@ from langchain.globals import set_debug
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import AgentExecutor
 from croptalk.tools import tools
+from croptalk.prompts_agent import agent_text_short
 
 from dotenv import load_dotenv
 load_dotenv('secrets/.env.secret')
@@ -66,21 +70,40 @@ def format_docs(docs) -> str:
     return formatted_docs
 
 
-def query_chromadb(query):
+def query_chromadb(query, where_filter=None, k=5):
     """Searches and returns information given the filters."""
-    if not isinstance(query, str):
-        raise ValueError(f"Query must be a string. Received: {query}")
+
     query_embedding = emb_fn([query])
-    result = collection.query(query_embedding)
+    result = collection.query(query_embedding, n_results=k, where=where_filter)
     docs = format_chromadb_docs(result)
     formatted_docs = format_docs(docs)
     return formatted_docs
 
 
+def retriever_with_filter(query: str, doc_category: str = None,
+                          commodity: str = None, county: str = None, state: str = None, **kwargs) -> List[Document]:
+    """Retriever wrapper that allows to create chromadb where_filter and filter documents by there metadata."""
+    if not isinstance(query, str):
+        raise ValueError(f"Query must be a string. Received: {query}")
+    where_filter = create_chroma_filter(commodity=commodity, county=county, state=state,
+                                        doc_category=doc_category, include_common_docs=True)
+
+    return query_chromadb(query, where_filter=where_filter)
+
+
+class RetrieverInput(BaseModel):
+    """Input schema for an llm-toolkit retriever."""
+    query: str = Field(description="Query to look up in retriever")
+    commodity: Optional[str] = Field(
+        description="Commodity name. Example: Apples")
+    state: Optional[str] = Field(description="State name. Example: California")
+    county: Optional[str] = Field(description="County name. Example: Ventura")
+
+
 find_docs = StructuredTool.from_function(
-    name="find_docs",
+    name="FindDocs",
     description="Searches and returns information given the filters.",
-    func=query_chromadb,
+    func=retriever_with_filter,
     args_schema=RetrieverInput,
 )
 
@@ -89,19 +112,14 @@ tools = [find_docs]
 # Agent
 
 
-def add_empty_doc(*args, **kwargs):
-    kwargs["FindDocs"] = Document(page_content="Test doc", metadata={
-        "title": "Test Name", "source": "https://www.google.com"})
-    return kwargs
-
-
 def initialize_agent_executor(model_name, tools,
                               memory_key="chat_history", input_key="question", output_key="output",
                               memory_model="gpt-3.5-turbo-1106"):
 
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", "You are a helpful assistant"),
+            ("system", """You are a useful crop insurance assistant that provides accurate results based on retrieved docs.
+             ALWAYS cite the relevant sources using source url, title, and page number."""),
             MessagesPlaceholder("chat_history", optional=True),
             ("human", "{question}"),
             MessagesPlaceholder("agent_scratchpad"),
@@ -120,9 +138,6 @@ def initialize_agent_executor(model_name, tools,
             chat_history=lambda x: x.get("chat_history", []),
             input=itemgetter(input_key)
         )
-        | RunnablePassthrough.assign(
-            context=lambda x: add_empty_doc(x)
-        ).with_config(run_name="FindDocs")
         | prompt
         | llm_with_tools
         | OpenAIFunctionsAgentOutputParser()
@@ -131,10 +146,7 @@ def initialize_agent_executor(model_name, tools,
     memory = AgentTokenBufferMemory(
         memory_key=memory_key, llm=memory_llm, max_token_limit=6000)
 
-    # retr = RunnableLambda(lambda x: query_chromadb(x[input_key]))
     agent_executor = (
-        # RunnablePassthrough(question=retr.with_config(run_name="FindDocs"))
-        # |
         AgentExecutor(
             agent=agent,
             tools=tools,
