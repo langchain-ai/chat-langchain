@@ -104,6 +104,7 @@ export function ChatWindow(props: { conversationId: string }) {
           configurable: {
             llm,
           },
+          tags: ["model:" + llm],
           metadata: {
             conversation_id: conversationId,
             llm,
