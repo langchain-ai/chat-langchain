@@ -14,7 +14,7 @@ locals {
     LANGCHAIN_PROJECT    = var.langchain_project
     FIREWORKS_API_KEY    = var.fireworks_api_key
     ANTHROPIC_API_KEY    = var.anthropic_api_key
-    }
+    }, var.env_vars
   )
 }
 
