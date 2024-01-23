@@ -9,7 +9,7 @@ readme = "README.md"
 python = "^3.10"
 fastapi = "^0.103.1"
 pydantic = "1.10"
-langchain = "0.1.2"
+langchain = { git = "https://github.com/langchain-ai/langchain.git", subdirectory = "libs/langchain" }
 uvicorn = "^0.23.2"
 beautifulsoup4 = "^4.12.2"
 weaviate-client = "^3.23.2"
@@ -23,6 +23,7 @@ tiktoken = "^0.5.2"
 langchain-community = "^0.0.14"
 langchain-openai = "^0.0.3"
 langchain-google-genai = "^0.0.6"
+langchain-core = "0.1.15rc1"
 
 
 [tool.poetry.group.dev.dependencies]
