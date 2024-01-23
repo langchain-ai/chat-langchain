@@ -5,20 +5,21 @@ from typing import Dict, List, Optional, Sequence
 import weaviate
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from langchain.chat_models import ChatOpenAI
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.embeddings.voyageai import VoyageEmbeddings
-from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
-                               PromptTemplate)
-from langchain.schema import Document
-from langchain.schema.embeddings import Embeddings
-from langchain.schema.language_model import BaseLanguageModel
-from langchain.schema.messages import AIMessage, HumanMessage
-from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.retriever import BaseRetriever
-from langchain.schema.runnable import (Runnable, RunnableBranch,
-                                       RunnableLambda, RunnableMap)
-from langchain.vectorstores.weaviate import Weaviate
+from langchain_community.chat_models import ChatAnthropic, ChatFireworks
+from langchain_community.embeddings.voyageai import VoyageEmbeddings
+from langchain_community.vectorstores.weaviate import Weaviate
+from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
+from langchain_core.language_models.base import BaseLanguageModel
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import (ChatPromptTemplate, MessagesPlaceholder,
+                                    PromptTemplate)
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.runnables import (ConfigurableField, Runnable,
+                                      RunnableBranch, RunnableLambda,
+                                      RunnableMap)
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langsmith import Client
 from pydantic import BaseModel
 
@@ -200,7 +201,32 @@ llm = ChatOpenAI(
     model="gpt-3.5-turbo-16k",
     streaming=True,
     temperature=0,
+).configurable_alternatives(
+    # This gives this field an id
+    # When configuring the end runnable, we can then use this id to configure this field
+    ConfigurableField(id="llm"),
+    default_key="openai_gpt_3_5_turbo",
+    anthropic_claude_2_1=ChatAnthropic(
+        model="claude-2.1",
+        max_tokens=16384,
+        temperature=0,
+        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
+    ),
+    fireworks_mixtral=ChatFireworks(
+        model="accounts/fireworks/models/mixtral-8x7b-instruct",
+        temperature=0,
+        max_tokens=16384,
+        fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
+    ),
+    # google_genai=ChatFireworks(
+    #     model="gemini-pro",
+    #     temperature=0,
+    #     convert_system_message_to_human=True,
+    #     max_tokens=16384,
+    #     google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided")
+    # )
 )
+
 retriever = get_retriever()
 answer_chain = create_chain(
     llm,

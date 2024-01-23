@@ -1,5 +1,6 @@
 "use client";
 
+import { v4 as uuidv4 } from "uuid";
 import { ChatWindow } from "../app/components/ChatWindow";
 import { ToastContainer } from "react-toastify";
 
@@ -9,10 +10,7 @@ export default function Home() {
   return (
     <ChakraProvider>
       <ToastContainer />
-      <ChatWindow
-        titleText="Chat LangChain 🦜🔗"
-        placeholder="What is LangChain Expression Language?"
-      ></ChatWindow>
+      <ChatWindow conversationId={uuidv4()}></ChatWindow>
     </ChakraProvider>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { useSearchParams } from "next/navigation";
 import { RemoteRunnable } from "langchain/runnables/remote";
 import { applyPatch } from "@langchain/core/utils/json_patch";
 
@@ -23,24 +23,26 @@ import {
   Spinner,
 } from "@chakra-ui/react";
 import { ArrowUpIcon } from "@chakra-ui/icons";
+import { Select, Link } from "@chakra-ui/react";
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
 
-export function ChatWindow(props: {
-  placeholder?: string;
-  titleText?: string;
-}) {
-  const conversationId = uuidv4();
+export function ChatWindow(props: { conversationId: string }) {
+  const conversationId = props.conversationId;
+
+  const searchParams = useSearchParams();
+
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<Array<Message>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [llm, setLlm] = useState(
+    searchParams.get("llm") ?? "openai_gpt_3_5_turbo",
+  );
 
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
   >([]);
-
-  const { placeholder, titleText = "An LLM" } = props;
 
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
@@ -99,8 +101,12 @@ export function ChatWindow(props: {
           chat_history: chatHistory,
         },
         {
+          configurable: {
+            llm,
+          },
           metadata: {
             conversation_id: conversationId,
+            llm,
           },
         },
         {
@@ -168,18 +174,75 @@ export function ChatWindow(props: {
     await sendMessage(question);
   };
 
+  const insertUrlParam = (key: string, value?: string) => {
+    if (window.history.pushState) {
+      const searchParams = new URLSearchParams(window.location.search);
+      searchParams.set(key, value ?? "");
+      const newurl =
+        window.location.protocol +
+        "//" +
+        window.location.host +
+        window.location.pathname +
+        "?" +
+        searchParams.toString();
+      window.history.pushState({ path: newurl }, "", newurl);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
-      {messages.length > 0 && (
-        <Flex direction={"column"} alignItems={"center"} paddingBottom={"20px"}>
-          <Heading fontSize="2xl" fontWeight={"medium"} mb={1} color={"white"}>
-            {titleText}
-          </Heading>
+      <Flex
+        direction={"column"}
+        alignItems={"center"}
+        marginTop={messages.length > 0 ? "" : "64px"}
+      >
+        <Heading
+          fontSize={messages.length > 0 ? "2xl" : "3xl"}
+          fontWeight={"medium"}
+          mb={1}
+          color={"white"}
+        >
+          Chat LangChain 🦜🔗
+        </Heading>
+        {messages.length > 0 ? (
           <Heading fontSize="md" fontWeight={"normal"} mb={1} color={"white"}>
             We appreciate feedback!
           </Heading>
-        </Flex>
-      )}
+        ) : (
+          <Heading
+            fontSize="xl"
+            fontWeight={"normal"}
+            color={"white"}
+            marginTop={"10px"}
+            textAlign={"center"}
+          >
+            Ask me anything about LangChain&apos;s{" "}
+            <Link href="https://python.langchain.com/" color={"blue.200"}>
+              Python documentation!
+            </Link>
+          </Heading>
+        )}
+        <div className="text-white flex flex-wrap items-center mt-4">
+          <div className="flex items-center mb-2">
+            <span className="shrink-0 mr-2">Powered by</span>
+            <Select
+              value={llm}
+              onChange={(e) => {
+                insertUrlParam("llm", e.target.value);
+                setLlm(e.target.value);
+              }}
+              width={"212px"}
+            >
+              <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
+              <option value="anthropic_claude_2_1">Claude-2.1</option>
+              <option value="fireworks_mixtral">
+                Mixtral (via Fireworks.ai)
+              </option>
+              {/* <option value="google_genai">Google Gemini Pro</option> */}
+            </Select>
+          </div>
+        </div>
+      </Flex>
       <div
         className="flex flex-col-reverse w-full mb-2 overflow-auto"
         ref={messageContainerRef}
@@ -205,7 +268,7 @@ export function ChatWindow(props: {
           value={input}
           maxRows={5}
           marginRight={"56px"}
-          placeholder="What is LangChain Expression Language?"
+          placeholder="What does RunnablePassthrough.assign() do?"
           textColor={"white"}
           borderColor={"rgb(58, 58, 61)"}
           onChange={(e) => setInput(e.target.value)}
