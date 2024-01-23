@@ -95,6 +95,7 @@ export function ChatWindow(props: { conversationId: string }) {
           timeout: 60000,
         },
       });
+      const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
       const streamLog = await remoteChain.streamLog(
         {
           question: messageValue,
@@ -102,12 +103,12 @@ export function ChatWindow(props: { conversationId: string }) {
         },
         {
           configurable: {
-            llm,
+            llm: llmDisplayName,
           },
-          tags: ["model:" + llm],
+          tags: ["model:" + llmDisplayName],
           metadata: {
             conversation_id: conversationId,
-            llm,
+            llm: llmDisplayName,
           },
         },
         {
