@@ -238,7 +238,7 @@ export function ChatWindow(props: { conversationId: string }) {
               {/* <option value="fireworks_mixtral">
                 Mixtral (via Fireworks.ai)
               </option> */}
-              {/* <option value="google_genai">Google Gemini Pro</option> */}
+              <option value="google_gemini_pro">Google Gemini Pro</option>
             </Select>
           </div>
         </div>
