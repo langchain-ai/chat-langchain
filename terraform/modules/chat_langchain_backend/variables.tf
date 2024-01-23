@@ -96,3 +96,9 @@ variable "anthropic_api_key" {
   type        = string
   default     = ""
 }
+
+variable "env_vars" {
+  description = "Environment variables to set on the backend"
+  type        = map(string)
+  default     = {}
+}
