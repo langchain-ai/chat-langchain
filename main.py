@@ -48,11 +48,13 @@ class ChatRequest(BaseModel):
 model_name = os.getenv("MODEL_NAME")
 vectorestore_dir = os.getenv("VECTORSTORE_DIR")
 collection_name = os.getenv("VECTORSTORE_COLLECTION")
+top_k = int(os.getenv("VECTORSTORE_TOP_K"))
 emb_fn = embedding_functions.DefaultEmbeddingFunction()
 model = ModelFactory(
     llm_model_name=model_name,
     vectorestore_dir=vectorestore_dir,
     collection_name=collection_name,
+    top_k=top_k,
     embedding_function=emb_fn,
 ).get_model()
 add_routes(app, model, path="/chat",

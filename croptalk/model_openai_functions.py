@@ -31,6 +31,7 @@ class ModelFactory:  # TODO: find a better name?
         llm_model_name: str,
         vectorestore_dir: str,
         collection_name: str,
+        top_k: int,
         embedding_function: Optional[Callable] = None,  # TODO: specify ins/outs of Callable
         memory_key: str = "chat_history",
         input_key: str ="question",
@@ -43,6 +44,7 @@ class ModelFactory:  # TODO: find a better name?
         self.llm_model_name = llm_model_name
         self.vectorestore_dir = vectorestore_dir
         self.collection_name = collection_name
+        self.top_k = top_k
         self.embedding_function = embedding_function or embedding_functions.DefaultEmbeddingFunction()
         self.memory_key = memory_key
         self.input_key = input_key
@@ -168,7 +170,7 @@ class ModelFactory:  # TODO: find a better name?
             include_common_docs=True,
         )
 
-        return self._query_chromadb(query, where_filter=where_filter)
+        return self._query_chromadb(query, where_filter=where_filter, k=self.top_k)
 
     def _query_chromadb(
         self,
