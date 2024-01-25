@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-openai = ">=1.6.1,<2.0.0"
+openai = ">=1.9.0,<2.0.0"
 fastapi = "^0.103.1"
 pydantic = "1.10"
 langchain = ">=0.1.1,<0.2.0"
@@ -21,13 +21,13 @@ langserve = {extras = ["server"], version = "^0.0.34"}
 voyageai = "^0.1.4"
 
 python-dotenv = "1.0.0"
-chromadb = "0.4.18"
+chromadb = ">=0.4.22,<0.5"
 sentence-transformers = "2.2.2"
 lark = "1.1.8"
 langsmith = ">=0.0.83,<0.1"
 langchain-core = ">=0.1.13,<0.2"
 # dsmain = "0.0.1"
-langchain-openai = "^0.0.3"
+langchain-openai = ">=0.0.3,<0.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"
