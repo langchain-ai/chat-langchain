@@ -237,10 +237,10 @@ export function ChatWindow(props: { conversationId: string }) {
             >
               <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
               <option value="anthropic_claude_2_1">Claude-2.1</option>
-              {/* <option value="fireworks_mixtral">
-                Mixtral (via Fireworks.ai)
-              </option> */}
               <option value="google_gemini_pro">Google Gemini Pro</option>
+              <option value="fireworks_mixtral">
+                Mixtral (via Fireworks.ai)
+              </option>
             </Select>
           </div>
         </div>
