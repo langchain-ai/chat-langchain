@@ -4,10 +4,10 @@
 mkdir -p /root/.ssh/
 chmod 700 /root/.ssh/
 
-cd /app
+cd /
 
 # Copy the SSH key
-cp "secrets/dsmain_ssh_ec2" "/root/.ssh/"
+cp "/app/secrets/dsmain_ssh_ec2" "/root/.ssh/"
 
 # Remove existing ds-main directory if it exists
 if [ -d "ds-main" ]; then 

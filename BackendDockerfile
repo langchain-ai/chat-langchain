@@ -29,7 +29,7 @@ COPY install_dsmain.sh $HOME/
 COPY secrets/ $HOME/secrets
 RUN chmod +x $HOME/install_dsmain.sh
 RUN $HOME/install_dsmain.sh
-ENV PYTHONPATH="${PYTHONPATH}:/app/ds-main"
+ENV PYTHONPATH="${PYTHONPATH}:/ds-main"
 
 # Copy the rest of the project
 COPY . $HOME/
