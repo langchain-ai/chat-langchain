@@ -1,8 +1,12 @@
 """Main entrypoint for the app."""
+import os
+
 from langchain.globals import set_debug
 import asyncio
 from typing import Dict, List, Optional, Union
 from uuid import UUID
+
+from chromadb.utils import embedding_functions
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -41,6 +45,16 @@ class ChatRequest(BaseModel):
     chat_history: Optional[List[Dict[str, str]]]
 
 
+model_name = os.getenv("MODEL_NAME")
+vectorestore_dir = os.getenv("VECTORSTORE_DIR")
+collection_name = os.getenv("VECTORSTORE_COLLECTION")
+emb_fn = embedding_functions.DefaultEmbeddingFunction()
+model = ModelFactory(
+    llm_model_name=model_name,
+    vectorestore_dir=vectorestore_dir,
+    collection_name=collection_name,
+    embedding_function=emb_fn,
+).get_model()
 add_routes(app, model, path="/chat",
            input_type=ChatRequest, config_keys=["metadata"])
 
