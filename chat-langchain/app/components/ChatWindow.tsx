@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { RemoteRunnable } from "langchain/runnables/remote";
 import { applyPatch } from "@langchain/core/utils/json_patch";
@@ -27,6 +27,16 @@ import { Select, Link } from "@chakra-ui/react";
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
 
+const MODEL_TYPES = [
+  "openai_gpt_3_5_turbo",
+  "anthropic_claude_2_1",
+  "google_gemini_pro",
+  "fireworks_mixtral",
+];
+
+const defaultLlmValue =
+  MODEL_TYPES[Math.floor(Math.random() * MODEL_TYPES.length)];
+
 export function ChatWindow(props: { conversationId: string }) {
   const conversationId = props.conversationId;
 
@@ -39,6 +49,11 @@ export function ChatWindow(props: { conversationId: string }) {
   const [llm, setLlm] = useState(
     searchParams.get("llm") ?? "openai_gpt_3_5_turbo",
   );
+  const [llmIsLoading, setLlmIsLoading] = useState(true);
+  useEffect(() => {
+    setLlm(searchParams.get("llm") ?? defaultLlmValue);
+    setLlmIsLoading(false);
+  });
 
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
@@ -227,21 +242,25 @@ export function ChatWindow(props: { conversationId: string }) {
         <div className="text-white flex flex-wrap items-center mt-4">
           <div className="flex items-center mb-2">
             <span className="shrink-0 mr-2">Powered by</span>
-            <Select
-              value={llm}
-              onChange={(e) => {
-                insertUrlParam("llm", e.target.value);
-                setLlm(e.target.value);
-              }}
-              width={"240px"}
-            >
-              <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
-              <option value="anthropic_claude_2_1">Claude-2.1</option>
-              <option value="google_gemini_pro">Google Gemini Pro</option>
-              <option value="fireworks_mixtral">
-                Mixtral (via Fireworks.ai)
-              </option>
-            </Select>
+            {llmIsLoading ? (
+              <Spinner className="my-2"></Spinner>
+            ) : (
+              <Select
+                value={llm}
+                onChange={(e) => {
+                  insertUrlParam("llm", e.target.value);
+                  setLlm(e.target.value);
+                }}
+                width={"240px"}
+              >
+                <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
+                <option value="anthropic_claude_2_1">Claude-2.1</option>
+                <option value="google_gemini_pro">Google Gemini Pro</option>
+                <option value="fireworks_mixtral">
+                  Mixtral (via Fireworks.ai)
+                </option>
+              </Select>
+            )}
           </div>
         </div>
       </Flex>
