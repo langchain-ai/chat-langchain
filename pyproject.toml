@@ -24,6 +24,7 @@ langchain-community = "^0.0.14"
 langchain-openai = "^0.0.3"
 langchain-google-genai = "^0.0.6"
 langchain-core = "0.1.15rc1"
+fireworks-ai = "^0.11.2"
 
 
 [tool.poetry.group.dev.dependencies]
