@@ -5,7 +5,8 @@ from typing import Dict, List, Optional, Sequence
 import weaviate
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_community.chat_models import ChatAnthropic
+from langchain_community.chat_models.anthropic import ChatAnthropic
+from langchain_community.chat_models.fireworks import ChatFireworks
 from langchain_community.embeddings.voyageai import VoyageEmbeddings
 from langchain_community.vectorstores.weaviate import Weaviate
 from langchain_core.documents import Document
@@ -212,6 +213,12 @@ llm = ChatOpenAI(
         max_tokens=16384,
         temperature=0,
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
+    ),
+    fireworks_mixtral=ChatFireworks(
+        model="accounts/fireworks/models/mixtral-8x7b-instruct",
+        temperature=0,
+        max_tokens=16384,
+        fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
     ),
     google_gemini_pro=ChatGoogleGenerativeAI(
         model="gemini-pro",
