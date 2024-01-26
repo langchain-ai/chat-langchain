@@ -7,24 +7,26 @@ from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 from croptalk.chromadb_utils import create_chroma_filter, get_chroma_collection
 from dotenv import load_dotenv
 from langchain.agents import AgentExecutor
-from langchain.agents.format_scratchpad.openai_functions import \
-    format_to_openai_function_messages
-from langchain.agents.openai_functions_agent.agent_token_buffer_memory import \
-    AgentTokenBufferMemory
-from langchain.agents.output_parsers.openai_functions import \
-    OpenAIFunctionsAgentOutputParser
+from langchain.agents.format_scratchpad.openai_functions import (
+    format_to_openai_function_messages,
+)
+from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
+    AgentTokenBufferMemory,
+)
+from langchain.agents.output_parsers.openai_functions import (
+    OpenAIFunctionsAgentOutputParser,
+)
 from langchain.chains.base import Chain
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.tools import StructuredTool
-from langchain_community.tools.convert_to_openai import \
-    format_tool_to_openai_function
+from langchain_community.tools.convert_to_openai import format_tool_to_openai_function
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 
-load_dotenv('secrets/.env.secret')
-load_dotenv('secrets/.env.shared')
+load_dotenv("secrets/.env.secret")
+load_dotenv("secrets/.env.shared")
 
 
 class OpenAIAgentModelFactory:
@@ -40,8 +42,8 @@ class OpenAIAgentModelFactory:
         top_k: int,
         embedding_function: Optional[Callable] = None,
         memory_key: str = "chat_history",
-        input_key: str ="question",
-        output_key: str ="output",
+        input_key: str = "question",
+        output_key: str = "output",
     ) -> None:
         """
         Args:
@@ -86,8 +88,11 @@ class OpenAIAgentModelFactory:
         # create chat chain
         prompt = ChatPromptTemplate.from_messages(
             [
-                ("system", """You are a useful crop insurance assistant that provides accurate results based on retrieved docs.
-                ALWAYS cite the relevant sources using source url, title, and page number."""),
+                (
+                    "system",
+                    """You are a useful crop insurance assistant that provides accurate results based on retrieved docs.
+                ALWAYS cite the relevant sources using source url, title, and page number.""",
+                ),
                 MessagesPlaceholder(self.memory_key, optional=True),
                 ("human", f"{{{self.input_key}}}"),
                 MessagesPlaceholder("agent_scratchpad"),
@@ -99,7 +104,7 @@ class OpenAIAgentModelFactory:
                     x["intermediate_steps"]
                 ),
                 chat_history=lambda x: x.get(self.memory_key, []),
-                input=itemgetter(self.input_key)
+                input=itemgetter(self.input_key),
             )
             | prompt
             | llm_with_tools
@@ -107,7 +112,9 @@ class OpenAIAgentModelFactory:
         )
         memory_llm = ChatOpenAI(model=self.llm_model_name, temperature=0)
         memory = AgentTokenBufferMemory(
-            memory_key=self.memory_key, llm=memory_llm, max_token_limit=6000,
+            memory_key=self.memory_key,
+            llm=memory_llm,
+            max_token_limit=6000,
         )
 
         agent_executor = (
@@ -118,7 +125,8 @@ class OpenAIAgentModelFactory:
                 verbose=True,
                 max_iterations=10,
                 return_intermediate_steps=True,
-            ) | itemgetter(self.output_key)
+            )
+            | itemgetter(self.output_key)
         ).with_config(run_name="AgentExecutor")
 
         return agent_executor
@@ -148,6 +156,7 @@ class OpenAIAgentModelFactory:
 
     class _RetrieverInput(BaseModel):
         """Input schema for an llm-toolkit retriever."""
+
         query: str = Field(description="Query to look up in retriever")
         commodity: Optional[str] = Field(description="Commodity name. Example: Apples")
         state: Optional[str] = Field(description="State name. Example: California")
@@ -225,8 +234,8 @@ class OpenAIAgentModelFactory:
         Returns:
             list of (retrieved) documents equivalent to provided query result
         """
-        documents = result['documents'][0]
-        metadatas = result['metadatas'][0]
+        documents = result["documents"][0]
+        metadatas = result["metadatas"][0]
 
         # Creating the new format
         docs = []
