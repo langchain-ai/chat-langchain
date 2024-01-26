@@ -7,6 +7,7 @@ from langchain.agents.output_parsers.openai_functions import (
     OpenAIFunctionsAgentOutputParser,
 )
 from operator import itemgetter
+import os
 from typing import Any, Callable, Dict, Optional, List
 
 from langchain_core.documents import Document
@@ -19,12 +20,19 @@ from croptalk.chromadb_utils import create_chroma_filter, get_chroma_collection
 
 from langchain.tools import StructuredTool
 from chromadb.api.types import QueryResult
-from chromadb.utils import embedding_functions
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor
 
+from dotenv import load_dotenv
+load_dotenv('secrets/.env.secret')
+load_dotenv('secrets/.env.shared')
 
-class ModelFactory:  # TODO: find a better name?
+
+class OpenAIAgentModelFactory:
+    """
+    Class responsible for the creation of an OpenAI LLM chat agent.
+    """
 
     def __init__(
         self,
@@ -32,23 +40,33 @@ class ModelFactory:  # TODO: find a better name?
         vectorestore_dir: str,
         collection_name: str,
         top_k: int,
-        embedding_function: Optional[Callable] = None,  # TODO: specify ins/outs of Callable
+        embedding_function: Optional[Callable] = None,
         memory_key: str = "chat_history",
         input_key: str ="question",
         output_key: str ="output",
     ) -> None:
         """
         Args:
-            TODO
+            llm_model_name: name of LLM model to use
+            vectorestore_dir: directory where ChromaDB vectorstore files are located
+            collection_name: collection name
+            top_k: number of retrieved documents we are aiming for (i.e. top k)
+            embedding_function: embedding function to use,
+                                ChromaDB's default embedding function will be used if none is
+                                provided
+            memory_key: key to use to get chat history in chat messages
+            input_key: key to use to get input (i.e. query) in chat messages
+            output_key: key to use to get output (i.e. response) in chat messages
         """
         self.llm_model_name = llm_model_name
         self.vectorestore_dir = vectorestore_dir
         self.collection_name = collection_name
         self.top_k = top_k
-        self.embedding_function = embedding_function or embedding_functions.DefaultEmbeddingFunction()
+        self.embedding_function = embedding_function or DefaultEmbeddingFunction()
         self.memory_key = memory_key
         self.input_key = input_key
         self.output_key = output_key
+
         self.collection = get_chroma_collection(
             vectorestore_dir=self.vectorestore_dir,
             collection_name=collection_name,
@@ -186,7 +204,7 @@ class ModelFactory:  # TODO: find a better name?
         Args:
             query: query to use when searching chroma DB
             where_filter: filter to use along with the query
-            k: number of retrieved documents weare aiming for (i.e. top k)
+            k: number of retrieved documents we are aiming for (i.e. top k)
 
         Returns:
             list of retrieved documents matching query and filters, with formatting transformations
@@ -233,3 +251,16 @@ class ModelFactory:  # TODO: find a better name?
             doc_string = f"<doc id='{i+1}' title={doc.metadata['title']}, page_id={doc.metadata['page']} doc_category={doc.metadata['doc_category']}, url={doc.metadata['source']}>{doc.page_content}</doc>"
             formatted_docs.append(doc_string)
         return formatted_docs
+
+
+# create singleton model
+model_name = os.getenv("MODEL_NAME")
+vectorestore_dir = os.getenv("VECTORSTORE_DIR")
+collection_name = os.getenv("VECTORSTORE_COLLECTION")
+top_k = int(os.getenv("VECTORSTORE_TOP_K"))
+model = OpenAIAgentModelFactory(
+    llm_model_name=model_name,
+    vectorestore_dir=vectorestore_dir,
+    collection_name=collection_name,
+    top_k=top_k,
+).get_model()
