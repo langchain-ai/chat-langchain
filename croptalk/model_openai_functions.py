@@ -10,6 +10,7 @@ from operator import itemgetter
 import os
 from typing import Any, Callable, Dict, Optional, List
 
+from langchain.chains.base import Chain
 from langchain_core.documents import Document
 from langchain_core.prompts import (ChatPromptTemplate, MessagesPlaceholder)
 from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
@@ -73,25 +74,25 @@ class OpenAIAgentModelFactory:
             embedding_function=self.embedding_function,
         )
 
-    def get_model(self):  # TODO: return type
+    def get_model(self) -> Chain:
         """
         Returns:
-            TODO
+            newly created OpenAI LLM chat agent using ChromaDB vectorstore
         """
-        # TODO: save it in self and create it only the first time? or each time?
-        # TODO: make the class callable __call__?
-        tools = self._get_tools()
+        # create LLM
         llm = ChatOpenAI(model=self.llm_model_name, streaming=True, temperature=0.0)
+        tools = self._get_tools()
         llm_with_tools = llm.bind(
             functions=[format_tool_to_openai_function(t) for t in tools]
         )
 
+        # create chat chain
         prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", """You are a useful crop insurance assistant that provides accurate results based on retrieved docs.
                 ALWAYS cite the relevant sources using source url, title, and page number."""),
-                MessagesPlaceholder("chat_history", optional=True),  # TODO: use memory_key right?
-                ("human", "{question}"),  # TODO: use input_key right?
+                MessagesPlaceholder(self.memory_key, optional=True),
+                ("human", f"{{{self.input_key}}}"),
                 MessagesPlaceholder("agent_scratchpad"),
             ]
         )
@@ -100,14 +101,14 @@ class OpenAIAgentModelFactory:
                 agent_scratchpad=lambda x: format_to_openai_function_messages(
                     x["intermediate_steps"]
                 ),
-                chat_history=lambda x: x.get("chat_history", []),  # TODO: use memory_key right?
+                chat_history=lambda x: x.get(self.memory_key, []),
                 input=itemgetter(self.input_key)
             )
             | prompt
             | llm_with_tools
             | OpenAIFunctionsAgentOutputParser()
         )
-        memory_llm = ChatOpenAI(model=self.llm_model_name, temperature=0)  # TODO: use separate memory vs main model name like before?
+        memory_llm = ChatOpenAI(model=self.llm_model_name, temperature=0)
         memory = AgentTokenBufferMemory(
             memory_key=self.memory_key, llm=memory_llm, max_token_limit=6000,
         )
