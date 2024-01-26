@@ -1,10 +1,7 @@
 import os
 from operator import itemgetter
-from typing import Any, Callable, Dict, List, Optional
+from typing import List, Optional
 
-from chromadb.api.types import QueryResult
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-from croptalk.chromadb_utils import create_chroma_filter, get_chroma_collection
 from dotenv import load_dotenv
 from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad.openai_functions import (
@@ -20,10 +17,11 @@ from langchain.chains.base import Chain
 from langchain.schema.runnable import RunnablePassthrough
 from langchain.tools import StructuredTool
 from langchain_community.tools.convert_to_openai import format_tool_to_openai_function
-from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
+
+from croptalk.document_retriever import DocumentRetriever
 
 load_dotenv("secrets/.env.secret")
 load_dotenv("secrets/.env.shared")
@@ -37,10 +35,8 @@ class OpenAIAgentModelFactory:
     def __init__(
         self,
         llm_model_name: str,
-        vectorestore_dir: str,
-        collection_name: str,
+        document_retriever: DocumentRetriever,
         top_k: int,
-        embedding_function: Optional[Callable] = None,
         memory_key: str = "chat_history",
         input_key: str = "question",
         output_key: str = "output",
@@ -48,30 +44,18 @@ class OpenAIAgentModelFactory:
         """
         Args:
             llm_model_name: name of LLM model to use
-            vectorestore_dir: directory where ChromaDB vectorstore files are located
-            collection_name: collection name
+            document_retriever: document retriever to use as agent's tool
             top_k: number of retrieved documents we are aiming for (i.e. top k)
-            embedding_function: embedding function to use,
-                                ChromaDB's default embedding function will be used if none is
-                                provided
             memory_key: key to use to get chat history in chat messages
             input_key: key to use to get input (i.e. query) in chat messages
             output_key: key to use to get output (i.e. response) in chat messages
         """
         self.llm_model_name = llm_model_name
-        self.vectorestore_dir = vectorestore_dir
-        self.collection_name = collection_name
+        self.document_retriever = document_retriever
         self.top_k = top_k
-        self.embedding_function = embedding_function or DefaultEmbeddingFunction()
         self.memory_key = memory_key
         self.input_key = input_key
         self.output_key = output_key
-
-        self.collection = get_chroma_collection(
-            vectorestore_dir=self.vectorestore_dir,
-            collection_name=collection_name,
-            embedding_function=self.embedding_function,
-        )
 
     def get_model(self) -> Chain:
         """
@@ -149,7 +133,7 @@ class OpenAIAgentModelFactory:
         find_docs = StructuredTool.from_function(
             name="FindDocs",
             description="Searches and returns information given the filters.",
-            func=self._retriever_with_filter,
+            func=lambda **kwargs: self.document_retriever.get_documents(**kwargs, top_k=self.top_k),
             args_schema=self._RetrieverInput,
         )
         return find_docs
@@ -162,112 +146,18 @@ class OpenAIAgentModelFactory:
         state: Optional[str] = Field(description="State name. Example: California")
         county: Optional[str] = Field(description="County name. Example: Ventura")
 
-    def _retriever_with_filter(
-        self,
-        query: str,
-        doc_category: Optional[str] = None,
-        commodity: Optional[str] = None,
-        county: Optional[str] = None,
-        state: Optional[str] = None,
-        **kwargs,
-    ) -> List[str]:
-        """
-        Retriever wrapper that allows to create chromadb where_filter and filter documents by their
-        metadata.
-
-        Args:
-            query: query to use when searching chroma DB
-            doc_category: document category to filter on
-            commodity: commodity to filter on
-            county: county to filter on
-            state: state to filter on
-
-        Returns:
-            list of retrieved documents matching query and filters, with formatting transformations
-            for chatbot consumption
-        """
-        if not isinstance(query, str):
-            raise ValueError(f"Query must be a string. Received: {query}")
-
-        where_filter = create_chroma_filter(
-            commodity=commodity,
-            county=county,
-            state=state,
-            doc_category=doc_category,
-            include_common_docs=True,
-        )
-
-        return self._query_chromadb(query, where_filter=where_filter, k=self.top_k)
-
-    def _query_chromadb(
-        self,
-        query: str,
-        where_filter: Optional[Dict[str, Any]] = None,
-        k: int = 5,
-    ) -> List[str]:
-        """
-        Searches and returns information given the filters.
-
-        Args:
-            query: query to use when searching chroma DB
-            where_filter: filter to use along with the query
-            k: number of retrieved documents we are aiming for (i.e. top k)
-
-        Returns:
-            list of retrieved documents matching query and filters, with formatting transformations
-            for chatbot consumption
-        """
-        query_embedding = self.embedding_function([query])
-        result = self.collection.query(query_embedding, n_results=k, where=where_filter)
-        docs = self._format_chromadb_docs(result)
-        formatted_docs = self._format_docs(docs)
-        return formatted_docs
-
-    @staticmethod
-    def _format_chromadb_docs(result: QueryResult) -> List[Document]:
-        """
-        Formats the result of the ChromaDB query.
-
-        Args:
-            result: chroadb query result
-
-        Returns:
-            list of (retrieved) documents equivalent to provided query result
-        """
-        documents = result["documents"][0]
-        metadatas = result["metadatas"][0]
-
-        # Creating the new format
-        docs = []
-        for i in range(len(documents)):
-            docs.append(Document(page_content=documents[i], metadata=metadatas[i]))
-
-        return docs
-
-    @staticmethod
-    def _format_docs(docs: List[Document]) -> List[str]:
-        """
-        Args:
-            list of retrieved documents
-
-        Returns:
-            list of provided documents, with formatting transformations for chatbot consumption
-        """
-        formatted_docs = []
-        for i, doc in enumerate(docs):
-            doc_string = f"<doc id='{i+1}' title={doc.metadata['title']}, page_id={doc.metadata['page']} doc_category={doc.metadata['doc_category']}, url={doc.metadata['source']}>{doc.page_content}</doc>"
-            formatted_docs.append(doc_string)
-        return formatted_docs
-
 
 # create singleton model
 model_name = os.getenv("MODEL_NAME")
 vectorestore_dir = os.getenv("VECTORSTORE_DIR")
 collection_name = os.getenv("VECTORSTORE_COLLECTION")
 top_k = int(os.getenv("VECTORSTORE_TOP_K"))
-model = OpenAIAgentModelFactory(
-    llm_model_name=model_name,
+doc_retriever = DocumentRetriever(
     vectorestore_dir=vectorestore_dir,
     collection_name=collection_name,
+)
+model = OpenAIAgentModelFactory(
+    llm_model_name=model_name,
+    document_retriever=doc_retriever,
     top_k=top_k,
 ).get_model()
