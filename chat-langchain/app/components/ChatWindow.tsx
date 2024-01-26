@@ -53,7 +53,7 @@ export function ChatWindow(props: { conversationId: string }) {
   useEffect(() => {
     setLlm(searchParams.get("llm") ?? defaultLlmValue);
     setLlmIsLoading(false);
-  });
+  }, []);
 
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
