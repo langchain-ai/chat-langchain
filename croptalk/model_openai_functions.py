@@ -1,31 +1,28 @@
-from langchain_core.pydantic_v1 import BaseModel, Field
-from langchain_community.tools.convert_to_openai import format_tool_to_openai_function
-from langchain.agents.format_scratchpad.openai_functions import (
-    format_to_openai_function_messages,
-)
-from langchain.agents.output_parsers.openai_functions import (
-    OpenAIFunctionsAgentOutputParser,
-)
-from operator import itemgetter
 import os
-from typing import Any, Callable, Dict, Optional, List
+from operator import itemgetter
+from typing import Any, Callable, Dict, List, Optional
 
-from langchain.chains.base import Chain
-from langchain_core.documents import Document
-from langchain_core.prompts import (ChatPromptTemplate, MessagesPlaceholder)
-from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
-    AgentTokenBufferMemory,
-)
-from langchain.schema.runnable import RunnablePassthrough
-from croptalk.chromadb_utils import create_chroma_filter, get_chroma_collection
-
-from langchain.tools import StructuredTool
 from chromadb.api.types import QueryResult
 from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-from langchain_openai import ChatOpenAI
-from langchain.agents import AgentExecutor
-
+from croptalk.chromadb_utils import create_chroma_filter, get_chroma_collection
 from dotenv import load_dotenv
+from langchain.agents import AgentExecutor
+from langchain.agents.format_scratchpad.openai_functions import \
+    format_to_openai_function_messages
+from langchain.agents.openai_functions_agent.agent_token_buffer_memory import \
+    AgentTokenBufferMemory
+from langchain.agents.output_parsers.openai_functions import \
+    OpenAIFunctionsAgentOutputParser
+from langchain.chains.base import Chain
+from langchain.schema.runnable import RunnablePassthrough
+from langchain.tools import StructuredTool
+from langchain_community.tools.convert_to_openai import \
+    format_tool_to_openai_function
+from langchain_core.documents import Document
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.pydantic_v1 import BaseModel, Field
+from langchain_openai import ChatOpenAI
+
 load_dotenv('secrets/.env.secret')
 load_dotenv('secrets/.env.shared')
 
