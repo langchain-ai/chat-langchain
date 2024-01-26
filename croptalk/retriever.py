@@ -47,7 +47,7 @@ def get_retriever(vectorestore_dir: str, collection_name: str, k: int = 3) -> Ba
     ) -> List[Document]:
         if self.search_type == "similarity":
             docs = self.vectorstore.similarity_search(
-                query, filter=filter, **self.search_kwargs, **kwargs)
+                query, filter=filter, **self.search_kwargs)
         return docs
 
     VectorStoreRetriever._get_relevant_documents = _get_relevant_documents
