@@ -18,6 +18,7 @@ from langchain.schema.runnable import RunnablePassthrough
 from croptalk.chromadb_utils import create_chroma_filter, get_chroma_collection
 
 from langchain.tools import StructuredTool
+from chromadb.api.types import QueryResult
 from chromadb.utils import embedding_functions
 from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor
@@ -106,20 +107,20 @@ class ModelFactory:  # TODO: find a better name?
 
         return agent_executor
 
-    def _get_tools(self):  # TODO: return type
+    def _get_tools(self) -> List[StructuredTool]:
         """
         Returns:
-            TODO
+            a list of StructuredTools to provide to chat agent
         """
         doc_retriever_tool = self._get_doc_retriever_tool()
         return [
             doc_retriever_tool,
         ]
 
-    def _get_doc_retriever_tool(self):  # TODO: return type
+    def _get_doc_retriever_tool(self) -> StructuredTool:
         """
         Returns:
-            TODO
+            a StructuredTool for document retrieval in chromaDB
         """
         find_docs = StructuredTool.from_function(
             name="FindDocs",
@@ -132,24 +133,34 @@ class ModelFactory:  # TODO: find a better name?
     class _RetrieverInput(BaseModel):
         """Input schema for an llm-toolkit retriever."""
         query: str = Field(description="Query to look up in retriever")
-        commodity: Optional[str] = Field(
-            description="Commodity name. Example: Apples")
+        commodity: Optional[str] = Field(description="Commodity name. Example: Apples")
         state: Optional[str] = Field(description="State name. Example: California")
         county: Optional[str] = Field(description="County name. Example: Ventura")
 
     def _retriever_with_filter(
         self,
         query: str,
-        doc_category: str = None,
-        commodity: str = None,
-        county: str = None,
-        state: str = None,
+        doc_category: Optional[str] = None,
+        commodity: Optional[str] = None,
+        county: Optional[str] = None,
+        state: Optional[str] = None,
         **kwargs,
-    ) -> List[Document]:
+    ) -> List[str]:
         """
-        TODO
+        Retriever wrapper that allows to create chromadb where_filter and filter documents by their
+        metadata.
+
+        Args:
+            query: query to use when searching chroma DB
+            doc_category: document category to filter on
+            commodity: commodity to filter on
+            county: county to filter on
+            state: state to filter on
+
+        Returns:
+            list of retrieved documents matching query and filters, with formatting transformations
+            for chatbot consumption
         """
-        """Retriever wrapper that allows to create chromadb where_filter and filter documents by there metadata."""
         if not isinstance(query, str):
             raise ValueError(f"Query must be a string. Received: {query}")
 
@@ -166,15 +177,21 @@ class ModelFactory:  # TODO: find a better name?
     def _query_chromadb(
         self,
         query: str,
-        where_filter: Dict[str, Any] = None,
+        where_filter: Optional[Dict[str, Any]] = None,
         k: int = 5,
-    ):  # TODO: return type
+    ) -> List[str]:
         """
-        Returns:
-            TODO
-        """
-        """Searches and returns information given the filters."""
+        Searches and returns information given the filters.
 
+        Args:
+            query: query to use when searching chroma DB
+            where_filter: filter to use along with the query
+            k: number of retrieved documents weare aiming for (i.e. top k)
+
+        Returns:
+            list of retrieved documents matching query and filters, with formatting transformations
+            for chatbot consumption
+        """
         query_embedding = self.embedding_function([query])
         result = self.collection.query(query_embedding, n_results=k, where=where_filter)
         docs = self._format_chromadb_docs(result)
@@ -182,13 +199,16 @@ class ModelFactory:  # TODO: find a better name?
         return formatted_docs
 
     @staticmethod
-    def _format_chromadb_docs(result):  # TODO: return type
+    def _format_chromadb_docs(result: QueryResult) -> List[Document]:
         """
-        Returns:
-            TODO
-        """
-        """Formats the result of the ChromaDB query."""
+        Formats the result of the ChromaDB query.
 
+        Args:
+            result: chroadb query result
+
+        Returns:
+            list of (retrieved) documents equivalent to provided query result
+        """
         documents = result['documents'][0]
         metadatas = result['metadatas'][0]
 
@@ -200,10 +220,13 @@ class ModelFactory:  # TODO: find a better name?
         return docs
 
     @staticmethod
-    def _format_docs(docs) -> List[str]:
+    def _format_docs(docs: List[Document]) -> List[str]:
         """
+        Args:
+            list of retrieved documents
+
         Returns:
-            TODO
+            list of provided documents, with formatting transformations for chatbot consumption
         """
         formatted_docs = []
         for i, doc in enumerate(docs):
