@@ -15,11 +15,10 @@ from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
     AgentTokenBufferMemory,
 )
 from langchain.schema.runnable import RunnablePassthrough
-from croptalk.chromadb_utils import create_chroma_filter
+from croptalk.chromadb_utils import create_chroma_filter, get_chroma_collection
 
 from langchain.tools import StructuredTool
 from chromadb.utils import embedding_functions
-import chromadb
 from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor
 
@@ -49,7 +48,11 @@ class ModelFactory:  # TODO: find a better name?
         self.memory_key = memory_key
         self.input_key = input_key
         self.output_key = output_key
-        self.collection = self._get_chromadb_collection()  # TODO: is it the right place?
+        self.collection = get_chroma_collection(
+            vectorestore_dir=self.vectorestore_dir,
+            collection_name=collection_name,
+            embedding_function=self.embedding_function,
+        )
 
     def get_model(self):  # TODO: return type
         """
@@ -102,18 +105,6 @@ class ModelFactory:  # TODO: find a better name?
         ).with_config(run_name="AgentExecutor")
 
         return agent_executor
-
-    def _get_chromadb_collection(self):  # TODO: return type
-        """
-        Returns:
-            TODO
-        """
-        chroma_client = chromadb.PersistentClient(path=self.vectorestore_dir)
-        collection = chroma_client.get_collection(
-            name=self.collection_name,
-            embedding_function=self.embedding_function,
-        )
-        return collection
 
     def _get_tools(self):  # TODO: return type
         """
