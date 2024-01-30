@@ -1215,19 +1215,19 @@ extended-testing = ["aiosqlite (>=0.19.0,<0.20.0)", "aleph-alpha-client (>=2.15.
 
 [[package]]
 name = "langchain-core"
-version = "0.1.15rc1"
+version = "0.1.15rc2"
 description = "Building applications with LLMs through composability"
 optional = false
 python-versions = ">=3.8.1,<4.0"
 files = [
-    {file = "langchain_core-0.1.15rc1-py3-none-any.whl", hash = "sha256:ccf86dd9e0a77a2712c68f46441db0184c944996061527bce4a66b495d4c65f8"},
-    {file = "langchain_core-0.1.15rc1.tar.gz", hash = "sha256:95cefb37a57cb1fbef95a11983c63f78213edbc9830a49da764a30e64725ea22"},
+    {file = "langchain_core-0.1.15rc2-py3-none-any.whl", hash = "sha256:ef7a92672b51a7a4bce25c1442eb47221683c511eda665f7eef9147b153f3362"},
+    {file = "langchain_core-0.1.15rc2.tar.gz", hash = "sha256:aec591a4b6564d98c2e72aac4c6d39770fa221b61e456521869d433518cc8302"},
 ]
 
 [package.dependencies]
 anyio = ">=3,<5"
 jsonpatch = ">=1.33,<2.0"
-langsmith = "0.0.84rc1"
+langsmith = "0.0.86rc1"
 packaging = ">=23.2,<24.0"
 pydantic = ">=1,<3"
 PyYAML = ">=5.3"
@@ -1298,13 +1298,13 @@ server = ["fastapi (>=0.90.1,<1)", "sse-starlette (>=1.3.0,<2.0.0)"]
 
 [[package]]
 name = "langsmith"
-version = "0.0.84rc1"
+version = "0.0.86rc1"
 description = "Client library to connect to the LangSmith LLM Tracing and Evaluation Platform."
 optional = false
 python-versions = ">=3.8.1,<4.0"
 files = [
-    {file = "langsmith-0.0.84rc1-py3-none-any.whl", hash = "sha256:c6acf6f1aade3780241b89ae42569b45ce1980d36df67d5fe712740654bbe77e"},
-    {file = "langsmith-0.0.84rc1.tar.gz", hash = "sha256:6fc575ae5a76265e3cee296ececee4caa3eafb4c1677aad3055510e1551bed2a"},
+    {file = "langsmith-0.0.86rc1-py3-none-any.whl", hash = "sha256:727ec95df8b4ae025f0cb16236a0ae2d6a0b96073d517d27af34c8d49adfbe3c"},
+    {file = "langsmith-0.0.86rc1.tar.gz", hash = "sha256:4aae9ca1561760c4a04d1a30759657bf725b5691d4f7edec864dfe1b051ee15d"},
 ]
 
 [package.dependencies]
@@ -1942,6 +1942,7 @@ files = [
     {file = "PyYAML-6.0.1-cp311-cp311-win_amd64.whl", hash = "sha256:bf07ee2fef7014951eeb99f56f39c9bb4af143d8aa3c21b1677805985307da34"},
     {file = "PyYAML-6.0.1-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:855fb52b0dc35af121542a76b9a84f8d1cd886ea97c84703eaa6d88e37a2ad28"},
     {file = "PyYAML-6.0.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:40df9b996c2b73138957fe23a16a4f0ba614f4c0efce1e9406a184b6d07fa3a9"},
+    {file = "PyYAML-6.0.1-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a08c6f0fe150303c1c6b71ebcd7213c2858041a7e01975da3a99aed1e7a378ef"},
     {file = "PyYAML-6.0.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6c22bec3fbe2524cde73d7ada88f6566758a8f7227bfbf93a408a9d86bcc12a0"},
     {file = "PyYAML-6.0.1-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:8d4e9c88387b0f5c7d5f281e55304de64cf7f9c0021a3525bd3b1c542da3b0e4"},
     {file = "PyYAML-6.0.1-cp312-cp312-win32.whl", hash = "sha256:d483d2cdf104e7c9fa60c544d92981f12ad66a457afae824d146093b8c294c54"},
@@ -2688,4 +2689,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "06abe2ec3d85663d867151166d6612cc0cdfebc1b6e276953e512e27f0291f8d"
+content-hash = "fe72232f97b968257d14be695d5922b5606b895a0f4a792fee5f412d63ea29b4"
