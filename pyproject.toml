@@ -23,7 +23,7 @@ tiktoken = "^0.5.2"
 langchain-community = "^0.0.14"
 langchain-openai = "^0.0.3"
 langchain-google-genai = "^0.0.6"
-langchain-core = "0.1.15rc1"
+langchain-core = "0.1.15-rc.2"
 fireworks-ai = "^0.11.2"
 
 
