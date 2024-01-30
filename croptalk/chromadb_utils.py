@@ -1,8 +1,5 @@
 from typing import Callable, Dict
 
-from chromadb import PersistentClient
-from chromadb.api.models.Collection import Collection
-
 from dsmain.dataapi.lookups import CommodityLookup, StateLookup, CountyLookup, InsurancePlanLookup
 
 
@@ -58,24 +55,3 @@ def create_chroma_filter(insurance_plan:str=None, state:str=None, county:str=Non
         return where_filter["$and"][0]
 
     return where_filter
-
-def get_chroma_collection(
-    vectorestore_dir: str,
-    collection_name: str,
-    embedding_function: Callable,
-) -> Collection:
-    """
-    Args:
-        vectorestore_dir: directory where vectorstore files are located
-        collection_name: collection name
-        embedding_function: embedding function used in vectorstore
-
-    Returns:
-        a ChromaDB collection
-    """
-    chroma_client = PersistentClient(path=vectorestore_dir)
-    collection = chroma_client.get_collection(
-        name=collection_name,
-        embedding_function=embedding_function,
-    )
-    return collection

@@ -1,9 +1,11 @@
 from typing import Callable, List, Optional
 
+from chromadb import PersistentClient
+from chromadb.api.models.Collection import Collection
 from chromadb.api.types import QueryResult
 from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
-from croptalk.chromadb_utils import create_chroma_filter, get_chroma_collection
+from croptalk.chromadb_utils import create_chroma_filter
 
 
 class DocumentRetriever:
@@ -29,7 +31,7 @@ class DocumentRetriever:
         self.collection_name = collection_name
         self.embedding_function = embedding_function or DefaultEmbeddingFunction()
 
-        self.collection = get_chroma_collection(
+        self.collection = self._get_chroma_collection(
             vectorestore_dir=self.vectorestore_dir,
             collection_name=self.collection_name,
             embedding_function=self.embedding_function,
@@ -93,3 +95,25 @@ class DocumentRetriever:
             for i, (content, metadata)
             in enumerate(zip(doc_contents, doc_metadatas))
         ]
+
+    @staticmethod
+    def _get_chroma_collection(
+        vectorestore_dir: str,
+        collection_name: str,
+        embedding_function: Callable,
+    ) -> Collection:
+        """
+        Args:
+            vectorestore_dir: directory where vectorstore files are located
+            collection_name: collection name
+            embedding_function: embedding function used in vectorstore
+
+        Returns:
+            a ChromaDB collection
+        """
+        chroma_client = PersistentClient(path=vectorestore_dir)
+        collection = chroma_client.get_collection(
+            name=collection_name,
+            embedding_function=embedding_function,
+        )
+        return collection
