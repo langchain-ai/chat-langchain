@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
     const config = body.config;
 
     const llm = new ChatOpenAI({
-      modelName: "gpt-3.5-turbo-16k",
+      modelName: "gpt-3.5-turbo-1106",
       temperature: 0,
     });
     const retriever = await getRetriever();

@@ -27,7 +27,7 @@ _PROVIDER_MAP = {
 }
 
 _MODEL_MAP = {
-    "openai": "gpt-3.5-turbo-16k",
+    "openai": "gpt-3.5-turbo-1106",
     "anthropic": "claude-2",
 }
 
