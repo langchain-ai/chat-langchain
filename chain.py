@@ -200,7 +200,7 @@ def create_chain(
 
 
 llm = ChatOpenAI(
-    model="gpt-3.5-turbo-16k",
+    model="gpt-3.5-turbo-1106",
     streaming=True,
     temperature=0,
 ).configurable_alternatives(
