@@ -38,6 +38,20 @@ export LANGCHAIN_PROJECT=
 1. Run the frontend with `yarn dev` for frontend.
 1. Open [localhost:3000](http://localhost:3000) in your browser.
 
+### Running locally... in docker
+
+1. Modify docker-compose.yml:
+   - Un-comment line where `.` is mounted in `/app` within container (so that local code changes are reflected in running container)
+   - Comment line where `entrypoint` is currently defined, and un-comment the line where it is defined with `--reload` (so that backend container automatically detect code changes)
+   - Comment line where `GRAPH_URL_HOST` is currently set, and un-comment the line where it is set to `http://localhost` instead
+   - Comment line where `NEXT_PUBLIC_API_BASE_URL` is currently set, and un-comment the line where it is set to `http://localhost` instead
+2. Launch app: `docker compose up -d --build`
+3. The app is now available at `http://localhost:3000/`
+4. To run tests, open a terminal:
+   - go into running backend container: `docker exec -ti <container_id> /bin/bash`
+   - run tests: `python -m pytest tests`
+
+
 ## 📚 Technical description
 
 There are two components: ingestion and question-answering.
