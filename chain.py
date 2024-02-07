@@ -6,6 +6,7 @@ import weaviate
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_community.chat_models.anthropic import ChatAnthropic
+from langchain_community.embeddings import CohereEmbeddings
 from langchain_community.chat_models.cohere import ChatCohere
 from langchain_community.chat_models.fireworks import ChatFireworks
 from langchain_community.embeddings.voyageai import VoyageEmbeddings
@@ -96,6 +97,8 @@ class ChatRequest(BaseModel):
 def get_embeddings_model() -> Embeddings:
     if os.environ.get("VOYAGE_API_KEY") and os.environ.get("VOYAGE_AI_MODEL"):
         return VoyageEmbeddings(model=os.environ["VOYAGE_AI_MODEL"])
+    if os.environ.get("COHERE_API_KEY")  and os.environ.get("COHERE_EMBED_MODEL"):
+        return CohereEmbeddings(cohere_api_key=os.environ["COHERE_API_KEY"], model=os.environ["COHERE_EMBED_MODEL"])
     return OpenAIEmbeddings(chunk_size=200)
 
 
