@@ -3,9 +3,13 @@ from __future__ import annotations
 from typing import Callable, Iterable, Literal, Optional, Sequence, Union, cast
 
 from langchain.document_loaders.base import BaseLoader
-from langchain.indexes._api import (IndexingResult, _batch,
-                                    _deduplicate_in_order,
-                                    _get_source_id_assigner, _HashedDocument)
+from langchain.indexes._api import (
+    IndexingResult,
+    _batch,
+    _deduplicate_in_order,
+    _get_source_id_assigner,
+    _HashedDocument,
+)
 from langchain.indexes.base import RecordManager
 from langchain.schema.document import Document
 from langchain.schema.vectorstore import VectorStore

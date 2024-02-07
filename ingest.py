@@ -9,12 +9,13 @@ from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain.indexes import SQLRecordManager
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.utils.html import (PREFIXES_TO_IGNORE_REGEX,
-                                  SUFFIXES_TO_IGNORE_REGEX)
+from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain.vectorstores.weaviate import Weaviate
+from langchain_community.embeddings import VoyageEmbeddings
+from langchain_core.embeddings import Embeddings
+from langchain_openai import OpenAIEmbeddings
 
 from _index import index
-from chain import get_embeddings_model
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
 logging.basicConfig(level=logging.INFO)
@@ -23,6 +24,12 @@ logger = logging.getLogger(__name__)
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+
+
+def get_embeddings_model() -> Embeddings:
+    if os.environ.get("VOYAGE_API_KEY") and os.environ.get("VOYAGE_AI_MODEL"):
+        return VoyageEmbeddings(model=os.environ["VOYAGE_AI_MODEL"])
+    return OpenAIEmbeddings(chunk_size=200)
 
 
 def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
