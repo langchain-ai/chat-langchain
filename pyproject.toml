@@ -8,6 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 langchain = "^0.1.5"
+langchain-community = "^0.0.19"
 langchain-openai = "^0.0.3"
 langchain-google-genai = "^0.0.6"
 langserve = {extras = ["server"], version = "^0.0.39"}
