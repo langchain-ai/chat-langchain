@@ -25,6 +25,7 @@ langchain-openai = "^0.0.3"
 langchain-google-genai = "^0.0.6"
 langchain-core = "0.1.15-rc.2"
 fireworks-ai = "^0.11.2"
+cohere = "4.45"
 
 
 [tool.poetry.group.dev.dependencies]
