@@ -230,7 +230,7 @@ llm = ChatOpenAI(
     ),
     cohere=ChatCohere(
         model="command",
-        google_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
+        cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
     ),
 )
 
