@@ -11,7 +11,6 @@ from langchain.indexes import SQLRecordManager, index
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain.vectorstores.weaviate import Weaviate
-from langchain_community.embeddings import VoyageEmbeddings
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 
@@ -22,9 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_embeddings_model() -> Embeddings:
-    if os.environ.get("VOYAGE_API_KEY") and os.environ.get("VOYAGE_AI_MODEL"):
-        return VoyageEmbeddings(model=os.environ["VOYAGE_AI_MODEL"])
-    return OpenAIEmbeddings(chunk_size=200)
+    return OpenAIEmbeddings(model="text-embedding-3-small", chunk_size=200)
 
 
 def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
