@@ -20,10 +20,6 @@ from constants import WEAVIATE_DOCS_INDEX_NAME
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
-RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
-
 
 def get_embeddings_model() -> Embeddings:
     if os.environ.get("VOYAGE_API_KEY") and os.environ.get("VOYAGE_AI_MODEL"):
@@ -103,6 +99,10 @@ def load_api_docs():
 
 
 def ingest_docs():
+    WEAVIATE_URL = os.environ["WEAVIATE_URL"]
+    WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
+    RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     client = weaviate.Client(
         url=WEAVIATE_URL,
