@@ -22,6 +22,7 @@ from langsmith.schemas import Example, Run
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
 
 
 def search(inp: str, index_name: str, callbacks=None) -> str:
@@ -54,7 +55,7 @@ def search(inp: str, callbacks=None) -> list:
     )
     weaviate_client = Weaviate(
         client=client,
-        index_name="LangChain_agent_docs",
+        index_name=WEAVIATE_DOCS_INDEX_NAME,
         text_key="text",
         embedding=OpenAIEmbeddings(chunk_size=200),
         by_text=False,
