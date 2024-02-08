@@ -74,7 +74,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What are some ways of doing retrieval augmented generation?
+              Explain multi-vector retrieval and how it can improve results.
             </Heading>
           </CardHeader>
         </Card>
