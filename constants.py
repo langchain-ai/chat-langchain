@@ -1,1 +1,1 @@
-WEAVIATE_DOCS_INDEX_NAME = "LangChain_agent_docs"
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
