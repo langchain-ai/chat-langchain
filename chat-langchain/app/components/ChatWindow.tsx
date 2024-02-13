@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { RemoteRunnable } from "langchain/runnables/remote";
+import { RemoteRunnable } from "@langchain/core/runnables/remote";
 import { applyPatch } from "@langchain/core/utils/json_patch";
 
 import { EmptyState } from "../components/EmptyState";

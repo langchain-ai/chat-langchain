@@ -15,6 +15,7 @@
     "@chakra-ui/react": "^2.8.1",
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
+    "@langchain/core": "^0.1.27",
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^5.0.1",
     "@types/node": "20.4.9",
