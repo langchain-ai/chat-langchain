@@ -1,9 +1,11 @@
 # 🦜️🔗 Chat LangChain
 
-This repo is an implementation of a locally hosted chatbot specifically focused on question answering over the [LangChain documentation](https://langchain.readthedocs.io/en/latest/).
-Built with [LangChain](https://github.com/hwchase17/langchain/), [FastAPI](https://fastapi.tiangolo.com/), and [Next.js](https://nextjs.org).
+This repo is an implementation of a locally hosted chatbot specifically focused on question answering over the [LangChain documentation](https://python.langchain.com/).
+Built with [LangChain](https://github.com/langchain-ai/langchain/), [FastAPI](https://fastapi.tiangolo.com/), and [Next.js](https://nextjs.org).
 
 Deployed version: [chat.langchain.com](https://chat.langchain.com)
+
+> Looking for the JS version? Click [here](https://github.com/langchain-ai/chat-langchainjs).
 
 The app leverages LangChain's streaming support and async API to update the page in real time for multiple users.
 
@@ -27,13 +29,6 @@ export LANGCHAIN_PROJECT=
 1. Start the Python backend with `poetry run make start`.
 1. Install frontend dependencies by running `cd chat-langchain`, then `yarn`.
 1. Run the frontend with `yarn dev` for frontend.
-1. Open [localhost:3000](http://localhost:3000) in your browser.
-
-## ☕ Running locally (JS backend)
-1. Follow the first three steps above to ingest LangChain docs data into the vectorstore.
-1. Install frontend dependencies by running `cd chat-langchain`, then `yarn`.
-1. Populate a `chat-langchain/.env.local` file with your own versions of keys from the `chat-langchain/.env.example` file, and set `NEXT_PUBLIC_API_BASE_URL` to `"http://localhost:3000/api"`.
-1. Run the app with `yarn dev`.
 1. Open [localhost:3000](http://localhost:3000) in your browser.
 
 ## 📚 Technical description
