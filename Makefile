@@ -4,5 +4,12 @@ start:
 
 .PHONY: format
 format:
-	black .
-	isort .
+	poetry run ruff format .
+	poetry run ruff --select I --fix .
+
+.PHONY: lint
+lint:
+	poetry run ruff .
+	poetry run ruff format . --diff
+	poetry run ruff --select I .
+
