@@ -226,7 +226,7 @@ llm = ChatOpenAI(
         max_tokens=16384,
         google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
     ),
-    cohere=ChatCohere(
+    cohere_command=ChatCohere(
         model="command",
         cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
         temperature=0,
