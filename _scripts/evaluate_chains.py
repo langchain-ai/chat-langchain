@@ -9,8 +9,7 @@ import weaviate
 from langchain import load as langchain_load
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
-                               PromptTemplate)
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import Runnable, RunnableMap
@@ -29,6 +28,7 @@ _MODEL_MAP = {
     "openai": "gpt-3.5-turbo-1106",
     "anthropic": "claude-2",
 }
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
 
 
 def create_chain(
@@ -118,7 +118,7 @@ def _get_retriever():
     )
     weaviate_client = Weaviate(
         client=client,
-        index_name="LangChain_agent_docs",
+        index_name=WEAVIATE_DOCS_INDEX_NAME,
         text_key="text",
         embedding=OpenAIEmbeddings(chunk_size=200),
         by_text=False,

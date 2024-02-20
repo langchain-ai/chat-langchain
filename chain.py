@@ -5,29 +5,32 @@ from typing import Dict, List, Optional, Sequence
 import weaviate
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_community.chat_models.anthropic import ChatAnthropic
-from langchain_community.embeddings import CohereEmbeddings
-from langchain_community.chat_models.cohere import ChatCohere
-from langchain_community.chat_models.fireworks import ChatFireworks
-from langchain_community.embeddings.voyageai import VoyageEmbeddings
+from langchain_community.chat_models import ChatAnthropic, ChatCohere, ChatFireworks
 from langchain_community.vectorstores.weaviate import Weaviate
 from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
-from langchain_core.language_models.base import BaseLanguageModel
+from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import (ChatPromptTemplate, MessagesPlaceholder,
-                                    PromptTemplate)
+from langchain_core.prompts import (
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+    PromptTemplate,
+)
+from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.retrievers import BaseRetriever
-from langchain_core.runnables import (ConfigurableField, Runnable,
-                                      RunnableBranch, RunnableLambda,
-                                      RunnableMap)
+from langchain_core.runnables import (
+    ConfigurableField,
+    Runnable,
+    RunnableBranch,
+    RunnableLambda,
+    RunnableMap,
+)
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import ChatOpenAI
 from langsmith import Client
-from pydantic import BaseModel
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
+from ingest import get_embeddings_model
 
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
@@ -92,14 +95,6 @@ WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 class ChatRequest(BaseModel):
     question: str
     chat_history: Optional[List[Dict[str, str]]]
-
-
-def get_embeddings_model() -> Embeddings:
-    if os.environ.get("VOYAGE_API_KEY") and os.environ.get("VOYAGE_AI_MODEL"):
-        return VoyageEmbeddings(model=os.environ["VOYAGE_AI_MODEL"])
-    if os.environ.get("COHERE_API_KEY")  and os.environ.get("COHERE_EMBED_MODEL"):
-        return CohereEmbeddings(cohere_api_key=os.environ["COHERE_API_KEY"], model=os.environ["COHERE_EMBED_MODEL"])
-    return OpenAIEmbeddings(chunk_size=200)
 
 
 def get_retriever() -> BaseRetriever:
@@ -234,6 +229,7 @@ llm = ChatOpenAI(
     cohere=ChatCohere(
         model="command",
         cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
+        temperature=0,
     ),
 )
 

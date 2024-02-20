@@ -6,8 +6,9 @@ from typing import Optional
 import weaviate
 from langchain import load as langchain_load
 from langchain.agents import AgentExecutor, Tool
-from langchain.agents.openai_functions_agent.agent_token_buffer_memory import \
-    AgentTokenBufferMemory
+from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
+    AgentTokenBufferMemory,
+)
 from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
@@ -21,29 +22,7 @@ from langsmith.schemas import Example, Run
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
-
-
-def search(inp: str, index_name: str, callbacks=None) -> str:
-    client = weaviate.Client(
-        url=WEAVIATE_URL,
-        auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
-    )
-
-    weaviate_client = Weaviate(
-        client=client,
-        index_name=index_name,
-        text_key="text",
-        embedding=OpenAIEmbeddings(chunk_size=200),
-        by_text=False,
-        attributes=["source"] if not index_name == "LangChain_agent_sources" else None,
-    )
-    retriever = (
-        weaviate_client.as_retriever(search_kwargs=dict(k=3), callbacks=callbacks)
-        if index_name == "LangChain_agent_sources"
-        else weaviate_client.as_retriever(search_kwargs=dict(k=6), callbacks=callbacks)
-    )
-
-    return retriever.get_relevant_documents(inp, callbacks=callbacks)
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
 
 
 def search(inp: str, callbacks=None) -> list:
@@ -53,7 +32,7 @@ def search(inp: str, callbacks=None) -> list:
     )
     weaviate_client = Weaviate(
         client=client,
-        index_name="LangChain_agent_docs",
+        index_name=WEAVIATE_DOCS_INDEX_NAME,
         text_key="text",
         embedding=OpenAIEmbeddings(chunk_size=200),
         by_text=False,
