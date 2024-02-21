@@ -97,12 +97,6 @@ variable "anthropic_api_key" {
   default     = ""
 }
 
-variable "cohere_api_key" {
-  description = "Cohere api key to use for the backend"
-  type        = string
-  default     = ""
-}
-
 variable "env_vars" {
   description = "Environment variables to set on the backend"
   type        = map(string)
