@@ -24,6 +24,7 @@ anthropic = "^0.10.0"
 pillow = "^10.2.0"
 tiktoken = "^0.5.2"
 fireworks-ai = "^0.11.2"
+cohere = "4.45"
 
 
 [tool.poetry.group.lint.dependencies]
