@@ -11,7 +11,7 @@ from langchain.schema.runnable import (Runnable, RunnableBranch,
                                        RunnableLambda, RunnableMap, RunnableParallel)
 
 from langchain.globals import set_debug
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 from croptalk.retriever import retriever_with_filter, format_docs
 from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, INS_PLAN_TEMPLATE
 from croptalk.model_agent import initialize_llm
