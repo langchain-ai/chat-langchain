@@ -235,43 +235,40 @@ def create_chain(llm: LanguageModelLike, retriever: BaseRetriever) -> Runnable:
     )
 
 
-def get_llm() -> LanguageModelLike:
-    return ChatOpenAI(
-        model="gpt-3.5-turbo-1106",
-        streaming=True,
+llm = ChatOpenAI(
+    model="gpt-3.5-turbo-1106",
+    streaming=True,
+    temperature=0,
+).configurable_alternatives(
+    # This gives this field an id
+    # When configuring the end runnable, we can then use this id to configure this field
+    ConfigurableField(id="llm"),
+    default_key="openai_gpt_3_5_turbo",
+    anthropic_claude_2_1=ChatAnthropic(
+        model="claude-2.1",
+        max_tokens=16384,
         temperature=0,
-    ).configurable_alternatives(
-        # This gives this field an id
-        # When configuring the end runnable, we can then use this id to configure this field
-        ConfigurableField(id="llm"),
-        default_key="openai_gpt_3_5_turbo",
-        anthropic_claude_2_1=ChatAnthropic(
-            model="claude-2.1",
-            max_tokens=16384,
-            temperature=0,
-            anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
-        ),
-        fireworks_mixtral=ChatFireworks(
-            model="accounts/fireworks/models/mixtral-8x7b-instruct",
-            temperature=0,
-            max_tokens=16384,
-            fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
-        ),
-        google_gemini_pro=ChatGoogleGenerativeAI(
-            model="gemini-pro",
-            temperature=0,
-            convert_system_message_to_human=True,
-            max_tokens=16384,
-            google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
-        ),
-        cohere_command=ChatCohere(
-            model="command",
-            cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
-            temperature=0,
-        ),
-    )
+        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
+    ),
+    fireworks_mixtral=ChatFireworks(
+        model="accounts/fireworks/models/mixtral-8x7b-instruct",
+        temperature=0,
+        max_tokens=16384,
+        fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
+    ),
+    google_gemini_pro=ChatGoogleGenerativeAI(
+        model="gemini-pro",
+        temperature=0,
+        convert_system_message_to_human=True,
+        max_tokens=16384,
+        google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
+    ),
+    cohere_command=ChatCohere(
+        model="command",
+        cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
+        temperature=0,
+    ),
+)
 
-
-llm = get_llm()
 retriever = get_retriever()
 answer_chain = create_chain(llm, retriever)
