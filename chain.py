@@ -6,7 +6,7 @@ import weaviate
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_community.chat_models import ChatAnthropic, ChatCohere, ChatFireworks
-from langchain_community.vectorstores.weaviate import Weaviate
+from langchain_community.vectorstores import Weaviate
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import AIMessage, HumanMessage
