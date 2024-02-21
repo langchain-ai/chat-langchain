@@ -149,13 +149,9 @@ class OpenAIAgentModelFactory:
 
 # create singleton model
 model_name = os.getenv("MODEL_NAME")
-vectorestore_dir = os.getenv("VECTORSTORE_DIR")
 collection_name = os.getenv("VECTORSTORE_COLLECTION")
 top_k = int(os.getenv("VECTORSTORE_TOP_K"))
-doc_retriever = DocumentRetriever(
-    vectorestore_dir=vectorestore_dir,
-    collection_name=collection_name,
-)
+doc_retriever = DocumentRetriever(collection_name=collection_name)
 model = OpenAIAgentModelFactory(
     llm_model_name=model_name,
     document_retriever=doc_retriever,
