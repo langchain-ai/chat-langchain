@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Sequence
 import weaviate
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_community.chat_models import ChatAnthropic, ChatFireworks
+from langchain_community.chat_models import ChatAnthropic, ChatCohere, ChatFireworks
 from langchain_community.vectorstores import Weaviate
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseLanguageModel
@@ -225,6 +225,11 @@ llm = ChatOpenAI(
         convert_system_message_to_human=True,
         max_tokens=16384,
         google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
+    ),
+    cohere_command=ChatCohere(
+        model="command",
+        cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
+        temperature=0,
     ),
 )
 
