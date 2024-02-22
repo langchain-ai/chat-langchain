@@ -92,7 +92,8 @@ class DocumentRetriever:
             f" commodity={doc.properties['commodity']},"
             f" state={doc.properties['state']},"
             f" county={doc.properties['county']},"
-            f" url={doc.properties['s3_key']}"
+            f" s3_key={doc.properties['s3_key']},"
+            f" url=https://croptalk-spoi.s3.us-east-2.amazonaws.com/{doc.properties['s3_key']}"
             f">{doc.properties['content']}</doc>"
             for i, doc in enumerate(query_response.objects)
         ]
