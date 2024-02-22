@@ -89,6 +89,9 @@ class DocumentRetriever:
             f" title={doc.properties['title']},"
             f" page_id={doc.properties['page']},"
             f" doc_category={doc.properties['doc_category']},"
+            f" commodity={doc.properties['commodity']},"
+            f" state={doc.properties['state']},"
+            f" county={doc.properties['county']},"
             f" url={doc.properties['s3_key']}"
             f">{doc.properties['content']}</doc>"
             for i, doc in enumerate(query_response.objects)
