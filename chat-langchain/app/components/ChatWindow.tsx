@@ -133,8 +133,12 @@ export function ChatWindow(props: {
               sources = streamedResponse.logs[
                 sourceStepName
               ].final_output.output.map((doc: Record<string, any>) => ({
-                url: doc.metadata.source,
-                title: doc.metadata.title,
+                // url: doc.metadata.source,
+                // title: doc.metadata.title,
+                // hack to make it work quickly... otherwise doc.metadata is undefined
+                // and above commented lines generate errors
+                url: doc.split("url='")[1].split("'>")[0],
+                title: doc.split("title='")[1].split("' page_id=")[0],
               }));
             }
             if (streamedResponse.id !== undefined) {

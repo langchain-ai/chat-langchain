@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import os
 from operator import itemgetter
 from typing import Dict, List, Optional
+from langchain.chat_models import ChatOpenAI
 from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
                                PromptTemplate)
 from langchain.schema.language_model import BaseLanguageModel
@@ -12,9 +13,8 @@ from langchain.schema.runnable import (Runnable, RunnableBranch,
 
 from langchain.globals import set_debug
 from pydantic.v1 import BaseModel
-from croptalk.retriever import retriever_with_filter, format_docs
 from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, INS_PLAN_TEMPLATE
-from croptalk.model_agent import initialize_llm
+from croptalk.document_retriever import DocumentRetriever
 
 set_debug(True)
 
@@ -22,7 +22,7 @@ load_dotenv('secrets/.env.secret')
 load_dotenv('secrets/.env.shared')
 
 
-def create_retriever_chain(llm: BaseLanguageModel) -> Runnable:
+def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentRetriever) -> Runnable:
 
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
     condense_chain_hist = (CONDENSE_QUESTION_PROMPT | llm | StrOutputParser(
@@ -53,13 +53,11 @@ def create_retriever_chain(llm: BaseLanguageModel) -> Runnable:
     ins_plan_chain = (INS_PLAN_PROMPT | llm | StrOutputParser()
                       ).with_config(run_name="IndentifyPlan")
 
-    retriever_func = RunnableLambda(lambda x: retriever_with_filter(query=x["question"],
-                                                                    commodity=x['commodity'],
-                                                                    state=x['state'],
-                                                                    county=x['county'],
-                                                                    insurance_plan=x['insurance_plan'],
-                                                                    include_common_docs=True,
-                                                                    formatted=False)
+    retriever_func = RunnableLambda(lambda x: document_retriever.get_documents(query=x["question"],
+                                                                               commodity=x['commodity'],
+                                                                               state=x['state'],
+                                                                               county=x['county'],
+                                                                               include_common_docs=True)
                                     ).with_config(run_name="RetrieverWithFilter")
 
     return (
@@ -75,7 +73,6 @@ def create_retriever_chain(llm: BaseLanguageModel) -> Runnable:
             question=itemgetter("question")
         ).with_config(run_name="CommodityChain")
         | retriever_func.with_config(run_name="FindDocs")
-        | RunnableLambda(format_docs).with_config(run_name="FormatDocs")
     )
 
 
@@ -98,9 +95,11 @@ def serialize_history(request: ChatRequest):
 
 def create_chain(
         basic_llm: BaseLanguageModel,
-        answer_llm: BaseLanguageModel) -> Runnable:
+        answer_llm: BaseLanguageModel,
+        document_retriever: DocumentRetriever,
+) -> Runnable:
 
-    retriever_chain = create_retriever_chain(basic_llm)
+    retriever_chain = create_retriever_chain(basic_llm, document_retriever)
 
     _context = RunnableMap(
         {
@@ -136,10 +135,21 @@ def create_chain(
     )
 
 
+def initialize_llm(model):
+    return ChatOpenAI(
+        model=model,
+        streaming=True,
+        temperature=0,
+    )
+
+
 model_name = os.getenv("MODEL_NAME")
+
+collection_name = os.getenv("VECTORSTORE_COLLECTION")
+doc_retriever = DocumentRetriever(collection_name=collection_name)
 
 basic_llm = initialize_llm(model_name)
 answer_llm = initialize_llm(model_name)
 
 # Initialize the answer_chain
-model = create_chain(basic_llm, answer_llm)
+model = create_chain(basic_llm, answer_llm, doc_retriever)

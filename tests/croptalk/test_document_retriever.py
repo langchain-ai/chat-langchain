@@ -58,7 +58,7 @@ def test_get_documents_with_doc_category_filter(
 ):
     res = doc_retriever.get_documents(query="Any query", doc_category=doc_category_requested)
     assert len(res) > 0
-    assert all(f"doc_category={doc_category_requested}" in doc for doc in res)
+    assert all(f"doc_category='{doc_category_requested}'" in doc for doc in res)
 
 
 @pytest.mark.parametrize(
@@ -86,14 +86,14 @@ def test_get_documents_with_commodity_filter(
     if include_common_docs:
         assert all(
             (
-                f"commodity={int(commodity_code_requested)}" in doc
+                f"commodity='{int(commodity_code_requested)}'" in doc
                 or
-                "commodity=0" in doc
+                "commodity='0'" in doc
             )
             for doc in res
         )
     else:
-        assert all(f"commodity={int(commodity_code_requested)}" in doc for doc in res)
+        assert all(f"commodity='{int(commodity_code_requested)}'" in doc for doc in res)
 
 
 @pytest.mark.parametrize(
@@ -127,15 +127,15 @@ def test_get_documents_with_state_and_county_filter(
         assert all(
             (
                 (
-                    f"state={int(state_code_requested)}" in doc
+                    f"state='{int(state_code_requested)}'" in doc
                     or
-                    "state=0" in doc
+                    "state='0'" in doc
                 )
                 and
                 (
-                    f"county={int(county_code_requested)}" in doc
+                    f"county='{int(county_code_requested)}'" in doc
                     or
-                    "county=0" in doc
+                    "county='0'" in doc
                 )
             )
             for doc in res
@@ -143,9 +143,9 @@ def test_get_documents_with_state_and_county_filter(
     else:
         assert all(
             (
-                f"state={int(state_code_requested)}" in doc
+                f"state='{int(state_code_requested)}'" in doc
                 and
-                f"county={int(county_code_requested)}" in doc
+                f"county='{int(county_code_requested)}'" in doc
             )
             for doc in res
         )
@@ -176,14 +176,14 @@ def test_get_documents_with_state_filter(
     if include_common_docs:
         assert all(
             (
-                f"state={int(state_code_requested)}" in doc
+                f"state='{int(state_code_requested)}'" in doc
                 or
-                "state=0" in doc
+                "state='0'" in doc
             )
             for doc in res
         )
     else:
-        assert all(f"state={int(state_code_requested)}" in doc for doc in res)
+        assert all(f"state='{int(state_code_requested)}'" in doc for doc in res)
 
 
 @pytest.mark.parametrize(
@@ -235,13 +235,13 @@ def test_get_documents_with_all_filters(
     county_code_requested = int(county_lookup.find_by_name(county, state).code)
     assert all(
         (
-            f"doc_category={doc_category}" in doc
+            f"doc_category='{doc_category}'" in doc
             and
-            f"commodity={int(commodity_code_requested)}" in doc
+            f"commodity='{int(commodity_code_requested)}'" in doc
             and
-            f"state={int(state_code_requested)}" in doc
+            f"state='{int(state_code_requested)}'" in doc
             and
-            f"county={int(county_code_requested)}" in doc
+            f"county='{int(county_code_requested)}'" in doc
         )
         for doc in res
     )
