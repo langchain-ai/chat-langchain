@@ -1,6 +1,6 @@
 import os
 from operator import itemgetter
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from dotenv import load_dotenv
 from langchain.agents import AgentExecutor
@@ -57,10 +57,11 @@ class OpenAIAgentModelFactory:
         self.input_key = input_key
         self.output_key = output_key
 
-    def get_model(self) -> Chain:
+    def get_model(self) -> Tuple[Chain, AgentTokenBufferMemory]:
         """
         Returns:
-            newly created OpenAI LLM chat agent using ChromaDB vectorstore
+            - newly created OpenAI LLM chat agent using ChromaDB vectorstore
+            - memory object
         """
         # create LLM
         llm = ChatOpenAI(model=self.llm_model_name, streaming=True, temperature=0.0)
@@ -113,7 +114,7 @@ class OpenAIAgentModelFactory:
             | itemgetter(self.output_key)
         ).with_config(run_name="AgentExecutor")
 
-        return agent_executor
+        return agent_executor, memory
 
     def _get_tools(self) -> List[StructuredTool]:
         """
@@ -152,7 +153,7 @@ model_name = os.getenv("MODEL_NAME")
 collection_name = os.getenv("VECTORSTORE_COLLECTION")
 top_k = int(os.getenv("VECTORSTORE_TOP_K"))
 doc_retriever = DocumentRetriever(collection_name=collection_name)
-model = OpenAIAgentModelFactory(
+model, memory = OpenAIAgentModelFactory(
     llm_model_name=model_name,
     document_retriever=doc_retriever,
     top_k=top_k,

@@ -50,6 +50,32 @@ export LANGCHAIN_PROJECT=
 4. To run tests, open a terminal:
    - go into running backend container: `docker exec -ti <container_id> /bin/bash`
    - run tests: `python -m pytest tests`
+   - run evaluation script whose options/args are:
+     ```
+     root@e6123c0f9b6b:~# python _scripts/evaluate_doc_retrieval.py --help
+     usage: evaluate_doc_retrieval.py [-h] [--use-model-llm] eval_path
+
+     positional arguments:
+     eval_path        CSV file path that contains evaluation use cases
+
+     options:
+      -h, --help       show this help message and exit
+      --use-model-llm  Option which, when specified, tells the evaluation to use model_llm (i.e. use model_openai_functions when this option is not specified)
+     ```
+     You can see an example of the script's expected input in `./_scripts/evaluate_doc_retrieval.csv`.
+     You can then use `pandas.read_csv(<path>)` to load the generated evaluation report (whose path is reported on the last line of the script).
+     ```
+      root@e6123c0f9b6b:~# python _scripts/evaluate_doc_retrieval.py --use-model-llm ./_scripts/evaluate_doc_retrieval.csv
+      INFO:root:Evaluating croptalk's document retrieval capacity, using config: Namespace(use_model_llm=True, eval_path='./_scripts/evaluate_doc_retrieval.csv')
+
+      INFO:root:Number of use cases to evaluate: 2
+      INFO:root:Creating output_df
+      INFO:root:Loading model
+
+      (...)
+
+      INFO:root:Evaluation report/dataframe saved here: ./_scripts/evaluate_doc_retrieval__model_llm__2024-02-23T22:07:10.813830.csv
+     ```
 
 
 ## 📚 Technical description
