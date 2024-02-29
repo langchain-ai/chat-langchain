@@ -1,41 +1,34 @@
-from typing import Callable, List, Optional
+from typing import List, Optional
 
-from chromadb import PersistentClient
-from chromadb.api.models.Collection import Collection
-from chromadb.api.types import QueryResult
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+from dotenv import load_dotenv
+from weaviate.collections.classes.internal import QueryReturn
 
-from croptalk.chromadb_utils import create_chroma_filter
+from croptalk.weaviate_utils import (
+    get_client_collection,
+    query_near_vector_with_filters,
+)
+
+load_dotenv("secrets/.env.secret")
+load_dotenv("secrets/.env.shared")
 
 
 class DocumentRetriever:
     """
-    Class responsible for document retrieval in a ChromaDB vector store.
+    Class responsible for document retrieval in a weaviate vector store.
     """
 
-    def __init__(
-        self,
-        vectorestore_dir: str,
-        collection_name: str,
-        embedding_function: Optional[Callable] = None,
-    ) -> None:
+    def __init__(self, collection_name: str) -> None:
         """
-        Args:
-            vectorestore_dir: directory where ChromaDB vectorstore files are located
-            collection_name: collection name
-            embedding_function: embedding function to use,
-                                ChromaDB's default embedding function will be used if none is
-                                provided
-        """
-        self.vectorestore_dir = vectorestore_dir
-        self.collection_name = collection_name
-        self.embedding_function = embedding_function or DefaultEmbeddingFunction()
+        Connecting to weaviate cloud services requires the following environment variables to be
+        set:
+            - WCS_CLUSTER_URL
+            - WCS_API_KEY
 
-        self.collection = self._get_chroma_collection(
-            vectorestore_dir=self.vectorestore_dir,
-            collection_name=self.collection_name,
-            embedding_function=self.embedding_function,
-        )
+        Args:
+            collection_name: Name of weaviate collection
+        """
+        self.collection_name = collection_name
+        self.collection = get_client_collection(self.collection_name)[1]
 
     def get_documents(
         self,
@@ -45,75 +38,62 @@ class DocumentRetriever:
         county: Optional[str] = None,
         state: Optional[str] = None,
         top_k: int = 3,
+        include_common_docs: bool = True,
     ) -> List[str]:
         """
         Args:
             query: query to use for document retrieval
-            doc_category: document category to filter on
-            commodity: commodity to filter on
-            county: county to filter on
-            state: state to filter on
+            doc_category: document category to filter on, None means no filter
+            commodity: commodity to filter on, None means no filter
+            county: county to filter on, None means no filter
+            state: state to filter on, None means no filter
             top_k: number of retrieved documents we are aiming for, defaults to 3
+            include_common_docs: whether (default) or not to include documents that apply to all
+                                 states, counties or commodities... does not apply to document
+                                 category filter
 
         Returns:
-            list of retrieved documents matching query and filters
+            list of retrieved documents matching query, filters and top_k
         """
         if not isinstance(query, str):
             raise ValueError(f"Query must be a string. Received: {query}")
 
-        query_embedding = self.embedding_function([query])
-        where_filter = create_chroma_filter(
+        # query vector store
+        query_response = query_near_vector_with_filters(
+            collection=self.collection,
+            query=query,
+            limit=top_k,
+            doc_category=doc_category,
             commodity=commodity,
             county=county,
             state=state,
-            doc_category=doc_category,
-            include_common_docs=True,
+            include_common_docs=include_common_docs,
         )
-        result = self.collection.query(query_embedding, where=where_filter, n_results=top_k)
-        formatted_docs = self._format_docs(result)
+
+        # format returned docs
+        formatted_docs = self._format_query_response(query_response)
         return formatted_docs
 
     @staticmethod
-    def _format_docs(result: QueryResult) -> List[str]:
+    def _format_query_response(query_response: QueryReturn) -> List[str]:
         """
         Args:
-            result: ChromaDB query result
+            query_response: weaviate query response
 
         Returns:
-            list of retrieved and formatted documents, equivalent to provided query result
+            list of retrieved and formatted documents, equivalent to provided query response
         """
-        doc_contents = result["documents"][0]
-        doc_metadatas = result["metadatas"][0]
         return [
             f"<doc"
-            f" id='{i+1}',"
-            f" title={metadata['title']},"
-            f" page_id={metadata['page']},"
-            f" doc_category={metadata['doc_category']},"
-            f" url={metadata['source']}"
-            f">{content}</doc>"
-            for i, (content, metadata)
-            in enumerate(zip(doc_contents, doc_metadatas))
+            f" id='{i+1}'"
+            f" title='{doc.properties['title']}'"
+            f" page_id='{doc.properties['page']}'"
+            f" doc_category='{doc.properties['doc_category']}'"
+            f" commodity='{doc.properties['commodity']}'"
+            f" state='{doc.properties['state']}'"
+            f" county='{doc.properties['county']}'"
+            f" s3_key='{doc.properties['s3_key']}'"
+            f" url='https://croptalk-spoi.s3.us-east-2.amazonaws.com/{doc.properties['s3_key']}'"
+            f">{doc.properties['content']}</doc>"
+            for i, doc in enumerate(query_response.objects)
         ]
-
-    @staticmethod
-    def _get_chroma_collection(
-        vectorestore_dir: str,
-        collection_name: str,
-        embedding_function: Callable,
-    ) -> Collection:
-        """
-        Args:
-            vectorestore_dir: directory where vectorstore files are located
-            collection_name: collection name
-            embedding_function: embedding function used in vectorstore
-
-        Returns:
-            a ChromaDB collection
-        """
-        chroma_client = PersistentClient(path=vectorestore_dir)
-        collection = chroma_client.get_collection(
-            name=collection_name,
-            embedding_function=embedding_function,
-        )
-        return collection

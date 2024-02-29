@@ -27,10 +27,5 @@ git clone git@github.com:cropguard-ai/ds-main.git
 cd ds-main
 pip install . -v
 
-# this is an ugly/temp hack to remediate the fact that pip install of ds-main
-# uninstalls/resintalls a newer version of pydantic, which causes errors in
-# chat-langchain... we should work on a cleaner fix, for example:
-# - adding ds-main as a dependency in chat-langchain's pyproject.toml
-# - upgrading chat-langchain to a newer pydantic version?
-# but currently this is not priority, so we will keep this ugly hack
-pip install "pydantic==1.10.13"
+# TODO: add ds-main as a dependency in chat-langchain's pyproject.toml
+#       ...and get rid of install_dsmain.sh
