@@ -45,7 +45,7 @@ jobs:
 
     - name: Update Docker image in Terraform files (dev)
       run: |
-        cd deployments/environments/langchain/chat-langchain
+        cd deployments/environments/gcp/chat-langchain
         # Modify the main.tf terraform file
         sed -i "s|image_tag                   = \"docker.io/langchain/chat-langchain-backend:[^\"]*\"|image_tag                   = \"docker.io/langchain/chat-langchain-backend:${{ env.GIT_SHORT_SHA }}\"|" main.tf
 
