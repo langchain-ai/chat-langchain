@@ -10,8 +10,8 @@ Getting real user feedback can be invaluable for improving your LLM application,
 Observability is simple when using LangChain as your LLM framework. In its simplest form, all you need is to set two environment variables:
 
 ```shell
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_API_KEY=...
+export LANGCHAIN_TRACING_V2=true
+export LANGCHAIN_API_KEY=...
 ```
 
 LangSmith tracing is already setup in an optimized way for Chat LangChain, and only needs extra configuration if you're extending the application in a way that's not covered by the default tracing.
