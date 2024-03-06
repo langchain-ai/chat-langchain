@@ -51,8 +51,8 @@ We'll start by modifying the ingestion script.
 
 At a high level, the only LangChain specific part of the ingestion script are the three webpages which is scrapes for documents to add to the vector store. These links are:
 - LangSmith Documentation
-- LangChain.js API references
-- LangChain.js Documentation
+- LangChain API references
+- LangChain Documentation
 
 If all you would like to update is update which website(s) to scrape and ingest, you only need to modify/remove these functions:
 
@@ -61,7 +61,7 @@ If all you would like to update is update which website(s) to scrape and ingest,
 - `loadLangChainDocs`
 
 If you want to ingest another way, consult the [document loader](https://python.langchain.com/docs/modules/data_connection/document_loaders/) section of the LangChain docs.
-Using any LangChain.js document loader, you'll be able to easily and efficiently fetch & ingest from a large variety of sources. Additionally, the LangChain.js document loader API will always return documents in the same format ([`Document`](https://api.python.langchain.com/en/latest/documents/langchain_core.documents.base.Document.html)) so you do not need to modify the format before adding to your indexing API or vector store.
+Using any LangChain document loader, you'll be able to easily and efficiently fetch & ingest from a large variety of sources. Additionally, the LangChain. document loader API will always return documents in the same format ([`Document`](https://api.python.langchain.com/en/latest/documents/langchain_core.documents.base.Document.html)) so you do not need to modify the format before adding to your indexing API or vector store.
 
 ### API Endpoints
 
@@ -75,7 +75,7 @@ The first (and main endpoint) is the [`/api/chat/stream_log`](frontend/app/api/c
 
 #### Document Retrieval
 
-The document retrieval code is the only part of this API which is not LangChain.js documentation specific. You can however, easily add or remove parts to increase/fit your needs better. Some ideas of what can be done:
+The document retrieval code is the only part of this API which is not LangChain documentation specific. You can however, easily add or remove parts to increase/fit your needs better. Some ideas of what can be done:
 
 - Re-ranking document results
 - Parent document retrieval (also would require modifications to the ingestion script)

@@ -4,7 +4,7 @@ We recommend when deploying Chat LangChain JS, you use Vercel for the frontend &
 
 ## Prerequisites
 
-First, fork [chat-langchainjs](https://github.com/langchain-ai/chat-langchainjs) to your GitHub account.
+First, fork [chat-langchain](https://github.com/langchain-ai/chat-langchain) to your GitHub account.
 
 ## Weaviate (Vector Store)
 

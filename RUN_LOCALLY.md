@@ -82,17 +82,13 @@ You'll also need to create a database inside your PostgreSQL container:
 docker exec -it postgres createdb -U postgres your-db-name
 ```
 
-Next, find the `getEmbeddingsModel` and replace its contents with an [`OllamaEmbeddings`](https://python.langchain.com/docs/integrations/text_embedding/ollama) instance:
+Next, find the `get_embeddings_model` function inside the [`ingest.py`](ingest.py) file and replace its contents with an [`OllamaEmbeddings`](https://python.langchain.com/docs/integrations/text_embedding/ollama) instance:
 
+```python
+from langchain_community.embeddings import OllamaEmbeddings
 
-```typescript
-import { OllamaEmbeddings } from "@langchain/community/embeddings/ollama";
-
-function getEmbeddingsModel(): Embeddings {
-  return new OllamaEmbeddings({
-    model: "nomic-embed-text",
-  });
-}
+def get_embeddings_model() -> Embeddings:
+    return OllamaEmbeddings(model="nomic-embed-text")
 ```
 
 For our databases, we'll want to set one more environment variable to track our collection name (similar to the index name for Weaviate):
@@ -103,72 +99,51 @@ COLLECTION_NAME="your-collection-name" # Change this to your collection name
 
 Directly below where this function is invoked, you can delete the `WeaviateStore` class instantiation and replace it with a `Chroma` class instantiation:
 
-```typescript
-import { Chroma } from "@langchain/community/vectorstores/chroma";
+```python
+from langchain_community.vectorstores import Chroma
 
-const vectorStore = new Chroma(embeddings, {
-  collectionName: process.env.COLLECTION_NAME
-});
+
+COLLECTION_NAME = os.environ["COLLECTION_NAME"]
+
+vectorstore = Chroma(
+    collection_name=COLLECTION_NAME,
+    embedding_function=embedding,
+)
 ```
 
 Then, update the record manager namespace:
 
-```typescript
-const recordManager = new PostgresRecordManager(
-  `local/${process.env.COLLECTION_NAME}`,
-  {
-    postgresConnectionOptions: connectionOptions,
-  }
-);
+```python
+record_manager = SQLRecordManager(
+    f"weaviate/{COLLECTION_NAME}", db_url=RECORD_MANAGER_DB_URL
+)
 ```
 
-Finally, you can delete the Weaviate specific stats code at the end of the function (this is just for logging info on how many items are stored in the database).
+Finally, you can delete the Weaviate specific stats code at the bottom of the file (this is just for logging info on how many items are stored in the database).
 
 ### API Endpoints
 
 Next, we need to update the API endpoints to use Ollama for local LLM inference, and Chroma for document retrieval.
 
-Navigate to the [`/api/chat/stream_log`](frontend/app/api/chat/stream_log/route.ts) endpoint.
+Navigate to the [`chain.py`](chain.py) file containing the chat endpoint.
 
-First, find the `getRetriever` function and remove the if statement checking for Weaviate environment variables, the Chroma LangChain.js integration does not require any!
+Then, replace the Weaviate specific code a Chroma vectorstore:
 
-Then, replace the Weaviate specific code with Chroma and Ollama embeddings:
+```python
+from langchain_community.vectorstores import Chroma
+
+vectorstore = Chroma(
+    collection_name=COLLECTION_NAME,
+    embedding_function=embedding,
+)
+```
+
+Finally, scroll to the bottom of the `chain.py` file and replace the `llm` variable with a single llm variable instantiation:
 
 ```typescript
-import { Chroma } from "@langchain/community/vectorstores/chroma";
-import { OllamaEmbeddings } from "@langchain/community/embeddings/ollama";
+from langchain_community.llms import Ollama
 
-const embeddings = new OllamaEmbeddings({
-  model: "nomic-embed-text",
-});
-const vectorstore = await Chroma.fromExistingCollection(
-  embeddings,
-  {
-    collectionName: process.env.COLLECTION_NAME
-  },
-);
+llm = Ollama(model="mistral")
 ```
 
-Finally, find the `POST` function and replace the `if` statements with a single llm variable instantiation:
-
-```typescript
-import { ChatOllama } from "@langchain/community/chat_models/ollama";
-
-const llm = new ChatOllama({
-  model: "mistral"
-});
-```
-
-Now you're done! You can run the application 100% locally with just two commands:
-
-1. Ingest docs:
-
-```shell
-cd ./backend && yarn build && yarn ingest
-```
-
-2. Start the Next.js application:
-
-```shell
-cd ./frontend && yarn build && yarn start
-```
+Now you're done!
