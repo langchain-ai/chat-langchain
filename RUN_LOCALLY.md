@@ -82,7 +82,7 @@ You'll also need to create a database inside your PostgreSQL container:
 docker exec -it postgres createdb -U postgres your-db-name
 ```
 
-Next, find the `get_embeddings_model` function inside the [`ingest.py`](ingest.py) file and replace its contents with an [`OllamaEmbeddings`](https://python.langchain.com/docs/integrations/text_embedding/ollama) instance:
+Next, find the `get_embeddings_model` function inside the [`./backend/ingest.py`](./backend/ingest.py) file and replace its contents with an [`OllamaEmbeddings`](https://python.langchain.com/docs/integrations/text_embedding/ollama) instance:
 
 ```python
 from langchain_community.embeddings import OllamaEmbeddings

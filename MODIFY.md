@@ -7,8 +7,8 @@ The Chat LangChain repo was built to serve two use cases. The first being questi
 One of the simplest ways to modify Chat LangChain and get a feel for the codebase is to modify the vector store. All of the operations in Chat LangChain are largely based around the vector store: ingestion, retrieval, context, etc.
 
 There are two places the vector store is used:
-- **Ingestion**: The vector store is used to store the embeddings of every document used as context. Located in [`ingest.py`](ingest.py) you can easily modify the provider to use a different vector store.
-- **Retrieval**: The vector store is used to retrieve documents based on a user's query. Located at [`chain.py`](chain.py) you can easily modify the provider to use a different vector store.
+- **Ingestion**: The vector store is used to store the embeddings of every document used as context. Located in [`./backend/ingest.py`](./backend/ingest.py) you can easily modify the provider to use a different vector store.
+- **Retrieval**: The vector store is used to retrieve documents based on a user's query. Located at [`./backend/chain.py`](./backend/chain.py) you can easily modify the provider to use a different vector store.
 
 ### Steps
 
@@ -34,7 +34,7 @@ To make transitioning as easy as possible, all you should do is:
 1. Delete the weaviate client instantiation.
 2. Replace the vector store instantiation with the new provider's instantiation. Remember to keep the variable name (`vectorstore`) the same. Since all LangChain vector stores are built on top of the same API, no other modifications should be necessary.
 
-Finally, perform these same steps inside the [`chain.py`](chain.py) (inside the `get_retriever` function) file, and you're done!
+Finally, perform these same steps inside the [`./backend/chain.py`](./backend/chain.py) (inside the `get_retriever` function) file, and you're done!
 
 ## Frontend
 
@@ -44,7 +44,9 @@ To modify the main LangChain branding visit the [`ChatWindow.tsx`](frontend/app/
 
 ## Backend (API)
 
-The backend contains two parts, the first is the ingestion script which lives inside of the [/backend](/backend/) directory. The second are the API endpoints which are located inside the frontend: [/frontend/app/api](/frontend/app/api).
+The backend contains two main parts, both of which live inside the [`./backend`](/backend/) directory.
+The first is the ingestion script which lives inside of [`./backend/ingest.py`](./backend/ingest.py).
+The second are the API endpoints which are defined inside [`./backend/main.py`](backend/main.py), and most of the logic living inside [`./backend/chain.py`](./backend/chain.py).
 
 ### Ingestion Script
 
@@ -57,9 +59,9 @@ At a high level, the only LangChain specific part of the ingestion script are th
 
 If all you would like to update is update which website(s) to scrape and ingest, you only need to modify/remove these functions:
 
-- `loadLangSmithDocs`
-- `loadAPIDocs`
-- `loadLangChainDocs`
+- `load_langchain_docs`
+- `load_langsmith_docs`
+- `load_api_docs`
 
 If you want to ingest another way, consult the [document loader](https://python.langchain.com/docs/modules/data_connection/document_loaders/) section of the LangChain docs.
 Using any LangChain document loader, you'll be able to easily and efficiently fetch & ingest from a large variety of sources. Additionally, the LangChain. document loader API will always return documents in the same format ([`Document`](https://api.python.langchain.com/en/latest/documents/langchain_core.documents.base.Document.html)) so you do not need to modify the format before adding to your indexing API or vector store.
@@ -68,7 +70,7 @@ Using any LangChain document loader, you'll be able to easily and efficiently fe
 
 Once you've updated your ingestion script to populate your vector store, you'll need to update the different API endpoints to reflect your new data. 
 
-The first (and main endpoint) is the [`/api/chat/stream_log`](frontend/app/api/chat/stream_log/route.ts). This is where the main API code lives.
+The first (and main endpoint) is `/chat`. This is where the main API code lives.
 
 - Answer generation prompt
 - Question rephrasing (query analysis) prompt
@@ -81,7 +83,6 @@ The document retrieval code is the only part of this API which is not LangChain 
 - Re-ranking document results
 - Parent document retrieval (also would require modifications to the ingestion script)
 - Document verification via LLM
-
 
 #### Answer Generation Prompt
 
