@@ -34,7 +34,7 @@ To make transitioning as easy as possible, all you should do is:
 1. Delete the weaviate client instantiation.
 2. Replace the vector store instantiation with the new provider's instantiation. Remember to keep the variable name (`vectorstore`) the same. Since all LangChain vector stores are built on top of the same API, no other modifications should be necessary.
 
-Finally, perform these same steps inside the [`chain.py`](chain.py) file, and you're done!
+Finally, perform these same steps inside the [`chain.py`](chain.py) (inside the `get_retriever` function) file, and you're done!
 
 ## Frontend
 

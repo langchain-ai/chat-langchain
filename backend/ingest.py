@@ -14,7 +14,7 @@ from langchain_community.vectorstores import Weaviate
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 
-from constants import WEAVIATE_DOCS_INDEX_NAME
+from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
