@@ -64,9 +64,9 @@ Next, download the following models:
 
 ### Ingest script
 
-To update your ingest script to run using Chroma and your locally running PostgreSQL image, you only need to modify a few lines of code. First, navigate to the [`/backend/src/ingest.ts`](/backend/src/ingest.ts) file.
+To update your ingest script to run using Chroma and your locally running PostgreSQL image, you only need to modify a few lines of code. First, navigate to the [`./backend/ingest.py`](./backend/ingest.py) file.
 
-Then, find the `ingestDocs` function and update the first if statement to instead check for your PostgreSQL database credentials.
+Then, find the `ingest_docs` function and update the first few lines to instead pull from your new DB environment variables:
 
 ```shell
 DATABASE_HOST="127.0.0.1"
@@ -76,28 +76,22 @@ DATABASE_PASSWORD="mysecretpassword"
 DATABASE_NAME="your-db-name" # Replace this with your database name.
 ```
 
-You'll also need to create a database inside your PostgreSQL container:
-
-```shell
-docker exec -it postgres createdb -U postgres your-db-name
-```
-
-Next, find the `get_embeddings_model` function inside the [`./backend/ingest.py`](./backend/ingest.py) file and replace its contents with an [`OllamaEmbeddings`](https://python.langchain.com/docs/integrations/text_embedding/ollama) instance:
-
 ```python
-from langchain_community.embeddings import OllamaEmbeddings
-
-def get_embeddings_model() -> Embeddings:
-    return OllamaEmbeddings(model="nomic-embed-text")
+DATABASE_HOST = os.environ["DATABASE_HOST"]
+DATABASE_PORT = os.environ["DATABASE_PORT"]
+DATABASE_USERNAME = os.environ["DATABASE_USERNAME"]
+DATABASE_PASSWORD = os.environ["DATABASE_PASSWORD"]
+DATABASE_NAME = os.environ["DATABASE_NAME"]
+RECORD_MANAGER_DB_URL = f"postgresql://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 ```
 
-For our databases, we'll want to set one more environment variable to track our collection name (similar to the index name for Weaviate):
+For our vector store database, we'll want to set one more environment variable to track our collection name (similar to the index name for Weaviate):
 
 ```shell
 COLLECTION_NAME="your-collection-name" # Change this to your collection name
 ```
 
-Directly below where this function is invoked, you can delete the `WeaviateStore` class instantiation and replace it with a `Chroma` class instantiation:
+Next, remove the Weaviate code below and replace with a Chroma DB instantiation:
 
 ```python
 from langchain_community.vectorstores import Chroma
@@ -111,6 +105,12 @@ vectorstore = Chroma(
 )
 ```
 
+For the record manager, you'll also need to create a database inside your PostgreSQL container:
+
+```shell
+docker exec -it postgres createdb -U postgres your-db-name
+```
+
 Then, update the record manager namespace:
 
 ```python
@@ -119,13 +119,22 @@ record_manager = SQLRecordManager(
 )
 ```
 
+Next, find the `get_embeddings_model` function inside the [`./backend/ingest.py`](./backend/ingest.py) file and replace its contents with an [`OllamaEmbeddings`](https://python.langchain.com/docs/integrations/text_embedding/ollama) instance:
+
+```python
+from langchain_community.embeddings import OllamaEmbeddings
+
+def get_embeddings_model() -> Embeddings:
+    return OllamaEmbeddings(model="nomic-embed-text")
+```
+
 Finally, you can delete the Weaviate specific stats code at the bottom of the file (this is just for logging info on how many items are stored in the database).
 
 ### API Endpoints
 
 Next, we need to update the API endpoints to use Ollama for local LLM inference, and Chroma for document retrieval.
 
-Navigate to the [`chain.py`](chain.py) file containing the chat endpoint.
+Navigate to the [`./backend/chain.py`](/backend/chain.py) file containing the chat endpoint.
 
 Then, replace the Weaviate specific code a Chroma vectorstore:
 
@@ -140,7 +149,7 @@ vectorstore = Chroma(
 
 Finally, scroll to the bottom of the `chain.py` file and replace the `llm` variable with a single llm variable instantiation:
 
-```typescript
+```python
 from langchain_community.llms import Ollama
 
 llm = Ollama(model="mistral")
