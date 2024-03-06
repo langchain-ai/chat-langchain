@@ -101,11 +101,12 @@ def ingest_docs():
     RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
+    embedding = get_embeddings_model()
+
     client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
-    embedding = get_embeddings_model()
     vectorstore = Weaviate(
         client=client,
         index_name=WEAVIATE_DOCS_INDEX_NAME,

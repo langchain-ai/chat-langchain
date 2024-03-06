@@ -40,7 +40,7 @@ Create a Vercel account for hosting [here](https://vercel.com/signup).
 Once you've created your Vercel account, navigate to [your dashboard](https://vercel.com/) and click the button "Add New..." in the top right.
 This will open a dropdown. From there select "Project".
 
-On the next screen, search for "chat-langchainjs" (if you did not modify the repo name when forking). Once shown, click "Import".
+On the next screen, search for "chat-langchain" (if you did not modify the repo name when forking). Once shown, click "Import".
 
 Here you should *only* modify the "Environment Variables" section. You should add the following environment variables:
 

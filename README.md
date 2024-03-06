@@ -27,7 +27,7 @@ export LANGCHAIN_PROJECT=
 1. Run `python ingest.py` to ingest LangChain docs data into the Weaviate vectorstore (only needs to be done once).
    1. You can use other [Document Loaders](https://python.langchain.com/docs/modules/data_connection/document_loaders/) to load your own data into the vectorstore.
 1. Start the Python backend with `poetry run make start`.
-1. Install frontend dependencies by running `cd chat-langchain`, then `yarn`.
+1. Install frontend dependencies by running `cd ./frontend`, then `yarn`.
 1. Run the frontend with `yarn dev` for frontend.
 1. Open [localhost:3000](http://localhost:3000) in your browser.
 
