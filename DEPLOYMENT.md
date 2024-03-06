@@ -1,6 +1,6 @@
 # Deployment
 
-We recommend when deploying Chat LangChain JS, you use Vercel for the frontend & edge API, and GitHub action for the recurring ingestion tasks. This setup provides a simple and effective way to deploy and manage your application.
+We recommend when deploying Chat LangChain, you use Vercel for the frontend, GCP Cloud Run for the backend API, and GitHub action for the recurring ingestion tasks. This setup provides a simple and effective way to deploy and manage your application.
 
 ## Prerequisites
 
@@ -33,7 +33,7 @@ Here, you should see a "Connection string" section. Copy this string, and insert
 
 That's all you need to do for the record manager. The LangChain RecordManager API will handle creating tables for you.
 
-## Vercel (Frontend & Edge API)
+## Vercel (Frontend)
 
 Create a Vercel account for hosting [here](https://vercel.com/signup).
 
@@ -42,25 +42,7 @@ This will open a dropdown. From there select "Project".
 
 On the next screen, search for "chat-langchain" (if you did not modify the repo name when forking). Once shown, click "Import".
 
-Here you should *only* modify the "Environment Variables" section. You should add the following environment variables:
-
-> If you have not setup LangSmith, head to the [LangSmith](./LANGSMITH.md) doc for instructions.
-
-```
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"
-LANGCHAIN_API_KEY=YOUR_API_KEY
-LANGCHAIN_PROJECT=YOUR_PROJECT
-
-WEAVIATE_API_KEY=YOUR_API_KEY
-WEAVIATE_URL=YOUR_WEAVIATE_URL
-WEAVIATE_INDEX_NAME=langchain
-FORCE_UPDATE=true
-RECORD_MANAGER_DB_URL=YOUR_DB_URL
-OPENAI_API_KEY=YOUR_OPENAI_KEY
-```
-
-Finally, click "Deploy" and your frontend & edge API will be deployed.
+Finally, click "Deploy" and your frontend will be deployed!
 
 ## GitHub Action (Recurring Ingestion)
 
@@ -87,3 +69,23 @@ Next, navigate to the "Actions" tab and confirm you understand your workflows, a
 Then, click on the "Update index" workflow, and click "Enable workflow". Finally, click on the "Run workflow" dropdown and click "Run workflow".
 
 Once this has finished you can visit your production URL from Vercel, and start using the app!
+
+## Backend API via Cloud Run
+
+First, build the frontend:
+
+```shell
+cd frontend
+yarn
+yarn build
+```
+
+Then, to deploy to Google Cloud Run use the following command:
+
+First create a `.env.gcp.yaml` file with the contents from [`.env.gcp.yaml.example`](.env.gcp.yaml.example) and fill in the values. Then run:
+
+```shell
+gcloud run deploy chat-langchain --source . --port 8000 --env-vars-file .env.gcp.yaml --allow-unauthenticated --region us-central1 --min-instances 1
+```
+
+Finally, go back to Vercel and add an environment variable `NEXT_PUBLIC_API_BASE_URL` to match your Cloud Run URL.
