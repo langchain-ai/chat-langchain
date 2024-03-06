@@ -50,13 +50,15 @@ Most users won't format their queries perfectly for LLMs, and that's okay!
 To account for this, we have an extra step before final generation which takes the users query and rephrase it to be more suitable for the LLM.
 
 The prompt is quite simple:
-```typescript
-const REPHRASE_TEMPLATE = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
+```python
+REPHRASE_TEMPLATE = """\
+Given the following conversation and a follow up question, rephrase the follow up \
+question to be a standalone question.
 
 Chat History:
 {chat_history}
 Follow Up Input: {question}
-Standalone Question:`;
+Standalone Question:"""
 ```
 
 In doing this, the language model is able to take the users question, and the full chat history which contains other questions, answers and context, and generate a more well formed response. Now using this rephrased question, we can perform a similarity search on the vector store using this question, and often times get back better results as the question is semantically more similar to the previous questions/answers (content the database).

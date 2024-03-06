@@ -14,15 +14,8 @@ LANGCHAIN_TRACING_V2=true
 LANGCHAIN_API_KEY=...
 ```
 
-Sometimes need to pass a config object through to different functions, like so:
-
-```typescript
-new RunnableLambda({ func: (input, config ) => yourRunnable.invoke(input, config) })
-```
-
-Doing this keeps all your traces inside the same run in LangSmith, making it easier to debug and track the different paths your application took.
-
-LangSmith tracing is already setup in an optimized way for Chat LangChain, and only needs extra configuration if you're extending the application in a way that's not covered by the default tracing. When running queries through Chat LangChain, you can expect to see LangSmith traces like this show up on your project:
+LangSmith tracing is already setup in an optimized way for Chat LangChain, and only needs extra configuration if you're extending the application in a way that's not covered by the default tracing.
+When running queries through Chat LangChain, you can expect to see LangSmith traces like this show up on your project:
 
 ![LangSmith Traces](./assets/images/langsmith_trace.png)
 
@@ -43,7 +36,7 @@ You can find the dataset [here](https://smith.langchain.com/public/452ccafc-18e1
 The first step is to download the LangSmith node SDK:
 
 ```shell
-yarn add langsmith
+pip install langsmith
 ```
 
 Then, you'll want to define some custom criteria to evaluate your dataset on. Some examples are:
@@ -51,7 +44,7 @@ Then, you'll want to define some custom criteria to evaluate your dataset on. So
 - **Semantic similarity**: How similar your generated response is to the ground truth (dataset answers).
 - **LLM as a judge**: Use an LLM to judge and assign a score to your generated response.
 
-Finally, configure your evaluation criteria and use the [`runOnDataset`](https://api.js.langchain.com/functions/langchain_smith.runOnDataset.html) function to evaluate your dataset.
+Finally, configure your evaluation criteria and use the [`run_on_dataset`](https://api.python.langchain.com/en/latest/smith/langchain.smith.evaluation.runner_utils.run_on_dataset.html#langchain.smith.evaluation.runner_utils.run_on_dataset) function to evaluate your dataset.
 
 Once completed, you'll be able to view the results of your evaluation in the LangSmith dashboard. Using these results, you can improve and tweak your LLM.
 

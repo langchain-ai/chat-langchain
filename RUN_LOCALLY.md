@@ -82,7 +82,7 @@ You'll also need to create a database inside your PostgreSQL container:
 docker exec -it postgres createdb -U postgres your-db-name
 ```
 
-Next, find the `getEmbeddingsModel` and replace its contents with an [`OllamaEmbeddings`](https://api.js.langchain.com/classes/langchain_community_embeddings_ollama.OllamaEmbeddings.html) instance:
+Next, find the `getEmbeddingsModel` and replace its contents with an [`OllamaEmbeddings`](https://python.langchain.com/docs/integrations/text_embedding/ollama) instance:
 
 
 ```typescript

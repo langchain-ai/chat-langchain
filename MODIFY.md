@@ -60,8 +60,8 @@ If all you would like to update is update which website(s) to scrape and ingest,
 - `loadAPIDocs`
 - `loadLangChainDocs`
 
-If you want to ingest another way, consult the [document loader](https://js.langchain.com/docs/modules/data_connection/document_loaders/) section of the LangChain docs.
-Using any LangChain.js document loader, you'll be able to easily and efficiently fetch & ingest from a large variety of sources. Additionally, the LangChain.js document loader API will always return documents in the same format ([`DocumentInterface`](https://api.js.langchain.com/interfaces/langchain_core_documents.DocumentInterface.html)) so you do not need to modify the format before adding to your indexing API or vector store.
+If you want to ingest another way, consult the [document loader](https://python.langchain.com/docs/modules/data_connection/document_loaders/) section of the LangChain docs.
+Using any LangChain.js document loader, you'll be able to easily and efficiently fetch & ingest from a large variety of sources. Additionally, the LangChain.js document loader API will always return documents in the same format ([`Document`](https://api.python.langchain.com/en/latest/documents/langchain_core.documents.base.Document.html)) so you do not need to modify the format before adding to your indexing API or vector store.
 
 ### API Endpoints
 

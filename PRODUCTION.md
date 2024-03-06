@@ -4,7 +4,7 @@ This doc will outline steps which are recommended to bring this LLM application 
 
 Bringing LLM applications to production mainly involve preventing/mitigating abuse and guardrails around prompt injection. We'll go over some of your options for these, and suggestions on how to implement them.
 
-> ### We also have in depth security documentation on the main LangChain documentation site. To visit, click [here](https://js.langchain.com/docs/security).
+> ### We also have in depth security documentation on the main LangChain documentation site. To visit, click [here](https://python.langchain.com/docs/security).
 
 ## Abuse
 
