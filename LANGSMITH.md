@@ -15,6 +15,17 @@ export LANGCHAIN_API_KEY=...
 ```
 
 LangSmith tracing is already setup in an optimized way for Chat LangChain, and only needs extra configuration if you're extending the application in a way that's not covered by the default tracing.
+
+You may see this further customization throughout the repo, mainly in the form of adding config names to runs:
+
+```python
+.with_config(
+    run_name="CondenseQuestion",
+)
+```
+
+You can call `.with_config` on any [LangChain Runnable](https://python.langchain.com/docs/expression_language/) and apply things like a `run_name` as seen above.
+
 When running queries through Chat LangChain, you can expect to see LangSmith traces like this show up on your project:
 
 ![LangSmith Traces](./assets/images/langsmith_trace.png)
@@ -29,7 +40,7 @@ For in depth walkthroughs and explanations of LangSmith evaluations, visit the [
 
 ### Datasets
 
-For Chat LangChain, the team at LangChain has already put together a dataset for evaluating the app. Although this dataset was built for the Python version, many of the questions still apply to the TypeScript version, or require slight modifications.
+For Chat LangChain, the team at LangChain has already put together a dataset for evaluating the app.
 
 You can find the dataset [here](https://smith.langchain.com/public/452ccafc-18e1-4314-885b-edd735f17b9d/d).
 

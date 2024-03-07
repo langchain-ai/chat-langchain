@@ -6,7 +6,7 @@ We'll start with the vector store, the basis of the entire system.
 
 ## Vector Store
 
-Vector stores, fundamentally, are specialized databases designed to efficiently store and manage vectors, which are high-dimensional arrays of numbers. These vectors are not arbitrary; they are the product of sophisticated text embedding models, such as those provided by [OpenAI's `text-embedding`](https://platform.openai.com/docs/guides/embeddings) API.
+Vector stores, fundamentally, are specialized databases designed to efficiently store and manage vectors, which are high-dimensional arrays of numbers. These vectors are not arbitrary; they are the product of sophisticated text embedding models, such as those provided by [OpenAI's `text-embedding`](https://python.langchain.com/docs/integrations/text_embedding) API.
 
 In the context of our application, vector stores play a pivotal role in enhancing the capabilities of our language model. Here's a deeper dive into the process:
 
