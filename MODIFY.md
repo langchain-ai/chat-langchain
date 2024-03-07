@@ -74,7 +74,7 @@ Without any modification, we offer a few LLM providers out of the box:
 
 - `gpt-3.5-turbo` by OpenAI
 - `claude-2.1` by Anthropic
-- `mixtral-8x7b` by Mistral
+- `mixtral-8x7b` by Fireworks
 - `gemini-pro` by Google
 - `command` by Cohere
 
