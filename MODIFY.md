@@ -85,7 +85,7 @@ These are all located at the bottom of the [`./backend/chain.py`](./backend/chai
 
 First, I'll demonstrate how to replace all options with a single provider, as it's the simplest:
 
-1. Find the LLM variable decloration at the bottom of the file, it looks something like this:
+1. Find the LLM variable declaration at the bottom of the file, it looks something like this:
 
 ```python
 llm = ChatOpenAI(
@@ -120,7 +120,7 @@ llm = ChatYourLLM(
 )
 ```
 
-Adding alternatives is also quite simple. Just add another class decloration inside the `configurable_alternatives` method. Here's an example:
+Adding alternatives is also quite simple. Just add another class declaration inside the `configurable_alternatives` method. Here's an example:
 
 ```python
 .configurable_alternatives(
