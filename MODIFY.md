@@ -148,6 +148,29 @@ response_synthesizer = (
 
 That't it!
 
+## Embeddings
+
+Chat LangChain uses embeddings inside the ingestion script when storing documents in the vector store.
+Without modification, it defaults to use [OpenAI's embeddings model](https://python.langchain.com/docs/integrations/text_embedding/openai).
+
+Changing this to the vector store of your choice is simple. First, find the `get_embeddings_model` function inside the [`./backend/ingest.py`](./backend/ingest.py) file. It looks something like this:
+
+```python
+def get_embeddings_model() -> Embeddings:
+    return OpenAIEmbeddings(model="text-embedding-3-small", chunk_size=200)
+```
+
+Then, simply swap out the `OpenAIEmbeddings` class for the model of your choice!
+
+Here's an example of what that would look like if you wanted to use Mistral's embeddings model:
+
+```python
+from langchain_mistralai import MistralAIEmbeddings
+
+def get_embeddings_model() -> Embeddings:
+    return MistralAIEmbeddings(mistral_api_key="your-api-key")
+```
+
 ## Prompts
 
 ### Answer Generation Prompt
@@ -178,6 +201,8 @@ If all you would like to update is update which website(s) to scrape and ingest,
 - `load_api_docs`
 
 Other than this, the core functionality of the retrieval system is not LangChain specific.
+
+### Retrieval Methods
 
 You can however, easily add or remove parts to increase/fit your needs better.
 Some ideas of what can be done:
