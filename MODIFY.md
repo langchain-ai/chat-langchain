@@ -64,8 +64,6 @@ record_manager.create_schema()
 
 For more conceptual information on Record Managers with LangChain, see the [concepts](./CONCEPTS.md) doc.
 
-## Embedding Model
-
 ## LLM
 
 The LLM is used inside the `/chat` endpoint for generating the final answer, and performing query analysis on followup questions.

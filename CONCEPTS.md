@@ -32,6 +32,19 @@ In order to help with indexing we use the LangChain indexing API. This API conta
 
 The indexing API also uses a Record Manager to store the records of previously indexed documents in between ingestion. This manager stores the hashed values of the documents, and the time they were ingested. This allows for the indexing API to only ingest new documents, and not duplicate documents.
 
+### Record Manager
+
+The LangChain Record Manager API provides an interface for managing records in a database that tracks upserted documents before they are ingested into a vector store for LLM usage.
+It allows you to efficiently insert, update, delete, and query records.
+
+**Key Concepts**
+- **Namespace**: Each Record Manager is associated with a namespace. This allows logically separating records for different use cases.
+- **Keys**: Each record is uniquely identified by a key within the namespace.
+- **Group IDs**: Records can optionally be associated with group IDs to allow filtering and batch operations on related records.
+- **Timestamps**: Each record has an updated_at timestamp tracking the last time it was upserted. This enables querying records within time ranges.
+
+Using the LangChain Record Manager API allows efficient tracking of which documents need to be added to or updated in the vector store, making the ingestion process more robust and avoiding unnecessary duplication work.
+
 ## Query Analysis
 
 Finally, we perform query analysis on followup chat conversations. It is important to note that we only do this for followups, and not initial questions. Let's break down the reasoning here:
