@@ -2462,43 +2462,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"chat-langchain@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "chat-langchain@workspace:."
-  dependencies:
-    "@chakra-ui/icons": ^2.1.0
-    "@chakra-ui/react": ^2.8.1
-    "@emotion/react": ^11.11.1
-    "@emotion/styled": ^11.11.0
-    "@langchain/core": ^0.1.27
-    "@types/dompurify": ^3.0.5
-    "@types/marked": ^5.0.1
-    "@types/node": 20.4.9
-    "@types/react": 18.2.20
-    "@types/react-dom": 18.2.7
-    autoprefixer: 10.4.14
-    dompurify: ^3.0.8
-    emojisplosion: ^2.6.1
-    eslint: 8.46.0
-    eslint-config-next: 13.4.13
-    framer-motion: ^10.16.4
-    graphql: ^16.8.1
-    highlight.js: ^11.8.0
-    langsmith: ^0.0.41
-    marked: ^7.0.2
-    next: 13.5.4
-    postcss: 8.4.31
-    prettier: ^3.0.3
-    react: 18.2.0
-    react-dom: 18.2.0
-    react-textarea-autosize: ^8.5.3
-    react-toastify: ^9.1.3
-    tailwindcss: 3.3.3
-    typescript: 5.1.6
-    weaviate-ts-client: ^1.5.0
-  languageName: unknown
-  linkType: soft
-
 "chokidar@npm:^3.5.3":
   version: 3.5.3
   resolution: "chokidar@npm:3.5.3"
@@ -3466,6 +3429,43 @@ __metadata:
   checksum: 250dec78c351b087a47558b8bcf85a91a878507a73f05c095f7728617d40432b8ca0cb21deee98026d582c67610e961f83e535990035f6c9902e721580daff76
   languageName: node
   linkType: hard
+
+"frontend@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "frontend@workspace:."
+  dependencies:
+    "@chakra-ui/icons": ^2.1.0
+    "@chakra-ui/react": ^2.8.1
+    "@emotion/react": ^11.11.1
+    "@emotion/styled": ^11.11.0
+    "@langchain/core": ^0.1.27
+    "@types/dompurify": ^3.0.5
+    "@types/marked": ^5.0.1
+    "@types/node": 20.4.9
+    "@types/react": 18.2.20
+    "@types/react-dom": 18.2.7
+    autoprefixer: 10.4.14
+    dompurify: ^3.0.8
+    emojisplosion: ^2.6.1
+    eslint: 8.46.0
+    eslint-config-next: 13.4.13
+    framer-motion: ^10.16.4
+    graphql: ^16.8.1
+    highlight.js: ^11.8.0
+    langsmith: ^0.0.41
+    marked: ^7.0.2
+    next: 13.5.4
+    postcss: 8.4.31
+    prettier: ^3.0.3
+    react: 18.2.0
+    react-dom: 18.2.0
+    react-textarea-autosize: ^8.5.3
+    react-toastify: ^9.1.3
+    tailwindcss: 3.3.3
+    typescript: 5.1.6
+    weaviate-ts-client: ^1.5.0
+  languageName: unknown
+  linkType: soft
 
 "fs-minipass@npm:^2.0.0":
   version: 2.1.0
