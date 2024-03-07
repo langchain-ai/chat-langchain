@@ -49,7 +49,7 @@ Question-Answering has the following steps:
 3. Pass the standalone question and relevant documents to the model to generate and stream the final answer.
 4. Generate a trace URL for the current chat session, as well as the endpoint to collect feedback.
 
-## Use Case Accelerant Documentation
+## Documentation
 
 Looking to use or modify this Use Case Accelerant for your own needs? We've added a few docs to aid with this:
 

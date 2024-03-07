@@ -95,3 +95,22 @@ You should modify the parts of this which are LangChain specific to instead fit 
 #### Question Rephrasing Prompt
 
 Finally, you can (but not necessary required) modify the `REPHRASE_TEMPLATE` variable to contain more domain specific content about, for example, the types of followup questions you expect to receive. Having a good rephrasing prompt will help the LLM to better understand the user's question and generate a better prompt which will have compounding effects downstream.
+
+
+# ------------New structure proposal------------
+
+# Modifying
+
+## Vector Store
+
+## Record Manager
+
+## Embedding Model
+
+## LLM
+
+## Prompts
+
+## Retrieval
+
+## Frontend
