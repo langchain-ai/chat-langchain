@@ -14,7 +14,7 @@ from langchain_community.vectorstores import Weaviate
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 
-from constants import WEAVIATE_DOCS_INDEX_NAME
+from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -101,11 +101,12 @@ def ingest_docs():
     RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
+    embedding = get_embeddings_model()
+
     client = weaviate.Client(
         url=WEAVIATE_URL,
         auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
-    embedding = get_embeddings_model()
     vectorstore = Weaviate(
         client=client,
         index_name=WEAVIATE_DOCS_INDEX_NAME,
