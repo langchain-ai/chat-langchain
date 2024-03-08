@@ -13,7 +13,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -31,14 +30,15 @@ def parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     # parse args
 
-
     # load model
     logger.info("Loading model")
     from croptalk.model_llm import model
+
     rendered_tools = render_text_description(tools)
     with tracing_v2_enabled() as langchain_tracer:
         model.invoke({
             "chat_history": [],
             "rendered_tools": rendered_tools,
-            "question": "If I have a triangle with two sides of length 51cm and 34cm, what is the length of the hypotenuse?",
+            "question": "What are the livestock insured with WFRP for reinsurance year 2024,"
+                        " state code 04 and county code 001 ",
         })
