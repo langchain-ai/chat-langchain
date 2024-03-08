@@ -44,7 +44,7 @@ def get_client_collection(collection_name: str) -> Tuple[WeaviateClient, Collect
         collection_name: the collection name we are looking for
 
     Returns:
-        - a weaviate could services client
+        - a weaviate cloud services client
         - a weaviate collection matching provided collection name
     """
     client = get_weaviate_client()

@@ -75,7 +75,7 @@ class RetrieverInput(BaseModel):
     county: Optional[str] = Field(description="County name. Example: Ventura")
 
 
-def format_docs(docs: Sequence[Document]) -> str:
+def format_docs(docs: Sequence[Document]) -> List[str]:
     formatted_docs = []
     for i, doc in enumerate(docs):
         doc_string = f"<doc id='{i+1}' page_id={doc.metadata['page']} doc_category={doc.metadata['doc_category']}>{doc.page_content}</doc>"
@@ -84,7 +84,7 @@ def format_docs(docs: Sequence[Document]) -> str:
 
 
 def retriever_with_filter_each_category(query: str, commodity: str = None, county: str = None, state: str = None,
-                                        formatted=True, **kwargs) -> List[Document]:
+                                        formatted=True, **kwargs) -> [List[Document], str]:
     """Retriever wrapper that allows to create chromadb where_filter and filter documents by there metadata."""
     # TODO: run requests in async manner
     cih_docs = retriever.get_relevant_documents(

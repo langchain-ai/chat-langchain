@@ -12,7 +12,11 @@ different results refer to different entities within the same name, write separa
 answers for each entity.
 
 <context>
-    {context} 
+    {context_retriever} 
+<context/>
+
+<context>
+    {context_tools} 
 <context/>
 
 REMEMBER: If there is no relevant information within the context, just say "I'm \
@@ -67,6 +71,8 @@ Insurance Plan:
 STATE_TEMPLATE = """\
 Identify whether the following text mentions a state of the US.
 If it does, return the state name. Otherwise, return None.
+Only return the name of the state, nothing else.
+Example : "I live in New York (NY), Niagara" -> "New York"
 Example: "I live in California, Ventura County" -> "California"
 Text: {question}
 State: """

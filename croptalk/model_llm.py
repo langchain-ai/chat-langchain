@@ -1,8 +1,10 @@
-from dotenv import load_dotenv
 import os
 from operator import itemgetter
 from typing import Dict, List, Optional
+
+from dotenv import load_dotenv
 from langchain.chat_models import ChatOpenAI
+from langchain.globals import set_debug
 from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
                                PromptTemplate)
 from langchain.schema.language_model import BaseLanguageModel
@@ -11,10 +13,15 @@ from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.runnable import (Runnable, RunnableBranch,
                                        RunnableLambda, RunnableMap, RunnableParallel)
 
-from langchain.globals import set_debug
+from langchain_core.output_parsers import JsonOutputParser
 from pydantic.v1 import BaseModel
-from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, INS_PLAN_TEMPLATE
+
 from croptalk.document_retriever import DocumentRetriever
+from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, \
+    COUNTY_TEMPLATE, INS_PLAN_TEMPLATE
+from croptalk.tools import tools
+
+TOOLS = tools
 
 set_debug(True)
 
@@ -22,15 +29,14 @@ load_dotenv('secrets/.env.secret')
 load_dotenv('secrets/.env.shared')
 
 
-def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentRetriever) -> Runnable:
-
+def create_condense_branch(llm):
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
     condense_chain_hist = (CONDENSE_QUESTION_PROMPT | llm | StrOutputParser(
     )).with_config(run_name="CondenseQuestion")
     condense_chain_no_hist = RunnableLambda(itemgetter("question")).with_config(
         run_name="RetrievalChainWithNoHistory")
 
-    condense_branch = RunnableBranch(
+    return RunnableBranch(
         (
             RunnableLambda(lambda x: not bool(x.get("chat_history"))).with_config(
                 run_name="HasChatHistoryCheck"),
@@ -39,11 +45,14 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
         (condense_chain_hist),
     ).with_config(run_name="RouteDependingOnChatHistory")
 
+
+def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentRetriever) -> Runnable:
     COMMODITY_PROMPT = PromptTemplate.from_template(COMMODITY_TEMPLATE)
     STATE_PROMPT = PromptTemplate.from_template(STATE_TEMPLATE)
     COUNTY_PROMPT = PromptTemplate.from_template(COUNTY_TEMPLATE)
     INS_PLAN_PROMPT = PromptTemplate.from_template(INS_PLAN_TEMPLATE)
 
+    condense_branch = create_condense_branch(llm)
     commodity_chain = (COMMODITY_PROMPT | llm | StrOutputParser()).with_config(
         run_name="IndentifyCommodity")
     state_chain = (STATE_PROMPT | llm | StrOutputParser()
@@ -61,19 +70,58 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
                                     ).with_config(run_name="RetrieverWithFilter")
 
     return (
-        RunnableParallel(
-            question=condense_branch
-        )
-        |
-        RunnableParallel(
-            commodity=commodity_chain,
-            state=state_chain,
-            county=county_chain,
-            insurance_plan=ins_plan_chain,
-            question=itemgetter("question")
-        ).with_config(run_name="CommodityChain")
-        | retriever_func.with_config(run_name="FindDocs")
+            RunnableParallel(
+                question=condense_branch
+            )
+            |
+            RunnableParallel(
+                commodity=commodity_chain,
+                state=state_chain,
+                county=county_chain,
+                insurance_plan=ins_plan_chain,
+                question=itemgetter("question")
+            ).with_config(run_name="CommodityChain")
+            | retriever_func.with_config(run_name="FindDocs")
     )
+
+
+def create_tool_chain(llm):
+
+    system_prompt = """
+    You are an assistant that has access to the following set of tools. 
+    Here are the names and descriptions for each tool:
+
+    {rendered_tools}
+
+    Given the user questions, return the name and input of the tool to use. 
+    Return your response as a JSON blob with 'name' and 'arguments' keys.
+
+    Do not use tools if they are not necessary
+
+    this is the question you are being asked : {question}
+    
+    """
+    prompt_tool = PromptTemplate.from_template(system_prompt)
+
+    def tool_chain(model_output):
+        tool_map = {tool.name: tool for tool in TOOLS}
+        chosen_tool = tool_map[model_output["name"]]
+        return itemgetter("arguments") | chosen_tool
+
+    tool_chain = prompt_tool | llm | JsonOutputParser() | tool_chain | StrOutputParser()
+
+    prompt2 = PromptTemplate.from_template(
+        "You are a helpful assistant. Answer the provided question : {question}. Knowing that the this answer was "
+        "calculated using your own tool: {output}."
+    )
+
+    final_tool_chain = (
+            {"output": tool_chain, "question": itemgetter("question")}
+            | prompt2
+            | llm
+            | StrOutputParser()
+    )
+    return final_tool_chain
 
 
 class ChatRequest(BaseModel):
@@ -98,12 +146,13 @@ def create_chain(
         answer_llm: BaseLanguageModel,
         document_retriever: DocumentRetriever,
 ) -> Runnable:
-
     retriever_chain = create_retriever_chain(basic_llm, document_retriever)
+    tool_chain = create_tool_chain(basic_llm)
 
     _context = RunnableMap(
         {
-            "context": retriever_chain,
+            "context_retriever": retriever_chain,
+            "context_tools": tool_chain,
             "question": itemgetter("question"),
             "chat_history": itemgetter("chat_history"),
 
@@ -122,16 +171,19 @@ def create_chain(
         run_name="GenerateResponse",
     )
     return (
-        {
-            "question": RunnableLambda(itemgetter("question")).with_config(
-                run_name="Itemgetter:question"
-            ),
-            "chat_history": RunnableLambda(serialize_history).with_config(
-                run_name="SerializeHistory"
-            ),
-        }
-        | _context
-        | response_synthesizer
+            {
+                "question": RunnableLambda(itemgetter("question")).with_config(
+                    run_name="Itemgetter:question"
+                ),
+                "chat_history": RunnableLambda(serialize_history).with_config(
+                    run_name="SerializeHistory"
+                ),
+                "rendered_tools": RunnableLambda(itemgetter("rendered_tools")).with_config(
+                    run_name="Itemgetter:rendered_tools"
+                ),
+            }
+            | _context
+            | response_synthesizer
     )
 
 
