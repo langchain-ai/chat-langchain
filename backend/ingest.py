@@ -6,6 +6,7 @@ from parser import langchain_docs_extractor
 
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
+from constants import WEAVIATE_DOCS_INDEX_NAME
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain.indexes import SQLRecordManager, index
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -13,8 +14,6 @@ from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_RE
 from langchain_community.vectorstores import Weaviate
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
-
-from constants import WEAVIATE_DOCS_INDEX_NAME
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

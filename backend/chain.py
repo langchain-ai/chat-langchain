@@ -3,8 +3,10 @@ from operator import itemgetter
 from typing import Dict, List, Optional, Sequence
 
 import weaviate
+from constants import WEAVIATE_DOCS_INDEX_NAME
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from ingest import get_embeddings_model
 from langchain_community.chat_models import ChatAnthropic, ChatCohere, ChatFireworks
 from langchain_community.vectorstores import Weaviate
 from langchain_core.documents import Document
@@ -30,9 +32,6 @@ from langchain_core.runnables import (
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langsmith import Client
-
-from constants import WEAVIATE_DOCS_INDEX_NAME
-from ingest import get_embeddings_model
 
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
