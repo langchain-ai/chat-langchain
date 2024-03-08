@@ -31,8 +31,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from langsmith import Client
 
-from backend.constants import WEAVIATE_DOCS_INDEX_NAME
-from backend.ingest import get_embeddings_model
+from constants import WEAVIATE_DOCS_INDEX_NAME
+from ingest import get_embeddings_model
 
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \

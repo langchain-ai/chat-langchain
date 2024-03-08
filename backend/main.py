@@ -10,7 +10,7 @@ from langserve import add_routes
 from langsmith import Client
 from pydantic import BaseModel
 
-from backend.chain import ChatRequest, answer_chain
+from chain import ChatRequest, answer_chain
 
 client = Client()
 
