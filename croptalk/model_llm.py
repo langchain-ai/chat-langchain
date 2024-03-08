@@ -1,3 +1,4 @@
+import logging
 import os
 from operator import itemgetter
 from typing import Dict, List, Optional
@@ -86,7 +87,6 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
 
 
 def create_tool_chain(llm):
-
     system_prompt = """
     You are an assistant that has access to the following set of tools. 
     Here are the names and descriptions for each tool:
@@ -104,31 +104,41 @@ def create_tool_chain(llm):
 
     prompt_tool = PromptTemplate.from_template(system_prompt)
 
-    def tool_chain(model_output):
+    def tool_pipe(model_output):
         try:
             tool_map = {tool.name: tool for tool in TOOLS}
             chosen_tool = tool_map[model_output["name"]]
             return itemgetter("arguments") | chosen_tool
         except Exception as e:
-            return ""
+            return "NO_TOOL_ANSWER"
 
-    tool_chain = prompt_tool | llm | JsonOutputParser() | tool_chain | StrOutputParser()
+    tool_chain = prompt_tool | llm | JsonOutputParser() | tool_pipe | StrOutputParser()
 
     prompt2 = PromptTemplate.from_template(
-        "You are a helpful assistant. Answer the provided question : {question}. Knowing that the this answer was "
-        "calculated using your own tool: {output}."
+        """
+        You are a helpful assistant. Answer the provided question : {question}. Knowing that the this answer was
+        calculated using your own tool. 
+        
+        Answer to the tool : {output}."
+        """
     )
+    answer_chain = prompt2 | llm | StrOutputParser()
 
-    final_tool_chain = (
+    def return_empty_str(output):
+        return ""
+
+    no_answer_chain = RunnableLambda(return_empty_str) | StrOutputParser()
+
+    def route(tool_output):
+        if "NO_TOOL_ANSWER" in tool_output["output"]:
+            return no_answer_chain
+        else:
+            return answer_chain
+
+    return (
             {"output": tool_chain, "question": itemgetter("question")}
-            | prompt2
-            | llm
-            | StrOutputParser()
+            | RunnableLambda(route)
     )
-    return final_tool_chain
-
-
-
 
 
 class ChatRequest(BaseModel):
