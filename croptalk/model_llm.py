@@ -101,12 +101,16 @@ def create_tool_chain(llm):
     this is the question you are being asked : {question}
     
     """
+
     prompt_tool = PromptTemplate.from_template(system_prompt)
 
     def tool_chain(model_output):
-        tool_map = {tool.name: tool for tool in TOOLS}
-        chosen_tool = tool_map[model_output["name"]]
-        return itemgetter("arguments") | chosen_tool
+        try:
+            tool_map = {tool.name: tool for tool in TOOLS}
+            chosen_tool = tool_map[model_output["name"]]
+            return itemgetter("arguments") | chosen_tool
+        except Exception as e:
+            return ""
 
     tool_chain = prompt_tool | llm | JsonOutputParser() | tool_chain | StrOutputParser()
 
@@ -122,6 +126,9 @@ def create_tool_chain(llm):
             | StrOutputParser()
     )
     return final_tool_chain
+
+
+
 
 
 class ChatRequest(BaseModel):
