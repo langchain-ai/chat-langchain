@@ -13,7 +13,7 @@ from langchain.schema.runnable import (Runnable, RunnableBranch,
 
 from langchain.globals import set_debug
 from pydantic.v1 import BaseModel
-from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, INS_PLAN_TEMPLATE
+from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, INS_PLAN_TEMPLATE, DOC_CATEGORY_TEMPLATE
 from croptalk.document_retriever import DocumentRetriever
 
 set_debug(True)
@@ -43,6 +43,7 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
     STATE_PROMPT = PromptTemplate.from_template(STATE_TEMPLATE)
     COUNTY_PROMPT = PromptTemplate.from_template(COUNTY_TEMPLATE)
     INS_PLAN_PROMPT = PromptTemplate.from_template(INS_PLAN_TEMPLATE)
+    DOC_CATEGORY_PROMPT = PromptTemplate.from_template(DOC_CATEGORY_TEMPLATE)
 
     commodity_chain = (COMMODITY_PROMPT | llm | StrOutputParser()).with_config(
         run_name="IndentifyCommodity")
@@ -52,11 +53,15 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
                     ).with_config(run_name="IndentifyCounty")
     ins_plan_chain = (INS_PLAN_PROMPT | llm | StrOutputParser()
                       ).with_config(run_name="IndentifyPlan")
+    doc_category_chain = (
+        DOC_CATEGORY_PROMPT | llm | StrOutputParser()
+    ).with_config(run_name="IndentifyDocCategory")
 
     retriever_func = RunnableLambda(lambda x: document_retriever.get_documents(query=x["question"],
                                                                                commodity=x['commodity'],
                                                                                state=x['state'],
                                                                                county=x['county'],
+                                                                               doc_category=x['doc_category'],
                                                                                include_common_docs=True)
                                     ).with_config(run_name="RetrieverWithFilter")
 
@@ -70,6 +75,7 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
             state=state_chain,
             county=county_chain,
             insurance_plan=ins_plan_chain,
+            doc_category=doc_category_chain,
             question=itemgetter("question")
         ).with_config(run_name="CommodityChain")
         | retriever_func.with_config(run_name="FindDocs")

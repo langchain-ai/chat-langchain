@@ -77,3 +77,20 @@ If it does, return the county name. Otherwise, return None.
 Example: "I live in California, Ventura County" -> "Ventura"
 Text: {question}
 County: """
+
+DOC_CATEGORY_TEMPLATE = """\
+Given the following question, identify whether it mentions any of the following document categories.
+If it does, return the document category abbreviation. Otherwise, return None.
+
+Example: "Is there a special provisions document for apples in Yakima county Washington for APH insurance plan?" -> "SP"
+Example: "Show me sections of CIH related to apples" -> "CIH"
+Document categories table: \
+Abbreviation,Full Name
+CIH,Crop Insurance Handbook
+BP,Basic Provisions
+CP,Crop Provisions
+SP,Special Provisions
+
+Question: {question}
+Document category:
+"""
