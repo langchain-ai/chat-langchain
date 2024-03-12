@@ -248,7 +248,7 @@ llm = ChatOpenAI(
     anthropic_claude_3_sonnet=ChatAnthropic(
         model="claude-3-sonnet-20240229",
         temperature=0,
-        max_tokens=16384,
+        max_tokens=4096,
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
     ),
     fireworks_mixtral=ChatFireworks(
