@@ -35,6 +35,6 @@ jobs:
           WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
           WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
           RECORD_MANAGER_DB_URL: ${{ secrets.RECORD_MANAGER_DB_URL }}
-	  VOYAGE_API_KEY: ${{ secrete.VOYAGE_API_KEY }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
           VOYAGE_AI_MODEL: ${{ secrets.VOYAGE_AI_MODEL }}
           VOYAGE_AI_URL: ${{ secrets.VOYAGE_AI_URL }}
