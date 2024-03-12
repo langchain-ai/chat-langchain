@@ -4,13 +4,12 @@ from typing import Optional, Union
 from uuid import UUID
 
 import langsmith
+from chain import ChatRequest, answer_chain
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langserve import add_routes
 from langsmith import Client
 from pydantic import BaseModel
-
-from chain import ChatRequest, answer_chain
 
 client = Client()
 

@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: poetry install
       - name: Ingest docs
-        run: poetry run python ingest.py
+        run: poetry run python backend/ingest.py
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
