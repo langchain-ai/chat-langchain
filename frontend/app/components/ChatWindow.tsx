@@ -255,7 +255,7 @@ export function ChatWindow(props: { conversationId: string }) {
                 width={"240px"}
               >
                 <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
-                <option value="anthropic_claude_3_sonnet">Claude-2.1</option>
+                <option value="anthropic_claude_3_sonnet">Claude 3 Sonnet</option>
                 <option value="google_gemini_pro">Google Gemini Pro</option>
                 <option value="fireworks_mixtral">
                   Mixtral (via Fireworks.ai)
