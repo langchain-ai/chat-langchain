@@ -1,0 +1,52 @@
+name: test backend
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  POETRY_VERSION: "1.7.1"
+
+  # This env var allows us to get inline annotations when ruff has complaints.
+  RUFF_OUTPUT_FORMAT: github
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Only lint on the min and max supported Python versions.
+        # It's extremely unlikely that there's a lint issue on any version in between
+        # that doesn't show up on the min or max versions.
+        #
+        # GitHub rate-limits how many jobs can be running at any one time.
+        # Starting new jobs is also relatively slow,
+        # so linting on fewer versions makes CI faster.
+        python-version:
+          - "3.8"
+          - "3.11"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }} + Poetry ${{ env.POETRY_VERSION }}
+        uses: "./.github/actions/poetry_setup"
+        with:
+          python-version: ${{ matrix.python-version }}
+          poetry-version: ${{ env.POETRY_VERSION }}
+          cache-key: test-start
+
+      - name: Check Poetry File
+        shell: bash
+        run: poetry check
+
+      - name: Check lock file
+        shell: bash
+        run: poetry lock --check
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Start server
+        run: |
+          make start
