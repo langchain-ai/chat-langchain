@@ -222,7 +222,7 @@ def create_chain(llm: LanguageModelLike, retriever: BaseRetriever) -> Runnable:
         default_response_synthesizer.configurable_alternatives(
             ConfigurableField("llm"),
             default_key="openai_gpt_3_5_turbo",
-            anthropic_claude_2_1=default_response_synthesizer,
+            anthropic_claude_3_sonnet=default_response_synthesizer,
             fireworks_mixtral=default_response_synthesizer,
             google_gemini_pro=default_response_synthesizer,
             cohere_command=cohere_response_synthesizer,
@@ -237,7 +237,7 @@ def create_chain(llm: LanguageModelLike, retriever: BaseRetriever) -> Runnable:
 
 
 llm = ChatOpenAI(
-    model="gpt-3.5-turbo-1106",
+    model="gpt-3.5-turbo-0125",
     temperature=0,
     streaming=True,
 ).configurable_alternatives(
@@ -245,8 +245,8 @@ llm = ChatOpenAI(
     # When configuring the end runnable, we can then use this id to configure this field
     ConfigurableField(id="llm"),
     default_key="openai_gpt_3_5_turbo",
-    anthropic_claude_2_1=ChatAnthropic(
-        model="claude-2.1",
+    anthropic_claude_3_sonnet=ChatAnthropic(
+        model="claude-3-sonnet-20240229",
         temperature=0,
         max_tokens=16384,
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
