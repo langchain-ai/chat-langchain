@@ -72,8 +72,8 @@ The LLM is used inside the `/chat` endpoint for generating the final answer, and
 
 Without any modification, we offer a few LLM providers out of the box:
 
-- `gpt-3.5-turbo` by OpenAI
-- `claude-2.1` by Anthropic
+- `gpt-3.5-turbo-0125` by OpenAI
+- `claude-3-sonnet-20240229` by Anthropic
 - `mixtral-8x7b` by Fireworks
 - `gemini-pro` by Google
 - `command` by Cohere
@@ -89,7 +89,7 @@ First, I'll demonstrate how to replace all options with a single provider, as it
 
 ```python
 llm = ChatOpenAI(
-    model="gpt-3.5-turbo-1106",
+    model="gpt-3.5-turbo-0125",
     streaming=True,
     temperature=0,
 ).configurable_alternatives(
@@ -97,8 +97,8 @@ llm = ChatOpenAI(
     # When configuring the end runnable, we can then use this id to configure this field
     ConfigurableField(id="llm"),
     default_key="openai_gpt_3_5_turbo",
-    anthropic_claude_2_1=ChatAnthropic(
-        model="claude-2.1",
+    anthropic_claude_3_sonnet=ChatAnthropic(
+        model="claude-3-sonnet-20240229",
         max_tokens=16384,
         temperature=0,
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
@@ -138,7 +138,7 @@ response_synthesizer = (
     default_response_synthesizer.configurable_alternatives(
         ConfigurableField("llm"),
         default_key="openai_gpt_3_5_turbo",
-        anthropic_claude_2_1=default_response_synthesizer,
+        anthropic_claude_3_sonnet=default_response_synthesizer,
         ...
         local_ollama=default_response_synthesizer,
     )
