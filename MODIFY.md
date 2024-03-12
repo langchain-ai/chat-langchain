@@ -97,7 +97,7 @@ llm = ChatOpenAI(
     # When configuring the end runnable, we can then use this id to configure this field
     ConfigurableField(id="llm"),
     default_key="openai_gpt_3_5_turbo",
-    anthropic_claude_2_1=ChatAnthropic(
+    anthropic_claude_3_sonnet=ChatAnthropic(
         model="claude-2.1",
         max_tokens=16384,
         temperature=0,
@@ -138,7 +138,7 @@ response_synthesizer = (
     default_response_synthesizer.configurable_alternatives(
         ConfigurableField("llm"),
         default_key="openai_gpt_3_5_turbo",
-        anthropic_claude_2_1=default_response_synthesizer,
+        anthropic_claude_3_sonnet=default_response_synthesizer,
         ...
         local_ollama=default_response_synthesizer,
     )
