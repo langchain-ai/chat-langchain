@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_embeddings_model() -> Embeddings:
+    if os.environ.get("VOYAGE_API_KEY") and os.environ.get("VOYAGE_AI_MODEL"):
+        return VoyageEmbeddings(model=os.environ["VOYAGE_AI_MODEL"], truncation=True)
     return OpenAIEmbeddings(model="text-embedding-3-small", chunk_size=200)
 
 
