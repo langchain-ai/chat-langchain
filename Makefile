@@ -1,6 +1,6 @@
 .PHONY: start
 start:
-	poetry run uvicorn backend.main:app --reload --port 8080
+	poetry run uvicorn --app-dir=backend main:app --reload --port 8080
 
 .PHONY: format
 format:
