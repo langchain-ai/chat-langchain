@@ -105,6 +105,8 @@ def run_use_case(model: Runnable, eval_use_case: NamedTuple, output_df: pd.DataF
                 output_df.loc[output_df.index == eval_use_case.Index, "county_filter_actual"] = inputs_dict["county"]
             if "commodity" in inputs_dict:
                 output_df.loc[output_df.index == eval_use_case.Index, "commodity_filter_actual"] = inputs_dict["commodity"]
+            if "doc_category" in inputs_dict:
+                output_df.loc[output_df.index == eval_use_case.Index, "doc_category_filter_actual"] = inputs_dict["doc_category"]
             if len(outputs_list) >= 1:
                 output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_actual"] = extract_s3_key(outputs_list[0])
             if len(outputs_list) >= 2:
@@ -125,6 +127,7 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
     output_df["state_filter_match"] = _get_filter_match("state_filter_actual", "state_filter_expected")
     output_df["county_filter_match"] = _get_filter_match("county_filter_actual", "county_filter_expected")
     output_df["commodity_filter_match"] = _get_filter_match("commodity_filter_actual", "commodity_filter_expected")
+    output_df["doc_category_filter_match"] = _get_filter_match("doc_category_filter_actual", "doc_category_filter_expected")
 
     # evaluate use case, retrieved documents-wise
     def _get_retrieved_doc_match(retrieved_doc_expected_col: str) -> pd.Series:
@@ -150,6 +153,7 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
         "state_filter_match",
         "county_filter_match",
         "commodity_filter_match",
+        "doc_category_filter_match",
         "retrieved_doc1_match",
         "retrieved_doc2_match",
         "retrieved_doc3_match",
