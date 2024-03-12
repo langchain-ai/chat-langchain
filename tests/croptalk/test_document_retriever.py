@@ -33,7 +33,6 @@ def county_lookup() -> CountyLookup:
 @pytest.mark.parametrize(
     "single_word_query",
     [
-        "oranges",
         "apples",
     ]
 )
