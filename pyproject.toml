@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "chat-langchain"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["SN <6432132+samnoyes@users.noreply.github.com>"]
 readme = "README.md"
