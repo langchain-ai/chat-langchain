@@ -85,27 +85,4 @@ def get_wfrp_commodities(reinsurance_yr: str, state_code: str, county_code: str)
         return None
 
 
-@tool("pythagoras-equation-tool")
-def pythagoras_equation(adjacent_side: Optional[Union[int, float]] = None,
-                        opposite_side: Optional[Union[int, float]] = None,
-                        angle: Optional[Union[int, float]] = None
-                        ):
-    """
-    use this tool when you need to calculate the length of an hypotenuse
-    given one or two sides of a triangle and/or an angle (in degrees).
-    To use the tool you must provide at least two of the following parameters
-    "['adjacent_side', 'opposite_side', 'angle']."
-    """
-
-    # check for the values we have been given
-    if adjacent_side and opposite_side:
-        return sqrt(float(adjacent_side) ** 2 + float(opposite_side) ** 2)
-    elif adjacent_side and angle:
-        return adjacent_side / cos(float(angle))
-    elif opposite_side and angle:
-        return opposite_side / sin(float(angle))
-    else:
-        return "Could not calculate the hypotenuse of the triangle. Need two or more of `adjacent_side`, `opposite_side`, or `angle`."
-
-
-tools = [pythagoras_equation, get_wfrp_commodities, get_sob_metrics_for_crop_county]
+tools = [get_wfrp_commodities, get_sob_metrics_for_crop_county]
