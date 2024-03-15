@@ -120,7 +120,7 @@ def create_tool_chain(llm):
 
     prompt2 = PromptTemplate.from_template(
         """
-        You are a helpful assistant. Answer the provided question : {question}. Knowing that the this answer was
+        You are a helpful assistant. Answer the provided question : {question}. Knowing that the answer was
         calculated using your own tool. 
         
         Answer to the tool : {output}."

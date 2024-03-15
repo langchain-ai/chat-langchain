@@ -12,23 +12,7 @@ from langchain.tools.render import render_text_description
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--use-model-llm",
-        help="Option which, when specified, tells the evaluation to use model_llm (i.e. use model_openai_functions when this option is not specified)",
-        action='store_true',
-    )
-    parser.add_argument(
-        "eval_path",
-        help="CSV file path that contains evaluation use cases",
-    )
-    return parser.parse_args()
-
-
 if __name__ == "__main__":
-    # parse args
 
     # load model
     logger.info("Loading model")

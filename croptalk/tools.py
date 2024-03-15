@@ -55,7 +55,7 @@ def get_wfrp_commodities(reinsurance_yr: str, state_code: str, county_code: str)
     This tool is used to find commodities associated with the Whole Farm Revenue Protection (WFRP) insurance program
      for a given reinsurance year, state code and county code.
 
-    To use this tool, you must provide all three arguments [reinsurance_ur, state_code and county_code]
+    To use this tool, you must provide all three arguments [reinsurance_yr, state_code and county_code]
 
     Args:
         reinsurance_yr (str): year of reinsurance, ex : "2024"
