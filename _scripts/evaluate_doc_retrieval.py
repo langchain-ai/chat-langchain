@@ -122,7 +122,13 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
         return (
             (output_df[col_filter_actual].isna() & output_df[col_filter_expected].isna())
             |
-            (output_df[col_filter_actual].str.lower() == output_df[col_filter_expected].str.lower())
+            (
+                (output_df[col_filter_actual].notna())
+                &
+                (output_df[col_filter_expected].notna())
+                &
+                (output_df[col_filter_actual].str.lower() == output_df[col_filter_expected].str.lower())
+            )
         )
     output_df["state_filter_match"] = _get_filter_match("state_filter_actual", "state_filter_expected")
     output_df["county_filter_match"] = _get_filter_match("county_filter_actual", "county_filter_expected")
@@ -174,6 +180,7 @@ def get_output_df(eval_df: pd.DataFrame) -> pd.DataFrame:
         if col.endswith("_expected")
     ]
     cols_to_add.append("nb_of_FindDocs_nodes_actual")
+    output_df[cols_to_add] = None
     return output_df
 
 
