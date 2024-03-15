@@ -11,8 +11,8 @@ from croptalk.load_data import SOB
 load_dotenv("secrets/.env.secret")
 
 
-@tool("SOB_percentage_indemnified")
-def get_percentage_indemnified_for_crop_county(state_abbreviation: str, county_name: str, commodity_name: str,
+@tool("get_SOB_metrics")
+def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, commodity_name: str,
                                                insurance_plan_name: str, metric: str) -> str:
     """
     This tool is used to query the summary of business data (SOB) to retrieve insurance program metrics by coverage level.
@@ -108,4 +108,4 @@ def pythagoras_equation(adjacent_side: Optional[Union[int, float]] = None,
         return "Could not calculate the hypotenuse of the triangle. Need two or more of `adjacent_side`, `opposite_side`, or `angle`."
 
 
-tools = [pythagoras_equation, get_wfrp_commodities, get_percentage_indemnified_for_crop_county]
+tools = [pythagoras_equation, get_wfrp_commodities, get_sob_metrics_for_crop_county]
