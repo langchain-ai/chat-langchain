@@ -146,6 +146,7 @@ class OpenAIAgentModelFactory:
         commodity: Optional[str] = Field(description="Commodity name. Example: Apples")
         state: Optional[str] = Field(description="State name. Example: California")
         county: Optional[str] = Field(description="County name. Example: Ventura")
+        doc_category: Optional[str] = Field(description="Document category. Example: SP")
 
 
 # create singleton model

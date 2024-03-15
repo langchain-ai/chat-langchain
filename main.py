@@ -14,8 +14,13 @@ from langserve import add_routes
 
 from pydantic.v1 import BaseModel
 
+<<<<<<< HEAD
 #from croptalk.model_llm import model
 from croptalk.model_openai_functions import model
+=======
+from croptalk.model_llm import model
+# from croptalk.model_openai_functions import model
+>>>>>>> f1569d0a706b0430ac337c02cda4d4a4fe783fda
 
 
 set_debug(True)
