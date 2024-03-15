@@ -1,17 +1,52 @@
-# import matplotlib
-# from langchain.tools import StructuredTool
-#
-# from croptalk.retriever import (RetrieverInput,
-#                                 retriever_with_filter_each_category,
-#                                 retriever_with_filter)
 import os
 from math import sqrt, cos, sin
-from langchain.tools import tool
-from typing import Optional, Union, Dict
+from typing import Optional, Union
+
 import requests
 from dotenv import load_dotenv
+from langchain.tools import tool
+
+from croptalk.load_data import SOB
 
 load_dotenv("secrets/.env.secret")
+
+
+@tool("SOB_percentage_indemnified")
+def get_percentage_indemnified_for_crop_county(state_abbreviation: str, county_name: str, commodity_name: str,
+                                               insurance_plan_name: str, metric: str) -> str:
+    """
+    This tool is used to query the summary of business data (SOB) to retrieve insurance program metrics by coverage level.
+
+    Those metric can be percentage liability indemnified (pct_liability_indemnified), cost to grower (cost_to_grower),
+    the number of policies sold (policies_sold_count) or the premium per quantity (premium_per_quantity)
+
+    For instance, a user might ask : "What is the percentage of policies indemnified for Pierce county in North Dakota,
+    for sunflowers under the APH program?". The tool will answer this question with the following arguments:
+
+    Args:
+        state_abbreviation: two letter string of State abbreviation (California -> CA, North Dakota -> ND and so on)
+        county_name: name of county provided
+        commodity_name: name of commodity
+        insurance_plan_name: provided plan name abbreviation
+        metric : choice from ["pct_liability_indemnified", "cost_to_grower", "policies_sold_count", "premium_per_quantity"]
+
+    Returns: the tool returns a string which gives the coverage level with their
+            associated percentage indemnified statistic
+
+    """
+
+    sob = SOB[SOB["commodity_year"] == 2023]
+
+    sob = sob[
+        (sob["state_abbreviation"] == state_abbreviation) &
+        (sob["county_name"] == county_name) &
+        (sob["commodity_name"] == commodity_name.lower()) &
+        (sob["insurance_plan_name_abbreviation"] == insurance_plan_name)
+        ]
+
+    return "In 2023, we observe the following " + str(
+        {i: j for i, j in zip(list(sob["coverage_level"]), list(sob[metric]))}
+    )
 
 
 @tool("wfrp-commodities-tool")
@@ -49,6 +84,7 @@ def get_wfrp_commodities(reinsurance_yr: str, state_code: str, county_code: str)
         print("API call failed with status code:", response.status_code)
         return None
 
+
 @tool("pythagoras-equation-tool")
 def pythagoras_equation(adjacent_side: Optional[Union[int, float]] = None,
                         opposite_side: Optional[Union[int, float]] = None,
@@ -72,4 +108,4 @@ def pythagoras_equation(adjacent_side: Optional[Union[int, float]] = None,
         return "Could not calculate the hypotenuse of the triangle. Need two or more of `adjacent_side`, `opposite_side`, or `angle`."
 
 
-tools = [pythagoras_equation, get_wfrp_commodities]
+tools = [pythagoras_equation, get_wfrp_commodities, get_percentage_indemnified_for_crop_county]
