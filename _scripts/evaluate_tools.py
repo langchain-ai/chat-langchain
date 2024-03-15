@@ -43,13 +43,13 @@ if __name__ == "__main__":
         #                 " state code 04 and county code 001 ",
         # })
         #
-        # model.invoke({
-        #     "chat_history": [],
-        #     "rendered_tools": rendered_tools,
-        #     "question": "What is the percentage of policies indemnified for Washakie county in Wyoming "
-        #                 "for sugar beets under the APH program"
-        # })
-        #
+        model.invoke({
+            "chat_history": [],
+            "rendered_tools": rendered_tools,
+            "question": "What is the percentage of policies indemnified for Washakie county in Wyoming "
+                        "for sugar beets under the APH program"
+        })
+
         # model.invoke({
         #     "chat_history": [],
         #     "rendered_tools": rendered_tools,
@@ -64,8 +64,8 @@ if __name__ == "__main__":
         #                 "for the RP program, for 0.7 coverage level"
         # })
 
-        model.invoke({
-            "chat_history": [],
-            "rendered_tools": rendered_tools,
-            "question": "What is the number of policies sold for Bee county in Texas"
-        })
+        # model.invoke({
+        #     "chat_history": [],
+        #     "rendered_tools": rendered_tools,
+        #     "question": "What is the number of policies sold for Bee county in Texas"
+        # })

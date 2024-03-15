@@ -44,8 +44,8 @@ def get_percentage_indemnified_for_crop_county(state_abbreviation: str, county_n
         (sob["insurance_plan_name_abbreviation"] == insurance_plan_name)
         ]
 
-    return "In 2023, we observe the following " + str(
-        {i: j for i, j in zip(list(sob["coverage_level"]), list(sob[metric]))}
+    return "In 2023, we observe the following data" + str(
+        [{"coverage_level": i, metric: j} for i, j in zip(list(sob["coverage_level"]), list(sob[metric]))]
     )
 
 
