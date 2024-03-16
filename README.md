@@ -48,7 +48,7 @@ export LANGCHAIN_PROJECT=
 2. Launch app: `docker compose up -d --build`
 3. The app is now available at `http://localhost:3000/`
 4. To run tests, open a terminal:
-   - go into running backend container: `docker exec -ti <container_id> /bin/bash`
+   - go into running backend container: `docker exec -ti $(docker ps -qf "name=chat-langchain-backend") /bin/bash`
    - run tests: `python -m pytest tests`
    - run evaluation script whose options/args are:
      ```

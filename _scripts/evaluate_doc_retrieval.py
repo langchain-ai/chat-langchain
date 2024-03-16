@@ -78,6 +78,7 @@ def run_use_case(model: Runnable, eval_use_case: NamedTuple, output_df: pd.DataF
         with tracing_v2_enabled() as langchain_tracer:
             model.invoke({
                 "chat_history": [],
+                "rendered_tools" : [],
                 "question": eval_use_case.query,
             })
 

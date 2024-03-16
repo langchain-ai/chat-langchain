@@ -26,6 +26,3 @@ git clone git@github.com:cropguard-ai/ds-main.git
 # Install the repo
 cd ds-main
 pip install . -v
-
-# TODO: add ds-main as a dependency in chat-langchain's pyproject.toml
-#       ...and get rid of install_dsmain.sh
