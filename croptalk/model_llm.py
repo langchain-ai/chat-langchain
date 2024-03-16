@@ -19,7 +19,9 @@ from croptalk.document_retriever import DocumentRetriever
 from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, \
     COUNTY_TEMPLATE, INS_PLAN_TEMPLATE, DOC_CATEGORY_TEMPLATE
 from croptalk.tools import tools
+from langchain.tools.render import render_text_description
 
+RENDERED_TOOLS = render_text_description(tools)
 TOOLS = tools
 
 set_debug(True)
@@ -91,12 +93,14 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
 
 
 def create_tool_chain(llm):
-    system_prompt = """
+    system_prompt = f"""
     You are an assistant that has access to the following set of tools. 
     Here are the names and descriptions for each tool:
 
-    {rendered_tools}
+    {RENDERED_TOOLS}
+    """
 
+    system_prompt += """
     Given the user questions, return the name and input of the tool to use. 
     Return your response as a JSON blob with 'name' and 'arguments' keys.
 
@@ -198,10 +202,7 @@ def create_chain(
                 ),
                 "chat_history": RunnableLambda(serialize_history).with_config(
                     run_name="SerializeHistory"
-                ),
-                "rendered_tools": RunnableLambda(itemgetter("rendered_tools")).with_config(
-                    run_name="Itemgetter:rendered_tools"
-                ),
+                )
             }
             | _context
             | response_synthesizer
