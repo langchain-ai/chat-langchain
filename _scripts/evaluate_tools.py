@@ -7,7 +7,6 @@ from typing import List, NamedTuple
 import json
 from langchain_core.tracers.context import tracing_v2_enabled
 from croptalk.tools import tools
-from langchain.tools.render import render_text_description
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -18,7 +17,7 @@ if __name__ == "__main__":
     logger.info("Loading model")
     from croptalk.model_llm import model
 
-    rendered_tools = render_text_description(tools)
+
     with tracing_v2_enabled() as langchain_tracer:
         # model.invoke({
         #     "chat_history": [],
@@ -29,7 +28,6 @@ if __name__ == "__main__":
         #
         model.invoke({
             "chat_history": [],
-            "rendered_tools": rendered_tools,
             "question": "What is the percentage of policies indemnified for Washakie county in Wyoming "
                         "for sugar beets under the APH program"
         })
