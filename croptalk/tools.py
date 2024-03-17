@@ -54,9 +54,14 @@ def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, c
         ]
 
     if not sob.empty:
-        return "In 2023, we observe the following data" + str(
-            [{"coverage_level": i, metric: j} for i, j in zip(list(sob["coverage_level"]), list(sob[metric]))]
-        )
+        response = "In 2023, we observe the following data across coverage level : "
+        for i, j in zip(list(sob["coverage_level"]), list(sob[metric])):
+            response += f" coverage level : {i}, {metric} : {j} \b"
+
+        if metric == "policies_sold_count":
+            response += f"Total : {sob[metric].sum()}"
+            # TOOD else : weighted mean
+        return response
 
     return f"MISSING_DATA : The requested metric ({metric}) for state : {state_abbreviation}, " \
            f" county : {county_name}, commodity : {commodity_name} and insurance plan : {insurance_plan_name}, " \

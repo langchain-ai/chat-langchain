@@ -30,17 +30,18 @@ if __name__ == "__main__":
         #                 " state code 04 and county code 001 ",
         # })
 
-        model.invoke({
-            "chat_history": [],
-            "question": "What are the livestock commodities insured with WFRP for reinsurance year 2024,"
-                        " state code 04 and county code 001 ",
-        })
+        # model.invoke({
+        #     "chat_history": [],
+        #     "question": "What are the livestock commodities insured with WFRP for reinsurance year 2024,"
+        #                 " state code 04 and county code 001 ",
+        # })
         #
         # model.invoke({
         #     "chat_history": [],
         #     "question": "What is the percentage of policies indemnified for Washakie county in Wyoming "
         #                 "for oranges under the APH program"
         # })
+
 
         # model.invoke({
         #     "chat_history": [],
@@ -53,15 +54,15 @@ if __name__ == "__main__":
         #     "chat_history": [],
         #     "question": "What is the number of policies sold for Bee county in Texas, for corn, for the RP program"
         # })
-        #
-        #
+
+
         # model.invoke({
         #     "chat_history": [],
         #     "question": "What is the number of policies sold for Bee county in Texas, for corn, "
         #                 "for the RP program, for 0.7 coverage level"
         # })
 
-        # model.invoke({
-        #     "chat_history": [],
-        #     "question": "What is the number of policies sold for Bee county in Texas"
-        # })
+        model.invoke({
+            "chat_history": [],
+            "question": "What is the number of policies sold for Bee county in Texas"
+        })
