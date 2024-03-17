@@ -17,11 +17,9 @@ from pydantic.v1 import BaseModel
 
 from croptalk.document_retriever import DocumentRetriever
 from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, \
-    COUNTY_TEMPLATE, INS_PLAN_TEMPLATE, DOC_CATEGORY_TEMPLATE
+    COUNTY_TEMPLATE, INS_PLAN_TEMPLATE, DOC_CATEGORY_TEMPLATE, TOOL_PROMPT
 from croptalk.tools import tools
-from langchain.tools.render import render_text_description
 
-RENDERED_TOOLS = render_text_description(tools)
 TOOLS = tools
 
 set_debug(True)
@@ -93,24 +91,7 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
 
 
 def create_tool_chain(llm):
-    system_prompt = f"""
-    You are an assistant that has access to the following set of tools. 
-    Here are the names and descriptions for each tool:
-
-    {RENDERED_TOOLS}
-    """
-
-    system_prompt += """
-    Given the user questions, return the name and input of the tool to use. 
-    Return your response as a JSON blob with 'name' and 'arguments' keys.
-
-    Do not use tools if they are not necessary
-
-    this is the question you are being asked : {question}
-    
-    """
-
-    prompt_tool = PromptTemplate.from_template(system_prompt)
+    # TODO this chain is used by default. Should we route if question is not relevant to tool usage
 
     def tool_pipe(model_output):
         try:
@@ -120,24 +101,19 @@ def create_tool_chain(llm):
         except Exception as e:
             return "NO_TOOL_ANSWER"
 
-    tool_chain = prompt_tool | llm | JsonOutputParser() | tool_pipe | StrOutputParser()
-
-    prompt2 = PromptTemplate.from_template(
-        """
-        You are a helpful assistant. Answer the provided question : {question}. Knowing that the answer was
-        calculated using your own tool. 
-        
-        Answer to the tool : {output}."
-        """
-    )
-    answer_chain = prompt2 | llm | StrOutputParser()
-
     def return_empty_str(output):
         return ""
 
-    no_answer_chain = RunnableLambda(return_empty_str) | StrOutputParser()
+    def tool_output(output):
+        return output["output"]
 
-    def route(tool_output):
+    tool_prompt = PromptTemplate.from_template(TOOL_PROMPT)
+
+    tool_chain = tool_prompt | llm | JsonOutputParser() | tool_pipe | StrOutputParser()
+    no_answer_chain = RunnableLambda(return_empty_str) | StrOutputParser()
+    answer_chain = RunnableLambda(tool_output) | StrOutputParser()
+
+    def route_tool_answer(tool_output):
         if "NO_TOOL_ANSWER" in tool_output["output"]:
             return no_answer_chain
         else:
@@ -145,7 +121,7 @@ def create_tool_chain(llm):
 
     return (
             {"output": tool_chain, "question": itemgetter("question")}
-            | RunnableLambda(route)
+            | RunnableLambda(route_tool_answer)
     )
 
 
@@ -195,6 +171,17 @@ def create_chain(
     response_synthesizer = (prompt | answer_llm | StrOutputParser()).with_config(
         run_name="GenerateResponse",
     )
+
+    # TODO I am not sure if this behavior is optimal. Something we have to think about.
+    def route_tool_answer(_context):
+        if "MISSING_DATA" in _context["context_tools"]:
+            def return_context(_context):
+                return _context["context_tools"]
+
+            return return_context | StrOutputParser().with_config(run_name="GenerateResponse", )
+        else:
+            return response_synthesizer
+
     return (
             {
                 "question": RunnableLambda(itemgetter("question")).with_config(
@@ -205,7 +192,7 @@ def create_chain(
                 )
             }
             | _context
-            | response_synthesizer
+            | route_tool_answer
     )
 
 

@@ -1,3 +1,8 @@
+from croptalk.tools import tools
+from langchain.tools.render import render_text_description
+
+RENDERED_TOOLS = render_text_description(tools)
+
 RESPONSE_TEMPLATE = """\
 You are an expert Crop insurance agent.
 
@@ -15,14 +20,17 @@ answers for each entity.
     {context_retriever} 
 <context/>
 
-<context>
+<context_tools>
     {context_tools} 
-<context/>
+<context_tools/>
 
 REMEMBER: If there is no relevant information within the context, just say "I'm \
-not sure." and request additional information. SPECIFY what information you need to be able to answer the question. Don't try to make up an answer. Anything between the preceding 'context' \
+not sure." and request additional information. SPECIFY what information you need to be able to answer the question. 
+Don't try to make up an answer. Anything between the preceding 'context' \
 html blocks is retrieved from a knowledge bank, not part of the conversation with the \
-user.  Put citations where they apply rather than putting them all at the end.\
+user.  Anything between the preceding 'context_tools' is retrieved from in internal tool. \
+
+Put citations where they apply rather than putting them all at the end.\
 
 """
 
@@ -39,7 +47,6 @@ Chat History:
 Follow Up Input: {question}
 
 Standalone Question:"""
-
 
 COMMODITY_TEMPLATE = """\
 Given the following question, identify whether is it matches to any of the following commodities. 
@@ -99,4 +106,19 @@ SP,Special Provisions
 
 Question: {question}
 Document category:
+"""
+
+TOOL_PROMPT = f"""\
+You are an assistant that has access to the following set of tools. 
+Here are the names and descriptions for each tool:
+
+{RENDERED_TOOLS}
+""" + """\
+Given the user questions, return the name and input of the tool to use. 
+Return your response as a JSON blob with 'name' and 'arguments' keys.
+
+Do not use tools if they are not necessary.
+
+This is the question you are being asked : {question}
+
 """

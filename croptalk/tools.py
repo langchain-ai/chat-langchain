@@ -13,7 +13,7 @@ load_dotenv("secrets/.env.secret")
 
 @tool("get_SOB_metrics")
 def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, commodity_name: str,
-                                               insurance_plan_name: str, metric: str) -> str:
+                                    insurance_plan_name: str, metric: str) -> str:
     """
     This tool is used to query the summary of business data (SOB) to retrieve insurance program metrics by coverage level.
 
@@ -37,6 +37,15 @@ def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, c
 
     sob = SOB[SOB["commodity_year"] == 2023]
 
+    if state_abbreviation == "":
+        state_abbreviation = "None"
+    if county_name == "":
+        county_name = "None"
+    if insurance_plan_name == "":
+        insurance_plan_name = "None"
+    if commodity_name == "":
+        commodity_name = "None"
+
     sob = sob[
         (sob["state_abbreviation"] == state_abbreviation) &
         (sob["county_name"] == county_name) &
@@ -44,23 +53,31 @@ def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, c
         (sob["insurance_plan_name_abbreviation"] == insurance_plan_name)
         ]
 
-    return "In 2023, we observe the following data" + str(
-        [{"coverage_level": i, metric: j} for i, j in zip(list(sob["coverage_level"]), list(sob[metric]))]
-    )
+    if not sob.empty:
+        return "In 2023, we observe the following data" + str(
+            [{"coverage_level": i, metric: j} for i, j in zip(list(sob["coverage_level"]), list(sob[metric]))]
+        )
+
+    return f"MISSING_DATA : The requested metric ({metric}) for state : {state_abbreviation}, " \
+           f" county : {county_name}, commodity : {commodity_name} and insurance plan : {insurance_plan_name}, " \
+           f"is not available within the summary of business data. Make sure that you are providing an " \
+           "existing combination of county, commodity and insurance plan name."
 
 
 @tool("wfrp-commodities-tool")
 def get_wfrp_commodities(reinsurance_yr: str, state_code: str, county_code: str) -> Optional[str]:
     """
     This tool is used to find commodities associated with the Whole Farm Revenue Protection (WFRP) insurance program
-     for a given reinsurance year, state code and county code.
+    for a given reinsurance year, state code and county code. Do not use this tool unless you are explicitly asked
+    about available commodities for the WFRP program.
 
     To use this tool, you must provide all three arguments [reinsurance_yr, state_code and county_code]
+    Do not make up those arguments if they are not provided explicitly.
 
     Args:
-        reinsurance_yr (str): year of reinsurance, ex : "2024"
-        state_code: (str) : state code, ex : "06" for California
-        county_code: (str) : county code, ex : "001"
+        reinsurance_yr (str): year of reinsurance
+        state_code: (str) : state code
+        county_code: (str) : county code
 
     Returns: Optional[str]
     """
@@ -79,7 +96,10 @@ def get_wfrp_commodities(reinsurance_yr: str, state_code: str, county_code: str)
         print("API call successful")
         response_data = response.json()
         # Process the response data as needed
-        return str([i["AGR Commodity Name"] for i in response_data])
+        commodity_list = [i["AGR Commodity Name"] for i in response_data]
+        return f"Available commodities for the WFRP program (year {reinsurance_yr}, state_code {state_code}, and " \
+               f"county_code {county_code}) are : " + str(commodity_list)
+
     else:
         print("API call failed with status code:", response.status_code)
         return None
