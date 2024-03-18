@@ -2,7 +2,7 @@ import argparse
 from datetime import datetime
 import logging
 import os
-from typing import List, NamedTuple
+from typing import NamedTuple
 
 import json
 from langchain_core.tracers.context import tracing_v2_enabled
@@ -10,6 +10,8 @@ from langchain_core.tracers.langchain import LangChainTracer
 from langchain_core.tracers.schemas import Run
 from langchain.schema.runnable import Runnable
 import pandas as pd
+
+from _scripts.utils import get_nodes
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -27,26 +29,6 @@ def parse_args() -> argparse.Namespace:
         help="CSV file path that contains evaluation use cases",
     )
     return parser.parse_args()
-
-
-def get_nodes(root_node: Run, node_name: str) -> List[Run]:
-    """
-    Args:
-        root_node: tracing root node of a langchain call
-        node_name: name of nodes we are looking for
-
-    Returns:
-        a list of tracing nodes found under provided root node's tree, whose name matches provided
-        node name
-    """
-    res = []
-    # recursively call this function on each child
-    for child in root_node.child_runs:
-        res.extend(get_nodes(child, node_name))
-    # check if root node matches
-    if root_node.name == node_name:
-        res.append(root_node)
-    return res
 
 
 def find_last_finddocs_node(

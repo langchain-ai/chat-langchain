@@ -109,7 +109,8 @@ def create_tool_chain(llm):
 
     tool_prompt = PromptTemplate.from_template(TOOL_PROMPT)
 
-    tool_chain = tool_prompt | llm | JsonOutputParser() | tool_pipe | StrOutputParser()
+    tool_chain = tool_prompt | llm | JsonOutputParser().with_config(
+        run_name="ToolInput") | tool_pipe | StrOutputParser().with_config(run_name="ToolOutput")
     no_answer_chain = RunnableLambda(return_empty_str) | StrOutputParser()
     answer_chain = RunnableLambda(tool_output) | StrOutputParser()
 

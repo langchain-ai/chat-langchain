@@ -11,7 +11,7 @@ from croptalk.load_data import SOB
 load_dotenv("secrets/.env.secret")
 
 
-@tool("get_SOB_metrics")
+@tool("get-SOB-metrics")
 def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, commodity_name: str,
                                     insurance_plan_name: str, metric: str) -> str:
     """
@@ -21,7 +21,8 @@ def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, c
     the number of policies sold (policies_sold_count) or the premium per quantity (premium_per_quantity)
 
     For instance, a user might ask : "What is the percentage of policies indemnified for Pierce county in North Dakota,
-    for sunflowers under the APH program?". The tool will answer this question with the following arguments:
+    for sunflowers under the APH program?". The tool will answer this question with the following arguments :
+    (if arguments are not provided, they should be set to "None")
 
     Args:
         state_abbreviation: two letter string of State abbreviation (California -> CA, North Dakota -> ND and so on)
@@ -60,7 +61,7 @@ def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, c
 
         if metric == "policies_sold_count":
             response += f"Total : {sob[metric].sum()}"
-            # TOOD else : weighted mean
+            # TODO else : weighted mean
         return response
 
     return f"MISSING_DATA : The requested metric ({metric}) for state : {state_abbreviation}, " \
