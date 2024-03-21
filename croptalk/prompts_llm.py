@@ -28,7 +28,8 @@ user.  Put citations where they apply rather than putting them all at the end.\
 
 REPHRASE_TEMPLATE = """\
 Given the following conversation and a follow up question, identify whether the question is a follow-up question.\
-If it is, rephrase the question to be a standalone question. If it is not, return the question as is.\
+If it is, rephrase the question to be a standalone question. If it is not, return the question as is and nothing else.\
+For instance, if the question is "What is your name" and is standalone, return "What is your name".
 
 Use this Response Schema to rephrase the follow-up question into a standalone question:
 <schema> [Question body]. Commodity: [The most recently mentioned commodity]. State: [The most recently mentioned state]. County: [The most recently mentioned county].</schema>

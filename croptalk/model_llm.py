@@ -59,8 +59,6 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
                    ).with_config(run_name="IndentifyState")
     county_chain = (COUNTY_PROMPT | llm | StrOutputParser()
                     ).with_config(run_name="IndentifyCounty")
-    ins_plan_chain = (INS_PLAN_PROMPT | llm | StrOutputParser()
-                      ).with_config(run_name="IndentifyPlan")
     doc_category_chain = (
             DOC_CATEGORY_PROMPT | llm | StrOutputParser()
     ).with_config(run_name="IndentifyDocCategory")
@@ -82,7 +80,6 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
                 commodity=commodity_chain,
                 state=state_chain,
                 county=county_chain,
-                insurance_plan=ins_plan_chain,
                 doc_category=doc_category_chain,
                 question=itemgetter("question")
             ).with_config(run_name="CommodityChain")

@@ -130,7 +130,6 @@ def get_equal_filter(property_name: str, property_value: Any) -> wvc.query.Filte
 
 
 def create_weaviate_filter(
-    insurance_plan: str = None,
     state: str = None,
     county: str = None,
     commodity: str = None,
@@ -169,13 +168,6 @@ def create_weaviate_filter(
     # add numerical conditions
     # note that ins plans, states, counties and commodities are stored as integers in weaviate
     # vector store, while they are 0-padded strings in lookups
-    if _is_valid(insurance_plan):
-        ins_plan_obj = insurance_plan_lookup.find(insurance_plan)
-        if ins_plan_obj:
-            filter_conditions.append(
-                _get_integer_equal_filter("plan", int(ins_plan_obj.code))
-            )
-
     if _is_valid(state):
         state_obj = state_lookup.find(state)
         if state_obj:
