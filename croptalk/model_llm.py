@@ -17,7 +17,7 @@ from pydantic.v1 import BaseModel
 
 from croptalk.document_retriever import DocumentRetriever
 from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, \
-    COUNTY_TEMPLATE, INS_PLAN_TEMPLATE, DOC_CATEGORY_TEMPLATE
+    COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE
 from croptalk.tools import tools
 from langchain.tools.render import render_text_description
 
@@ -51,7 +51,6 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
     COMMODITY_PROMPT = PromptTemplate.from_template(COMMODITY_TEMPLATE)
     STATE_PROMPT = PromptTemplate.from_template(STATE_TEMPLATE)
     COUNTY_PROMPT = PromptTemplate.from_template(COUNTY_TEMPLATE)
-    INS_PLAN_PROMPT = PromptTemplate.from_template(INS_PLAN_TEMPLATE)
     DOC_CATEGORY_PROMPT = PromptTemplate.from_template(DOC_CATEGORY_TEMPLATE)
 
     condense_branch = create_condense_branch(llm)

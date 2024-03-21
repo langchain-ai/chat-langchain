@@ -9,13 +9,12 @@ from weaviate.collections.classes.internal import QueryReturn
 from weaviate.collections.collection import Collection
 
 
-from dsmain.dataapi.lookups import CommodityLookup, StateLookup, CountyLookup, InsurancePlanLookup
+from dsmain.dataapi.lookups import CommodityLookup, StateLookup, CountyLookup
 
 
 state_lookup = StateLookup(quiet_fail=True)
 county_lookup = CountyLookup(quiet_fail=True)
 commodity_lookup = CommodityLookup(quiet_fail=True)
-insurance_plan_lookup = InsurancePlanLookup(quiet_fail=True)
 
 
 def get_weaviate_client() -> WeaviateClient:
