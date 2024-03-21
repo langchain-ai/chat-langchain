@@ -51,24 +51,6 @@ Commodities: \
 Question: {question}
 commodity: """
 
-INS_PLAN_TEMPLATE = """\
-Given the following question, identify whether is it mentions any of the following crop insurance plans. 
-If it is, return the plan abbreviation. If it is not, return 'None'.
-
-Example: "Can apples be covered under ARH?" -> "ARH"
-Example: "Can apples be covered under Yield Protection?" -> "YP"
-Insurance Plans table: \
-Abbreviation,Full Name
-YP,Yield Protection
-RP,Revenue Protection
-ARH,Actual Revenue History
-WFRP,Whole Farm Revenue Protection
-APH,Actual Production History
-
-Question: {question}
-Insurance Plan:
-"""
-
 STATE_TEMPLATE = """\
 Identify whether the following text mentions a state of the US.
 If it does, return the state name. Otherwise, return None.
