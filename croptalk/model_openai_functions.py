@@ -22,6 +22,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 
 from croptalk.document_retriever import DocumentRetriever
+from croptalk.tools import tools
 
 load_dotenv("secrets/.env.secret")
 load_dotenv("secrets/.env.shared")
@@ -33,13 +34,14 @@ class OpenAIAgentModelFactory:
     """
 
     def __init__(
-        self,
-        llm_model_name: str,
-        document_retriever: DocumentRetriever,
-        top_k: int,
-        memory_key: str = "chat_history",
-        input_key: str = "question",
-        output_key: str = "output",
+            self,
+            llm_model_name: str,
+            document_retriever: DocumentRetriever,
+            tools: List[StructuredTool],
+            top_k: int,
+            memory_key: str = "chat_history",
+            input_key: str = "question",
+            output_key: str = "output",
     ) -> None:
         """
         Args:
@@ -52,6 +54,7 @@ class OpenAIAgentModelFactory:
         """
         self.llm_model_name = llm_model_name
         self.document_retriever = document_retriever
+        self.tools = tools
         self.top_k = top_k
         self.memory_key = memory_key
         self.input_key = input_key
@@ -84,16 +87,16 @@ class OpenAIAgentModelFactory:
             ]
         )
         agent = (
-            RunnablePassthrough.assign(
-                agent_scratchpad=lambda x: format_to_openai_function_messages(
-                    x["intermediate_steps"]
-                ),
-                chat_history=lambda x: x.get(self.memory_key, []),
-                input=itemgetter(self.input_key),
-            )
-            | prompt
-            | llm_with_tools
-            | OpenAIFunctionsAgentOutputParser()
+                RunnablePassthrough.assign(
+                    agent_scratchpad=lambda x: format_to_openai_function_messages(
+                        x["intermediate_steps"]
+                    ),
+                    chat_history=lambda x: x.get(self.memory_key, []),
+                    input=itemgetter(self.input_key),
+                )
+                | prompt
+                | llm_with_tools
+                | OpenAIFunctionsAgentOutputParser()
         )
         memory_llm = ChatOpenAI(model=self.llm_model_name, temperature=0)
         memory = AgentTokenBufferMemory(
@@ -103,15 +106,15 @@ class OpenAIAgentModelFactory:
         )
 
         agent_executor = (
-            AgentExecutor(
-                agent=agent,
-                tools=tools,
-                memory=memory,
-                verbose=True,
-                max_iterations=10,
-                return_intermediate_steps=True,
-            )
-            | itemgetter(self.output_key)
+                AgentExecutor(
+                    agent=agent,
+                    tools=tools,
+                    memory=memory,
+                    verbose=True,
+                    max_iterations=10,
+                    return_intermediate_steps=True,
+                )
+                | itemgetter(self.output_key)
         ).with_config(run_name="AgentExecutor")
 
         return agent_executor, memory
@@ -123,8 +126,8 @@ class OpenAIAgentModelFactory:
         """
         doc_retriever_tool = self._get_doc_retriever_tool()
         return [
-            doc_retriever_tool,
-        ]
+                   doc_retriever_tool,
+               ] + self.tools
 
     def _get_doc_retriever_tool(self) -> StructuredTool:
         """
@@ -157,5 +160,6 @@ doc_retriever = DocumentRetriever(collection_name=collection_name)
 model, memory = OpenAIAgentModelFactory(
     llm_model_name=model_name,
     document_retriever=doc_retriever,
+    tools=tools,
     top_k=top_k,
 ).get_model()

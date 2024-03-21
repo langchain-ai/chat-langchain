@@ -1,7 +1,7 @@
 import os
-from math import sqrt, cos, sin
-from typing import Optional, Union
+from typing import Optional
 
+import pandas as pd
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
@@ -12,17 +12,15 @@ load_dotenv("secrets/.env.secret")
 
 
 @tool("get-SOB-metrics")
-def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, commodity_name: str,
-                                    insurance_plan_name: str, metric: str) -> str:
+def get_sob_metrics_for_crop_county(state_abbreviation: Optional[str] = None,
+                                    county_name: Optional[str] = None,
+                                    commodity_name: Optional[str] = None,
+                                    insurance_plan_name: Optional[str] = None,
+                                    metric: Optional[str] = None,
+                                    coverage_level: Optional[float] = None) -> str:
     """
     This tool is used to query the summary of business data (SOB) to retrieve insurance program metrics by coverage level.
-
-    Those metric can be percentage liability indemnified (pct_liability_indemnified), cost to grower (cost_to_grower),
-    the number of policies sold (policies_sold_count) or the premium per quantity (premium_per_quantity)
-
-    For instance, a user might ask : "What is the percentage of policies indemnified for Pierce county in North Dakota,
-    for sunflowers under the APH program?". The tool will answer this question with the following arguments :
-    (if arguments are not provided, they should be set to "None")
+    If the arguments are not available, set them as "None".
 
     Args:
         state_abbreviation: two letter string of State abbreviation (California -> CA, North Dakota -> ND and so on)
@@ -30,6 +28,7 @@ def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, c
         commodity_name: name of commodity
         insurance_plan_name: provided plan name abbreviation
         metric : choice from ["pct_liability_indemnified", "cost_to_grower", "policies_sold_count", "premium_per_quantity"]
+        coverage_level : choice between [0.5, 0.65, 0.7, 0.75, 0.8]
 
     Returns: the tool returns a string which gives the coverage level with their
             associated percentage indemnified statistic
@@ -38,30 +37,47 @@ def get_sob_metrics_for_crop_county(state_abbreviation: str, county_name: str, c
 
     sob = SOB[SOB["commodity_year"] == 2023]
 
-    if state_abbreviation == "":
-        state_abbreviation = "None"
-    if county_name == "":
-        county_name = "None"
-    if insurance_plan_name == "":
-        insurance_plan_name = "None"
-    if commodity_name == "":
-        commodity_name = "None"
+    if commodity_name is not None:
+        commodity_name = commodity_name.lower()
 
-    sob = sob[
-        (sob["state_abbreviation"] == state_abbreviation) &
-        (sob["county_name"] == county_name) &
-        (sob["commodity_name"] == commodity_name.lower()) &
-        (sob["insurance_plan_name_abbreviation"] == insurance_plan_name)
-        ]
+    filters = {
+        "state_abbreviation": state_abbreviation,
+        "county_name": county_name,
+        "insurance_plan_name_abbreviation": insurance_plan_name,
+        "commodity_name": commodity_name,
+        "coverage_level": coverage_level
+    }
+
+    # Create a boolean mask
+    mask = pd.Series(True, index=sob.index)
+
+    for column, value in filters.items():
+        if value is not None:
+            mask = mask & (sob[column] == value)
+
+    sob = sob[mask]
+
+    # run a validation for arguments.
+
+    # aggregation step on the filter that are provided
+    # this should be customized based on the request
+
+    # sum or a mean
+    # this should be customized based on the request
 
     if not sob.empty:
-        response = "In 2023, we observe the following data across coverage level : "
-        for i, j in zip(list(sob["coverage_level"]), list(sob[metric])):
-            response += f" coverage level : {i}, {metric} : {j} \b"
 
+        # todo improve this text
+        filter_values = ""
+        for column, filter in filters.items():
+            if filter is not None:
+                filter_values += f"{column} = {filter} "
+        response = f"In 2023, we observe the following data for {filter_values}:\b "
         if metric == "policies_sold_count":
-            response += f"Total : {sob[metric].sum()}"
-            # TODO else : weighted mean
+            response += f"Total of {metric}: {sob[metric].sum()}"
+        else:
+            weighted_mean = (sob[metric] * (sob['policies_sold_count']/sob['policies_sold_count'].sum())).mean()
+            response += f"Mean of {metric}: {weighted_mean}"
         return response
 
     return f"MISSING_DATA : The requested metric ({metric}) for state : {state_abbreviation}, " \

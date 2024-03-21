@@ -1,4 +1,3 @@
-import argparse
 from datetime import datetime
 import logging
 import os
@@ -11,24 +10,10 @@ from langchain_core.tracers.schemas import Run
 from langchain.schema.runnable import Runnable
 import pandas as pd
 
-from _scripts.utils import get_nodes
+from _scripts.utils import get_nodes, parse_args
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--use-model-llm",
-        help="Option which, when specified, tells the evaluation to use model_llm (i.e. use model_openai_functions when this option is not specified)",
-        action='store_true',
-    )
-    parser.add_argument(
-        "eval_path",
-        help="CSV file path that contains evaluation use cases",
-    )
-    return parser.parse_args()
 
 
 def find_last_finddocs_node(
@@ -60,7 +45,6 @@ def run_use_case(model: Runnable, eval_use_case: NamedTuple, output_df: pd.DataF
     with tracing_v2_enabled() as langchain_tracer:
         response = model.invoke({
             "chat_history": [],
-            "rendered_tools": [],
             "question": eval_use_case.query,
         })
 
