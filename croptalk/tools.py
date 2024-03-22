@@ -1,14 +1,45 @@
 import os
-from typing import Optional
+from typing import Optional, List, Dict
 
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_community.agent_toolkits import create_sql_agent
+from langchain_community.utilities import SQLDatabase
+from croptalk.prompt_tools import full_prompt
+
+from langchain_openai import ChatOpenAI
 
 from croptalk.load_data import SOB
+from dotenv import load_dotenv
 
 load_dotenv("secrets/.env.secret")
+postgres_uri = os.environ.get('POSTGRES_URI')
+DB = SQLDatabase.from_uri(postgres_uri)
+
+
+@tool("get-SOB-metrics-using-SQL-agent")
+def get_sob_metrics_for_crop_county(input: str):
+    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+
+    print(full_prompt)
+
+    agent = create_sql_agent(
+        llm=llm,
+        db=DB,
+        prompt=full_prompt,
+        verbose=True,
+        agent_type="openai-tools",
+    )
+
+    return agent.invoke({"input": input,
+                         "top_k": 3,
+                         "dialect": "SQLite",
+                         "agent_scratchpad": [],
+                         })
+
+
+output = get_sob_metrics_for_crop_county(input="Which insurance plan has the highest average expected payout in 2023")
 
 
 @tool("get-SOB-metrics")
@@ -76,7 +107,7 @@ def get_sob_metrics_for_crop_county(state_abbreviation: Optional[str] = None,
         if metric == "policies_sold_count":
             response += f"Total of {metric}: {sob[metric].sum()}"
         else:
-            weighted_mean = (sob[metric] * (sob['policies_sold_count']/sob['policies_sold_count'].sum())).mean()
+            weighted_mean = (sob[metric] * (sob['policies_sold_count'] / sob['policies_sold_count'].sum())).mean()
             response += f"Mean of {metric}: {weighted_mean}"
         return response
 
