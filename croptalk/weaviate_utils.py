@@ -137,7 +137,6 @@ def create_weaviate_filter(
 ) -> Optional[wvc.query.Filter]:
     """
     Args:
-        insurance_plan: insurance plan to filter on, None means no filter
         state: state to filter on, None means no filter
         county: county to filter on, None means no filter
         commodity: commodity to filter on, None means no filter
