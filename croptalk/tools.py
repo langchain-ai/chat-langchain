@@ -19,27 +19,42 @@ DB = SQLDatabase.from_uri(postgres_uri)
 
 
 @tool("get-SOB-metrics-using-SQL-agent")
-def get_sob_metrics_for_crop_county(input: str):
-    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+def get_sob_metrics_sql_agent(input: str) -> str:
+    """
+    This tool is used to query insurance statistics. This tool can find data on policy sold, indemnifications,
+    liability, cost to grower and premiums in function of the county, insurance plan and year.
 
-    print(full_prompt)
+    Here are some example of questions this tool can answer (amongst other):
+    - What is the total of policies sold in the state of New York for the WFRP policy in year 2023
+    - Which insurance plan has the highest average expected payout in 2023
+    - What is the average loss ratio by insurance plan name and year
+    - What is the average cost to grower under the APH policy for walnuts in Fresno county in California
 
-    agent = create_sql_agent(
-        llm=llm,
-        db=DB,
-        prompt=full_prompt,
-        verbose=True,
-        agent_type="openai-tools",
-    )
+    Args:
+        input: user query
 
-    return agent.invoke({"input": input,
-                         "top_k": 3,
-                         "dialect": "SQLite",
-                         "agent_scratchpad": [],
-                         })
+    Returns: agent answer with SQL data
 
+    """
+    try:
+        llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
-output = get_sob_metrics_for_crop_county(input="Which insurance plan has the highest average expected payout in 2023")
+        agent = create_sql_agent(
+            llm=llm,
+            db=DB,
+            prompt=full_prompt,
+            verbose=True,
+            agent_type="openai-tools",
+        )
+
+        return agent.invoke({"input": input,
+                             "top_k": 3,
+                             "dialect": "SQLite",
+                             "agent_scratchpad": [],
+                             })["output"]
+
+    except:
+        return "There was an Error in SQL tool"
 
 
 @tool("get-SOB-metrics")
@@ -158,4 +173,4 @@ def get_wfrp_commodities(reinsurance_yr: str, state_code: str, county_code: str)
         return None
 
 
-tools = [get_wfrp_commodities, get_sob_metrics_for_crop_county]
+tools = [get_sob_metrics_sql_agent, get_wfrp_commodities] #

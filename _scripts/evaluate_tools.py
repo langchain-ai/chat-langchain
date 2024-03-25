@@ -63,34 +63,36 @@ if __name__ == "__main__":
     else:
         from croptalk.model_openai_functions import model, memory
 
-    if args.test_with_csv:
-        eval_df = pd.read_csv("_scripts/evaluate_tool.csv")
-        eval_df["expected_arguments"] = eval_df["expected_arguments"].apply(ast.literal_eval)
+    # eval_df = pd.read_csv("_scripts/evaluate_tool.csv")
+    # eval_df["expected_arguments"] = eval_df["expected_arguments"].apply(ast.literal_eval)
+    #
+    # input_actual, output_actual = list(), list()
+    # for i, row in eval_df.iterrows():
+    #     with tracing_v2_enabled() as langchain_tracer:
+    #         model.invoke({
+    #             "chat_history": [],
+    #             "question": str(row["query"])
+    #         })
+    #
+    #     input_result, output_result = get_actual_results(langchain_tracer, str(row["tool_used"]))
+    #     input_actual.append(input_result)
+    #     output_actual.append(output_result)
+    #
+    # eval_df["actual_arguments"] = input_actual
+    # eval_df["actual_output"] = output_actual
+    #
+    # eval_df = evaluate_arguments(eval_df)
+    # eval_df = evaluate_output(eval_df)
 
-        input_actual, output_actual = list(), list()
-        for i, row in eval_df.iterrows():
-            with tracing_v2_enabled() as langchain_tracer:
-                model.invoke({
-                    "chat_history": [],
-                    "question": str(row["query"])
-                })
-
-            input_result, output_result = get_actual_results(langchain_tracer, str(row["tool_used"]))
-            input_actual.append(input_result)
-            output_actual.append(output_result)
-
-        eval_df["actual_arguments"] = input_actual
-        eval_df["actual_output"] = output_actual
-
-        eval_df = evaluate_arguments(eval_df)
-        eval_df = evaluate_output(eval_df)
-
-        eval_df.to_csv(f"_scripts/tool_evaluation_{args.use_model_llm}.csv")
+    model.invoke({
+        "chat_history": [],
+        "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
+    })
 
 
     # model.invoke({
     #     "chat_history": [],
-    #     "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California",
+    #     "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2025",
     # })
 
     # model.invoke({
@@ -104,11 +106,11 @@ if __name__ == "__main__":
     #                 "for oranges under the APH program"
     # })
 
-    model.invoke({
-        "chat_history": [],
-        "question": "What is the percentage of policies indemnified for Wyoming "
-                    "under the APH program"
-    })
+    # model.invoke({
+    #     "chat_history": [],
+    #     "question": "What is the percentage of policies indemnified for Wyoming "
+    #                 "under the APH program"
+    # })
 
     # model.invoke({
     #     "chat_history": [],

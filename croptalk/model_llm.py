@@ -91,8 +91,6 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
 
 
 def create_tool_chain(llm):
-    # TODO this chain is used by default. Should we route if question is not relevant to tool usage
-
     def tool_pipe(model_output):
         try:
             tool_map = {tool.name: tool for tool in TOOLS}
@@ -173,16 +171,6 @@ def create_chain(
         run_name="GenerateResponse",
     )
 
-    # TODO I am not sure if this behavior is optimal. Something we have to think about.
-    def route_tool_answer(_context):
-        if "MISSING_DATA" in _context["context_tools"]:
-            def return_context(_context):
-                return _context["context_tools"]
-
-            return return_context | StrOutputParser().with_config(run_name="GenerateResponse", )
-        else:
-            return response_synthesizer
-
     return (
             {
                 "question": RunnableLambda(itemgetter("question")).with_config(
@@ -193,7 +181,7 @@ def create_chain(
                 )
             }
             | _context
-            | route_tool_answer
+            | response_synthesizer
     )
 
 
