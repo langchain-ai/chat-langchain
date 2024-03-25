@@ -2,16 +2,17 @@ from typing import Callable, Dict
 
 from dsmain.dataapi.lookups import CommodityLookup, StateLookup, CountyLookup, InsurancePlanLookup
 
-
 state_lookup = StateLookup(quiet_fail=True)
 county_lookup = CountyLookup(quiet_fail=True)
 commodity_lookup = CommodityLookup(quiet_fail=True)
-insurance_plan_lookup = InsurancePlanLookup(quiet_fail=True)
 
-def create_chroma_filter(insurance_plan:str=None, state:str=None, county:str=None, commodity:str=None, doc_category:str=None, include_common_docs:bool=True) -> Dict:
+
+def create_chroma_filter(state: str = None, county: str = None, commodity: str = None, doc_category: str = None,
+                         include_common_docs: bool = True) -> Dict:
     """Creates a where_filter for chromadb retriever based on the provided arguments.
     See syntax documentation here: https://docs.trychroma.com/usage-guide#using-where-filters
     """
+
     def is_valid_param(param):
         return param and param.lower() != 'none'
 
@@ -25,11 +26,6 @@ def create_chroma_filter(insurance_plan:str=None, state:str=None, county:str=Non
         where_filter["$and"].append({field: condition})
 
     where_filter = {"$and": []}
-
-    if is_valid_param(insurance_plan):
-        ins = insurance_plan_lookup.find(insurance_plan)
-        if ins:
-            add_filter_condition("plan", ins.code)
 
     if is_valid_param(state):
         state_obj = state_lookup.find(state)
