@@ -84,15 +84,16 @@ if __name__ == "__main__":
     # eval_df = evaluate_arguments(eval_df)
     # eval_df = evaluate_output(eval_df)
 
-    model.invoke({
-        "chat_history": [],
-        "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
-    })
+    # model.invoke({
+    #     "chat_history": [],
+    #     "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
+    # })
 
 
     # model.invoke({
     #     "chat_history": [],
-    #     "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2025",
+    #     "question": "What is the distribution of policy sold amongst counties for "
+    #                 "the WFRP policy for the state of Kansas",
     # })
 
     # model.invoke({
