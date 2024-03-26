@@ -79,12 +79,6 @@ variable "max_instance_request_concurrency" {
   default     = 50
 }
 
-variable "langchain_endpoint" {
-  description = "Endpoint to use for LangSmith tracing"
-  type        = string
-  default     = "https://api.smith.langchain.com"
-}
-
 variable "fireworks_api_key" {
   description = "Fireworks api key to use for the backend"
   type        = string
