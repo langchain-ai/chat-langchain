@@ -9,7 +9,6 @@ locals {
     WEAVIATE_URL         = var.weaviate_url
     WEAVIATE_API_KEY     = var.weaviate_api_key
     LANGCHAIN_TRACING_V2 = true
-    LANGCHAIN_ENDPOINT   = var.langchain_endpoint
     LANGCHAIN_API_KEY    = var.langsmith_api_key
     LANGCHAIN_PROJECT    = var.langchain_project
     FIREWORKS_API_KEY    = var.fireworks_api_key
