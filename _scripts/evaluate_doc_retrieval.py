@@ -169,6 +169,16 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
     output_df["eval_score"] = output_df[match_cols].mean(axis=1)
 
 
+def add_summary_row(output_df: pd.DataFrame) -> None:
+    # add summary row, filled with NaNs
+    summary_row_index = len(output_df)
+    output_df.loc[summary_row_index] = None
+    # add summary for appropriate columns
+    for col in output_df.columns:
+        if col.endswith("_match") or col == "eval_score":
+            output_df.loc[summary_row_index, col] = output_df[col].mean()
+
+
 def extract_s3_key(doc: str) -> str:
     s3_key = doc.split("s3_key='")[1].split("' url='")[0]
     return s3_key
@@ -223,6 +233,9 @@ if __name__ == "__main__":
 
     # evaluate each use case
     evaluate_use_case(output_df)
+
+    # add summary row
+    add_summary_row(output_df)
 
     # save output_df
     output_path = get_output_path(args.eval_path, args.use_model_llm)
