@@ -187,9 +187,10 @@ def get_output_df(eval_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_output_path(eval_path: str, use_model_llm: bool) -> str:
+    now_string = datetime.now().isoformat().replace(":", "")
     output_root, output_ext = os.path.splitext(eval_path)
     output_root += "__model_llm" if use_model_llm else "__model_openai_functions"
-    output_root += f"__{datetime.now().isoformat()}"
+    output_root += f"__{now_string}"
     return output_root + output_ext
 
 
