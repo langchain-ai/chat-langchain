@@ -1,18 +1,18 @@
 test_id,query,answer,comments,state_filter_expected,county_filter_expected,commodity_filter_expected,doc_category_filter_expected,retrieved_doc1_expected,retrieved_doc1_page_expected,retrieved_doc2_expected,retrieved_doc2_page_expected,retrieved_doc3_expected,retrieved_doc3_page_expected
-1,are apples produced in yakima county washington?,,,Washington,Yakima,Apples,,SPOI/53_077_90_0054_20230831.pdf,"all/any pages [1,6]",CP/Apple-Crop-Provisions-11-0054.pdf,,,
-2,almonds?,,"Acceptable answer: Any doc related to almonds should be fine, with priority to more generic docs",,,Almonds,,CP/Almond-Crop-Provisions-08-028.pdf,"all/any pages [1,4]",,,,
-3,Is there a special provisions document for apples in Yakima county Washington?,,,Washington,Yakima,Apples,SP,SPOI/53_077_90_0054_20230831.pdf,"all/any pages [1,6]",,,,
-4,Is there a document in special provisions document category for apples in Yakima county Washington?,,,Washington,Yakima,Apples,SP,SPOI/53_077_90_0054_20230831.pdf,"all/any pages [1,6]",,,,
-5,Special provisions for apples in Yakima WA,,,Washington,Yakima,Apples,SP,SPOI/53_077_90_0054_20230831.pdf,"all/any pages [1,6]",,,,
+1,are apples produced in yakima county washington?,,,Washington,Yakima,Apples,,SPOI/53_077_90_0054_20230831.pdf,1-6,CP/Apple-Crop-Provisions-11-0054.pdf,,,
+2,almonds?,,"Acceptable answer: Any doc related to almonds should be fine, with priority to more generic docs",,,Almonds,,CP/Almond-Crop-Provisions-08-028.pdf,1-4,,,,
+3,Is there a special provisions document for apples in Yakima county Washington?,,,Washington,Yakima,Apples,SP,SPOI/53_077_90_0054_20230831.pdf,1-6,,,,
+4,Is there a document in special provisions document category for apples in Yakima county Washington?,,,Washington,Yakima,Apples,SP,SPOI/53_077_90_0054_20230831.pdf,1-6,,,,
+5,Special provisions for apples in Yakima WA,,,Washington,Yakima,Apples,SP,SPOI/53_077_90_0054_20230831.pdf,1-6,,,,
 6,Show me sections of CIH related to optional units,,,,,,CIH,CIH/2023-18010-Crop-Insurance-Handbook.pdf,"9, 81-88",,,,
 7,What kind of losses are covered for apples?,,,,,Apples,,CP/Apple-Crop-Provisions-11-0054.pdf,5,,,,
 8,What is adjusted transitional revenue?,,,,,,,BP/Actual-Revenue-History-Pilot-Endorsement-23-ARH.pdf,2,,,,
 9,Apples Group A insurable varieties in Niagara NY,,,New York,Niagara,Apples,,SPOI/36_063_90_0054_20230831.pdf,3,,,,
 10,How is claim settled for optional units for apples?,,,,,Apples,,CP/Apple-Crop-Provisions-11-0054.pdf,6,,,,
 11,What is the minimum production threshold for apples in Michigan?,,Acceptable anwer: any SP doc for Michigan state,Michigan,,Apples,,,,,,,
-12,What crops can be insured under ARH plan?,,,,,,,BP/Actual-Revenue-History-Pilot-Endorsement-23-ARH.pdf,(don't see answer in expected doc!),,,,
+12,What crops can be insured under ARH plan?,,,,,,,BP/Actual-Revenue-History-Pilot-Endorsement-23-ARH.pdf,,,,,
 13,What are natural causes protection against loss for WFRP,"(1) Adverse weather conditions; (2) Fire; (3) Insects, but not damage due to insufficient or improper application of pest control measures; (4) Plant or animal disease, but not damage due to insufficient or improper application of disease control measures; (5) Earthquake; (6) Volcanic eruption; (7) Failure of the irrigation water supply, if caused by an insured peril that occurs during the insurance period; (8) Wildlife, unless control measures have not been taken; or",,,,,,BP/Whole-Farm-Revenue-Protection-Pilot-Policy-24-0076.pdf,35,,,,
-14,Definition of pickling period for strawberries,Picking period – One or more sets of dates specified in the actuarial documents that designate the beginning and ending calendar dates when the strawberry fruit normally would be picked.,,,,Strawberries,CP,CP/Strawberry-Pilot-Crop-Provisions-18-0154.pdf,2,,,,
+14,Definition of pickling period for strawberries,Picking period – One or more sets of dates specified in the actuarial documents that designate the beginning and ending calendar dates when the strawberry fruit normally would be picked.,,,,Strawberries,,CP/Strawberry-Pilot-Crop-Provisions-18-0154.pdf,2,,,,
 15,What are the duties in the Event of Damage or Loss for strawberries?,"In addition to the provisions in section 14 of the Basic
 Provisions, the following requirements will apply:
 (a) You must notify us within three calendar days after:
@@ -46,13 +46,13 @@ each such acre if we are unable to make the
 required inspection or appraisal as a result.
 (e) You may be required to harvest a representative
 sample selected by us so we can perform our
-appraisals.",,,,Strawberries,CP,CP/Strawberry-Pilot-Crop-Provisions-18-0154.pdf,"3, 4",,,,
+appraisals.",,,,Strawberries,,CP/Strawberry-Pilot-Crop-Provisions-18-0154.pdf,"3, 4",,,,
 16,What are the damaged blueberries,"Damaged blueberries - Blueberries ready to harvest that
 due to an insurable cause of loss as shown in section 8 of
 these Crop Provisions do not meet the United States
 Standards for Grades of Blueberries, U.S. No. 1, or such
 other applicable grading standards specified in the Special
-Provisions.",,,,Blueberries,CP,CP/Blueberry-Crop-Provisions-23-012.pdf,2,,,,
+Provisions.",,,,Blueberries,,CP/Blueberry-Crop-Provisions-23-012.pdf,2,,,,
 17,What if the percent of damaged blueberries exceeds that shown in the Special Provisions?,"If you have harvested or unharvested damaged
 blueberries and the percent of damaged blueberries
 exceeds that shown in the Special Provisions for that
@@ -72,7 +72,7 @@ received for the damaged blueberries;
 the price election; and
 (iii) Multiplying the resulting factor from section
 10(d)(2)(ii), not less than zero, by the
-pounds of damaged blueberries;",,,,Blueberries,CP,CP/Blueberry-Crop-Provisions-23-012.pdf,4,,,,
-18,Minimum Payment factor for ARH for coverage level 80,80 - 0.63,,,,,BP,BP/Actual-Revenue-History-Pilot-Endorsement-23-ARH.pdf,3,,,,
-19,"What is the Sales Closing Date for Pecans in Alabama, Baldwin",1/31/2012,,Alabama,Baldwin,Pecans,SP,SPOI/01_003_41_0020_20111031.pdf,1,,,,
-20,"What are the grade discount wheat classes in Alabama, Autauga?","Hard Red Winter (HRW), Soft White Wheat (SWW), Hard White Wheat (HWW), Hard Red Spring (HRS), Durum (DUM), Soft Red Winter (SRW)?",,Alabama,Autauga,Wheat,SP,SPOI/01_001_01_0011_20230630.pdf,7,,,,
+pounds of damaged blueberries;",,,,Blueberries,,CP/Blueberry-Crop-Provisions-23-012.pdf,4,,,,
+18,Minimum Payment factor for ARH for coverage level 80,80 - 0.63,,,,,,BP/Actual-Revenue-History-Pilot-Endorsement-23-ARH.pdf,3,,,,
+19,"What is the Sales Closing Date for Pecans in Alabama, Baldwin",1/31/2012,,Alabama,Baldwin,Pecans,,SPOI/01_003_41_0020_20111031.pdf,1,,,,
+20,"What are the grade discount wheat classes in Alabama, Autauga?","Hard Red Winter (HRW), Soft White Wheat (SWW), Hard White Wheat (HWW), Hard Red Spring (HRS), Durum (DUM), Soft Red Winter (SRW)?",,Alabama,Autauga,Wheat,,SPOI/01_001_01_0011_20230630.pdf,7,,,,
