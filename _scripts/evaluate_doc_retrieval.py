@@ -194,7 +194,7 @@ if __name__ == "__main__":
     logger.info(f"Evaluating croptalk's document retrieval capacity, using config: {args}\n")
 
     # read eval CSV into a df
-    eval_df = pd.read_csv(args.eval_path, header=0)
+    eval_df = pd.read_csv(args.eval_path, header=0, dtype=str)
     logger.info(f"Number of use cases to evaluate: {len(eval_df)}")
 
     # create output df
