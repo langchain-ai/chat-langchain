@@ -97,6 +97,11 @@ def run_use_case(model: Runnable, eval_use_case: NamedTuple, output_df: pd.DataF
             # extract outputs from last FindDocs node
             outputs_list = last_node.outputs["output"]
             if not args.use_model_llm:
+                # make string valid for json to load as list of strings/documents
+                outputs_list = outputs_list.replace('"', "'")
+                outputs_list = outputs_list.replace("'<doc ", '"<doc ')
+                outputs_list = outputs_list.replace("</doc>'", '</doc>"')
+                outputs_list = outputs_list.replace("\\'", "'")
                 outputs_list = json.loads(outputs_list)
             # fill *_actual columns in output_df with last FindDocs node
             if "state" in inputs_dict:
