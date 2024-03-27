@@ -1,10 +1,10 @@
 import logging
-
+from typing import Tuple, Dict
+import ast
 import pandas as pd
 from langchain_core.tracers.context import tracing_v2_enabled
 from langchain_core.tracers.langchain import LangChainTracer
 
-from typing import Tuple, Dict
 from _scripts.utils import get_nodes, parse_args
 
 logging.basicConfig(level=logging.INFO)
@@ -30,8 +30,9 @@ def evaluate_output(df):
 
 
 def get_actual_results(langchain_tracer: LangChainTracer, name: str) -> Tuple[Dict, Dict]:
-    # print("LATEST RUN")
-    # print(langchain_tracer.latest_run)
+    print("LATEST RUN")
+    print(type(langchain_tracer.latest_run))
+
 
     input_result = get_nodes(
         root_node=langchain_tracer.latest_run,
@@ -49,40 +50,51 @@ def get_actual_results(langchain_tracer: LangChainTracer, name: str) -> Tuple[Di
 if __name__ == "__main__":
     # load model
     logger.info("Loading model")
-    from croptalk.model_llm import model
-    import ast
 
     # parse args
     args = parse_args()
     logger.info(f"Evaluating croptalk's document retrieval capacity, using config: {args}\n")
 
     if args.use_model_llm:
+
         from croptalk.model_llm import model
-
-        memory = None
     else:
-        from croptalk.model_openai_functions import model, memory
+        from croptalk.model_openai_functions import model
 
-    # eval_df = pd.read_csv("_scripts/evaluate_tool.csv")
-    # eval_df["expected_arguments"] = eval_df["expected_arguments"].apply(ast.literal_eval)
+    eval_df = pd.read_csv("_scripts/evaluate_tool.csv")
+    eval_df["expected_arguments"] = eval_df["expected_arguments"].apply(ast.literal_eval)
+
+    input_actual, output_actual = list(), list()
+    for i, row in eval_df.iterrows():
+        with tracing_v2_enabled() as langchain_tracer:
+            model.invoke({
+                "chat_history": [],
+                "question": str(row["query"])
+            })
+
+        input_result, output_result = get_actual_results(langchain_tracer, str(row["tool_used"]))
+        input_actual.append(input_result)
+        output_actual.append(output_result)
+
+    eval_df["actual_arguments"] = input_actual
+    eval_df["actual_output"] = output_actual
+
+    eval_df = evaluate_arguments(eval_df)
+    eval_df = evaluate_output(eval_df)
+    eval_df.to_csv(f"_scripts/evaluation_{args.use_model_llm}.csv")
+
     #
-    # input_actual, output_actual = list(), list()
-    # for i, row in eval_df.iterrows():
-    #     with tracing_v2_enabled() as langchain_tracer:
-    #         model.invoke({
-    #             "chat_history": [],
-    #             "question": str(row["query"])
-    #         })
-    #
-    #     input_result, output_result = get_actual_results(langchain_tracer, str(row["tool_used"]))
-    #     input_actual.append(input_result)
-    #     output_actual.append(output_result)
-    #
-    # eval_df["actual_arguments"] = input_actual
-    # eval_df["actual_output"] = output_actual
-    #
-    # eval_df = evaluate_arguments(eval_df)
-    # eval_df = evaluate_output(eval_df)
+    # model.invoke({
+    #     "chat_history": [],
+    #     "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2025",
+    # })
+
+
+    # model.invoke({
+    #     "chat_history": [],
+    #     "question": "What is the cost to grower under the APH policy in the african continent",
+    # })
+
 
     # model.invoke({
     #     "chat_history": [],
