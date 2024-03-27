@@ -119,17 +119,14 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
     # evaluate use case, filter-wise
     def _get_filter_match(col_filter_actual: str, col_filter_expected: str) -> pd.Series:
         # case insensitive check between each actual and expected filter
-        return (
-            (output_df[col_filter_actual].isna() & output_df[col_filter_expected].isna())
-            |
-            (
-                (output_df[col_filter_actual].notna())
-                &
-                (output_df[col_filter_expected].notna())
-                &
-                (output_df[col_filter_actual].str.lower() == output_df[col_filter_expected].str.lower())
-            )
+        mask_both_na = (
+            output_df[col_filter_actual].isna()
+            & output_df[col_filter_expected].isna()
         )
+        mask_both_equal = (
+            output_df[col_filter_actual].str.lower() == output_df[col_filter_expected].str.lower()
+        )
+        return mask_both_na | mask_both_equal
     output_df["state_filter_match"] = _get_filter_match("state_filter_actual", "state_filter_expected")
     output_df["county_filter_match"] = _get_filter_match("county_filter_actual", "county_filter_expected")
     output_df["commodity_filter_match"] = _get_filter_match("commodity_filter_actual", "commodity_filter_expected")
