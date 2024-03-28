@@ -1,8 +1,9 @@
 import argparse
 from datetime import datetime
 import logging
+import math
 import os
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Union
 
 import json
 from langchain_core.tracers.context import tracing_v2_enabled
@@ -27,6 +28,51 @@ def parse_args() -> argparse.Namespace:
         help="CSV file path that contains evaluation use cases",
     )
     return parser.parse_args()
+
+
+def ingest_use_cases(eval_path: str) -> pd.DataFrame:
+    """
+    Args:
+        eval_path: path of csv file that contains use cases
+
+    Returns:
+        dataframe that contains use cases to run
+    """
+    # read use cases
+    eval_df = pd.read_csv(args.eval_path, header=0, dtype=str)
+
+    # add expanded expected page number columns
+    def _expand_pages(pages_in: Union[str, float]) -> List[int]:
+        """ accepted input: NaN, '3' or '4,8-11' """
+        pages_out = []
+        if isinstance(pages_in, float) and math.isnan(pages_in):
+            return pages_out
+        for v in str(pages_in).split(","):
+            v = v.strip()
+            if v.isnumeric():
+                # append single page number
+                pages_out.append(int(v))
+            else:
+                # append range of page numbers
+                lower, upper = v.split("-")
+                pages_out.extend(
+                    list(
+                        range(
+                            int(lower),
+                            int(upper) + 1,
+                        )
+                    )
+                )
+        return pages_out
+    def _add_page_expanded_col(expected_doc_id: int) -> None:
+        expected_page_col = f"retrieved_doc{expected_doc_id}_page_expected"
+        expected_page_expanded_col = f"retrieved_doc{expected_doc_id}_page_expected_expanded"
+        eval_df[expected_page_expanded_col] = eval_df[expected_page_col].apply(_expand_pages)
+    _add_page_expanded_col(1)
+    _add_page_expanded_col(2)
+    _add_page_expanded_col(3)
+
+    return eval_df
 
 
 def get_nodes(root_node: Run, node_name: str) -> List[Run]:
@@ -114,10 +160,13 @@ def run_use_case(model: Runnable, eval_use_case: NamedTuple, output_df: pd.DataF
                 output_df.loc[output_df.index == eval_use_case.Index, "doc_category_filter_actual"] = inputs_dict["doc_category"]
             if len(outputs_list) >= 1:
                 output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_actual"] = extract_s3_key(outputs_list[0])
+                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_page_actual"] = extract_page_id(outputs_list[0])
             if len(outputs_list) >= 2:
                 output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc2_actual"] = extract_s3_key(outputs_list[1])
+                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc2_page_actual"] = extract_page_id(outputs_list[1])
             if len(outputs_list) >= 3:
                 output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc3_actual"] = extract_s3_key(outputs_list[2])
+                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc3_page_actual"] = extract_page_id(outputs_list[2])
 
 
 def evaluate_use_case(output_df: pd.DataFrame) -> None:
@@ -138,7 +187,7 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
     output_df["doc_category_filter_match"] = _get_filter_match("doc_category_filter_actual", "doc_category_filter_expected")
 
     # evaluate use case, retrieved documents-wise
-    def _get_retrieved_doc_match(retrieved_doc_expected_col: str) -> pd.Series:
+    def _get_expected_doc_match(retrieved_doc_expected_col: str) -> pd.Series:
         # check that provided expected retrieved document is either
         # - NA
         # or
@@ -152,9 +201,57 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
             |
             (output_df[retrieved_doc_expected_col] == output_df["retrieved_doc3_actual"])
         )
-    output_df["retrieved_doc1_match"] = _get_retrieved_doc_match("retrieved_doc1_expected")
-    output_df["retrieved_doc2_match"] = _get_retrieved_doc_match("retrieved_doc2_expected")
-    output_df["retrieved_doc3_match"] = _get_retrieved_doc_match("retrieved_doc3_expected")
+    output_df["retrieved_doc1_match"] = _get_expected_doc_match("retrieved_doc1_expected")
+    output_df["retrieved_doc2_match"] = _get_expected_doc_match("retrieved_doc2_expected")
+    output_df["retrieved_doc3_match"] = _get_expected_doc_match("retrieved_doc3_expected")
+
+    # evaluate use case, retrieved document pages-wise
+    def _get_page_match(expected_doc_id: int, actual_doc_id: int) -> pd.Series:
+        expected_doc_col = f"retrieved_doc{expected_doc_id}_expected"
+        expected_page_expanded_col = f"retrieved_doc{expected_doc_id}_page_expected_expanded"
+        actual_doc_col = f"retrieved_doc{actual_doc_id}_actual"
+        actual_page_col = f"retrieved_doc{actual_doc_id}_page_actual"
+
+        no_expected_doc_mask = output_df[expected_doc_col].isna()
+        matching_doc_mask = (
+            output_df[actual_doc_col] == output_df[expected_doc_col]
+        )
+        matching_page_mask = (
+            output_df.apply(
+                lambda row: (
+                    not row[expected_page_expanded_col]
+                    or (
+                        row[actual_page_col] is not None
+                        and
+                        int(row[actual_page_col]) in row[expected_page_expanded_col]
+                    )
+                ),
+                axis=1,
+            )
+        )
+
+        return (
+            no_expected_doc_mask
+            |
+            (
+                matching_doc_mask & matching_page_mask
+            )
+        )
+    def _get_expected_page_match(expected_doc_id: int) -> pd.Series:
+        doc_match_col = f"retrieved_doc{expected_doc_id}_match"
+        return (
+            output_df[doc_match_col]
+            & (
+                (_get_page_match(expected_doc_id, actual_doc_id=1))
+                |
+                (_get_page_match(expected_doc_id, actual_doc_id=2))
+                |
+                (_get_page_match(expected_doc_id, actual_doc_id=3))
+            )
+        )
+    output_df["retrieved_doc1_page_match"] = _get_expected_page_match(expected_doc_id=1)
+    output_df["retrieved_doc2_page_match"] = _get_expected_page_match(expected_doc_id=2)
+    output_df["retrieved_doc3_page_match"] = _get_expected_page_match(expected_doc_id=3)
 
     # compute evaluation score
     match_cols = [
@@ -163,8 +260,11 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
         "commodity_filter_match",
         "doc_category_filter_match",
         "retrieved_doc1_match",
+        "retrieved_doc1_page_match",
         "retrieved_doc2_match",
+        "retrieved_doc2_page_match",
         "retrieved_doc3_match",
+        "retrieved_doc3_page_match",
     ]
     output_df["eval_score"] = output_df[match_cols].mean(axis=1)
 
@@ -182,6 +282,10 @@ def add_summary_row(output_df: pd.DataFrame) -> None:
 def extract_s3_key(doc: str) -> str:
     s3_key = doc.split("s3_key='")[1].split("' url='")[0]
     return s3_key
+
+
+def extract_page_id(doc: str) -> str:
+    return doc.split("page_id='")[1][0]
 
 
 def get_output_df(eval_df: pd.DataFrame) -> pd.DataFrame:
@@ -210,7 +314,7 @@ if __name__ == "__main__":
     logger.info(f"Evaluating croptalk's document retrieval capacity, using config: {args}\n")
 
     # read eval CSV into a df
-    eval_df = pd.read_csv(args.eval_path, header=0, dtype=str)
+    eval_df = ingest_use_cases(args.eval_path)
     logger.info(f"Number of use cases to evaluate: {len(eval_df)}")
 
     # create output df
