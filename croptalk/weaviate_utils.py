@@ -167,21 +167,30 @@ def create_weaviate_filter(
     # note that ins plans, states, counties and commodities are stored as integers in weaviate
     # vector store, while they are 0-padded strings in lookups
     if _is_valid(state):
-        state_obj = state_lookup.find(state)
+        try:
+            state_obj = state_lookup.find(state)
+        except:
+            state_obj = None
         if state_obj:
             filter_conditions.append(
                 _get_integer_equal_filter("state", int(state_obj.code))
             )
 
     if _is_valid(county) and _is_valid(state):
-        county_obj = county_lookup.find_by_name(county, state)
+        try:
+            county_obj = county_lookup.find_by_name(county, state)
+        except:
+            county_obj = None
         if county_obj:
             filter_conditions.append(
                 _get_integer_equal_filter("county", int(county_obj.code))
             )
 
     if _is_valid(commodity):
-        commodity_obj = commodity_lookup.find(commodity)
+        try:
+            commodity_obj = commodity_lookup.find(commodity)
+        except:
+            commodity_obj = None
         if commodity_obj:
             filter_conditions.append(
                 _get_integer_equal_filter("commodity", int(commodity_obj.code))
