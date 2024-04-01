@@ -87,7 +87,7 @@ async def aget_trace_url(run_id: str) -> str:
             await _arun(client.read_run, run_id)
             break
         except langsmith.utils.LangSmithError:
-            await asyncio.sleep(1**i)
+            await asyncio.sleep(2**i)
 
     if await _arun(client.run_is_shared, run_id):
         return await _arun(client.read_run_shared_link, run_id)
