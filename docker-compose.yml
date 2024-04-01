@@ -8,7 +8,6 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/app/data  # Map the ./data directory on the host to /app/data in the container
-      - /home/ubuntu/code/ds-data/vectorstore/data:/app/data_v00  # Add v00 datastore in the container
       - .:/app  # un-comment this line to run locally in dev mode
     environment:
       #- GRAPH_URL_HOST=http://3.128.203.104:8080
