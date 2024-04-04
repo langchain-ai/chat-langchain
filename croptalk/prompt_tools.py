@@ -39,7 +39,19 @@ def get_sob_sql_query_examples() -> List[Dict]:
             "input": "Which insurance plan has the highest average expected payout in 2023",
             "query": "SELECT SUM(expected_payout * policy_sold_count)/SUM(expected_payout) AS average_expected_payout FROM sob_all_years WHERE commodity_year == 2023 ORDER BY average_expected_payout DESC LIMIT 1"
 
-        }
+        },
+        {
+            "input": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
+            "query": "SELECT SUM(cost_to_grower * policy_sold_count)/SUM(cost_to_grower) AS average_cost_to_grower FROM sob_all_years WHERE commodity_year == 2023 AND county_name == 'Fresno' and state_abbreviation = 'CA' ORDER BY average_cost_to_grower DESC LIMIT 1"
+
+        },
+        {
+            "input": "What is the percentage of policies indemnified for Washakie county in Wyoming "
+                    "for Corn under the APH program",
+            "query":  "SELECT SUM(policies_indemnified_count) * 100.0 / SUM(policies_sold_count) FROM sob_all_years WHERE county_name = 'Washakie' AND state_abbreviation = 'WY' AND insurance_pla_name_abbreviation == 'APH'"
+
+        },
+
     ]
 
 

@@ -10,7 +10,6 @@ from croptalk.prompt_tools import full_prompt
 
 from langchain_openai import ChatOpenAI
 
-from croptalk.load_data import SOB
 from dotenv import load_dotenv
 
 load_dotenv("secrets/.env.secret")
