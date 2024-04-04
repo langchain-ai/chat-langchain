@@ -1,7 +1,9 @@
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from dotenv import load_dotenv
 import os
+
+from croptalk.utils import query_sql_data
 
 load_dotenv("secrets/.env.secret")
 
@@ -10,16 +12,6 @@ db_url = os.environ["POSTGRES_URI"]
 
 # Create the SQLAlchemy engine
 engine = create_engine(db_url)
-
-
-def query_sql_data(query):
-    # Execute the SQL query
-    with engine.connect() as connection:
-        result = connection.execute(text(query))
-        rows = result.fetchall()
-
-    return pd.DataFrame(data=rows)
-
 
 if __name__ == '__main__':
     # TODO this should be a SQL statement using the data from the generated weaviate_collection

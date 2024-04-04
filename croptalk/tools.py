@@ -24,6 +24,22 @@ def initialize_llm(model):
     )
 
 
+def create_commodity_tool_chain():
+    llm = initialize_llm(os.environ["MODEL_NAME"])
+
+    commodity_template_tool = """\
+    Given the following words identify whether is it matches to any of the following commodities. 
+    If it is, extract the relevant commodity and return it. If it is not, return 'None'.
+
+    Commodities: \
+    ['Wheat', 'Pecans', 'Cotton', 'Peaches', 'Corn', 'Peanuts', 'Whole Farm Revenue Protection', 'Soybeans', 'Pasture,Rangeland,Forage', 'Sesame', 'Controlled Environment', 'Apiculture', 'Hemp', 'Micro Farm', 'Blueberries', 'Oats', 'Fresh Market Sweet Corn', 'Grain Sorghum', 'Potatoes', 'Oysters', 'Triticale', 'Cucumbers', 'Canola', 'Popcorn', 'Fresh Market Tomatoes', 'Feeder Cattle', 'Fed Cattle', 'Cattle', 'Weaned Calves', 'Swine', 'Milk', 'Dairy Cattle', 'Forage Production', 'Dry Peas', 'Barley', 'Cabbage', 'Onions', 'Cotton Ex Long Staple', 'Chile Peppers', 'Dry Beans', 'Apples', 'Pistachios', 'Grapefruit', 'Lemons', 'Tangelos', 'Oranges', 'Mandarins/Tangerines', 'Rice', 'Hybrid Seed Rice', 'Grapes', 'Forage Seeding', 'Walnuts', 'Almonds', 'Prunes', 'Safflower', 'Cherries', 'Processing Cling Peaches', 'Kiwifruit', 'Olives', 'Tomatoes', 'Fresh Apricots', 'Processing Apricots', 'Pears', 'Raisins', 'Table Grapes', 'Figs', 'Plums', 'Alfalfa Seed', 'Strawberries', 'Tangelo Trees', 'Orange Trees', 'Grapefruit Trees', 'Lemon Trees', 'Fresh Nectarines', 'Processing Freestone', 'Fresh Freestone Peaches', 'Mandarin/Tangerine Trees', 'Pomegranates', 'Sugar Beets', 'Grapevine', 'Cultivated Wild Rice', 'Mint', 'Avocados', 'Caneberries', 'Millet', 'Sunflowers', 'Annual Forage', 'Nursery (NVS)', 'Silage Sorghum', 'Hybrid Sweet Corn Seed', 'Cigar Binder Tobacco', 'Cigar Wrapper Tobacco', 'Sweet Corn', 'Processing Beans', 'Green Peas', 'Flue Cured Tobacco', 'Tangors', 'Peppers', 'Sugarcane', 'Macadamia Nuts', 'Macadamia Trees', 'Banana', 'Coffee', 'Papaya', 'Banana Tree', 'Coffee Tree', 'Papaya Tree', 'Hybrid Popcorn Seed', 'Mustard', 'Grass Seed', 'Flax', 'Hybrid Corn Seed', 'Pumpkins', 'Burley Tobacco', 'Hybrid Sorghum Seed', 'Camelina', 'Dark Air Tobacco', 'Fire Cured Tobacco', 'Sweet Potatoes', 'Maryland Tobacco', 'Cranberries', 'Clams', 'Buckwheat', 'Rye', 'Fresh Market Beans', 'Clary Sage', 'Hybrid Vegetable Seed', 'Cigar Filler Tobacco', 'Tangerine Trees', 'Lime Trees']
+    Words: {question}
+    commodity: """
+
+    commodity_prompt = PromptTemplate.from_template(commodity_template_tool)
+    return commodity_prompt | llm | StrOutputParser()
+
+
 @tool("get_SP_doc")
 def get_sp_document(state: Optional[str] = None,
                     county: Optional[str] = None,
@@ -45,29 +61,9 @@ def get_sp_document(state: Optional[str] = None,
     """
 
     if all([state, county, commodity, year]):
-
-        llm = initialize_llm(os.environ["MODEL_NAME"])
-
-        COMMODITY_TEMPLATE = """\
-        Given the following words identify whether is it matches to any of the following commodities. 
-        If it is, extract the relevant commodity and return it. If it is not, return 'None'.
-
-        Commodities: \
-        ['Wheat', 'Pecans', 'Cotton', 'Peaches', 'Corn', 'Peanuts', 'Whole Farm Revenue Protection', 'Soybeans', 'Pasture,Rangeland,Forage', 'Sesame', 'Controlled Environment', 'Apiculture', 'Hemp', 'Micro Farm', 'Blueberries', 'Oats', 'Fresh Market Sweet Corn', 'Grain Sorghum', 'Potatoes', 'Oysters', 'Triticale', 'Cucumbers', 'Canola', 'Popcorn', 'Fresh Market Tomatoes', 'Feeder Cattle', 'Fed Cattle', 'Cattle', 'Weaned Calves', 'Swine', 'Milk', 'Dairy Cattle', 'Forage Production', 'Dry Peas', 'Barley', 'Cabbage', 'Onions', 'Cotton Ex Long Staple', 'Chile Peppers', 'Dry Beans', 'Apples', 'Pistachios', 'Grapefruit', 'Lemons', 'Tangelos', 'Oranges', 'Mandarins/Tangerines', 'Rice', 'Hybrid Seed Rice', 'Grapes', 'Forage Seeding', 'Walnuts', 'Almonds', 'Prunes', 'Safflower', 'Cherries', 'Processing Cling Peaches', 'Kiwifruit', 'Olives', 'Tomatoes', 'Fresh Apricots', 'Processing Apricots', 'Pears', 'Raisins', 'Table Grapes', 'Figs', 'Plums', 'Alfalfa Seed', 'Strawberries', 'Tangelo Trees', 'Orange Trees', 'Grapefruit Trees', 'Lemon Trees', 'Fresh Nectarines', 'Processing Freestone', 'Fresh Freestone Peaches', 'Mandarin/Tangerine Trees', 'Pomegranates', 'Sugar Beets', 'Grapevine', 'Cultivated Wild Rice', 'Mint', 'Avocados', 'Caneberries', 'Millet', 'Sunflowers', 'Annual Forage', 'Nursery (NVS)', 'Silage Sorghum', 'Hybrid Sweet Corn Seed', 'Cigar Binder Tobacco', 'Cigar Wrapper Tobacco', 'Sweet Corn', 'Processing Beans', 'Green Peas', 'Flue Cured Tobacco', 'Tangors', 'Peppers', 'Sugarcane', 'Macadamia Nuts', 'Macadamia Trees', 'Banana', 'Coffee', 'Papaya', 'Banana Tree', 'Coffee Tree', 'Papaya Tree', 'Hybrid Popcorn Seed', 'Mustard', 'Grass Seed', 'Flax', 'Hybrid Corn Seed', 'Pumpkins', 'Burley Tobacco', 'Hybrid Sorghum Seed', 'Camelina', 'Dark Air Tobacco', 'Fire Cured Tobacco', 'Sweet Potatoes', 'Maryland Tobacco', 'Cranberries', 'Clams', 'Buckwheat', 'Rye', 'Fresh Market Beans', 'Clary Sage', 'Hybrid Vegetable Seed', 'Cigar Filler Tobacco', 'Tangerine Trees', 'Lime Trees']
-        Words: {question}
-        commodity: """
-
-        COMMODITY_PROMPT = PromptTemplate.from_template(COMMODITY_TEMPLATE)
-        commodity_chain = COMMODITY_PROMPT | llm | StrOutputParser()
-
+        # use chain to retrieve correct commodity info
+        commodity_chain = create_commodity_tool_chain()
         commodity = commodity_chain.invoke({'question': commodity})
-
-
-        print("ARGS"*100)
-        print(commodity)
-        print(year)
-        print(county)
-        print(state)
 
         # Define your database connection URL
         db_url = os.environ["POSTGRES_URI"]
@@ -85,8 +81,6 @@ def get_sp_document(state: Optional[str] = None,
         county_name = '{county.lower()}'
         """
 
-        print(sql_query)
-
         # Execute the SQL query
         with engine.connect() as connection:
             result = connection.execute(text(sql_query))
@@ -100,10 +94,12 @@ def get_sp_document(state: Optional[str] = None,
                 f"https://croptalk-spoi.s3.us-east-2.amazonaws.com/SPOI/{rows[0][0]}")
 
     else:
+        # format message to hint user to add appropriate information
         var_names = {"state": state, "commodity_name": commodity, "year": year, "county": county}
         missing_var_msg = "Please specify the following to obtain the specific SP document you are requesting : "
         missing_var_list = [i for i, j in var_names.items() if j is None]
 
+        # depending on list length, format message differently
         if len(missing_var_list) == 1:
             missing_var_msg += missing_var_list[0]
         else:
