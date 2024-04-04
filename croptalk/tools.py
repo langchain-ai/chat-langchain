@@ -87,8 +87,8 @@ def get_sp_document(state: Optional[str] = None,
             rows = result.fetchall()
 
         if not rows:
-            return ("My search results indicate that there is no SP document for the corresponding year, commodity, "
-                    "state and county. \b"
+            return (f"My search results indicate that there is no SP document for the corresponding year ({year}), "
+                    f"commodity ({commodity}), state ({state}),and county ({county}). \b"
                     "Make sure you are providing available year, commodity, state and county.")
         return (f"Here is the link to the SP document you're looking for : "
                 f"https://croptalk-spoi.s3.us-east-2.amazonaws.com/SPOI/{rows[0][0]}")
