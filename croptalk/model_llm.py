@@ -1,23 +1,27 @@
 import os
-from operator import itemgetter
+from _operator import itemgetter
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
+from langchain.chat_models import ChatOpenAI
 from langchain.globals import set_debug
-from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
-                               PromptTemplate)
-from langchain.schema.language_model import BaseLanguageModel
+from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder)
 from langchain.schema.messages import AIMessage, HumanMessage
-from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import (Runnable, RunnableBranch,
-                                       RunnableLambda, RunnableMap)
-from langchain_core.output_parsers import JsonOutputParser
+from langchain.schema.runnable import (RunnableBranch,
+                                       RunnableMap)
+from langchain.tools.render import render_text_description
+from langchain_core.language_models import BaseLanguageModel
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import Runnable, RunnableLambda, RunnableParallel
 from pydantic.v1 import BaseModel
 
 from croptalk.document_retriever import DocumentRetriever
-from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, TOOL_PROMPT
+from croptalk.prompts_llm import COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE
+from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE
+from croptalk.prompt_tools import TOOL_PROMPT
 from croptalk.tools import tools
-from langchain.tools.render import render_text_description
+from croptalk.utils import initialize_llm
 
 RENDERED_TOOLS = render_text_description(tools)
 TOOLS = tools
@@ -43,18 +47,6 @@ def create_condense_branch(llm):
         ),
         (condense_chain_hist),
     ).with_config(run_name="RouteDependingOnChatHistory")
-
-from _operator import itemgetter
-
-from langchain.chat_models import ChatOpenAI
-from langchain_core.language_models import BaseLanguageModel
-from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
-from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import Runnable, RunnableLambda, RunnableParallel
-
-from croptalk.document_retriever import DocumentRetriever
-from croptalk.model_llm import create_condense_branch
-from croptalk.prompts_llm import COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE
 
 
 def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentRetriever) -> Runnable:
@@ -187,13 +179,6 @@ def create_chain(
             }
             | _context
             | response_synthesizer
-    )
-
-def initialize_llm(model):
-    return ChatOpenAI(
-        model=model,
-        streaming=True,
-        temperature=0,
     )
 
 model_name = os.getenv("MODEL_NAME")

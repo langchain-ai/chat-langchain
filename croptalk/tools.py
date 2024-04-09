@@ -1,43 +1,19 @@
-from typing import Optional, Union
-
-import requests
-from langchain.tools import tool
-from langchain.chat_models import ChatOpenAI
 # from croptalk.load_data import SOB
 import os
-from langchain_core.output_parsers import StrOutputParser
+from typing import Optional
 
-import pandas as pd
-from sqlalchemy import create_engine, text
+import requests
 from dotenv import load_dotenv
+from langchain.tools import tool
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
+from sqlalchemy import create_engine, text
+
+from croptalk.prompts_llm import COMMODITY_TEMPLATE_TOOL
+from croptalk.utils import initialize_llm
 
 load_dotenv("secrets/.env.secret")
 load_dotenv("secrets/.env.shared")
-
-
-def initialize_llm(model):
-    return ChatOpenAI(
-        model=model,
-        streaming=True,
-        temperature=0,
-    )
-
-
-def create_commodity_tool_chain():
-    llm = initialize_llm(os.environ["MODEL_NAME"])
-
-    commodity_template_tool = """\
-    Given the following words identify whether is it matches to any of the following commodities. 
-    If it is, extract the relevant commodity and return it. If it is not, return 'None'.
-
-    Commodities: \
-    ['Wheat', 'Pecans', 'Cotton', 'Peaches', 'Corn', 'Peanuts', 'Whole Farm Revenue Protection', 'Soybeans', 'Pasture,Rangeland,Forage', 'Sesame', 'Controlled Environment', 'Apiculture', 'Hemp', 'Micro Farm', 'Blueberries', 'Oats', 'Fresh Market Sweet Corn', 'Grain Sorghum', 'Potatoes', 'Oysters', 'Triticale', 'Cucumbers', 'Canola', 'Popcorn', 'Fresh Market Tomatoes', 'Feeder Cattle', 'Fed Cattle', 'Cattle', 'Weaned Calves', 'Swine', 'Milk', 'Dairy Cattle', 'Forage Production', 'Dry Peas', 'Barley', 'Cabbage', 'Onions', 'Cotton Ex Long Staple', 'Chile Peppers', 'Dry Beans', 'Apples', 'Pistachios', 'Grapefruit', 'Lemons', 'Tangelos', 'Oranges', 'Mandarins/Tangerines', 'Rice', 'Hybrid Seed Rice', 'Grapes', 'Forage Seeding', 'Walnuts', 'Almonds', 'Prunes', 'Safflower', 'Cherries', 'Processing Cling Peaches', 'Kiwifruit', 'Olives', 'Tomatoes', 'Fresh Apricots', 'Processing Apricots', 'Pears', 'Raisins', 'Table Grapes', 'Figs', 'Plums', 'Alfalfa Seed', 'Strawberries', 'Tangelo Trees', 'Orange Trees', 'Grapefruit Trees', 'Lemon Trees', 'Fresh Nectarines', 'Processing Freestone', 'Fresh Freestone Peaches', 'Mandarin/Tangerine Trees', 'Pomegranates', 'Sugar Beets', 'Grapevine', 'Cultivated Wild Rice', 'Mint', 'Avocados', 'Caneberries', 'Millet', 'Sunflowers', 'Annual Forage', 'Nursery (NVS)', 'Silage Sorghum', 'Hybrid Sweet Corn Seed', 'Cigar Binder Tobacco', 'Cigar Wrapper Tobacco', 'Sweet Corn', 'Processing Beans', 'Green Peas', 'Flue Cured Tobacco', 'Tangors', 'Peppers', 'Sugarcane', 'Macadamia Nuts', 'Macadamia Trees', 'Banana', 'Coffee', 'Papaya', 'Banana Tree', 'Coffee Tree', 'Papaya Tree', 'Hybrid Popcorn Seed', 'Mustard', 'Grass Seed', 'Flax', 'Hybrid Corn Seed', 'Pumpkins', 'Burley Tobacco', 'Hybrid Sorghum Seed', 'Camelina', 'Dark Air Tobacco', 'Fire Cured Tobacco', 'Sweet Potatoes', 'Maryland Tobacco', 'Cranberries', 'Clams', 'Buckwheat', 'Rye', 'Fresh Market Beans', 'Clary Sage', 'Hybrid Vegetable Seed', 'Cigar Filler Tobacco', 'Tangerine Trees', 'Lime Trees']
-    Words: {question}
-    commodity: """
-
-    commodity_prompt = PromptTemplate.from_template(commodity_template_tool)
-    return commodity_prompt | llm | StrOutputParser()
 
 
 @tool("get_SP_doc")
@@ -55,14 +31,16 @@ def get_sp_document(state: Optional[str] = None,
     state : name of state
     county_name: name of county provided
     commodity_name: name of commodity
-    insurance_plan_name: provided plan name abbreviation
+    year: year of document
 
     Returns: str
     """
 
     if all([state, county, commodity, year]):
         # use chain to retrieve correct commodity info
-        commodity_chain = create_commodity_tool_chain()
+        llm = initialize_llm(os.environ["MODEL_NAME"])
+        commodity_prompt = PromptTemplate.from_template(COMMODITY_TEMPLATE_TOOL)
+        commodity_chain = commodity_prompt | llm | StrOutputParser()
         commodity = commodity_chain.invoke({'question': commodity})
 
         # Define your database connection URL

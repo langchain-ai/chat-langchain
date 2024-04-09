@@ -1,9 +1,19 @@
-import pandas as pd
-from sqlalchemy import create_engine
-from dotenv import load_dotenv
+import argparse
 import os
 
-from croptalk.utils import query_sql_data
+import pandas as pd
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+
+
+def query_sql_data(query):
+    # Execute the SQL query
+    with engine.connect() as connection:
+        result = connection.execute(text(query))
+        rows = result.fetchall()
+
+    return pd.DataFrame(data=rows)
+
 
 load_dotenv("secrets/.env.secret")
 
@@ -13,13 +23,34 @@ db_url = os.environ["POSTGRES_URI"]
 # Create the SQLAlchemy engine
 engine = create_engine(db_url)
 
+
+def parse_args_create_data() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "from_csv",
+        help="sp_files data is generated from csv",
+        action='store_true',
+    )
+    return parser.parse_args()
+
+
 if __name__ == '__main__':
     # TODO this should be a SQL statement using the data from the generated weaviate_collection
 
-    # get chunks data, get unique s3 keys
-    chunks = pd.read_csv("data/total_chunks_in_weaviate_collection.csv")
-    sp_files = chunks[(chunks["doc_category"] == "SP") &
-                      (chunks["year"] == 2024)].drop_duplicates("s3_key")
+    args = parse_args_create_data()
+    if args.from_csv:
+        # get chunks data, get unique s3 keys
+        chunks = pd.read_csv("data/total_chunks_in_weaviate_collection.csv")
+
+        sp_files = chunks[(chunks["doc_category"] == "SP") &
+                          (chunks["year"] == 2024)].drop_duplicates("s3_key")
+
+        sp_files.to_sql("sp_files_raw",
+                        engine,
+                        if_exists='replace',
+                        index=False)
+
+    sp_files = query_sql_data("SELECT * FROM sp_files_raw")
 
     # renaming and preprocessing to make sure of merge compatibility
     sp_files = sp_files.rename(columns={"state": "state_code", "county": "county_code", "commodity": "commodity_code"})
@@ -55,10 +86,10 @@ if __name__ == '__main__':
 
     # only load relevant columns into postgres
     table_name = 'sp_files'
-    cols_to_include = ['title', 'content', 'commodity_name', 'state_name', 'county_name', 'doc_category', 'year', 's3_key']
+    cols_to_include = ['title', 'content', 'commodity_name', 'state_name', 'county_name', 'doc_category', 'year',
+                       's3_key']
 
     sp_files[cols_to_include].to_sql(table_name,
                                      engine,
                                      if_exists='replace',
                                      index=False)
-

@@ -3,15 +3,9 @@ import os
 import pandas as pd
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
-from croptalk.utils import query_sql_data
+from croptalk.create_doc_data import query_sql_data, engine, db_url
 
 load_dotenv("secrets/.env.secret")
-
-# Define your database connection URL
-db_url = os.environ["POSTGRES_URI"]
-
-# Create the SQLAlchemy engine
-engine = create_engine(db_url)
 
 SOB = query_sql_data(query="""
     SELECT * 
