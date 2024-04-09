@@ -38,6 +38,7 @@ def get_sp_document(state: Optional[str] = None,
 
     if all([state, county, commodity, year]):
         # use chain to retrieve correct commodity info
+        # we use a chain in this case because commodity is not easily retrieved by the agent in the correct format
         llm = initialize_llm(os.environ["MODEL_NAME"])
         commodity_prompt = PromptTemplate.from_template(COMMODITY_TEMPLATE_TOOL)
         commodity_chain = commodity_prompt | llm | StrOutputParser()
