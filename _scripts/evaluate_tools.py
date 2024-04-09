@@ -93,10 +93,10 @@ if __name__ == "__main__":
     # })
 
 
-    # model.invoke({
-    #      "chat_history": [],
-    #      "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
-    # })
+    model.invoke({
+         "chat_history": [],
+         "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
+    })
 
 
     # model.invoke({

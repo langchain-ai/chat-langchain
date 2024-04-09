@@ -1,16 +1,15 @@
 import os
-from typing import Optional, List, Dict
+import re
+from typing import Optional
 
-import pandas as pd
 import requests
+from dotenv import load_dotenv
+from langchain.chains import create_sql_query_chain
 from langchain.tools import tool
-from langchain_community.agent_toolkits import create_sql_agent
 from langchain_community.utilities import SQLDatabase
-from croptalk.prompt_tools import full_prompt
-
 from langchain_openai import ChatOpenAI
 
-from dotenv import load_dotenv
+from croptalk.prompt_tools import full_prompt
 
 load_dotenv("secrets/.env.secret")
 postgres_uri = os.environ.get('POSTGRES_URI')
@@ -39,19 +38,40 @@ def get_sob_metrics_sql_agent(input: str) -> str:
     try:
         llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
-        agent = create_sql_agent(
-            llm=llm,
-            db=DB,
-            prompt=full_prompt,
-            verbose=True,
-            agent_type="openai-tools",
-        )
+        # agent = create_sql_agent(
+        #     llm=llm,
+        #     db=DB,
+        #     prompt=full_prompt,
+        #     verbose=True,
+        #     agent_type="openai-tools",
+        # )
+        #
+        # return agent.invoke({"input": input,
+        #                      "top_k": 3,
+        #                      "dialect": "SQLite",
+        #                      "agent_scratchpad": [],
+        #                      })["output"]
 
-        return agent.invoke({"input": input,
-                             "top_k": 3,
-                             "dialect": "SQLite",
-                             "agent_scratchpad": [],
-                             })["output"]
+        def validate_query(output: str) -> str:
+            # Define the regex pattern to match SQL operations
+            pattern = r'\b(?:INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b'
+
+            # Use re.search to check if the pattern is found in the query
+            match = re.search(pattern, output, re.IGNORECASE)  # Use IGNORECASE flag to ignore case sensitivity
+
+            if match:
+                return "The query is using a forbidden operation"
+            return output
+
+        chain = create_sql_query_chain(llm, DB, prompt=full_prompt) | validate_query
+        query = chain.invoke(
+            {"input": input,
+             "top_k": 3,
+             "dialect": "SQLite",
+             "agent_scratchpad": [],
+             })
+
+        return DB.run(query)
 
     except:
         return "There was an Error in SQL tool"
