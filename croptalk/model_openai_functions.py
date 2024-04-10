@@ -1,7 +1,7 @@
 import os
 from operator import itemgetter
 from typing import List, Optional, Tuple
-
+from croptalk.tools import tools
 from dotenv import load_dotenv
 from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad.openai_functions import (
@@ -36,6 +36,7 @@ class OpenAIAgentModelFactory:
         self,
         llm_model_name: str,
         document_retriever: DocumentRetriever,
+        tools: List[StructuredTool],
         top_k: int,
         memory_key: str = "chat_history",
         input_key: str = "question",
@@ -52,6 +53,7 @@ class OpenAIAgentModelFactory:
         """
         self.llm_model_name = llm_model_name
         self.document_retriever = document_retriever
+        self.tools = tools
         self.top_k = top_k
         self.memory_key = memory_key
         self.input_key = input_key
@@ -124,7 +126,7 @@ class OpenAIAgentModelFactory:
         doc_retriever_tool = self._get_doc_retriever_tool()
         return [
             doc_retriever_tool,
-        ]
+        ] + self.tools
 
     def _get_doc_retriever_tool(self) -> StructuredTool:
         """
@@ -157,5 +159,6 @@ doc_retriever = DocumentRetriever(collection_name=collection_name)
 model, memory = OpenAIAgentModelFactory(
     llm_model_name=model_name,
     document_retriever=doc_retriever,
+    tools=tools,
     top_k=top_k,
 ).get_model()

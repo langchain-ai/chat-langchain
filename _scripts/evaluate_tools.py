@@ -16,7 +16,7 @@ if __name__ == "__main__":
     # load model
     logger.info("Loading model")
     from croptalk.model_llm import model
-
+    #from croptalk.model_openai_functions import model
 
     with tracing_v2_enabled() as langchain_tracer:
         # model.invoke({
@@ -26,11 +26,36 @@ if __name__ == "__main__":
         #                 " state code 04 and county code 001 ",
         # })
         #
-        model.invoke({
+        #model.invoke({
+        #   "chat_history": [],
+        #    "question": "Find me the SP document for corn, in Washington"
+        #})
+
+        output = model.invoke({
             "chat_history": [],
-            "question": "What is the percentage of policies indemnified for Washakie county in Wyoming "
-                        "for sugar beets under the APH program"
+            "question": "Find me the SP document for peanut, Monroe, Missouri in 2024"
         })
+        print(output)
+
+        output = model.invoke({
+            "chat_history": [],
+            "question": "Find me the SP document for almond, san joaquim, california in 2024"
+        })
+        print(output)
+
+        # todo overwrite the other context if no available documents?
+
+        #output = model.invoke({
+        #    "chat_history": [],
+        #    "question": "Find me the SP document for Soybeans, Missouri and Monroe county in 2024"
+        #})
+        #print(output)
+
+        #model.invoke({
+        #    "chat_history": [],
+        #    "question": "Find me the SP document for Barley, Missouri and Monroe county in 1999"
+        #})
+
 
         # model.invoke({
         #     "chat_history": [],
