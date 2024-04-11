@@ -50,12 +50,6 @@ def get_sp_document(state: Optional[str] = None,
         # Create the SQLAlchemy engine
         engine = create_engine(db_url)
 
-        print("ARGUMENTS")
-        print(year)
-        print(commodity)
-        print(state)
-        print(county)
-
         # Define your SQL query
         sql_query = f"""
         SELECT s3_key 
