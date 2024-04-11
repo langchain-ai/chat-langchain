@@ -1,6 +1,8 @@
+import ast
 import logging
 from typing import Tuple, Dict
 
+import pandas as pd
 from langchain_core.tracers.context import tracing_v2_enabled
 from langchain_core.tracers.langchain import LangChainTracer
 
@@ -13,8 +15,6 @@ logger = logging.getLogger()
 def evaluate_arguments(df):
     equal_arguments = []
     for i, j in zip(list(df["expected_arguments"]), list(df["actual_arguments"])):
-        print(i, type(i))
-        print(j, type(j))
         equal_arguments.append(i == j)
 
     df["equal_arguments"] = equal_arguments
@@ -52,19 +52,15 @@ if __name__ == "__main__":
     args = parse_args()
     logger.info(f"Evaluating croptalk's tools capacity, using config: {args}\n")
 
-    import pandas as pd
-    import ast
-
     if args.use_model_llm:
-
         from croptalk.model_llm import model
     else:
         from croptalk.model_openai_functions import model
 
+    # getting eval df
     eval_df = pd.read_csv("_scripts/evaluate_tools.csv", sep=";")
 
-    eval_df["expected_arguments"] = eval_df["expected_arguments"].apply(ast.literal_eval)
-
+    # running each scenario
     input_actual, output_actual = list(), list()
     for i, row in eval_df.iterrows():
         with tracing_v2_enabled() as langchain_tracer:
@@ -77,14 +73,16 @@ if __name__ == "__main__":
         input_actual.append(input_result)
         output_actual.append(output_result)
 
+    # adding data to df
     eval_df["actual_arguments"] = input_actual
+    eval_df["actual_output"] = output_actual
+    eval_df["expected_arguments"] = eval_df["expected_arguments"].apply(ast.literal_eval)
     eval_df["actual_arguments"] = eval_df["actual_arguments"].apply(ast.literal_eval)
 
-    eval_df["actual_output"] = output_actual
-
+    # evaluating output and arguments
     eval_df = evaluate_arguments(eval_df)
     eval_df = evaluate_output(eval_df)
 
+    # saving to csv
     suffix = "model_llm" if args.use_model_llm else "model_openai_functions"
-
     eval_df.to_csv(f"_scripts/evaluation_{suffix}.csv")
