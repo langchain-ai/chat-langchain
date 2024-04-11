@@ -12,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from croptalk.prompt_tools import full_prompt
 
 load_dotenv("secrets/.env.secret")
-postgres_uri = os.environ.get('POSTGRES_URI')
+postgres_uri = os.environ.get('POSTGRES_URI_READ_ONLY')
 DB = SQLDatabase.from_uri(postgres_uri)
 
 
@@ -54,10 +54,10 @@ def get_sob_metrics_sql_agent(input: str) -> str:
                              })["output"]
 
     except SQLStatementNotAllowed:
-        return "The method is not allowed "
+        return "Only read operations are allowed."
 
     except Exception as e:
-        return "There was an Error in SQL tool"
+        return "There was an Error in SQL tool."
 
 
 class SQLStatementNotAllowed(Exception):
@@ -77,9 +77,6 @@ def validate_query(output: str) -> None:
 
     """
     # Define the regex pattern to match SQL operations
-
-    print("QUERY : ", output)
-
     pattern = r'\b(?:INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b'
 
     # Use re.search to check if the pattern is found in the query

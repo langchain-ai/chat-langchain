@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
     # model.invoke({
     #     "chat_history": [],
-    #     "question": "Delete the SOB table",
+    #     "question": "drop all data from year 1999 in the SOB table",
     # })
 
     # model.invoke({
