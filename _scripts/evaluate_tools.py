@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
     # parse args
     args = parse_args()
-    logger.info(f"Evaluating croptalk's document retrieval capacity, using config: {args}\n")
+    logger.info(f"Evaluating croptalk's tools capacity, using config: {args}\n")
 
     import pandas as pd
     import ast
@@ -84,4 +84,7 @@ if __name__ == "__main__":
 
     eval_df = evaluate_arguments(eval_df)
     eval_df = evaluate_output(eval_df)
-    eval_df.to_csv(f"_scripts/evaluation_{args.use_model_llm}.csv")
+
+    suffix = "model_llm" if args.use_model_llm else "model_openai_functions"
+
+    eval_df.to_csv(f"_scripts/evaluation_{suffix}.csv")
