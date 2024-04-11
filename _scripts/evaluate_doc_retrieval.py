@@ -10,24 +10,11 @@ from langchain_core.tracers.context import tracing_v2_enabled
 from langchain_core.tracers.langchain import LangChainTracer
 from langchain_core.tracers.schemas import Run
 from langchain.schema.runnable import Runnable
+from _scripts.utils import parse_args, get_nodes
 import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--use-model-llm",
-        help="Option which, when specified, tells the evaluation to use model_llm (i.e. use model_openai_functions when this option is not specified)",
-        action='store_true',
-    )
-    parser.add_argument(
-        "eval_path",
-        help="CSV file path that contains evaluation use cases",
-    )
-    return parser.parse_args()
 
 
 def ingest_use_cases(eval_path: str) -> pd.DataFrame:
@@ -73,26 +60,6 @@ def ingest_use_cases(eval_path: str) -> pd.DataFrame:
     _add_page_expanded_col(3)
 
     return eval_df
-
-
-def get_nodes(root_node: Run, node_name: str) -> List[Run]:
-    """
-    Args:
-        root_node: tracing root node of a langchain call
-        node_name: name of nodes we are looking for
-
-    Returns:
-        a list of tracing nodes found under provided root node's tree, whose name matches provided
-        node name
-    """
-    res = []
-    # recursively call this function on each child
-    for child in root_node.child_runs:
-        res.extend(get_nodes(child, node_name))
-    # check if root node matches
-    if root_node.name == node_name:
-        res.append(root_node)
-    return res
 
 
 def find_last_finddocs_node(

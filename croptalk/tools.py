@@ -16,7 +16,7 @@ load_dotenv("secrets/.env.secret")
 load_dotenv("secrets/.env.shared")
 
 
-@tool("get_SP_doc")
+@tool("get-SP-doc")
 def get_sp_document(state: Optional[str] = None,
                     county: Optional[str] = None,
                     commodity: Optional[str] = None,
@@ -50,6 +50,12 @@ def get_sp_document(state: Optional[str] = None,
         # Create the SQLAlchemy engine
         engine = create_engine(db_url)
 
+        print("ARGUMENTS")
+        print(year)
+        print(commodity)
+        print(state)
+        print(county)
+
         # Define your SQL query
         sql_query = f"""
         SELECT s3_key 
@@ -66,9 +72,11 @@ def get_sp_document(state: Optional[str] = None,
             rows = result.fetchall()
 
         if not rows:
-            return (f"My search results indicate that there is no SP document for the corresponding year ({year}), "
-                    f"commodity ({commodity}), state ({state}),and county ({county}). \b"
-                    "Make sure you are providing available year, commodity, state and county.")
+            return (
+                f"My search results indicate that there is no SP document for the corresponding year ({year}), "
+                f"commodity ({commodity}), state ({state}),and county ({county})."
+                "Make sure you are providing existing combination year, commodity, state and county for a "
+                "SP document.")
         return (f"Here is the link to the SP document you're looking for : "
                 f"https://croptalk-spoi.s3.us-east-2.amazonaws.com/SPOI/{rows[0][0]}")
 

@@ -11,17 +11,20 @@ of the sentence or paragraph that reference them - do not put them all at the en
 different results refer to different entities within the same name, write separate \
 answers for each entity.
 
-<context>
+<context_docs>
     {context_retriever} 
-<context/>
+<context_docs/>
 
-<context>
+<context_tools>
     {context_tools} 
-<context/>
+<context_tools/>
 
 REMEMBER: If there is no relevant information within the context, just say "I'm \
-not sure." and request additional information. SPECIFY what information you need to be able to answer the question. Don't try to make up an answer. Anything between the preceding 'context' \
-html blocks is retrieved from a knowledge bank, not part of the conversation with the \
+not sure." and request additional information. If the context_tools specifies to verify or provide information and that 
+there are no relevant information in the context_docs, relay the context_tools message.
+
+SPECIFY what information you need to be able to answer the question. Don't try to make up an answer. Anything between the preceding 'context_doc' \
+of 'context_tools' html blocks is retrieved from a knowledge bank, not part of the conversation with the \
 user.  Put citations where they apply rather than putting them all at the end.\
 
 """
