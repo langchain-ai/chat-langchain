@@ -1,6 +1,8 @@
 import os
 from typing import List, Dict
 
+from dotenv import load_dotenv
+from langchain.tools.render import render_text_description
 from langchain_community.vectorstores import FAISS
 from langchain_core.example_selectors import SemanticSimilarityExampleSelector
 from langchain_core.prompts import (
@@ -11,7 +13,8 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
 )
 from langchain_openai import OpenAIEmbeddings
-from dotenv import load_dotenv
+
+from croptalk.tools import tools
 
 load_dotenv("secrets/.env.secret")
 
@@ -47,8 +50,8 @@ def get_sob_sql_query_examples() -> List[Dict]:
         },
         {
             "input": "What is the percentage of policies indemnified for Washakie county in Wyoming "
-                    "for Corn under the APH program",
-            "query":  "SELECT SUM(policies_indemnified_count) * 100.0 / SUM(policies_sold_count) FROM sob_all_years WHERE county_name = 'Washakie' AND state_abbreviation = 'WY' AND insurance_pla_name_abbreviation == 'APH'"
+                     "for Corn under the APH program",
+            "query": "SELECT SUM(policies_indemnified_count) * 100.0 / SUM(policies_sold_count) FROM sob_all_years WHERE county_name = 'Washakie' AND state_abbreviation = 'WY' AND insurance_pla_name_abbreviation == 'APH'"
 
         },
 
@@ -109,3 +112,20 @@ full_prompt = ChatPromptTemplate.from_messages(
 # threshold for similarity with the example queries
 # prompt : explain how the result are retrieved (which sort of operation was done)
 # idea : use regex to validate if query is similar
+
+
+RENDERED_TOOLS = render_text_description(tools)
+TOOL_PROMPT = f"""\
+You are an assistant that has access to the following set of tools. 
+Here are the names and descriptions for each tool:
+
+{RENDERED_TOOLS}
+""" + """\
+Given the user questions, return the name and input of the tool to use. 
+Return your response as a JSON blob with 'name' and 'arguments' keys.
+
+Do not use tools if they are not necessary.
+
+This is the question you are being asked : {question}
+
+"""

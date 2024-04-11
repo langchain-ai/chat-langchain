@@ -15,21 +15,13 @@ from langchain.tools.render import format_tool_to_openai_function
 
 from croptalk.prompts_agent import agent_system_message_short
 from croptalk.tools import tools
+from croptalk.utils import initialize_llm
 
 from dotenv import load_dotenv
 load_dotenv('secrets/.env.secret')
 load_dotenv('secrets/.env.shared')
 
 set_debug(True)
-
-
-def initialize_llm(model):
-
-    return ChatOpenAI(
-        model=model,
-        streaming=True,
-        temperature=0,
-    )
 
 
 def initialize_llm_with_tools(model, tools):

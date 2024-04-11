@@ -9,13 +9,12 @@ from weaviate.collections.classes.internal import QueryReturn
 from weaviate.collections.collection import Collection
 
 
-from dsmain.dataapi.lookups import CommodityLookup, StateLookup, CountyLookup, InsurancePlanLookup
+from dsmain.dataapi.lookups import CommodityLookup, StateLookup, CountyLookup
 
 
 state_lookup = StateLookup(quiet_fail=True)
 county_lookup = CountyLookup(quiet_fail=True)
 commodity_lookup = CommodityLookup(quiet_fail=True)
-insurance_plan_lookup = InsurancePlanLookup(quiet_fail=True)
 
 
 def get_weaviate_client() -> WeaviateClient:
@@ -131,7 +130,6 @@ def get_equal_filter(property_name: str, property_value: Any) -> wvc.query.Filte
 
 
 def create_weaviate_filter(
-    insurance_plan: str = None,
     state: str = None,
     county: str = None,
     commodity: str = None,
@@ -140,7 +138,6 @@ def create_weaviate_filter(
 ) -> Optional[wvc.query.Filter]:
     """
     Args:
-        insurance_plan: insurance plan to filter on, None means no filter
         state: state to filter on, None means no filter
         county: county to filter on, None means no filter
         commodity: commodity to filter on, None means no filter
@@ -170,29 +167,31 @@ def create_weaviate_filter(
     # add numerical conditions
     # note that ins plans, states, counties and commodities are stored as integers in weaviate
     # vector store, while they are 0-padded strings in lookups
-    if _is_valid(insurance_plan):
-        ins_plan_obj = insurance_plan_lookup.find(insurance_plan)
-        if ins_plan_obj:
-            filter_conditions.append(
-                _get_integer_equal_filter("plan", int(ins_plan_obj.code))
-            )
-
     if _is_valid(state):
-        state_obj = state_lookup.find(state)
+        try:
+            state_obj = state_lookup.find(state)
+        except:
+            state_obj = None
         if state_obj:
             filter_conditions.append(
                 _get_integer_equal_filter("state", int(state_obj.code))
             )
 
     if _is_valid(county) and _is_valid(state):
-        county_obj = county_lookup.find_by_name(county, state)
+        try:
+            county_obj = county_lookup.find_by_name(county, state)
+        except:
+            county_obj = None
         if county_obj:
             filter_conditions.append(
                 _get_integer_equal_filter("county", int(county_obj.code))
             )
 
     if _is_valid(commodity):
-        commodity_obj = commodity_lookup.find(commodity)
+        try:
+            commodity_obj = commodity_lookup.find(commodity)
+        except:
+            commodity_obj = None
         if commodity_obj:
             filter_conditions.append(
                 _get_integer_equal_filter("commodity", int(commodity_obj.code))

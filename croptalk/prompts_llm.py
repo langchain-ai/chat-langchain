@@ -36,7 +36,8 @@ Put citations where they apply rather than putting them all at the end.\
 
 REPHRASE_TEMPLATE = """\
 Given the following conversation and a follow up question, identify whether the question is a follow-up question.\
-If it is, rephrase the question to be a standalone question. If it is not, return the question as is.\
+If it is, rephrase the question to be a standalone question. If it is not, return the question as is and nothing else.\
+For instance, if the question is "What is your name" and is standalone, return "What is your name".
 
 Use this Response Schema to rephrase the follow-up question into a standalone question:
 <schema> [Question body]. Commodity: [The most recently mentioned commodity]. State: [The most recently mentioned state]. County: [The most recently mentioned county].</schema>
@@ -56,24 +57,6 @@ Commodities: \
 ['Wheat', 'Pecans', 'Cotton', 'Peaches', 'Corn', 'Peanuts', 'Whole Farm Revenue Protection', 'Soybeans', 'Pasture,Rangeland,Forage', 'Sesame', 'Controlled Environment', 'Apiculture', 'Hemp', 'Micro Farm', 'Blueberries', 'Oats', 'Fresh Market Sweet Corn', 'Grain Sorghum', 'Potatoes', 'Oysters', 'Triticale', 'Cucumbers', 'Canola', 'Popcorn', 'Fresh Market Tomatoes', 'Feeder Cattle', 'Fed Cattle', 'Cattle', 'Weaned Calves', 'Swine', 'Milk', 'Dairy Cattle', 'Forage Production', 'Dry Peas', 'Barley', 'Cabbage', 'Onions', 'Cotton Ex Long Staple', 'Chile Peppers', 'Dry Beans', 'Apples', 'Pistachios', 'Grapefruit', 'Lemons', 'Tangelos', 'Oranges', 'Mandarins/Tangerines', 'Rice', 'Hybrid Seed Rice', 'Grapes', 'Forage Seeding', 'Walnuts', 'Almonds', 'Prunes', 'Safflower', 'Cherries', 'Processing Cling Peaches', 'Kiwifruit', 'Olives', 'Tomatoes', 'Fresh Apricots', 'Processing Apricots', 'Pears', 'Raisins', 'Table Grapes', 'Figs', 'Plums', 'Alfalfa Seed', 'Strawberries', 'Tangelo Trees', 'Orange Trees', 'Grapefruit Trees', 'Lemon Trees', 'Fresh Nectarines', 'Processing Freestone', 'Fresh Freestone Peaches', 'Mandarin/Tangerine Trees', 'Pomegranates', 'Sugar Beets', 'Grapevine', 'Cultivated Wild Rice', 'Mint', 'Avocados', 'Caneberries', 'Millet', 'Sunflowers', 'Annual Forage', 'Nursery (NVS)', 'Silage Sorghum', 'Hybrid Sweet Corn Seed', 'Cigar Binder Tobacco', 'Cigar Wrapper Tobacco', 'Sweet Corn', 'Processing Beans', 'Green Peas', 'Flue Cured Tobacco', 'Tangors', 'Peppers', 'Sugarcane', 'Macadamia Nuts', 'Macadamia Trees', 'Banana', 'Coffee', 'Papaya', 'Banana Tree', 'Coffee Tree', 'Papaya Tree', 'Hybrid Popcorn Seed', 'Mustard', 'Grass Seed', 'Flax', 'Hybrid Corn Seed', 'Pumpkins', 'Burley Tobacco', 'Hybrid Sorghum Seed', 'Camelina', 'Dark Air Tobacco', 'Fire Cured Tobacco', 'Sweet Potatoes', 'Maryland Tobacco', 'Cranberries', 'Clams', 'Buckwheat', 'Rye', 'Fresh Market Beans', 'Clary Sage', 'Hybrid Vegetable Seed', 'Cigar Filler Tobacco', 'Tangerine Trees', 'Lime Trees']
 Question: {question}
 commodity: """
-
-INS_PLAN_TEMPLATE = """\
-Given the following question, identify whether is it mentions any of the following crop insurance plans. 
-If it is, return the plan abbreviation. If it is not, return 'None'.
-
-Example: "Can apples be covered under ARH?" -> "ARH"
-Example: "Can apples be covered under Yield Protection?" -> "YP"
-Insurance Plans table: \
-Abbreviation,Full Name
-YP,Yield Protection
-RP,Revenue Protection
-ARH,Actual Revenue History
-WFRP,Whole Farm Revenue Protection
-APH,Actual Production History
-
-Question: {question}
-Insurance Plan:
-"""
 
 STATE_TEMPLATE = """\
 Identify whether the following text mentions a state of the US.
@@ -122,3 +105,13 @@ Do not use tools if they are not necessary.
 This is the question you are being asked : {question}
 
 """
+
+COMMODITY_TEMPLATE_TOOL = """\
+Given the following words identify whether is it matches to any of the following commodities. 
+If it is, extract the relevant commodity and return it. If it is not, return 'None'.
+
+Commodities: \
+['Wheat', 'Pecans', 'Cotton', 'Peaches', 'Corn', 'Peanuts', 'Whole Farm Revenue Protection', 'Soybeans', 'Pasture,Rangeland,Forage', 'Sesame', 'Controlled Environment', 'Apiculture', 'Hemp', 'Micro Farm', 'Blueberries', 'Oats', 'Fresh Market Sweet Corn', 'Grain Sorghum', 'Potatoes', 'Oysters', 'Triticale', 'Cucumbers', 'Canola', 'Popcorn', 'Fresh Market Tomatoes', 'Feeder Cattle', 'Fed Cattle', 'Cattle', 'Weaned Calves', 'Swine', 'Milk', 'Dairy Cattle', 'Forage Production', 'Dry Peas', 'Barley', 'Cabbage', 'Onions', 'Cotton Ex Long Staple', 'Chile Peppers', 'Dry Beans', 'Apples', 'Pistachios', 'Grapefruit', 'Lemons', 'Tangelos', 'Oranges', 'Mandarins/Tangerines', 'Rice', 'Hybrid Seed Rice', 'Grapes', 'Forage Seeding', 'Walnuts', 'Almonds', 'Prunes', 'Safflower', 'Cherries', 'Processing Cling Peaches', 'Kiwifruit', 'Olives', 'Tomatoes', 'Fresh Apricots', 'Processing Apricots', 'Pears', 'Raisins', 'Table Grapes', 'Figs', 'Plums', 'Alfalfa Seed', 'Strawberries', 'Tangelo Trees', 'Orange Trees', 'Grapefruit Trees', 'Lemon Trees', 'Fresh Nectarines', 'Processing Freestone', 'Fresh Freestone Peaches', 'Mandarin/Tangerine Trees', 'Pomegranates', 'Sugar Beets', 'Grapevine', 'Cultivated Wild Rice', 'Mint', 'Avocados', 'Caneberries', 'Millet', 'Sunflowers', 'Annual Forage', 'Nursery (NVS)', 'Silage Sorghum', 'Hybrid Sweet Corn Seed', 'Cigar Binder Tobacco', 'Cigar Wrapper Tobacco', 'Sweet Corn', 'Processing Beans', 'Green Peas', 'Flue Cured Tobacco', 'Tangors', 'Peppers', 'Sugarcane', 'Macadamia Nuts', 'Macadamia Trees', 'Banana', 'Coffee', 'Papaya', 'Banana Tree', 'Coffee Tree', 'Papaya Tree', 'Hybrid Popcorn Seed', 'Mustard', 'Grass Seed', 'Flax', 'Hybrid Corn Seed', 'Pumpkins', 'Burley Tobacco', 'Hybrid Sorghum Seed', 'Camelina', 'Dark Air Tobacco', 'Fire Cured Tobacco', 'Sweet Potatoes', 'Maryland Tobacco', 'Cranberries', 'Clams', 'Buckwheat', 'Rye', 'Fresh Market Beans', 'Clary Sage', 'Hybrid Vegetable Seed', 'Cigar Filler Tobacco', 'Tangerine Trees', 'Lime Trees']
+Words: {question}
+commodity: """
+

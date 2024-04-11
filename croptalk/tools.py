@@ -1,7 +1,7 @@
 import os
+import re
 from typing import Optional
 
-import re
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
@@ -14,6 +14,85 @@ from croptalk.prompt_tools import full_prompt
 load_dotenv("secrets/.env.secret")
 postgres_uri = os.environ.get('POSTGRES_URI_READ_ONLY')
 DB = SQLDatabase.from_uri(postgres_uri)
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
+from sqlalchemy import create_engine, text
+
+from croptalk.prompts_llm import COMMODITY_TEMPLATE_TOOL
+from croptalk.utils import initialize_llm
+
+load_dotenv("secrets/.env.secret")
+load_dotenv("secrets/.env.shared")
+
+
+@tool("get-SP-doc")
+def get_sp_document(state: Optional[str] = None,
+                    county: Optional[str] = None,
+                    commodity: Optional[str] = None,
+                    year: Optional[int] = None):
+    """
+    This tool is used to query the SP document from a database along state, county, commodity and year.
+    For instance, a user might ask :
+    - find me the SP document related to Oranges in Yakima, Washington for the year 2024
+    - SP document for corn in Butte, California, 2022
+
+    Args:
+    state : name of state
+    county_name: name of county provided
+    commodity_name: name of commodity
+    year: year of document
+
+    """
+    if all([state, county, commodity, year]):
+        # use chain to retrieve correct commodity info
+        # we use a chain in this case because commodity is not easily retrieved by the agent in the correct format
+        llm = initialize_llm(os.environ["MODEL_NAME"])
+        commodity_prompt = PromptTemplate.from_template(COMMODITY_TEMPLATE_TOOL)
+        commodity_chain = commodity_prompt | llm | StrOutputParser()
+        commodity = commodity_chain.invoke({'question': commodity})
+
+        # Define your database connection URL
+        db_url = os.environ["POSTGRES_URI"]
+
+        # Create the SQLAlchemy engine
+        engine = create_engine(db_url)
+
+        # Define your SQL query
+        sql_query = f"""
+        SELECT s3_key 
+        FROM sp_files
+        WHERE year = {year} AND 
+        commodity_name = '{commodity.lower()}' AND
+        state_name = '{state.lower()}' AND 
+        county_name = '{county.lower()}'
+        """
+
+        # Execute the SQL query
+        with engine.connect() as connection:
+            result = connection.execute(text(sql_query))
+            rows = result.fetchall()
+
+        if not rows:
+            return (f"My search results indicate that there is no SP document for the corresponding year ({year}), "
+                    f"commodity ({commodity}), state ({state}),and county ({county}). \b"
+                    "Make sure you are providing available year, commodity, state and county.")
+        return (f"Here is the link to the SP document you're looking for : "
+                f"https://croptalk-spoi.s3.us-east-2.amazonaws.com/SPOI/{rows[0][0]}")
+
+    else:
+        # format message to hint user to add appropriate information
+        var_names = {"state": state, "commodity_name": commodity, "year": year, "county": county}
+        missing_var_msg = "Please specify the following to obtain the specific SP document you are requesting : "
+        missing_var_list = [i for i, j in var_names.items() if j is None]
+
+        # depending on list length, format message differently
+        if len(missing_var_list) == 1:
+            missing_var_msg += missing_var_list[0]
+        else:
+            missing_var_msg += ", ".join(missing_var_list)
+
+        return missing_var_msg
 
 
 @tool("get-SOB-metrics-using-SQL-agent")
@@ -34,6 +113,7 @@ def get_sob_metrics_sql_agent(input: str) -> str:
 
     Returns: agent answer with SQL data
 
+    Returns: str
     """
     try:
         llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
@@ -42,7 +122,7 @@ def get_sob_metrics_sql_agent(input: str) -> str:
             llm=llm,
             db=DB,
             prompt=full_prompt,
-            tools = [validate_query],
+            tools=[validate_query],
             verbose=True,
             agent_type="openai-tools",
         )
@@ -127,4 +207,4 @@ def get_wfrp_commodities(reinsurance_yr: str, state_code: str, county_code: str)
         return None
 
 
-tools = [get_sob_metrics_sql_agent, get_wfrp_commodities]  #
+tools = [get_sob_metrics_sql_agent, get_wfrp_commodities, get_sp_document]

@@ -1,25 +1,29 @@
 import os
-from operator import itemgetter
+from _operator import itemgetter
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from langchain.chat_models import ChatOpenAI
 from langchain.globals import set_debug
-from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
-                               PromptTemplate)
-from langchain.schema.language_model import BaseLanguageModel
+from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder)
 from langchain.schema.messages import AIMessage, HumanMessage
-from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import (Runnable, RunnableBranch,
-                                       RunnableLambda, RunnableMap, RunnableParallel)
-from langchain_core.output_parsers import JsonOutputParser
+from langchain.schema.runnable import (RunnableBranch,
+                                       RunnableMap)
+from langchain.tools.render import render_text_description
+from langchain_core.language_models import BaseLanguageModel
+from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import Runnable, RunnableLambda, RunnableParallel
 from pydantic.v1 import BaseModel
 
 from croptalk.document_retriever import DocumentRetriever
-from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, COMMODITY_TEMPLATE, STATE_TEMPLATE, \
-    COUNTY_TEMPLATE, INS_PLAN_TEMPLATE, DOC_CATEGORY_TEMPLATE, TOOL_PROMPT
+from croptalk.prompts_llm import COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE
+from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE
+from croptalk.prompt_tools import TOOL_PROMPT
 from croptalk.tools import tools
+from croptalk.utils import initialize_llm
 
+RENDERED_TOOLS = render_text_description(tools)
 TOOLS = tools
 
 set_debug(True)
@@ -49,7 +53,6 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
     COMMODITY_PROMPT = PromptTemplate.from_template(COMMODITY_TEMPLATE)
     STATE_PROMPT = PromptTemplate.from_template(STATE_TEMPLATE)
     COUNTY_PROMPT = PromptTemplate.from_template(COUNTY_TEMPLATE)
-    INS_PLAN_PROMPT = PromptTemplate.from_template(INS_PLAN_TEMPLATE)
     DOC_CATEGORY_PROMPT = PromptTemplate.from_template(DOC_CATEGORY_TEMPLATE)
 
     condense_branch = create_condense_branch(llm)
@@ -59,8 +62,6 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
                    ).with_config(run_name="IndentifyState")
     county_chain = (COUNTY_PROMPT | llm | StrOutputParser()
                     ).with_config(run_name="IndentifyCounty")
-    ins_plan_chain = (INS_PLAN_PROMPT | llm | StrOutputParser()
-                      ).with_config(run_name="IndentifyPlan")
     doc_category_chain = (
             DOC_CATEGORY_PROMPT | llm | StrOutputParser()
     ).with_config(run_name="IndentifyDocCategory")
@@ -82,13 +83,11 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
                 commodity=commodity_chain,
                 state=state_chain,
                 county=county_chain,
-                insurance_plan=ins_plan_chain,
                 doc_category=doc_category_chain,
                 question=itemgetter("question")
             ).with_config(run_name="CommodityChain")
             | retriever_func.with_config(run_name="FindDocs")
     )
-
 
 def create_tool_chain(llm):
     def tool_pipe(model_output):
@@ -122,7 +121,6 @@ def create_tool_chain(llm):
             {"output": tool_chain, "question": itemgetter("question")}
             | RunnableLambda(route_tool_answer)
     )
-
 
 class ChatRequest(BaseModel):
     question: str
@@ -183,15 +181,6 @@ def create_chain(
             | _context
             | response_synthesizer
     )
-
-
-def initialize_llm(model):
-    return ChatOpenAI(
-        model=model,
-        streaming=True,
-        temperature=0,
-    )
-
 
 model_name = os.getenv("MODEL_NAME")
 

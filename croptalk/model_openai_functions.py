@@ -1,7 +1,7 @@
 import os
 from operator import itemgetter
 from typing import List, Optional, Tuple
-
+from croptalk.tools import tools
 from dotenv import load_dotenv
 from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad.openai_functions import (

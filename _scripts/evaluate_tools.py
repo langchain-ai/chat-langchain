@@ -92,7 +92,6 @@ if __name__ == "__main__":
     #     "question": "What is the cost to grower under the APH policy in the african continent",
     # })
 
-
     # model.invoke({
     #      "chat_history": [],
     #      "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
