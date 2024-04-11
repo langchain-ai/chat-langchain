@@ -102,7 +102,6 @@ full_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-
 # layer to check regex for DML statements
 # todo ask : llm to provide potential questions based on the data or queries
 # provide sql statements and generate the question

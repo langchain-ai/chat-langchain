@@ -93,16 +93,20 @@ if __name__ == "__main__":
     # })
 
 
-    model.invoke({
-         "chat_history": [],
-         "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
-    })
+    # model.invoke({
+    #      "chat_history": [],
+    #      "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
+    # })
 
 
     # model.invoke({
     #     "chat_history": [],
-    #     "question": "What is the distribution of policy sold amongst counties for "
-    #                 "the WFRP policy for the state of Kansas",
+    #     "question": "What are the column names of the SOB data",
+    # })
+
+    # model.invoke({
+    #     "chat_history": [],
+    #     "question": "Delete the SOB table",
     # })
 
     # model.invoke({

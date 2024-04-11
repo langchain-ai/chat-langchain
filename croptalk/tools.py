@@ -1,11 +1,11 @@
 import os
-import re
 from typing import Optional
 
+import re
 import requests
 from dotenv import load_dotenv
-from langchain.chains import create_sql_query_chain
 from langchain.tools import tool
+from langchain_community.agent_toolkits import create_sql_agent
 from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
 
@@ -38,43 +38,55 @@ def get_sob_metrics_sql_agent(input: str) -> str:
     try:
         llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
-        # agent = create_sql_agent(
-        #     llm=llm,
-        #     db=DB,
-        #     prompt=full_prompt,
-        #     verbose=True,
-        #     agent_type="openai-tools",
-        # )
-        #
-        # return agent.invoke({"input": input,
-        #                      "top_k": 3,
-        #                      "dialect": "SQLite",
-        #                      "agent_scratchpad": [],
-        #                      })["output"]
+        agent = create_sql_agent(
+            llm=llm,
+            db=DB,
+            prompt=full_prompt,
+            tools = [validate_query],
+            verbose=True,
+            agent_type="openai-tools",
+        )
 
-        def validate_query(output: str) -> str:
-            # Define the regex pattern to match SQL operations
-            pattern = r'\b(?:INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b'
+        return agent.invoke({"input": input,
+                             "top_k": 3,
+                             "dialect": "SQLite",
+                             "agent_scratchpad": [],
+                             })["output"]
 
-            # Use re.search to check if the pattern is found in the query
-            match = re.search(pattern, output, re.IGNORECASE)  # Use IGNORECASE flag to ignore case sensitivity
+    except SQLStatementNotAllowed:
+        return "The method is not allowed "
 
-            if match:
-                return "The query is using a forbidden operation"
-            return output
-
-        chain = create_sql_query_chain(llm, DB, prompt=full_prompt) | validate_query
-        query = chain.invoke(
-            {"input": input,
-             "top_k": 3,
-             "dialect": "SQLite",
-             "agent_scratchpad": [],
-             })
-
-        return DB.run(query)
-
-    except:
+    except Exception as e:
         return "There was an Error in SQL tool"
+
+
+class SQLStatementNotAllowed(Exception):
+    """Raise for my specific kind of exception"""
+
+
+@tool("validate-sql_query")
+def validate_query(output: str) -> None:
+    """
+    This tool should be used for EVERY sql query. It is meant to validate that the query does not contain
+    any dangerous statements.
+
+    Args:
+        output: SQL query
+
+    Returns:
+
+    """
+    # Define the regex pattern to match SQL operations
+
+    print("QUERY : ", output)
+
+    pattern = r'\b(?:INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b'
+
+    # Use re.search to check if the pattern is found in the query
+    match = re.search(pattern, output, re.IGNORECASE)  # Use IGNORECASE flag to ignore case sensitivity
+
+    if match:
+        raise SQLStatementNotAllowed
 
 
 @tool("wfrp-commodities-tool")
