@@ -32,13 +32,6 @@ def evaluate_output(df):
 
 def get_actual_results(langchain_tracer: LangChainTracer, name: str) -> Tuple[Dict, Dict]:
 
-    print("INPUT RESULT")
-    print(get_nodes(
-        root_node=langchain_tracer.latest_run,
-        node_name=name,
-    ))
-
-
     input_result = get_nodes(
         root_node=langchain_tracer.latest_run,
         node_name=name,

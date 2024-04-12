@@ -59,6 +59,7 @@ def get_sp_document(state: Optional[str] = None,
         # use chain to retrieve correct commodity info
         # we use a chain in this case because commodity is not easily retrieved by the agent in the correct format
         commodity = difflib.get_close_matches(commodity, COMMODITY_LIST, cutoff=0.1)[0]
+        county = county.lower().replace("county", "")
 
         # Define your database connection URL
         db_url = os.environ["POSTGRES_URI"]
