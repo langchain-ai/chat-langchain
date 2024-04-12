@@ -11,20 +11,15 @@ of the sentence or paragraph that reference them - do not put them all at the en
 different results refer to different entities within the same name, write separate \
 answers for each entity.
 
-<context_docs>
+<context>
     {context_retriever} 
-<context_docs/>
-
-<context_tools>
-    {context_tools} 
-<context_tools/>
+<context/>
 
 REMEMBER: If there is no relevant information within the context, just say "I'm \
-not sure." and request additional information. If the context_tools specifies to verify or provide information and that 
-there are no relevant information in the context_docs, relay the context_tools message.
+not sure." and request additional information.
 
-SPECIFY what information you need to be able to answer the question. Don't try to make up an answer. Anything between the preceding 'context_doc' \
-of 'context_tools' html blocks is retrieved from a knowledge bank, not part of the conversation with the \
+SPECIFY what information you need to be able to answer the question. Don't try to make up an answer. Anything between Ù
+the preceding 'context' html blocks is retrieved from a knowledge bank, not part of the conversation with the \
 user.  Put citations where they apply rather than putting them all at the end.\
 
 """
@@ -43,7 +38,6 @@ Chat History:
 Follow Up Input: {question}
 
 Standalone Question:"""
-
 
 COMMODITY_TEMPLATE = """\
 Given the following question, identify whether is it matches to any of the following commodities. 
@@ -95,3 +89,14 @@ Commodities: \
 ['Wheat', 'Pecans', 'Cotton', 'Peaches', 'Corn', 'Peanuts', 'Whole Farm Revenue Protection', 'Soybeans', 'Pasture,Rangeland,Forage', 'Sesame', 'Controlled Environment', 'Apiculture', 'Hemp', 'Micro Farm', 'Blueberries', 'Oats', 'Fresh Market Sweet Corn', 'Grain Sorghum', 'Potatoes', 'Oysters', 'Triticale', 'Cucumbers', 'Canola', 'Popcorn', 'Fresh Market Tomatoes', 'Feeder Cattle', 'Fed Cattle', 'Cattle', 'Weaned Calves', 'Swine', 'Milk', 'Dairy Cattle', 'Forage Production', 'Dry Peas', 'Barley', 'Cabbage', 'Onions', 'Cotton Ex Long Staple', 'Chile Peppers', 'Dry Beans', 'Apples', 'Pistachios', 'Grapefruit', 'Lemons', 'Tangelos', 'Oranges', 'Mandarins/Tangerines', 'Rice', 'Hybrid Seed Rice', 'Grapes', 'Forage Seeding', 'Walnuts', 'Almonds', 'Prunes', 'Safflower', 'Cherries', 'Processing Cling Peaches', 'Kiwifruit', 'Olives', 'Tomatoes', 'Fresh Apricots', 'Processing Apricots', 'Pears', 'Raisins', 'Table Grapes', 'Figs', 'Plums', 'Alfalfa Seed', 'Strawberries', 'Tangelo Trees', 'Orange Trees', 'Grapefruit Trees', 'Lemon Trees', 'Fresh Nectarines', 'Processing Freestone', 'Fresh Freestone Peaches', 'Mandarin/Tangerine Trees', 'Pomegranates', 'Sugar Beets', 'Grapevine', 'Cultivated Wild Rice', 'Mint', 'Avocados', 'Caneberries', 'Millet', 'Sunflowers', 'Annual Forage', 'Nursery (NVS)', 'Silage Sorghum', 'Hybrid Sweet Corn Seed', 'Cigar Binder Tobacco', 'Cigar Wrapper Tobacco', 'Sweet Corn', 'Processing Beans', 'Green Peas', 'Flue Cured Tobacco', 'Tangors', 'Peppers', 'Sugarcane', 'Macadamia Nuts', 'Macadamia Trees', 'Banana', 'Coffee', 'Papaya', 'Banana Tree', 'Coffee Tree', 'Papaya Tree', 'Hybrid Popcorn Seed', 'Mustard', 'Grass Seed', 'Flax', 'Hybrid Corn Seed', 'Pumpkins', 'Burley Tobacco', 'Hybrid Sorghum Seed', 'Camelina', 'Dark Air Tobacco', 'Fire Cured Tobacco', 'Sweet Potatoes', 'Maryland Tobacco', 'Cranberries', 'Clams', 'Buckwheat', 'Rye', 'Fresh Market Beans', 'Clary Sage', 'Hybrid Vegetable Seed', 'Cigar Filler Tobacco', 'Tangerine Trees', 'Lime Trees']
 Words: {question}
 commodity: """
+
+ROUTE_TEMPLATE = """ \
+Given the user question below, classify it as either being about `document_retrieval` or other`.
+
+Do not respond with more than word.
+
+<question>
+{question}
+</question>
+
+Classification:"""

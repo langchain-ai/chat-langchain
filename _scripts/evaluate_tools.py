@@ -31,6 +31,14 @@ def evaluate_output(df):
 
 
 def get_actual_results(langchain_tracer: LangChainTracer, name: str) -> Tuple[Dict, Dict]:
+
+    print("INPUT RESULT")
+    print(get_nodes(
+        root_node=langchain_tracer.latest_run,
+        node_name=name,
+    ))
+
+
     input_result = get_nodes(
         root_node=langchain_tracer.latest_run,
         node_name=name,
@@ -86,3 +94,30 @@ if __name__ == "__main__":
     # saving to csv
     suffix = "model_llm" if args.use_model_llm else "model_openai_functions"
     eval_df.to_csv(f"_scripts/evaluation_{suffix}.csv")
+
+    # args = parse_args()
+    # if args.use_model_llm:
+    #     from croptalk.model_llm import model
+    # else:
+    #     from croptalk.model_openai_functions import model
+    #
+    # with tracing_v2_enabled() as langchain_tracer:
+    #     # model.invoke({
+    #     #     "chat_history": [],
+    #     #     "question": "find me the SP document for Whole Farm in yakima county washington for 2024"
+    #     # })
+    #
+    #     # model.invoke({
+    #     #     "chat_history": [],
+    #     #     "question": "find me the SP document for Whole Farm Revenue in yakima county washington"
+    #     # })
+    #
+    #     # model.invoke({
+    #     #     "chat_history": [],
+    #     #     "question": "SP document for Corn, in Butte County, California"
+    #     # })
+    #
+    #     model.invoke({
+    #         "chat_history": [],
+    #         "question": "SP document apples in yakima county in washington"
+    #     })
