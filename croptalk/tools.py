@@ -94,13 +94,12 @@ def get_sp_document(state: Optional[str] = None,
 
         doc_link = s3_keys["s3_key"].values[0]
 
-        message = (f"The SP document for "
-                   f"{commodity}, {state} and {county} county can be found at the following "
-                   f"link :  "
-                   f"https://croptalk-spoi.s3.us-east-2.amazonaws.com/SPOI/{doc_link}")
-
+        message = f"The SP document for "
         if year:
-            message = message.split("document for")[0] + f"document for year {year}," + message.split("document for")[1]
+            message += f"year {year},"
+        message += (f"{commodity}, {state} and {county} county can be found at the following "
+                    f"link : https://croptalk-spoi.s3.us-east-2.amazonaws.com/SPOI/{doc_link}")
+
         return message
 
     else:
