@@ -18,13 +18,12 @@ from langchain.vectorstores.weaviate import Weaviate
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
-
 from dotenv import load_dotenv
 load_dotenv("secrets/env.secret")
 logger = logging.getLogger(__name__)
 
-WEAVIATE_URL = os.environ["WCS_CLUSTER_URL"]
-WEAVIATE_API_KEY = os.environ["WCS_API_KEY"]
+WEAVIATE_URL = os.environ["WEAVIATE_URL"]
+WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
 
