@@ -105,14 +105,6 @@ full_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-# layer to check regex for DML statements
-# todo ask : llm to provide potential questions based on the data or queries
-# provide sql statements and generate the question
-# examples of queries which are not possible to answer
-# threshold for similarity with the example queries
-# prompt : explain how the result are retrieved (which sort of operation was done)
-# idea : use regex to validate if query is similar
-
 
 RENDERED_TOOLS = render_text_description(tools)
 TOOL_PROMPT = f"""\

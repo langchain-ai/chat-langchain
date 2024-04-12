@@ -8,13 +8,13 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/app/data  # Map the ./data directory on the host to /app/data in the container
-      - .:/app  # un-comment this line to run locally in dev mode
+      #- .:/app  # un-comment this line to run locally in dev mode
     environment:
-      #- GRAPH_URL_HOST=http://3.128.203.104:8080
-      - GRAPH_URL_HOST=http://localhost:8080  # use this line to run locally
+      - GRAPH_URL_HOST=http://3.128.203.104:8080
+      #- GRAPH_URL_HOST=http://localhost:8080  # use this line to run locally
       - DATA_FLD=data_mac
-    #entrypoint: /bin/bash -c "uvicorn main:app --host 0.0.0.0 --port 8080"
-    entrypoint: /bin/bash -c "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"  # use this line to run locally in dev mode
+    entrypoint: /bin/bash -c "uvicorn main:app --host 0.0.0.0 --port 8080"
+    #entrypoint: /bin/bash -c "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"  # use this line to run locally in dev mode
 
   frontend:
     build:
