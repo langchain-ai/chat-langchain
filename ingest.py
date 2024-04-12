@@ -18,8 +18,6 @@ from langchain.vectorstores.weaviate import Weaviate
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 
-from dotenv import load_dotenv
-load_dotenv("secrets/env.secret")
 logger = logging.getLogger(__name__)
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
