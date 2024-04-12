@@ -126,8 +126,8 @@ class OpenAIAgentModelFactory:
         """
         doc_retriever_tool = self._get_doc_retriever_tool()
         return [
-                   doc_retriever_tool,
-               ] + self.tools
+               doc_retriever_tool,
+           ] + self.tools
 
     def _get_doc_retriever_tool(self) -> StructuredTool:
         """
