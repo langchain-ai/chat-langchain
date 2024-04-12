@@ -3,7 +3,6 @@ from _operator import itemgetter
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from langchain.chat_models import ChatOpenAI
 from langchain.globals import set_debug
 from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder)
 from langchain.schema.messages import AIMessage, HumanMessage
@@ -17,9 +16,9 @@ from langchain_core.runnables import Runnable, RunnableLambda, RunnableParallel
 from pydantic.v1 import BaseModel
 
 from croptalk.document_retriever import DocumentRetriever
+from croptalk.prompt_tools import TOOL_PROMPT
 from croptalk.prompts_llm import COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE
 from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE
-from croptalk.prompt_tools import TOOL_PROMPT
 from croptalk.tools import tools
 from croptalk.utils import initialize_llm
 
@@ -89,6 +88,7 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
             | retriever_func.with_config(run_name="FindDocs")
     )
 
+
 def create_tool_chain(llm):
     def tool_pipe(model_output):
         try:
@@ -105,6 +105,7 @@ def create_tool_chain(llm):
         return output["output"]
 
     tool_prompt = PromptTemplate.from_template(TOOL_PROMPT)
+    tool_prompt = tool_prompt.format(rendered_tools=RENDERED_TOOLS)
 
     tool_chain = tool_prompt | llm | JsonOutputParser().with_config(
         run_name="ToolInput") | tool_pipe | StrOutputParser().with_config(run_name="ToolOutput")
@@ -121,6 +122,7 @@ def create_tool_chain(llm):
             {"output": tool_chain, "question": itemgetter("question")}
             | RunnableLambda(route_tool_answer)
     )
+
 
 class ChatRequest(BaseModel):
     question: str
@@ -168,7 +170,6 @@ def create_chain(
     response_synthesizer = (prompt | answer_llm | StrOutputParser()).with_config(
         run_name="GenerateResponse",
     )
-
     return (
             {
                 "question": RunnableLambda(itemgetter("question")).with_config(
@@ -181,6 +182,7 @@ def create_chain(
             | _context
             | response_synthesizer
     )
+
 
 model_name = os.getenv("MODEL_NAME")
 

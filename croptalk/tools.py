@@ -8,19 +8,16 @@ from langchain.tools import tool
 from langchain_community.agent_toolkits import create_sql_agent
 from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
-
-from croptalk.prompt_tools import full_prompt
-
-load_dotenv("secrets/.env.secret")
-postgres_uri = os.environ.get('POSTGRES_URI_READ_ONLY')
-DB = SQLDatabase.from_uri(postgres_uri)
-
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from sqlalchemy import create_engine, text
 
-from croptalk.prompts_llm import COMMODITY_TEMPLATE_TOOL
 from croptalk.utils import initialize_llm
+from croptalk.prompt_tools import full_prompt
+from croptalk.prompts_llm import COMMODITY_TEMPLATE_TOOL
+
+postgres_uri = os.environ.get('POSTGRES_URI_READ_ONLY')
+DB = SQLDatabase.from_uri(postgres_uri)
 
 load_dotenv("secrets/.env.secret")
 load_dotenv("secrets/.env.shared")

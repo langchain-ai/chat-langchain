@@ -2,7 +2,6 @@ import os
 from typing import List, Dict
 
 from dotenv import load_dotenv
-from langchain.tools.render import render_text_description
 from langchain_community.vectorstores import FAISS
 from langchain_core.example_selectors import SemanticSimilarityExampleSelector
 from langchain_core.prompts import (
@@ -13,8 +12,6 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
 )
 from langchain_openai import OpenAIEmbeddings
-
-from croptalk.tools import tools
 
 load_dotenv("secrets/.env.secret")
 
@@ -105,14 +102,10 @@ full_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-
-RENDERED_TOOLS = render_text_description(tools)
-TOOL_PROMPT = f"""\
-You are an assistant that has access to the following set of tools. 
+TOOL_PROMPT = """You are an assistant that has access to the following set of tools. 
 Here are the names and descriptions for each tool:
 
-{RENDERED_TOOLS}
-""" + """\
+{rendered_tools}
 Given the user questions, return the name and input of the tool to use. 
 Return your response as a JSON blob with 'name' and 'arguments' keys.
 
