@@ -83,8 +83,8 @@ def get_sp_document(state: Optional[str] = None,
 
         s3_keys = pd.DataFrame(rows)
         if s3_keys.empty:
-            return (f"My search results indicate that there is no SP document for the corresponding "
-                    f"commodity ({commodity}), state ({state}),and county ({county}). \b"
+            return (f"My search results indicate that there is no Special Provision (SP) document for the "
+                    f"corresponding commodity ({commodity}), state ({state}),and county ({county}). \b"
                     "Make sure you are providing available commodity, state and county.")
 
         if not year:
@@ -94,17 +94,17 @@ def get_sp_document(state: Optional[str] = None,
             years = s3_keys["year"].unique()
             s3_keys = s3_keys[s3_keys["year"] == year]
             if s3_keys.empty:
-                return ("My search results indicate that there are SP documents for the county, state and commodity "
-                        "you requested. However, there are none for this specific year. Here is the list of available"
-                        f"years for the requested SP document : {years}")
+                return ("My search results indicate that there are no Special Provision (SP) documents for the county,"
+                        " state and commodity you requested. However, there are none for this specific year. "
+                        f"Here is the list of available years for the requested SP document : {years}")
 
         doc_link = s3_keys["s3_key"].values[0]
 
-        message = f"The SP document for "
+        message = f"The Special provision (SP) document for "
         if year:
             message += f"year {year},"
         message += (f"{commodity}, {state} and {county} county can be found at the following "
-                    f"link : https://croptalk-spoi.s3.us-east-2.amazonaws.com/SPOI/{doc_link}")
+                    f"link : https://croptalk-spoi.s3.us-east-2.amazonaws.com/{doc_link}")
 
         return message
 
@@ -112,7 +112,8 @@ def get_sp_document(state: Optional[str] = None,
 
         # format message to hint user to add appropriate information
         var_names = {"state": state, "commodity_name": commodity, "county": county}
-        missing_var_msg = "Please specify the following to obtain the specific SP document you are requesting : "
+        missing_var_msg = ("Please specify the following to obtain the specific Special Provision (SP) document "
+                           "you are requesting : ")
         missing_var_list = [i for i, j in var_names.items() if j is None]
 
         # depending on list length, format message differently
