@@ -14,7 +14,7 @@ def parse_args() -> argparse.Namespace:
         action='store_true',
     )
     parser.add_argument(
-        "--eval_path",
+        "eval_path",
         help="CSV file path that contains evaluation use cases",
     )
     return parser.parse_args()
