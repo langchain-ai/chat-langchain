@@ -3,7 +3,6 @@ from _operator import itemgetter
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from langchain.chat_models import ChatOpenAI
 from langchain.globals import set_debug
 from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder)
 from langchain.schema.messages import AIMessage, HumanMessage
@@ -17,9 +16,9 @@ from langchain_core.runnables import Runnable, RunnableLambda, RunnableParallel
 from pydantic.v1 import BaseModel
 
 from croptalk.document_retriever import DocumentRetriever
-from croptalk.prompts_llm import COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE
-from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE
 from croptalk.prompt_tools import TOOL_PROMPT
+from croptalk.prompts_llm import COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE, \
+    RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, ROUTE_TEMPLATE
 from croptalk.tools import tools
 from croptalk.utils import initialize_llm
 
@@ -89,6 +88,7 @@ def create_retriever_chain(llm: BaseLanguageModel, document_retriever: DocumentR
             | retriever_func.with_config(run_name="FindDocs")
     )
 
+
 def create_tool_chain(llm):
     def tool_pipe(model_output):
         try:
@@ -122,6 +122,7 @@ def create_tool_chain(llm):
             | RunnableLambda(route_tool_answer)
     )
 
+
 class ChatRequest(BaseModel):
     question: str
     chat_history: Optional[List[Dict[str, str]]]
@@ -144,13 +145,26 @@ def create_chain(
         answer_llm: BaseLanguageModel,
         document_retriever: DocumentRetriever,
 ) -> Runnable:
-    retriever_chain = create_retriever_chain(basic_llm, document_retriever)
+    augmented_retrieval_chain = create_retriever_chain(basic_llm, document_retriever)
     tool_chain = create_tool_chain(basic_llm)
+
+    chain = (
+            PromptTemplate.from_template(ROUTE_TEMPLATE) | answer_llm | StrOutputParser()
+    )
+
+    def route(info):
+        if "tools" in info["topic"].lower():
+            return tool_chain
+        else:
+            return augmented_retrieval_chain
+
+    route_tool_chain = {"topic": chain, "question": lambda x: x["question"]} | RunnableLambda(
+        route
+    )
 
     _context = RunnableMap(
         {
-            "context_retriever": retriever_chain,
-            "context_tools": tool_chain,
+            "context_retriever": route_tool_chain,
             "question": itemgetter("question"),
             "chat_history": itemgetter("chat_history"),
 
@@ -180,6 +194,7 @@ def create_chain(
             | _context
             | response_synthesizer
     )
+
 
 model_name = os.getenv("MODEL_NAME")
 

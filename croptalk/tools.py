@@ -1,22 +1,41 @@
 # from croptalk.load_data import SOB
+import difflib
 import os
 from typing import Optional
 
+import pandas as pd
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import PromptTemplate
 from sqlalchemy import create_engine, text
-
-from croptalk.prompts_llm import COMMODITY_TEMPLATE_TOOL
-from croptalk.utils import initialize_llm
 
 load_dotenv("secrets/.env.secret")
 load_dotenv("secrets/.env.shared")
 
+COMMODITY_LIST = ['Wheat', 'Pecans', 'Cotton', 'Peaches', 'Corn', 'Peanuts', 'Whole Farm Revenue Protection',
+                  'Soybeans', 'Pasture,Rangeland,Forage', 'Sesame', 'Controlled Environment', 'Apiculture', 'Hemp',
+                  'Micro Farm', 'Blueberries', 'Oats', 'Fresh Market Sweet Corn', 'Grain Sorghum', 'Potatoes',
+                  'Oysters', 'Triticale', 'Cucumbers', 'Canola', 'Popcorn', 'Fresh Market Tomatoes', 'Feeder Cattle',
+                  'Fed Cattle', 'Cattle', 'Weaned Calves', 'Swine', 'Milk', 'Dairy Cattle', 'Forage Production',
+                  'Dry Peas', 'Barley', 'Cabbage', 'Onions', 'Cotton Ex Long Staple', 'Chile Peppers', 'Dry Beans',
+                  'Apples', 'Pistachios', 'Grapefruit', 'Lemons', 'Tangelos', 'Oranges', 'Mandarins/Tangerines', 'Rice',
+                  'Hybrid Seed Rice', 'Grapes', 'Forage Seeding', 'Walnuts', 'Almonds', 'Prunes', 'Safflower',
+                  'Cherries', 'Processing Cling Peaches', 'Kiwifruit', 'Olives', 'Tomatoes', 'Fresh Apricots',
+                  'Processing Apricots', 'Pears', 'Raisins', 'Table Grapes', 'Figs', 'Plums', 'Alfalfa Seed',
+                  'Strawberries', 'Tangelo Trees', 'Orange Trees', 'Grapefruit Trees', 'Lemon Trees',
+                  'Fresh Nectarines', 'Processing Freestone', 'Fresh Freestone Peaches', 'Mandarin/Tangerine Trees',
+                  'Pomegranates', 'Sugar Beets', 'Grapevine', 'Cultivated Wild Rice', 'Mint', 'Avocados', 'Caneberries',
+                  'Millet', 'Sunflowers', 'Annual Forage', 'Nursery (NVS)', 'Silage Sorghum', 'Hybrid Sweet Corn Seed',
+                  'Cigar Binder Tobacco', 'Cigar Wrapper Tobacco', 'Sweet Corn', 'Processing Beans', 'Green Peas',
+                  'Flue Cured Tobacco', 'Tangors', 'Peppers', 'Sugarcane', 'Macadamia Nuts', 'Macadamia Trees',
+                  'Banana', 'Coffee', 'Papaya', 'Banana Tree', 'Coffee Tree', 'Papaya Tree', 'Hybrid Popcorn Seed',
+                  'Mustard', 'Grass Seed', 'Flax', 'Hybrid Corn Seed', 'Pumpkins', 'Burley Tobacco',
+                  'Hybrid Sorghum Seed', 'Camelina', 'Dark Air Tobacco', 'Fire Cured Tobacco', 'Sweet Potatoes',
+                  'Maryland Tobacco', 'Cranberries', 'Clams', 'Buckwheat', 'Rye', 'Fresh Market Beans', 'Clary Sage',
+                  'Hybrid Vegetable Seed', 'Cigar Filler Tobacco', 'Tangerine Trees', 'Lime Trees']
 
-@tool("get_SP_doc")
+
+@tool("get-SP-doc")
 def get_sp_document(state: Optional[str] = None,
                     county: Optional[str] = None,
                     commodity: Optional[str] = None,
@@ -36,13 +55,11 @@ def get_sp_document(state: Optional[str] = None,
     Returns: str
     """
 
-    if all([state, county, commodity, year]):
+    if all([state, county, commodity]):
         # use chain to retrieve correct commodity info
         # we use a chain in this case because commodity is not easily retrieved by the agent in the correct format
-        llm = initialize_llm(os.environ["MODEL_NAME"])
-        commodity_prompt = PromptTemplate.from_template(COMMODITY_TEMPLATE_TOOL)
-        commodity_chain = commodity_prompt | llm | StrOutputParser()
-        commodity = commodity_chain.invoke({'question': commodity})
+        commodity = difflib.get_close_matches(commodity, COMMODITY_LIST, cutoff=0.1)[0]
+        county = county.lower().replace("county", "")
 
         # Define your database connection URL
         db_url = os.environ["POSTGRES_URI"]
@@ -52,29 +69,49 @@ def get_sp_document(state: Optional[str] = None,
 
         # Define your SQL query
         sql_query = f"""
-        SELECT s3_key 
-        FROM sp_files
-        WHERE year = {year} AND 
-        commodity_name = '{commodity.lower()}' AND
-        state_name = '{state.lower()}' AND 
-        county_name = '{county.lower()}'
-        """
+           SELECT s3_key, year
+           FROM sp_files
+           WHERE commodity_name = '{commodity.lower()}' AND
+           state_name = '{state.lower()}' AND 
+           county_name = '{county.lower()}'
+           """
 
         # Execute the SQL query
         with engine.connect() as connection:
             result = connection.execute(text(sql_query))
             rows = result.fetchall()
 
-        if not rows:
-            return (f"My search results indicate that there is no SP document for the corresponding year ({year}), "
+        s3_keys = pd.DataFrame(rows)
+        if s3_keys.empty:
+            return (f"My search results indicate that there is no SP document for the corresponding "
                     f"commodity ({commodity}), state ({state}),and county ({county}). \b"
-                    "Make sure you are providing available year, commodity, state and county.")
-        return (f"Here is the link to the SP document you're looking for : "
-                f"https://croptalk-spoi.s3.us-east-2.amazonaws.com/SPOI/{rows[0][0]}")
+                    "Make sure you are providing available commodity, state and county.")
+
+        if not year:
+            # take document in latest year
+            s3_keys = s3_keys[s3_keys["year"] == s3_keys["year"].max()]
+        else:
+            years = s3_keys["year"].unique()
+            s3_keys = s3_keys[s3_keys["year"] == year]
+            if s3_keys.empty:
+                return ("My search results indicate that there are SP documents for the county, state and commodity "
+                        "you requested. However, there are none for this specific year. Here is the list of available"
+                        f"years for the requested SP document : {years}")
+
+        doc_link = s3_keys["s3_key"].values[0]
+
+        message = f"The SP document for "
+        if year:
+            message += f"year {year},"
+        message += (f"{commodity}, {state} and {county} county can be found at the following "
+                    f"link : https://croptalk-spoi.s3.us-east-2.amazonaws.com/SPOI/{doc_link}")
+
+        return message
 
     else:
+
         # format message to hint user to add appropriate information
-        var_names = {"state": state, "commodity_name": commodity, "year": year, "county": county}
+        var_names = {"state": state, "commodity_name": commodity, "county": county}
         missing_var_msg = "Please specify the following to obtain the specific SP document you are requesting : "
         missing_var_list = [i for i, j in var_names.items() if j is None]
 
@@ -90,8 +127,11 @@ def get_sp_document(state: Optional[str] = None,
 @tool("wfrp-commodities-tool")
 def get_wfrp_commodities(reinsurance_yr: str, state_code: str, county_code: str) -> Optional[str]:
     """
-    This tool is used to find commodities associated with the Whole Farm Revenue Protection (WFRP) insurance program
-     for a given reinsurance year, state code and county code.
+    This tool's sole purpose is to find commodities associated with the Whole Farm Revenue Protection (WFRP) insurance
+    program for a given reinsurance year, state code and county code. This tool answers questions such as : What are
+    the available commodities for a specific county and state?
+
+    It is NOT related to SP documents.
 
     To use this tool, you must provide all three arguments [reinsurance_yr, state_code and county_code]
 
