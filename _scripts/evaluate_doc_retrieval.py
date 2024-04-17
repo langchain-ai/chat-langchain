@@ -63,7 +63,7 @@ def ingest_use_cases(eval_path: str) -> pd.DataFrame:
 
 
 def find_last_finddocs_node(
-        langchain_tracer: LangChainTracer, output_df: pd.DataFrame, eval_use_case: NamedTuple,
+    langchain_tracer: LangChainTracer, output_df: pd.DataFrame, eval_use_case: NamedTuple,
 ) -> Run:
     # retrieve all FindDocs nodes
     finddocs_nodes = get_nodes(
@@ -124,23 +124,16 @@ def run_use_case(model: Runnable, eval_use_case: NamedTuple, output_df: pd.DataF
             if "commodity" in inputs_dict:
                 output_df.loc[output_df.index == eval_use_case.Index, "commodity_filter_actual"] = inputs_dict["commodity"]
             if "doc_category" in inputs_dict:
-                output_df.loc[output_df.index == eval_use_case.Index, "doc_category_filter_actual"] = inputs_dict[
-                    "doc_category"]
+                output_df.loc[output_df.index == eval_use_case.Index, "doc_category_filter_actual"] = inputs_dict["doc_category"]
             if len(outputs_list) >= 1:
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_actual"] = extract_s3_key(
-                    outputs_list[0])
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_page_actual"] = extract_page_id(
-                    outputs_list[0])
+                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_actual"] = extract_s3_key(outputs_list[0])
+                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_page_actual"] = extract_page_id(outputs_list[0])
             if len(outputs_list) >= 2:
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc2_actual"] = extract_s3_key(
-                    outputs_list[1])
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc2_page_actual"] = extract_page_id(
-                    outputs_list[1])
+                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc2_actual"] = extract_s3_key(outputs_list[1])
+                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc2_page_actual"] = extract_page_id(outputs_list[1])
             if len(outputs_list) >= 3:
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc3_actual"] = extract_s3_key(
-                    outputs_list[2])
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc3_page_actual"] = extract_page_id(
-                    outputs_list[2])
+                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc3_actual"] = extract_s3_key(outputs_list[2])
+                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc3_page_actual"] = extract_page_id(outputs_list[2])
 
 
 def evaluate_use_case(output_df: pd.DataFrame) -> None:
@@ -197,9 +190,9 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
                 lambda row: (
                     not row[expected_page_expanded_col]
                     or (
-                            row[actual_page_col] is not None
-                            and
-                            int(row[actual_page_col]) in row[expected_page_expanded_col]
+                        row[actual_page_col] is not None
+                        and
+                        int(row[actual_page_col]) in row[expected_page_expanded_col]
                     )
                 ),
                 axis=1,
