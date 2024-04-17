@@ -91,7 +91,13 @@ Words: {question}
 commodity: """
 
 ROUTE_TEMPLATE = """ \
-Given the user question below, classify it as either being about `document_retrieval` or other`.
+Act as a classifier with the task of distinguishing between two topics from a question: `tools` or `other`.
+`tools` is defined as any question related to SP documents. Example questions of the 
+`tools` topic include (but is not limited to) the following examples :
+
+- find me the SP document related to Oranges in Yakima, Washington for the year 2024
+- SP document for corn in Butte, California, 2022
+- get me the SP document for corn in Iowa for Pottawattamie county
 
 Do not respond with more than word.
 

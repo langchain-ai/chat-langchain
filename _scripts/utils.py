@@ -1,4 +1,6 @@
 import argparse
+import os
+from datetime import datetime
 from typing import List
 
 from langchain_core.tracers import Run
@@ -33,13 +35,17 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--test-with_csv",
-        help="Option which, when specified, uses the evaluation csv to evaluate the model",
+        "--eval_path",
+        help="CSV file path that contains evaluation use cases",
+        default=None,
         action='store_true',
     )
-
-    parser.add_argument(
-        "eval_path",
-        help="CSV file path that contains evaluation use cases",
-    )
     return parser.parse_args()
+
+
+def get_output_path(eval_path: str, use_model_llm: bool) -> str:
+    now_string = datetime.now().isoformat().replace(":", "")
+    output_root, output_ext = os.path.splitext(eval_path)
+    output_root += "__model_llm" if use_model_llm else "__model_openai_functions"
+    output_root += f"__{now_string}"
+    return output_root + output_ext

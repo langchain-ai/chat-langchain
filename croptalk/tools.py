@@ -85,7 +85,7 @@ def get_sp_document(state: Optional[str] = None,
         if s3_keys.empty:
             return (f"My search results indicate that there is no SP document for the corresponding "
                     f"commodity ({commodity}), state ({state}),and county ({county}). \b"
-                    "Make sure you are providing available year, commodity, state and county.")
+                    "Make sure you are providing available commodity, state and county.")
 
         if not year:
             # take document in latest year

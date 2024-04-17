@@ -1,8 +1,5 @@
-import argparse
-from datetime import datetime
 import logging
 import math
-import os
 from typing import List, NamedTuple, Union
 
 import json
@@ -10,7 +7,7 @@ from langchain_core.tracers.context import tracing_v2_enabled
 from langchain_core.tracers.langchain import LangChainTracer
 from langchain_core.tracers.schemas import Run
 from langchain.schema.runnable import Runnable
-from _scripts.utils import parse_args, get_nodes
+from _scripts.utils import parse_args, get_nodes, get_output_path
 import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
@@ -265,14 +262,6 @@ def get_output_df(eval_df: pd.DataFrame) -> pd.DataFrame:
     cols_to_add.append("nb_of_FindDocs_nodes_actual")
     output_df[cols_to_add] = None
     return output_df
-
-
-def get_output_path(eval_path: str, use_model_llm: bool) -> str:
-    now_string = datetime.now().isoformat().replace(":", "")
-    output_root, output_ext = os.path.splitext(eval_path)
-    output_root += "__model_llm" if use_model_llm else "__model_openai_functions"
-    output_root += f"__{now_string}"
-    return output_root + output_ext
 
 
 if __name__ == "__main__":

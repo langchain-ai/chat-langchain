@@ -145,7 +145,7 @@ def create_chain(
         answer_llm: BaseLanguageModel,
         document_retriever: DocumentRetriever,
 ) -> Runnable:
-    retriever_chain = create_retriever_chain(basic_llm, document_retriever)
+    augmented_retrieval_chain = create_retriever_chain(basic_llm, document_retriever)
     tool_chain = create_tool_chain(basic_llm)
 
     chain = (
@@ -153,10 +153,10 @@ def create_chain(
     )
 
     def route(info):
-        if "document_retrieval" in info["topic"].lower():
+        if "tools" in info["topic"].lower():
             return tool_chain
         else:
-            return retriever_chain
+            return augmented_retrieval_chain
 
     route_tool_chain = {"topic": chain, "question": lambda x: x["question"]} | RunnableLambda(
         route
