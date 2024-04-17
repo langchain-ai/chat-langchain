@@ -6,7 +6,7 @@ import pandas as pd
 from langchain_core.tracers.context import tracing_v2_enabled
 from langchain_core.tracers.langchain import LangChainTracer
 
-from _scripts.utils import get_nodes, parse_args, get_output_path
+from _scripts.utils import get_nodes, get_output_path, parse_args
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     else:
         from croptalk.model_openai_functions import model
 
-    if args.eval_path:
+    if args.eval_path != "None":
         # getting eval df
         eval_df = pd.read_csv(args.eval_path, sep=";")
 

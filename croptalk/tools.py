@@ -91,7 +91,12 @@ def get_sp_document(state: Optional[str] = None,
             # take document in latest year
             s3_keys = s3_keys[s3_keys["year"] == s3_keys["year"].max()]
         else:
+            years = s3_keys["year"].unique()
             s3_keys = s3_keys[s3_keys["year"] == year]
+            if s3_keys.empty:
+                return ("My search results indicate that there are SP documents for the county, state and commodity "
+                        "you requested. However, there are none for this specific year. Here is the list of available"
+                        f"years for the requested SP document : {years}")
 
         doc_link = s3_keys["s3_key"].values[0]
 

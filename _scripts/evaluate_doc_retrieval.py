@@ -1,13 +1,14 @@
 import logging
 import math
 from typing import List, NamedTuple, Union
+import argparse
 
 import json
 from langchain_core.tracers.context import tracing_v2_enabled
 from langchain_core.tracers.langchain import LangChainTracer
 from langchain_core.tracers.schemas import Run
 from langchain.schema.runnable import Runnable
-from _scripts.utils import parse_args, get_nodes, get_output_path
+from _scripts.utils import get_output_path, get_nodes, parse_args
 import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
@@ -48,10 +49,12 @@ def ingest_use_cases(eval_path: str) -> pd.DataFrame:
                     )
                 )
         return pages_out
+
     def _add_page_expanded_col(expected_doc_id: int) -> None:
         expected_page_col = f"retrieved_doc{expected_doc_id}_page_expected"
         expected_page_expanded_col = f"retrieved_doc{expected_doc_id}_page_expected_expanded"
         eval_df[expected_page_expanded_col] = eval_df[expected_page_col].apply(_expand_pages)
+
     _add_page_expanded_col(1)
     _add_page_expanded_col(2)
     _add_page_expanded_col(3)
@@ -60,7 +63,7 @@ def ingest_use_cases(eval_path: str) -> pd.DataFrame:
 
 
 def find_last_finddocs_node(
-    langchain_tracer: LangChainTracer, output_df: pd.DataFrame, eval_use_case: NamedTuple,
+        langchain_tracer: LangChainTracer, output_df: pd.DataFrame, eval_use_case: NamedTuple,
 ) -> Run:
     # retrieve all FindDocs nodes
     finddocs_nodes = get_nodes(
@@ -82,55 +85,62 @@ def find_last_finddocs_node(
 
 
 def run_use_case(model: Runnable, eval_use_case: NamedTuple, output_df: pd.DataFrame) -> None:
-        logger.info(f"Running model on use case {eval_use_case}")
+    logger.info(f"Running model on use case {eval_use_case}")
 
-        # run model on use case query
-        with tracing_v2_enabled() as langchain_tracer:
-            model.invoke({
-                "chat_history": [],
-                "question": eval_use_case.query,
-            })
+    # run model on use case query
+    with tracing_v2_enabled() as langchain_tracer:
+        model.invoke({
+            "chat_history": [],
+            "question": eval_use_case.query,
+        })
 
-        # retrieve last FindDocs node
-        last_node = find_last_finddocs_node(langchain_tracer, output_df, eval_use_case)
+    # retrieve last FindDocs node
+    last_node = find_last_finddocs_node(langchain_tracer, output_df, eval_use_case)
 
-        if last_node:
-            # extract inputs from last FindDocs node
-            inputs_dict = (
-                last_node.inputs if args.use_model_llm
-                else json.loads(last_node.inputs["input"].replace("'", '"'))
-            )
-            inputs_dict = {
-                k: None if isinstance(v, str) and v.lower() == 'none' else v
-                for k, v in inputs_dict.items()
-            }
-            # extract outputs from last FindDocs node
-            outputs_list = last_node.outputs["output"]
-            if not args.use_model_llm:
-                # make string valid for json to load as list of strings/documents
-                outputs_list = outputs_list.replace('"', "'")
-                outputs_list = outputs_list.replace("'<doc ", '"<doc ')
-                outputs_list = outputs_list.replace("</doc>'", '</doc>"')
-                outputs_list = outputs_list.replace("\\'", "'")
-                outputs_list = json.loads(outputs_list)
-            # fill *_actual columns in output_df with last FindDocs node
-            if "state" in inputs_dict:
-                output_df.loc[output_df.index == eval_use_case.Index, "state_filter_actual"] = inputs_dict["state"]
-            if "county" in inputs_dict:
-                output_df.loc[output_df.index == eval_use_case.Index, "county_filter_actual"] = inputs_dict["county"]
-            if "commodity" in inputs_dict:
-                output_df.loc[output_df.index == eval_use_case.Index, "commodity_filter_actual"] = inputs_dict["commodity"]
-            if "doc_category" in inputs_dict:
-                output_df.loc[output_df.index == eval_use_case.Index, "doc_category_filter_actual"] = inputs_dict["doc_category"]
-            if len(outputs_list) >= 1:
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_actual"] = extract_s3_key(outputs_list[0])
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_page_actual"] = extract_page_id(outputs_list[0])
-            if len(outputs_list) >= 2:
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc2_actual"] = extract_s3_key(outputs_list[1])
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc2_page_actual"] = extract_page_id(outputs_list[1])
-            if len(outputs_list) >= 3:
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc3_actual"] = extract_s3_key(outputs_list[2])
-                output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc3_page_actual"] = extract_page_id(outputs_list[2])
+    if last_node:
+        # extract inputs from last FindDocs node
+        inputs_dict = (
+            last_node.inputs if args.use_model_llm
+            else json.loads(last_node.inputs["input"].replace("'", '"'))
+        )
+        inputs_dict = {
+            k: None if isinstance(v, str) and v.lower() == 'none' else v
+            for k, v in inputs_dict.items()
+        }
+        # extract outputs from last FindDocs node
+        outputs_list = last_node.outputs["output"]
+        if not args.use_model_llm:
+            # make string valid for json to load as list of strings/documents
+            outputs_list = outputs_list.replace('"', "'")
+            outputs_list = outputs_list.replace("'<doc ", '"<doc ')
+            outputs_list = outputs_list.replace("</doc>'", '</doc>"')
+            outputs_list = outputs_list.replace("\\'", "'")
+            outputs_list = json.loads(outputs_list)
+        # fill *_actual columns in output_df with last FindDocs node
+        if "state" in inputs_dict:
+            output_df.loc[output_df.index == eval_use_case.Index, "state_filter_actual"] = inputs_dict["state"]
+        if "county" in inputs_dict:
+            output_df.loc[output_df.index == eval_use_case.Index, "county_filter_actual"] = inputs_dict["county"]
+        if "commodity" in inputs_dict:
+            output_df.loc[output_df.index == eval_use_case.Index, "commodity_filter_actual"] = inputs_dict["commodity"]
+        if "doc_category" in inputs_dict:
+            output_df.loc[output_df.index == eval_use_case.Index, "doc_category_filter_actual"] = inputs_dict[
+                "doc_category"]
+        if len(outputs_list) >= 1:
+            output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_actual"] = extract_s3_key(
+                outputs_list[0])
+            output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc1_page_actual"] = extract_page_id(
+                outputs_list[0])
+        if len(outputs_list) >= 2:
+            output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc2_actual"] = extract_s3_key(
+                outputs_list[1])
+            output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc2_page_actual"] = extract_page_id(
+                outputs_list[1])
+        if len(outputs_list) >= 3:
+            output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc3_actual"] = extract_s3_key(
+                outputs_list[2])
+            output_df.loc[output_df.index == eval_use_case.Index, "retrieved_doc3_page_actual"] = extract_page_id(
+                outputs_list[2])
 
 
 def evaluate_use_case(output_df: pd.DataFrame) -> None:
@@ -138,17 +148,19 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
     def _get_filter_match(col_filter_actual: str, col_filter_expected: str) -> pd.Series:
         # case insensitive check between each actual and expected filter
         mask_both_na = (
-            output_df[col_filter_actual].isna()
-            & output_df[col_filter_expected].isna()
+                output_df[col_filter_actual].isna()
+                & output_df[col_filter_expected].isna()
         )
         mask_both_equal = (
-            output_df[col_filter_actual].str.lower() == output_df[col_filter_expected].str.lower()
+                output_df[col_filter_actual].str.lower() == output_df[col_filter_expected].str.lower()
         )
         return mask_both_na | mask_both_equal
+
     output_df["state_filter_match"] = _get_filter_match("state_filter_actual", "state_filter_expected")
     output_df["county_filter_match"] = _get_filter_match("county_filter_actual", "county_filter_expected")
     output_df["commodity_filter_match"] = _get_filter_match("commodity_filter_actual", "commodity_filter_expected")
-    output_df["doc_category_filter_match"] = _get_filter_match("doc_category_filter_actual", "doc_category_filter_expected")
+    output_df["doc_category_filter_match"] = _get_filter_match("doc_category_filter_actual",
+                                                               "doc_category_filter_expected")
 
     # evaluate use case, retrieved documents-wise
     def _get_expected_doc_match(retrieved_doc_expected_col: str) -> pd.Series:
@@ -157,14 +169,15 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
         # or
         # - equal to any of the actual retrieved documents (case sensitive)
         return (
-            (output_df[retrieved_doc_expected_col].isna())
-            |
-            (output_df[retrieved_doc_expected_col] == output_df["retrieved_doc1_actual"])
-            |
-            (output_df[retrieved_doc_expected_col] == output_df["retrieved_doc2_actual"])
-            |
-            (output_df[retrieved_doc_expected_col] == output_df["retrieved_doc3_actual"])
+                (output_df[retrieved_doc_expected_col].isna())
+                |
+                (output_df[retrieved_doc_expected_col] == output_df["retrieved_doc1_actual"])
+                |
+                (output_df[retrieved_doc_expected_col] == output_df["retrieved_doc2_actual"])
+                |
+                (output_df[retrieved_doc_expected_col] == output_df["retrieved_doc3_actual"])
         )
+
     output_df["retrieved_doc1_match"] = _get_expected_doc_match("retrieved_doc1_expected")
     output_df["retrieved_doc2_match"] = _get_expected_doc_match("retrieved_doc2_expected")
     output_df["retrieved_doc3_match"] = _get_expected_doc_match("retrieved_doc3_expected")
@@ -178,41 +191,43 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
 
         no_expected_doc_mask = output_df[expected_doc_col].isna()
         matching_doc_mask = (
-            output_df[actual_doc_col] == output_df[expected_doc_col]
+                output_df[actual_doc_col] == output_df[expected_doc_col]
         )
         matching_page_mask = (
             output_df.apply(
                 lambda row: (
-                    not row[expected_page_expanded_col]
-                    or (
-                        row[actual_page_col] is not None
-                        and
-                        int(row[actual_page_col]) in row[expected_page_expanded_col]
-                    )
+                        not row[expected_page_expanded_col]
+                        or (
+                                row[actual_page_col] is not None
+                                and
+                                int(row[actual_page_col]) in row[expected_page_expanded_col]
+                        )
                 ),
                 axis=1,
             )
         )
 
         return (
-            no_expected_doc_mask
-            |
-            (
-                matching_doc_mask & matching_page_mask
-            )
+                no_expected_doc_mask
+                |
+                (
+                        matching_doc_mask & matching_page_mask
+                )
         )
+
     def _get_expected_page_match(expected_doc_id: int) -> pd.Series:
         doc_match_col = f"retrieved_doc{expected_doc_id}_match"
         return (
-            output_df[doc_match_col]
-            & (
-                (_get_page_match(expected_doc_id, actual_doc_id=1))
-                |
-                (_get_page_match(expected_doc_id, actual_doc_id=2))
-                |
-                (_get_page_match(expected_doc_id, actual_doc_id=3))
-            )
+                output_df[doc_match_col]
+                & (
+                        (_get_page_match(expected_doc_id, actual_doc_id=1))
+                        |
+                        (_get_page_match(expected_doc_id, actual_doc_id=2))
+                        |
+                        (_get_page_match(expected_doc_id, actual_doc_id=3))
+                )
         )
+
     output_df["retrieved_doc1_page_match"] = _get_expected_page_match(expected_doc_id=1)
     output_df["retrieved_doc2_page_match"] = _get_expected_page_match(expected_doc_id=2)
     output_df["retrieved_doc3_page_match"] = _get_expected_page_match(expected_doc_id=3)
@@ -281,6 +296,7 @@ if __name__ == "__main__":
     logger.info("Loading model")
     if args.use_model_llm:
         from croptalk.model_llm import model
+
         memory = None
     else:
         from croptalk.model_openai_functions import model, memory

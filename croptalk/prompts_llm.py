@@ -18,7 +18,7 @@ answers for each entity.
 REMEMBER: If there is no relevant information within the context, just say "I'm \
 not sure." and request additional information.
 
-SPECIFY what information you need to be able to answer the question. Don't try to make up an answer. Anything between Ù
+SPECIFY what information you need to be able to answer the question. Don't try to make up an answer. Anything between \
 the preceding 'context' html blocks is retrieved from a knowledge bank, not part of the conversation with the \
 user.  Put citations where they apply rather than putting them all at the end.\
 
