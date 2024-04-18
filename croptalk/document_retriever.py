@@ -59,7 +59,7 @@ class DocumentRetriever:
             raise ValueError(f"Query must be a string. Received: {query}")
 
         # query vector store
-        query_response = query_near_vector_with_filters(
+        query_response = query_near_text_with_filters(
             collection=self.collection,
             query=query,
             limit=top_k,
