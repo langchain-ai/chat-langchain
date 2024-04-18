@@ -24,11 +24,15 @@ def get_weaviate_client() -> WeaviateClient:
     - WCS_API_KEY
 
     Returns:
-        a weaviate could services client
+        a weaviate cloud services client
     """
+    # Get the open AI API key so that weaviate can communicate directly with that service (embed documents on the fly)
+    open_ai_api_key = os.getenv("OPENAI_API_KEY")
+
     client = weaviate.connect_to_wcs(
         cluster_url=os.getenv("WCS_CLUSTER_URL"),
         auth_credentials=weaviate.auth.AuthApiKey(os.getenv("WCS_API_KEY")),
+        headers={"X-OpenAI-Api-Key": open_ai_api_key}
     )
     return client
 
@@ -51,7 +55,7 @@ def get_client_collection(collection_name: str) -> Tuple[WeaviateClient, Collect
     return client, collection
 
 
-def query_near_vector_with_filters(
+def query_near_text_with_filters(
     collection: Collection,
     query: str,
     limit: int,
@@ -77,7 +81,6 @@ def query_near_vector_with_filters(
     Returns:
         weaviate query response
     """
-    query_embedded = embed_text(query=query)
 
     weaviate_filter = create_weaviate_filter(
         state=state,
@@ -87,13 +90,14 @@ def query_near_vector_with_filters(
         include_common_docs=include_common_docs,
     )
 
-    response = collection.query.near_vector(
-        near_vector=query_embedded,
+    response = collection.query.near_text(
+        query=query,
         filters=weaviate_filter,
         limit=limit,
     )
 
     return response
+
 
 
 def embed_text(query: str, model_name: str = "all-MiniLM-L6-v2") -> List[float]:
