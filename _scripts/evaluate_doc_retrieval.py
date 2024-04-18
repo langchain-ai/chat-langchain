@@ -1,33 +1,18 @@
-import argparse
-from datetime import datetime
 import logging
 import math
-import os
 from typing import List, NamedTuple, Union
+import argparse
 
 import json
 from langchain_core.tracers.context import tracing_v2_enabled
 from langchain_core.tracers.langchain import LangChainTracer
 from langchain_core.tracers.schemas import Run
 from langchain.schema.runnable import Runnable
+from _scripts.utils import get_output_path, get_nodes, parse_args
 import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--use-model-llm",
-        help="Option which, when specified, tells the evaluation to use model_llm (i.e. use model_openai_functions when this option is not specified)",
-        action='store_true',
-    )
-    parser.add_argument(
-        "eval_path",
-        help="CSV file path that contains evaluation use cases",
-    )
-    return parser.parse_args()
 
 
 def ingest_use_cases(eval_path: str) -> pd.DataFrame:
@@ -64,35 +49,17 @@ def ingest_use_cases(eval_path: str) -> pd.DataFrame:
                     )
                 )
         return pages_out
+
     def _add_page_expanded_col(expected_doc_id: int) -> None:
         expected_page_col = f"retrieved_doc{expected_doc_id}_page_expected"
         expected_page_expanded_col = f"retrieved_doc{expected_doc_id}_page_expected_expanded"
         eval_df[expected_page_expanded_col] = eval_df[expected_page_col].apply(_expand_pages)
+
     _add_page_expanded_col(1)
     _add_page_expanded_col(2)
     _add_page_expanded_col(3)
 
     return eval_df
-
-
-def get_nodes(root_node: Run, node_name: str) -> List[Run]:
-    """
-    Args:
-        root_node: tracing root node of a langchain call
-        node_name: name of nodes we are looking for
-
-    Returns:
-        a list of tracing nodes found under provided root node's tree, whose name matches provided
-        node name
-    """
-    res = []
-    # recursively call this function on each child
-    for child in root_node.child_runs:
-        res.extend(get_nodes(child, node_name))
-    # check if root node matches
-    if root_node.name == node_name:
-        res.append(root_node)
-    return res
 
 
 def find_last_finddocs_node(
@@ -181,6 +148,7 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
             output_df[col_filter_actual].str.lower() == output_df[col_filter_expected].str.lower()
         )
         return mask_both_na | mask_both_equal
+
     output_df["state_filter_match"] = _get_filter_match("state_filter_actual", "state_filter_expected")
     output_df["county_filter_match"] = _get_filter_match("county_filter_actual", "county_filter_expected")
     output_df["commodity_filter_match"] = _get_filter_match("commodity_filter_actual", "commodity_filter_expected")
@@ -201,6 +169,7 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
             |
             (output_df[retrieved_doc_expected_col] == output_df["retrieved_doc3_actual"])
         )
+
     output_df["retrieved_doc1_match"] = _get_expected_doc_match("retrieved_doc1_expected")
     output_df["retrieved_doc2_match"] = _get_expected_doc_match("retrieved_doc2_expected")
     output_df["retrieved_doc3_match"] = _get_expected_doc_match("retrieved_doc3_expected")
@@ -237,6 +206,7 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
                 matching_doc_mask & matching_page_mask
             )
         )
+
     def _get_expected_page_match(expected_doc_id: int) -> pd.Series:
         doc_match_col = f"retrieved_doc{expected_doc_id}_match"
         return (
@@ -249,6 +219,7 @@ def evaluate_use_case(output_df: pd.DataFrame) -> None:
                 (_get_page_match(expected_doc_id, actual_doc_id=3))
             )
         )
+
     output_df["retrieved_doc1_page_match"] = _get_expected_page_match(expected_doc_id=1)
     output_df["retrieved_doc2_page_match"] = _get_expected_page_match(expected_doc_id=2)
     output_df["retrieved_doc3_page_match"] = _get_expected_page_match(expected_doc_id=3)
@@ -300,14 +271,6 @@ def get_output_df(eval_df: pd.DataFrame) -> pd.DataFrame:
     return output_df
 
 
-def get_output_path(eval_path: str, use_model_llm: bool) -> str:
-    now_string = datetime.now().isoformat().replace(":", "")
-    output_root, output_ext = os.path.splitext(eval_path)
-    output_root += "__model_llm" if use_model_llm else "__model_openai_functions"
-    output_root += f"__{now_string}"
-    return output_root + output_ext
-
-
 if __name__ == "__main__":
     # parse args
     args = parse_args()
@@ -325,6 +288,7 @@ if __name__ == "__main__":
     logger.info("Loading model")
     if args.use_model_llm:
         from croptalk.model_llm import model
+
         memory = None
     else:
         from croptalk.model_openai_functions import model, memory

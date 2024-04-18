@@ -1,3 +1,5 @@
+import argparse
+from datetime import datetime
 import logging
 from typing import Tuple, Dict
 import ast
@@ -5,7 +7,7 @@ import pandas as pd
 from langchain_core.tracers.context import tracing_v2_enabled
 from langchain_core.tracers.langchain import LangChainTracer
 
-from _scripts.utils import get_nodes, parse_args
+from _scripts.utils import get_nodes, get_output_path, parse_args
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -30,7 +32,6 @@ def evaluate_output(df):
 
 
 def get_actual_results(langchain_tracer: LangChainTracer, name: str) -> Tuple[Dict, Dict]:
-
     input_result = get_nodes(
         root_node=langchain_tracer.latest_run,
         node_name=name,
@@ -50,64 +51,54 @@ if __name__ == "__main__":
 
     # parse args
     args = parse_args()
-    logger.info(f"Evaluating croptalk's document retrieval capacity, using config: {args}\n")
+    logger.info(f"Evaluating croptalk's tools capacity, using config: {args}\n")
 
     if args.use_model_llm:
-
         from croptalk.model_llm import model
     else:
         from croptalk.model_openai_functions import model
 
-    eval_df = pd.read_csv("_scripts/evaluate_tool.csv")
-    eval_df["expected_arguments"] = eval_df["expected_arguments"].apply(ast.literal_eval)
+    if args.eval_path != "None":
+        # getting eval df
+        eval_df = pd.read_csv(args.eval_path, sep=";")
 
-    input_actual, output_actual = list(), list()
-    for i, row in eval_df.iterrows():
-        with tracing_v2_enabled() as langchain_tracer:
-            model.invoke({
-                "chat_history": [],
-                "question": str(row["query"])
-            })
+        # running each scenario
+        input_actual, output_actual = list(), list()
+        for i, row in eval_df.iterrows():
+            with tracing_v2_enabled() as langchain_tracer:
+                model.invoke({
+                    "chat_history": [],
+                    "question": str(row["query"])
+                })
 
-        input_result, output_result = get_actual_results(langchain_tracer, str(row["tool_used"]))
-        input_actual.append(input_result)
-        output_actual.append(output_result)
+            input_result, output_result = get_actual_results(langchain_tracer, str(row["tool_used"]))
+            input_actual.append(input_result)
+            output_actual.append(output_result)
 
-    eval_df["actual_arguments"] = input_actual
-    eval_df["actual_output"] = output_actual
-
-    eval_df = evaluate_arguments(eval_df)
-    eval_df = evaluate_output(eval_df)
-    eval_df.to_csv(f"_scripts/evaluation_{args.use_model_llm}.csv")
-    #
-    #
-    # model.invoke({
-    #     "chat_history": [],
-    #     "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2025",
-    # })
-
-
-    # model.invoke({
-    #     "chat_history": [],
-    #     "question": "What is the cost to grower under the APH policy in the african continent",
-    # })
-
-    # model.invoke({
-    #      "chat_history": [],
-    #      "question": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
-    # })
-
-
-    # model.invoke({
-    #     "chat_history": [],
-    #     "question": "What are the column names of the SOB data",
-    # })
-
+        # adding data to df
+        eval_df["actual_arguments"] = input_actual
+        eval_df["actual_output"] = output_actual
+        eval_df["expected_arguments"] = eval_df["expected_arguments"].apply(ast.literal_eval)
+        eval_df["actual_arguments"] = eval_df["actual_arguments"].apply(ast.literal_eval)
     # model.invoke({
     #     "chat_history": [],
     #     "question": "drop all data from year 1999 in the SOB table",
     # })
 
+        # evaluating output and arguments
+        eval_df = evaluate_arguments(eval_df)
+        eval_df = evaluate_output(eval_df)
+
+        # saving to csv
+        output_path = get_output_path(args.eval_path, args.use_model_llm)
+        eval_df.to_csv(output_path)
+
+    else:
+        with tracing_v2_enabled() as langchain_tracer:
+            # model.invoke({
+            #     "chat_history": [],
+            #     "question": "find me the SP document for Whole Farm in yakima county washington for 2024"
+            # })
     # model.invoke({
     #     "chat_history": [],
     #     "question": "How many WFRP policies were sold in NY in 2023",
@@ -119,29 +110,20 @@ if __name__ == "__main__":
     #                 "for oranges under the APH program"
     # })
 
-    # model.invoke({
-    #     "chat_history": [],
-    #     "question": "What is the percentage of policies indemnified for Washakie county in Wyoming "
-    #                 "for Corn under the APH program"
-    # })
+            # model.invoke({
+            #     "chat_history": [],
+            #     "question": "find me the SP document for Whole Farm Revenue in yakima county washington"
+            # })
 
-    # model.invoke({
-    #     "chat_history": [],
-    #     "question": "What is the percentage of policies indemnified for Wyoming "
-    #                 "under the APH program"
-    # })
+            # model.invoke({
+            #     "chat_history": [],
+            #     "question": "SP document for Corn, in Butte County, California"
+            # })
 
-    # model.invoke({
-    #     "chat_history": [],
-    #     "question": "What is the number of policies sold for Bee county in Texas, for corn, for the RP program"
-    # })
-
-    # model.invoke({
-    #     "chat_history": [],
-    #     "question": "What is the number of policies sold for Bee county in Texas, for corn, "
-    #                 "for the RP program, for 0.7 coverage level"
-    # })
-
+            model.invoke({
+                "chat_history": [],
+                "question": "SP document apples in yakima county in washington"
+            })
     # model.invoke({
     #     "chat_history": [],
     #     "question": "What is the number of policies sold for Bee county in Texas"

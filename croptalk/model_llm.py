@@ -17,6 +17,9 @@ from pydantic.v1 import BaseModel
 
 from croptalk.document_retriever import DocumentRetriever
 from croptalk.prompt_tools import TOOL_PROMPT
+from croptalk.prompts_llm import COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE, \
+    RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, ROUTE_TEMPLATE
+from croptalk.prompt_tools import TOOL_PROMPT
 from croptalk.prompts_llm import COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE
 from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE
 from croptalk.tools import tools
@@ -146,13 +149,26 @@ def create_chain(
         answer_llm: BaseLanguageModel,
         document_retriever: DocumentRetriever,
 ) -> Runnable:
-    retriever_chain = create_retriever_chain(basic_llm, document_retriever)
+    augmented_retrieval_chain = create_retriever_chain(basic_llm, document_retriever)
     tool_chain = create_tool_chain(basic_llm)
+
+    chain = (
+            PromptTemplate.from_template(ROUTE_TEMPLATE) | answer_llm | StrOutputParser()
+    )
+
+    def route(info):
+        if "tools" in info["topic"].lower():
+            return tool_chain
+        else:
+            return augmented_retrieval_chain
+
+    route_tool_chain = {"topic": chain, "question": lambda x: x["question"]} | RunnableLambda(
+        route
+    )
 
     _context = RunnableMap(
         {
-            "context_retriever": retriever_chain,
-            "context_tools": tool_chain,
+            "context_retriever": route_tool_chain,
             "question": itemgetter("question"),
             "chat_history": itemgetter("chat_history"),
 
