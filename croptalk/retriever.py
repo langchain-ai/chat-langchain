@@ -78,7 +78,8 @@ class RetrieverInput(BaseModel):
 def format_docs(docs: Sequence[Document]) -> List[str]:
     formatted_docs = []
     for i, doc in enumerate(docs):
-        doc_string = f"<doc id='{i+1}' page_id={doc.metadata['page']} doc_category={doc.metadata['doc_category']}>{doc.page_content}</doc>"
+        page_index = doc.metadata['page_start'] if 'page_start' in doc.metadata else doc.metadata['page']
+        doc_string = f"<doc id='{i+1}' page_id={page_index} doc_category={doc.metadata['doc_category']}>{doc.page_content}</doc>"
         formatted_docs.append(doc_string)
     return formatted_docs
 
