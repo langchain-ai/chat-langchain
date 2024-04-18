@@ -87,7 +87,7 @@ class DocumentRetriever:
             f"<doc"
             f" id='{i+1}'"
             f" title='{doc.properties['title']}'"
-            f" page_id='{doc.properties['page']}'"
+            f" page_id='{doc.properties['page_start']}'"
             f" doc_category='{doc.properties['doc_category']}'"
             f" commodity='{doc.properties['commodity']}'"
             f" state='{doc.properties['state']}'"
