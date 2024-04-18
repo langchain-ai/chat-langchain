@@ -5,7 +5,7 @@ from weaviate.collections.classes.internal import QueryReturn
 
 from croptalk.weaviate_utils import (
     get_client_collection,
-    query_near_vector_with_filters,
+    query_near_text_with_filters,
 )
 
 load_dotenv("secrets/.env.secret")
