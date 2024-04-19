@@ -5,7 +5,7 @@ from weaviate.collections.classes.internal import QueryReturn
 
 from croptalk.weaviate_utils import (
     get_client_collection,
-    query_near_vector_with_filters,
+    query_near_text_with_filters,
 )
 
 load_dotenv("secrets/.env.secret")
@@ -59,7 +59,7 @@ class DocumentRetriever:
             raise ValueError(f"Query must be a string. Received: {query}")
 
         # query vector store
-        query_response = query_near_vector_with_filters(
+        query_response = query_near_text_with_filters(
             collection=self.collection,
             query=query,
             limit=top_k,
@@ -87,7 +87,7 @@ class DocumentRetriever:
             f"<doc"
             f" id='{i+1}'"
             f" title='{doc.properties['title']}'"
-            f" page_id='{doc.properties['page']}'"
+            f" page_id='{doc.properties['page_start']}'"
             f" doc_category='{doc.properties['doc_category']}'"
             f" commodity='{doc.properties['commodity']}'"
             f" state='{doc.properties['state']}'"
