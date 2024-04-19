@@ -1,23 +1,35 @@
-# from croptalk.load_data import SOB
 import difflib
+import logging
 import os
 import re
+from typing import List, Dict
 from typing import Optional
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
+from langchain.callbacks.base import BaseCallbackHandler
 from langchain.tools import tool
+from langchain.tools.render import render_text_description
 from langchain_community.agent_toolkits import create_sql_agent
 from langchain_community.utilities import SQLDatabase
+from langchain_community.vectorstores import FAISS
+from langchain_core.example_selectors import SemanticSimilarityExampleSelector
+from langchain_core.prompts import (
+    ChatPromptTemplate,
+    FewShotPromptTemplate,
+    MessagesPlaceholder,
+    PromptTemplate,
+    SystemMessagePromptTemplate,
+)
 from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import PromptTemplate
+from langchain_openai import OpenAIEmbeddings
 from sqlalchemy import create_engine, text
 
-from croptalk.utils import initialize_llm
-from croptalk.prompt_tools import full_prompt
-from croptalk.prompts_llm import COMMODITY_TEMPLATE_TOOL
+load_dotenv("secrets/.env.secret")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
 
 postgres_uri = os.environ.get('POSTGRES_URI_READ_ONLY')
 DB = SQLDatabase.from_uri(postgres_uri)
@@ -46,6 +58,7 @@ COMMODITY_LIST = ['Wheat', 'Pecans', 'Cotton', 'Peaches', 'Corn', 'Peanuts', 'Wh
                   'Hybrid Sorghum Seed', 'Camelina', 'Dark Air Tobacco', 'Fire Cured Tobacco', 'Sweet Potatoes',
                   'Maryland Tobacco', 'Cranberries', 'Clams', 'Buckwheat', 'Rye', 'Fresh Market Beans', 'Clary Sage',
                   'Hybrid Vegetable Seed', 'Cigar Filler Tobacco', 'Tangerine Trees', 'Lime Trees']
+
 
 @tool("get-SP-doc")
 def get_sp_document(state: Optional[str] = None,
@@ -137,6 +150,19 @@ def get_sp_document(state: Optional[str] = None,
         return missing_var_msg
 
 
+class SQLHandler(BaseCallbackHandler):
+    def __init__(self):
+        self.sql_result = []
+
+    def on_agent_action(self, action, **kwargs):
+        """Run on agent action. if the tool being used is sql_db_query,
+         it means we're submitting the sql and we can
+         record it as the final sql"""
+
+        if action.tool in ["sql_db_query_checker", "sql_db_query"]:
+            self.sql_result.append(action.tool_input)
+
+
 @tool("get-SOB-metrics-using-SQL-agent")
 def get_sob_metrics_sql_agent(input: str) -> str:
     """
@@ -158,6 +184,7 @@ def get_sob_metrics_sql_agent(input: str) -> str:
     Returns: str
     """
     try:
+        # this does not work with gpt-4
         llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
         agent = create_sql_agent(
@@ -167,13 +194,17 @@ def get_sob_metrics_sql_agent(input: str) -> str:
             tools=[validate_query],
             verbose=True,
             agent_type="openai-tools",
-        )
+        ).with_config(run_name="SQLAgentExecutor")
 
-        return agent.invoke({"input": input,
-                             "top_k": 3,
-                             "dialect": "SQLite",
-                             "agent_scratchpad": [],
-                             })["output"]
+        handler = SQLHandler()
+
+        response = agent.invoke({"input": input,
+                                 "top_k": 3,
+                                 "dialect": "SQLite",
+                                 "agent_scratchpad": [],
+                                 }, {"callbacks": [handler]})["output"]
+
+        return f"SQL query : {handler.sql_result}, Output :  {response}"
 
     except SQLStatementNotAllowed:
         return "Only read operations are allowed."
@@ -195,8 +226,7 @@ def validate_query(output: str) -> None:
     Args:
         output: SQL query
 
-    Returns:
-
+    Returns: None
     """
     # Define the regex pattern to match SQL operations
     pattern = r'\b(?:INSERT|UPDATE|DELETE|CREATE|DROP|ALTER)\b'
@@ -250,4 +280,126 @@ def get_wfrp_commodities(reinsurance_yr: str, state_code: str, county_code: str)
         return None
 
 
-tools = [get_sob_metrics_sql_agent, get_wfrp_commodities, get_sp_document]
+def get_sob_sql_query_examples() -> List[Dict]:
+    return [
+        {
+            "input": "What is the total of policies sold in the state of New York for the WFRP policy in year 2023",
+            "query": "SELECT SUM(policies_sold_count) AS total_policies_sold FROM sob_all_years WHERE state_abbreviation = 'NY' AND insurance_plan_name_abbreviation = 'WFRP' AND commodity_year = 2023",
+        },
+        {
+            "input": "What is the total number of policies sold for Bee county in Texas, for corn, for the RP program, for 0.7 coverage level for year 2023",
+            "query": "SELECT SUM(policies_sold_count) FROM sob_all_years WHERE county_name = 'Bee' AND state_abbreviation = 'TX' AND commodity_name = 'corn' AND coverage_level = 0.7 AND commodity_year = 2023",
+        },
+        {
+            "input": "What is the average cost to grower under the APH policy for walnuts in Fresno county in California",
+            "query": "SELECT SUM(cost_to_grower * policy_sold_count)/SUM(cost_to_grower) A AS average_cost_to_grower FROM sob_all_years WHERE county_name = 'Fresno' AND state_abbreviation = 'CA' AND insurance_plan_name_abbreviation = 'APH' AND commodity_name = 'walnuts'",
+        },
+        {
+            "input": "What is the average loss ratio by insurance plan name and year ",
+            "query": "SELECT SUM(loss_ratio * policy_sold_count)/SUM(loss_ratio) AS average_loss_ratio FROM sob_all_years GROUP BY commodity_year, insurance_pla_name_abbreviation"
+        },
+
+        {
+            "input": "Which insurance plan has the highest average expected payout in 2023",
+            "query": "SELECT SUM(expected_payout * policy_sold_count)/SUM(expected_payout) AS average_expected_payout FROM sob_all_years WHERE commodity_year == 2023 ORDER BY average_expected_payout DESC LIMIT 1"
+
+        },
+        {
+            "input": "What is the cost to grower under the APH policy for walnuts in Fresno county in California in 2023",
+            "query": "SELECT SUM(cost_to_grower * policy_sold_count)/SUM(cost_to_grower) AS average_cost_to_grower FROM sob_all_years WHERE commodity_year == 2023 AND county_name == 'Fresno' and state_abbreviation = 'CA' ORDER BY average_cost_to_grower DESC LIMIT 1"
+
+        },
+        {
+            "input": "What is the percentage of policies indemnified for Washakie county in Wyoming "
+                     "for Corn under the APH program",
+            "query": "SELECT SUM(policies_indemnified_count) * 100.0 / SUM(policies_sold_count) FROM sob_all_years WHERE county_name = 'Washakie' AND state_abbreviation = 'WY' AND insurance_pla_name_abbreviation == 'APH'"
+
+        },
+
+    ]
+
+
+system_prefix = """You are an agent designed to interact with a SQL database.
+Given an input question, create a syntactically correct {dialect} query to run, then look at the results of the query and return the answer.
+Unless the user specifies a specific number of examples they wish to obtain, always limit your query to at most {top_k} results.
+You can order the results by a relevant column to return the most interesting examples in the database.
+Never query for all the columns from a specific table, only ask for the relevant columns given the question.
+You have access to tools for interacting with the database.
+Only use the given tools. Only use the information returned by the tools to construct your final answer.
+You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
+
+Always use the sob_all_years table. 
+
+If a question is about an average, make sure to weight the metric by policy_sold_count.
+
+DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
+
+If the question does not seem related to the database, just return "I don't know" as the answer.
+
+Here are some examples of user inputs and their corresponding SQL queries:"""
+
+examples = get_sob_sql_query_examples()
+
+example_selector = SemanticSimilarityExampleSelector.from_examples(
+    examples,
+    OpenAIEmbeddings(openai_api_key=os.environ["OPENAI_API_KEY"]),
+    FAISS,
+    k=5,
+    input_keys=["input"],
+)
+
+few_shot_prompt = FewShotPromptTemplate(
+    example_selector=example_selector,
+    example_prompt=PromptTemplate.from_template(
+        "User input: {input}\nSQL query: {query}"
+    ),
+    input_variables=["input", "dialect", "top_k"],
+    prefix=system_prefix,
+    suffix="",
+)
+
+full_prompt = ChatPromptTemplate.from_messages(
+    [
+        SystemMessagePromptTemplate(prompt=few_shot_prompt),
+        ("human", "{input}"),
+        MessagesPlaceholder("agent_scratchpad"),
+    ]
+)
+
+TOOLS = [get_sob_metrics_sql_agent, get_wfrp_commodities, get_sp_document]
+RENDERED_TOOLS = render_text_description(TOOLS)
+
+TOOL_PROMPT = f"""You are an assistant that has access to the following set of tools. 
+Here are the names and descriptions for each tool:
+
+{RENDERED_TOOLS} """ + """
+Given the user questions, return the name and input of the tool to use. 
+Return your response as a JSON blob with 'name' and 'arguments' keys.
+
+Do not use tools if they are not necessary.
+
+This is the question you are being asked : {question}
+
+"""
+
+ROUTE_TEMPLATE = f""" \
+Act as a classifier with the task of distinguishing between two topics from a question: `tools` or `other`.
+`tools` is defined as any question related to Special Provision (SP) documents, the list of available commodities within
+Whole Farm Revenue Protection (WFRP) and questions related to insurance market data (Summary of business or SOB).
+Here is the list of rendered tools {RENDERED_TOOLS}
+
+Example questions of the `tools` topic include (but is not limited to) the following examples :
+
+""" + """
+- what are the available commodities for WFRP for Butte county in California
+- find me the special provision document related to Oranges in Yakima, Washington for the year 2024
+- SP document for corn in Butte, California, 2022
+- get me the SP document for corn in Iowa for Pottawattamie county
+
+Do not respond with more than word.
+
+<question>
+{question}
+</question>
+
+Classification:"""

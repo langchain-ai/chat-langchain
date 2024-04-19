@@ -29,7 +29,6 @@ def get_weaviate_client() -> WeaviateClient:
     client = weaviate.connect_to_wcs(
         cluster_url=os.getenv("WCS_CLUSTER_URL"),
         auth_credentials=weaviate.auth.AuthApiKey(os.getenv("WCS_API_KEY")),
-        skip_init_checks=True,
     )
     return client
 

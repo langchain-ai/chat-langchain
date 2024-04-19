@@ -8,7 +8,7 @@ from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder)
 from langchain.schema.messages import AIMessage, HumanMessage
 from langchain.schema.runnable import (RunnableBranch,
                                        RunnableMap)
-from langchain.tools.render import render_text_description
+
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -16,17 +16,10 @@ from langchain_core.runnables import Runnable, RunnableLambda, RunnableParallel
 from pydantic.v1 import BaseModel
 
 from croptalk.document_retriever import DocumentRetriever
-from croptalk.prompt_tools import TOOL_PROMPT
-from croptalk.prompts_llm import COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE, \
-    RESPONSE_TEMPLATE, REPHRASE_TEMPLATE, ROUTE_TEMPLATE
-from croptalk.prompt_tools import TOOL_PROMPT
 from croptalk.prompts_llm import COMMODITY_TEMPLATE, STATE_TEMPLATE, COUNTY_TEMPLATE, DOC_CATEGORY_TEMPLATE
 from croptalk.prompts_llm import RESPONSE_TEMPLATE, REPHRASE_TEMPLATE
-from croptalk.tools import tools
+from croptalk.tools import TOOLS, TOOL_PROMPT, ROUTE_TEMPLATE
 from croptalk.utils import initialize_llm
-
-RENDERED_TOOLS = render_text_description(tools)
-TOOLS = tools
 
 set_debug(True)
 
@@ -107,11 +100,12 @@ def create_tool_chain(llm):
     def tool_output(output):
         return output["output"]
 
-    tool_prompt = PromptTemplate.from_template(TOOL_PROMPT)
-    tool_prompt = tool_prompt.format(rendered_tools=RENDERED_TOOLS)
+    tool_chain = (PromptTemplate.from_template(TOOL_PROMPT) |
+                  llm |
+                  JsonOutputParser().with_config(run_name="ToolInput") |
+                  tool_pipe |
+                  StrOutputParser().with_config(run_name="ToolOutput"))
 
-    tool_chain = tool_prompt | llm | JsonOutputParser().with_config(
-        run_name="ToolInput") | tool_pipe | StrOutputParser().with_config(run_name="ToolOutput")
     no_answer_chain = RunnableLambda(return_empty_str) | StrOutputParser()
     answer_chain = RunnableLambda(tool_output) | StrOutputParser()
 

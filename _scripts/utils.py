@@ -30,6 +30,7 @@ def get_nodes(root_node: Run, node_name: str) -> List[Run]:
         a list of tracing nodes found under provided root node's tree, whose name matches provided
         node name
     """
+
     res = []
     # recursively call this function on each child
     for child in root_node.child_runs:
