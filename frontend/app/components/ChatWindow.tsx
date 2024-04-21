@@ -132,7 +132,7 @@ export function ChatWindow(props: { conversationId: string }) {
         },
       );
       for await (const chunk of streamLog) {
-        streamedResponse = applyPatch(streamedResponse, chunk.ops).newDocument;
+        streamedResponse = applyPatch(streamedResponse, chunk.ops, undefined, false).newDocument;
         if (
           Array.isArray(
             streamedResponse?.logs?.[sourceStepName]?.final_output?.output,
