@@ -87,16 +87,16 @@ class OpenAIAgentModelFactory:
             ]
         )
         agent = (
-                RunnablePassthrough.assign(
-                    agent_scratchpad=lambda x: format_to_openai_function_messages(
-                        x["intermediate_steps"]
-                    ),
-                    chat_history=lambda x: x.get(self.memory_key, []),
-                    input=itemgetter(self.input_key),
-                )
-                | prompt
-                | llm_with_tools
-                | OpenAIFunctionsAgentOutputParser()
+            RunnablePassthrough.assign(
+                agent_scratchpad=lambda x: format_to_openai_function_messages(
+                    x["intermediate_steps"]
+                ),
+                chat_history=lambda x: x.get(self.memory_key, []),
+                input=itemgetter(self.input_key),
+            )
+            | prompt
+            | llm_with_tools
+            | OpenAIFunctionsAgentOutputParser()
         )
         memory_llm = ChatOpenAI(model=self.llm_model_name, temperature=0)
         memory = AgentTokenBufferMemory(
@@ -106,15 +106,15 @@ class OpenAIAgentModelFactory:
         )
 
         agent_executor = (
-                AgentExecutor(
-                    agent=agent,
-                    tools=tools,
-                    memory=memory,
-                    verbose=True,
-                    max_iterations=10,
-                    return_intermediate_steps=True,
-                )
-                | itemgetter(self.output_key)
+            AgentExecutor(
+                agent=agent,
+                tools=tools,
+                memory=memory,
+                verbose=True,
+                max_iterations=10,
+                return_intermediate_steps=True,
+            )
+            | itemgetter(self.output_key)
         ).with_config(run_name="AgentExecutor")
 
         return agent_executor, memory

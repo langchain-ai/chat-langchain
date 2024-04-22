@@ -124,10 +124,10 @@ if __name__ == "__main__":
             #     "question": "SP document for Corn, in Butte County, California"
             # })
 
-            model.invoke({
-                "chat_history": [],
-                "question": "SP document apples in yakima county in washington"
-            })
+            # model.invoke({
+            #     "chat_history": [],
+            #     "question": "SP document apples in yakima county in washington"
+            # })
             # model.invoke({
             #     "chat_history": [],
             #     "question": "What is the number of policies sold for Bee county in Texas"
