@@ -148,7 +148,7 @@ class OpenAIAgentModelFactory:
                         "reporting, procedures for obtaining insurance coverage, provisions for determining coverage "
                         "levels, indemnity payments, and loss adjustments. Guidelines for compliance with program rules"
                         "\b"
-                        "The Crop Provision include : Crop-specific coverage details, fates and deadlines:, "
+                        "The Crop Provision include : Crop-specific coverage details, fates and deadlines, "
                         "crop-specific rules and practices, exclusions and limitations",
             func=lambda **kwargs: self.document_retriever.get_documents(**kwargs, top_k=self.top_k),
             args_schema=self._RetrieverInput,
