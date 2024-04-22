@@ -28,6 +28,7 @@ langsmith = ">=0.0.83,<0.1"
 langchain-core = ">=0.1.13,<0.2"
 # dsmain = "0.0.1"
 langchain-openai = ">=0.0.3,<0.1"
+faiss-cpu = "^1.8.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9.1"

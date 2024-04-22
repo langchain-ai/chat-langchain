@@ -90,19 +90,3 @@ Commodities: \
 Words: {question}
 commodity: """
 
-ROUTE_TEMPLATE = """ \
-Act as a classifier with the task of distinguishing between two topics from a question: `tools` or `other`.
-`tools` is defined as any question related to Special Provision (SP) documents. Example questions of the 
-`tools` topic include (but is not limited to) the following examples :
-
-- find me the special provision document related to Oranges in Yakima, Washington for the year 2024
-- SP document for corn in Butte, California, 2022
-- get me the SP document for corn in Iowa for Pottawattamie county
-
-Do not respond with more than word.
-
-<question>
-{question}
-</question>
-
-Classification:"""

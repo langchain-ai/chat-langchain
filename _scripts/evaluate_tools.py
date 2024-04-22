@@ -30,7 +30,7 @@ def evaluate_output(df):
     return df
 
 
-def get_actual_results(langchain_tracer: LangChainTracer, name: str) -> Tuple[Dict, Dict]:
+def get_actual_results(langchain_tracer: LangChainTracer, name: str) -> Tuple[str, str]:
     input_result = get_nodes(
         root_node=langchain_tracer.latest_run,
         node_name=name,
@@ -62,10 +62,10 @@ if __name__ == "__main__":
         eval_df = pd.read_csv(args.eval_path, sep=";")
 
         # running each scenario
-        input_actual, output_actual = list(), list()
+        input_actual, output_actual, responses = list(), list(), list()
         for i, row in eval_df.iterrows():
             with tracing_v2_enabled() as langchain_tracer:
-                model.invoke({
+                response = model.invoke({
                     "chat_history": [],
                     "question": str(row["query"])
                 })
@@ -73,13 +73,17 @@ if __name__ == "__main__":
             input_result, output_result = get_actual_results(langchain_tracer, str(row["tool_used"]))
             input_actual.append(input_result)
             output_actual.append(output_result)
+            responses.append(response)
+
+
 
         # adding data to df
+        eval_df["full_chain_output"] = responses
+        eval_df["SQL_Query"] = [i.split("Output :")[0] for i in output_actual]
         eval_df["actual_arguments"] = input_actual
         eval_df["actual_output"] = output_actual
         eval_df["expected_arguments"] = eval_df["expected_arguments"].apply(ast.literal_eval)
         eval_df["actual_arguments"] = eval_df["actual_arguments"].apply(ast.literal_eval)
-
         # evaluating output and arguments
         eval_df = evaluate_arguments(eval_df)
         eval_df = evaluate_output(eval_df)
@@ -97,6 +101,21 @@ if __name__ == "__main__":
 
             # model.invoke({
             #     "chat_history": [],
+            #     "question": "drop all data from year 1999 in the SOB table",
+            # })
+            # model.invoke({
+            #     "chat_history": [],
+            #     "question": "How many WFRP policies were sold in NY in 2023",
+            # })
+            #
+            # model.invoke({
+            #     "chat_history": [],
+            #     "question": "What is the percentage of policies indemnified for Washakie county in Wyoming "
+            #                 "for oranges under the APH program"
+            # })
+
+            # model.invoke({
+            #     "chat_history": [],
             #     "question": "find me the SP document for Whole Farm Revenue in yakima county washington"
             # })
 
@@ -109,3 +128,7 @@ if __name__ == "__main__":
                 "chat_history": [],
                 "question": "SP document apples in yakima county in washington"
             })
+            # model.invoke({
+            #     "chat_history": [],
+            #     "question": "What is the number of policies sold for Bee county in Texas"
+            # })

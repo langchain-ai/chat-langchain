@@ -1,7 +1,6 @@
 import os
 from operator import itemgetter
 from typing import List, Optional, Tuple
-from croptalk.tools import tools
 from dotenv import load_dotenv
 from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad.openai_functions import (
@@ -22,6 +21,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 
 from croptalk.document_retriever import DocumentRetriever
+from croptalk.tools import TOOLS
 
 load_dotenv("secrets/.env.secret")
 load_dotenv("secrets/.env.shared")
@@ -125,8 +125,8 @@ class OpenAIAgentModelFactory:
         """
         doc_retriever_tool = self._get_doc_retriever_tool()
         return [
-            doc_retriever_tool,
-        ] + self.tools
+           doc_retriever_tool,
+       ] + self.tools
 
     def _get_doc_retriever_tool(self) -> StructuredTool:
         """
@@ -159,6 +159,6 @@ doc_retriever = DocumentRetriever(collection_name=collection_name)
 model, memory = OpenAIAgentModelFactory(
     llm_model_name=model_name,
     document_retriever=doc_retriever,
-    tools=tools,
+    tools=TOOLS,
     top_k=top_k,
 ).get_model()
