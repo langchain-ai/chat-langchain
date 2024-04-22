@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     if args.eval_path != "None":
         # getting eval df
-        eval_df = pd.read_csv(args.eval_path, sep=";").iloc[:2, :]
+        eval_df = pd.read_csv(args.eval_path, sep=";")
 
         # running each scenario
         input_actual, output_actual, responses = list(), list(), list()
