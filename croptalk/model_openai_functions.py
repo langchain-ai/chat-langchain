@@ -137,8 +137,8 @@ class OpenAIAgentModelFactory:
         find_docs = StructuredTool.from_function(
             name="FindDocs",
             description="This tool is used to find information contained in the Crop Insurance Handbook (CIH),"
-                        "in the Basic Provisions documents (BP) and within the Crop Provision documents. It should not"
-                        "be used to retrieve insurance market data."
+                        "in the Basic Provisions documents (BP) and within the Crop Provision documents (CP). "
+                        "It should not be used to retrieve insurance market data and statistics."
                         "\b"
                         "The Crop Insurance Handbook covers various topics such as policy provisions, procedures "
                         "for policy administration, standards for determining insurability, and requirements for "
