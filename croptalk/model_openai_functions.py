@@ -34,14 +34,14 @@ class OpenAIAgentModelFactory:
     """
 
     def __init__(
-            self,
-            llm_model_name: str,
-            document_retriever: DocumentRetriever,
-            tools: List[StructuredTool],
-            top_k: int,
-            memory_key: str = "chat_history",
-            input_key: str = "question",
-            output_key: str = "output",
+        self,
+        llm_model_name: str,
+        document_retriever: DocumentRetriever,
+        tools: List[StructuredTool],
+        top_k: int,
+        memory_key: str = "chat_history",
+        input_key: str = "question",
+        output_key: str = "output",
     ) -> None:
         """
         Args:
