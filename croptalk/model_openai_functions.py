@@ -1,6 +1,7 @@
 import os
 from operator import itemgetter
 from typing import List, Optional, Tuple
+
 from dotenv import load_dotenv
 from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad.openai_functions import (
@@ -125,8 +126,8 @@ class OpenAIAgentModelFactory:
         """
         doc_retriever_tool = self._get_doc_retriever_tool()
         return [
-           doc_retriever_tool,
-       ] + self.tools
+            doc_retriever_tool,
+        ] + self.tools
 
     def _get_doc_retriever_tool(self) -> StructuredTool:
         """
@@ -135,7 +136,20 @@ class OpenAIAgentModelFactory:
         """
         find_docs = StructuredTool.from_function(
             name="FindDocs",
-            description="Searches and returns information given the filters.",
+            description="This tool is used to find information contained in the Crop Insurance Handbook (CIH),"
+                        "in the Basic Provisions documents (BP) and within the Crop Provision documents (CP). "
+                        "It should not be used to retrieve insurance market data and statistics."
+                        "\b"
+                        "The Crop Insurance Handbook covers various topics such as policy provisions, procedures "
+                        "for policy administration, standards for determining insurability, and requirements for "
+                        "reporting and recordkeeping. "
+                        "\b"
+                        "The Basic Provisions include: Eligibility criteria for participation, requirements for "
+                        "reporting, procedures for obtaining insurance coverage, provisions for determining coverage "
+                        "levels, indemnity payments, and loss adjustments. Guidelines for compliance with program rules"
+                        "\b"
+                        "The Crop Provision include : Crop-specific coverage details, fates and deadlines, "
+                        "crop-specific rules and practices, exclusions and limitations",
             func=lambda **kwargs: self.document_retriever.get_documents(**kwargs, top_k=self.top_k),
             args_schema=self._RetrieverInput,
         )
