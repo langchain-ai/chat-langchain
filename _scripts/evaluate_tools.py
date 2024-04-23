@@ -94,10 +94,10 @@ if __name__ == "__main__":
 
     else:
         with tracing_v2_enabled() as langchain_tracer:
-            # model.invoke({
-            #     "chat_history": [],
-            #     "question": "find me the SP document for Whole Farm in yakima county washington for 2024"
-            # })
+            model.invoke({
+                "chat_history": [],
+                "question": "show me the table of content of the crop insurance document for apples"
+            })
 
             # model.invoke({
             #     "chat_history": [],
@@ -128,7 +128,3 @@ if __name__ == "__main__":
                 "chat_history": [],
                 "question": "What are substances harmful to animals for corn varieties be insurable in butte county california"
             })
-            # model.invoke({
-            #     "chat_history": [],
-            #     "question": "What is the number of policies sold for Bee county in Texas"
-            # })
