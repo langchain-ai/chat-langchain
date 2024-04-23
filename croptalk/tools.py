@@ -26,6 +26,8 @@ from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from sqlalchemy import create_engine, text
 
+from croptalk.utils import read_pdf_from_s3, remove_long_words
+
 load_dotenv("secrets/.env.secret")
 
 logging.basicConfig(level=logging.INFO)
@@ -67,9 +69,16 @@ def get_sp_document(state: Optional[str] = None,
                     year: Optional[int] = None):
     """
     This tool is used to query the SP document from a database along state, county, commodity and year.
-    For instance, a user might ask :
-    - find me the SP document related to Oranges in Yakima, Washington for the year 2024
-    - SP document for corn in Butte, California, 2022
+    The SP documents can be used to answer questions on :
+    Availability for insurance for crop varieties
+    Instruction and standards about crop quality
+    OPTION TO DELAY CLAIM SETTLEMENT
+    EXTENSION OF TIME TO HARVEST
+    DELAY IN MEASUREMENT OF FARM STORED PRODUCTION
+    FAIR CONSIDERATION TO DELIVER TO DISTANT MARKETS
+    DISCOUNT FACTOR CHARTS
+    DEFICIENCY NOT IN DISCOUNT FACTOR CHARTS
+    SUBSTANCES OR CONDITIONS THAT ARE INJURIOUS TO HUMAN OR ANIMAL HEALTH
 
     Args:
     state : name of state
@@ -128,8 +137,13 @@ def get_sp_document(state: Optional[str] = None,
         message = f"The Special provision (SP) document for "
         if year:
             message += f"year {year},"
+
+        sp_content = read_pdf_from_s3("croptalk-spoi", doc_link)
+        sp_content = remove_long_words(sp_content)
+
         message += (f"{commodity}, {state} and {county} county can be found at the following "
                     f"link : https://croptalk-spoi.s3.us-east-2.amazonaws.com/{doc_link}")
+        message += "Here is the document content : " + sp_content
 
         return message
 

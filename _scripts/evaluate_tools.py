@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
             model.invoke({
                 "chat_history": [],
-                "question": "SP document apples in yakima county in washington"
+                "question": "What are substances harmful to animals for corn varieties be insurable in butte county california"
             })
             # model.invoke({
             #     "chat_history": [],

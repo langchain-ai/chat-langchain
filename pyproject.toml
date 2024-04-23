@@ -26,6 +26,10 @@ sentence-transformers = "2.2.2"
 lark = "1.1.8"
 langsmith = ">=0.0.83,<0.1"
 langchain-core = ">=0.1.13,<0.2"
+boto3 = "1.34.89"
+PyPDF2 = "3.0.1"
+
+
 # dsmain = "0.0.1"
 langchain-openai = ">=0.0.3,<0.1"
 faiss-cpu = "^1.8.0"
