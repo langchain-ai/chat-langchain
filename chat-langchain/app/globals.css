@@ -31,3 +31,25 @@ code {
 li {
   padding: 4px;
 }
+
+.message-bubble a {
+  padding-left: 20px;
+  text-decoration: none;
+  position: relative;
+  font-weight: 900;
+  background-color: rgb(100 100 104);
+  padding: 0 6px 0 24px;
+  border-radius: 5px;
+}
+.message-bubble a:hover {
+  border: 0;
+  background-color: rgb(88 88 93);
+  transition: all;
+}
+.message-bubble a::before {
+  position: absolute;
+  content: "\1F517";
+  left: 6px;
+  top: 0px;
+  font-size: 14px;
+}

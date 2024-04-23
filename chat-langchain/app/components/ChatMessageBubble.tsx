@@ -103,6 +103,7 @@ const createAnswerElements = (
   elements.push(
     <span
       key={`content:${prevIndex}`}
+      className="message-bubble"
       dangerouslySetInnerHTML={{ __html: content.slice(prevIndex) }}
     ></span>,
   );
