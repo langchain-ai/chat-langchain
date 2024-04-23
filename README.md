@@ -40,12 +40,8 @@ export LANGCHAIN_PROJECT=
 
 ### Running locally... in docker
 
-1. Modify docker-compose.yml:
-   - Un-comment line where `.` is mounted in `/app` within container (so that local code changes are reflected in running container)
-   - Comment line where `entrypoint` is currently defined, and un-comment the line where it is defined with `--reload` (so that backend container automatically detect code changes)
-   - Comment line where `GRAPH_URL_HOST` is currently set, and un-comment the line where it is set to `http://localhost` instead
-   - Comment line where `NEXT_PUBLIC_API_BASE_URL` is currently set, and un-comment the line where it is set to `http://localhost` instead
-2. Launch app: `docker compose up -d --build`
+1. Make sure you have all 3 secret files (`.env.secret`, `.env.share`, `dsmain_ssh_ec3`) in folder `secrets`
+2. Launch app: `docker compose -f ./docker-compose-local.yml up -d --build`
 3. The app is now available at `http://localhost:3000/`
 4. To run tests, open a terminal:
    - go into running backend container: `docker exec -ti $(docker ps -qf "name=chat-langchain-backend") /bin/bash`
