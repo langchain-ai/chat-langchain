@@ -68,17 +68,13 @@ def get_sp_document(state: Optional[str] = None,
                     commodity: Optional[str] = None,
                     year: Optional[int] = None):
     """
-    This tool is used to query the SP document from a database along state, county, commodity and year.
-    The SP documents can be used to answer questions on :
-    Availability for insurance for crop varieties
-    Instruction and standards about crop quality
-    OPTION TO DELAY CLAIM SETTLEMENT
-    EXTENSION OF TIME TO HARVEST
-    DELAY IN MEASUREMENT OF FARM STORED PRODUCTION
-    FAIR CONSIDERATION TO DELIVER TO DISTANT MARKETS
-    DISCOUNT FACTOR CHARTS
-    DEFICIENCY NOT IN DISCOUNT FACTOR CHARTS
-    SUBSTANCES OR CONDITIONS THAT ARE INJURIOUS TO HUMAN OR ANIMAL HEALTH
+    County specific insurance question should be answered with this tool. It allows to retrieve
+    information the specific way a policy works within a county (prices, dates, rules).
+
+    Example questions this tool can answer:
+    What are the grade discount wheat classes in Alabama, Autauga?
+    What is the final planting date for Virginia type peanuts in Baldwin County, Alabama, for the 2023 crop year?
+    What is the practice code for organic (certified) irrigated cotton in Cleburne County, Alabama, for the 2024 crop year?
 
     Args:
     state : name of state
