@@ -16,9 +16,11 @@ Deployed version: [chat.langchain.com](https://chat.langchain.com)
 The app leverages LangChain's streaming support and async API to update the page in real time for multiple users.
 
 ## ✅ Running locally
+
 0. Update lock `poetry lock`
 1. Install backend dependencies: `poetry install`.
 1. Make sure to enter your environment variables to configure the application:
+
 ```
 export OPENAI_API_KEY=
 export WEAVIATE_URL=
@@ -31,6 +33,7 @@ export LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"
 export LANGCHAIN_API_KEY=
 export LANGCHAIN_PROJECT=
 ```
+
 1. Run `python ingest.py` to ingest LangChain docs data into the Weaviate vectorstore (only needs to be done once).
    1. You can use other [Document Loaders](https://langchain.readthedocs.io/en/latest/modules/document_loaders.html) to load your own data into the vectorstore.
 1. Start the Python backend with `poetry run make start`.
@@ -44,9 +47,11 @@ export LANGCHAIN_PROJECT=
 2. Launch app: `docker compose -f ./docker-compose-local.yml up -d --build`
 3. The app is now available at `http://localhost:3000/`
 4. To run tests, open a terminal:
+
    - go into running backend container: `docker exec -ti $(docker ps -qf "name=chat-langchain-backend") /bin/bash`
    - run tests: `python -m pytest tests`
    - run evaluation script whose options/args are:
+
      ```
      root@e6123c0f9b6b:~# python _scripts/evaluate_doc_retrieval.py --help
      usage: evaluate_doc_retrieval.py [-h] [--use-model-llm] eval_path
@@ -58,8 +63,10 @@ export LANGCHAIN_PROJECT=
       -h, --help       show this help message and exit
       --use-model-llm  Option which, when specified, tells the evaluation to use model_llm (i.e. use model_openai_functions when this option is not specified)
      ```
+
      You can see an example of the script's expected input in `./_scripts/evaluate_doc_retrieval.csv`.
      You can then use `pandas.read_csv(<path>)` to load the generated evaluation report (whose path is reported on the last line of the script).
+
      ```
       root@e6123c0f9b6b:~# python _scripts/evaluate_doc_retrieval.py --use-model-llm ./_scripts/evaluate_doc_retrieval.csv
       INFO:root:Evaluating croptalk's document retrieval capacity, using config: Namespace(use_model_llm=True, eval_path='./_scripts/evaluate_doc_retrieval.csv')
@@ -73,6 +80,17 @@ export LANGCHAIN_PROJECT=
       INFO:root:Evaluation report/dataframe saved here: ./_scripts/evaluate_doc_retrieval__model_llm__2024-02-23T22:07:10.813830.csv
      ```
 
+## Running in the interactive mode (notebooks enabled)
+
+1. Launch the container
+   `docker-compose -f docker-compose-local.yml up -d --build`
+2. Attach to docker through **VSCode Remote Explorer**
+3. Open an .ipynb and select a Python kernel. Install python and jupyter if needed (they are not installed in the container by default)
+
+## Testing the performance
+
+With the running docker, execute the script (Modify dataset name if needed):
+`docker exec -it chat-langchain-backend-1 python croptalk/evaluate_overall_performance.py`
 
 ## 📚 Technical description
 
