@@ -1,5 +1,4 @@
 import os
-import re
 from io import BytesIO
 
 import PyPDF2
@@ -32,23 +31,6 @@ def read_pdf_from_s3(bucket_name, file_key):
         text_content += pdf_reader.pages[page_num].extract_text()
 
     return text_content
-
-
-def clean_sp_content(content: str) -> str:
-    """
-    Removing multiple spaces and line skips to save on tokens
-    """
-    return ' '.join(content.replace("\n", " ").split())
-
-
-def find_incomprehensible_strings(text, threshold=30):
-    # Define a regular expression pattern to match incomprehensible strings
-    pattern = r'\b[A-Za-z0-9\s.,!?;:-]{%d,}\b' % threshold
-
-    # Find all matches in the text
-    incomprehensible_strings = re.findall(pattern, text)
-
-    return incomprehensible_strings
 
 
 def remove_long_words(text, character_len=30):
