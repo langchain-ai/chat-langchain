@@ -26,6 +26,8 @@ from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from sqlalchemy import create_engine, text
 
+from croptalk.utils import read_pdf_from_s3, remove_long_words
+
 load_dotenv("secrets/.env.secret")
 
 logging.basicConfig(level=logging.INFO)
@@ -66,10 +68,13 @@ def get_sp_document(state: Optional[str] = None,
                     commodity: Optional[str] = None,
                     year: Optional[int] = None):
     """
-    This tool is used to query the SP document from a database along state, county, commodity and year.
-    For instance, a user might ask :
-    - find me the SP document related to Oranges in Yakima, Washington for the year 2024
-    - SP document for corn in Butte, California, 2022
+    County specific insurance question should be answered with this tool. It allows to retrieve
+    information the specific way a policy works within a county (prices, dates, rules).
+
+    Example questions this tool can answer:
+    What are the grade discount wheat classes in Alabama, Autauga?
+    What is the final planting date for Virginia type peanuts in Baldwin County, Alabama, for the 2023 crop year?
+    What is the practice code for organic (certified) irrigated cotton in Cleburne County, Alabama, for the 2024 crop year?
 
     Args:
     state : name of state
@@ -128,8 +133,13 @@ def get_sp_document(state: Optional[str] = None,
         message = f"The Special provision (SP) document for "
         if year:
             message += f"year {year},"
+
+        sp_content = read_pdf_from_s3("croptalk-spoi", doc_link)
+        sp_content = remove_long_words(sp_content)
+
         message += (f"{commodity}, {state} and {county} county can be found at the following "
                     f"link : https://croptalk-spoi.s3.us-east-2.amazonaws.com/{doc_link}")
+        message += "Here is the document content : " + sp_content
 
         return message
 
