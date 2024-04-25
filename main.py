@@ -55,11 +55,14 @@ async def clear_memory():
     try:
         memory.clear()
         code = 200
+        result = "success"
 
-    except:
+    except Exception as e:
+        logging.info(f"Exception from clearing memory : {e}")
         code = 500
+        result = e
 
-    return {"result": "success", "code": code}
+    return {"result": result, "code": code}
 
 
 @app.post("/feedback")
