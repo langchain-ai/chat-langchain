@@ -52,10 +52,8 @@ if __name__ == "__main__":
     args = parse_args()
     logger.info(f"Evaluating croptalk's tools capacity, using config: {args}\n")
 
-    if args.use_model_llm:
-        from croptalk.model_llm import model
-    else:
-        from croptalk.model_openai_functions import model
+
+    from croptalk.model_openai_functions import model
 
     if args.eval_path != "None":
         # getting eval df
@@ -94,10 +92,10 @@ if __name__ == "__main__":
 
     else:
         with tracing_v2_enabled() as langchain_tracer:
-            # model.invoke({
-            #     "chat_history": [],
-            #     "question": "show me the table of content of the crop insurance document for apples"
-            # })
+            model.invoke({
+                "chat_history": [],
+                "question": "show me the table of content of the crop insurance document for apples"
+            })
 
             # model.invoke({
             #     "chat_history": [],
@@ -124,7 +122,7 @@ if __name__ == "__main__":
             #     "question": "SP document for Corn, in Butte County, California"
             # })
 
-            model.invoke({
-                "chat_history": [],
-                "question": "How is the projected price for cottonseed determined under the Cottonseed Endorsement for the 2024 crop year in Cleburne County, Alabama?"
-            })
+            # model.invoke({
+            #     "chat_history": [],
+            #     "question": "What are crop provision in the BP document"
+            # })
