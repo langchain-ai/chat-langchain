@@ -94,7 +94,7 @@ if __name__ == "__main__":
         with tracing_v2_enabled() as langchain_tracer:
             model.invoke({
                 "chat_history": [],
-                "question": "show me the table of content of the crop insurance document for apples"
+                "question": "are apples insurable in washington"
             })
 
             # model.invoke({
