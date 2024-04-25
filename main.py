@@ -13,7 +13,6 @@ from langserve import add_routes
 from langsmith import Client
 from pydantic.v1 import BaseModel
 
-# from croptalk.model_llm import model
 from croptalk.model_openai_functions import model, memory
 
 set_debug(True)
