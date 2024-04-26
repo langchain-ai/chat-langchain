@@ -1,25 +1,21 @@
 """Main entrypoint for the app."""
 
-from langchain.globals import set_debug
 import asyncio
+import logging
 from typing import Dict, List, Optional, Union
 from uuid import UUID
 
+import langsmith
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-import langsmith
-from langsmith import Client
+from langchain.globals import set_debug
 from langserve import add_routes
-
+from langsmith import Client
 from pydantic.v1 import BaseModel
 
-# from croptalk.model_llm import model
-from croptalk.model_openai_functions import model
-
+from croptalk.model_openai_functions import model, memory
 
 set_debug(True)
-
 
 client = Client()
 
@@ -50,6 +46,22 @@ class SendFeedbackBody(BaseModel):
     score: Union[float, int, bool, None] = None
     feedback_id: Optional[UUID] = None
     comment: Optional[str] = None
+
+
+@app.post("/clear_memory")
+async def clear_memory():
+    logging.info("CLEARING MEMORY")
+    try:
+        memory.clear()
+        code = 200
+        result = "success"
+
+    except Exception as e:
+        logging.info(f"Exception from clearing memory : {e}")
+        code = 500
+        result = e
+
+    return {"result": result, "code": code}
 
 
 @app.post("/feedback")
@@ -97,7 +109,7 @@ async def aget_trace_url(run_id: str) -> str:
             await _arun(client.read_run, run_id)
             break
         except langsmith.utils.LangSmithError:
-            await asyncio.sleep(1**i)
+            await asyncio.sleep(1 ** i)
 
     if await _arun(client.run_is_shared, run_id):
         return await _arun(client.read_run_shared_link, run_id)

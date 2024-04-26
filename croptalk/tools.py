@@ -138,7 +138,7 @@ def get_sp_document(state: Optional[str] = None,
         sp_content = remove_long_words(sp_content)
 
         message += (f"{commodity}, {state} and {county} county can be found at the following "
-                    f"link : https://croptalk-spoi.s3.us-east-2.amazonaws.com/{doc_link}")
+                    f"link : https://croptalk-spoi.s3.us-east-2.amazonaws.com/{doc_link}. ")
         message += "Here is the document content : " + sp_content
 
         return message
