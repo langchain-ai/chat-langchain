@@ -196,6 +196,22 @@ export function ChatWindow(props: {
     await sendMessage(question);
   };
 
+  const handleDeleteConversation = async () => {
+    try {
+      await fetch(apiBaseUrl + "/clear_memory", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      setMessages([]);
+      setShowDeleteConfirmationModal(false);
+    } catch (e) {
+      debugger;
+    }
+  };
+
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
       {messages.length > 0 && (
@@ -266,6 +282,7 @@ export function ChatWindow(props: {
               rounded="full"
               aria-label="Delete"
               icon={<CloseIcon />}
+              isDisabled={isLoading}
               onClick={(e) => {
                 e.preventDefault();
                 setShowDeleteConfirmationModal(true);
@@ -278,10 +295,7 @@ export function ChatWindow(props: {
       <DeleteConfirmationModal
         isOpen={showDeleteConfirmationModal}
         handleClose={() => setShowDeleteConfirmationModal(false)}
-        handleDelete={() => {
-          setMessages([]);
-          setShowDeleteConfirmationModal(false);
-        }}
+        handleDelete={handleDeleteConversation}
       />
 
       {messages.length === 0 ? (
