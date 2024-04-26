@@ -79,7 +79,7 @@ class OpenAIAgentModelFactory:
                 (
                     "system",
                     """You are a useful crop insurance assistant that provides accurate results based on retrieved docs.
-                ALWAYS cite the relevant sources using this format : [ Document : title, page : page_id | url : link  ]""",
+                ALWAYS cite the relevant sources using this format : ( Document : title, page : page_id , url : link  )""",
                 ),
                 MessagesPlaceholder(self.memory_key, optional=True),
                 ("human", f"{{{self.input_key}}}"),
