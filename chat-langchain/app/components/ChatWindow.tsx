@@ -50,7 +50,7 @@ export function ChatWindow(props: {
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
   >([]);
-  
+
   const { placeholder, titleText = "An LLM" } = props;
 
   const sendMessage = async (message?: string) => {
@@ -198,13 +198,14 @@ export function ChatWindow(props: {
 
   const handleDeleteConversation = async () => {
     try {
-      await fetch(apiBaseUrl + "/clear_memory", {
+      const resp = await fetch(apiBaseUrl + "/clear_memory", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({}),
       });
+      if (resp.status !== 201) throw resp;
       setMessages([]);
       setShowDeleteConfirmationModal(false);
     } catch (e) {
