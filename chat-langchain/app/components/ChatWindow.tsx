@@ -205,7 +205,7 @@ export function ChatWindow(props: {
         },
         body: JSON.stringify({}),
       });
-      if (resp.status !== 201) throw resp;
+      if (resp.status !== 200) throw resp;
       setMessages([]);
       setShowDeleteConfirmationModal(false);
     } catch (e) {
