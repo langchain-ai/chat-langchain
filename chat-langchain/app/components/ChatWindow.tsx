@@ -50,7 +50,7 @@ export function ChatWindow(props: {
   const [chatHistory, setChatHistory] = useState<
     { human: string; ai: string }[]
   >([]);
-
+  
   const { placeholder, titleText = "An LLM" } = props;
 
   const sendMessage = async (message?: string) => {
@@ -208,7 +208,7 @@ export function ChatWindow(props: {
       setMessages([]);
       setShowDeleteConfirmationModal(false);
     } catch (e) {
-      debugger;
+      window.alert("Unable to process your request. Please try again later.");
     }
   };
 
