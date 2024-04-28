@@ -253,6 +253,10 @@ export function ChatWindow(props: { conversationId: string }) {
                   setLlm(e.target.value);
                 }}
                 width={"240px"}
+                style={{
+                  backgroundColor: "#131318", 
+                  color: "#f8f8f8",
+                }}
               >
                 <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
                 <option value="anthropic_claude_3_sonnet">Claude 3 Sonnet</option>
