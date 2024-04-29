@@ -44,7 +44,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What are the key guidelines for insuring a new type of crop?
+              What were the total premiums for soybeans in 2023?
             </Heading>
           </CardHeader>
         </Card>
@@ -65,7 +65,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What is the early harvest adjustment (EHA)?
+              What is the hand harvest amount in SP for cherries in Yakima WA?
             </Heading>
           </CardHeader>
         </Card>
@@ -87,7 +87,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What date is production considered to be harvested early?
+              What is the difference between EU and OU and what are the benefits of each?
             </Heading>
           </CardHeader>
         </Card>
@@ -108,7 +108,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What crops can I insure as organic?
+              Write me a three-part social media post series about the benefits of the fresh option in the Apple APH policy
             </Heading>
           </CardHeader>
         </Card>
