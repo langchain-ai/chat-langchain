@@ -326,6 +326,12 @@ def get_sob_sql_query_examples() -> List[Dict]:
 
         },
 
+        {
+            "input": "What are the total premiums and liabilities for soybeans in 2023",
+            "query": "SELECT SUM(total_premium_amount) AS total_premiums, SUM(liability_amount) AS total_liabilities FROM sob_all_years WHERE commodity_name = 'soybeans' AND commodity_year = 2023"
+
+        },
+
     ]
 
 

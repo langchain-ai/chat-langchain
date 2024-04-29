@@ -94,7 +94,7 @@ if __name__ == "__main__":
         with tracing_v2_enabled() as langchain_tracer:
             model.invoke({
                 "chat_history": [],
-                "question": "are apples insurable in washington"
+                "question": "What are total premiums and liabilities for soybeans 2023"
             })
 
             # model.invoke({
@@ -103,6 +103,7 @@ if __name__ == "__main__":
             # })
             # model.invoke({
             #     "chat_history": [],
+
             #     "question": "How many WFRP policies were sold in NY in 2023",
             # })
             #
