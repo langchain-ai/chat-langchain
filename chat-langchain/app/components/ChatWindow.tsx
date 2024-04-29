@@ -21,10 +21,19 @@ import {
   InputGroup,
   InputRightElement,
   Spinner,
+  Modal,
+  Button,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
 } from "@chakra-ui/react";
-import { ArrowUpIcon } from "@chakra-ui/icons";
+import { ArrowUpIcon, CloseIcon } from "@chakra-ui/icons";
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
+import DeleteConfirmationModal from "./DeleteConfirmationModal";
 
 export function ChatWindow(props: {
   placeholder?: string;
@@ -34,6 +43,8 @@ export function ChatWindow(props: {
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<Array<Message>>([]);
   const [input, setInput] = useState("");
+  const [showDeleteConfirmationModal, setShowDeleteConfirmationModal] =
+    useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const [chatHistory, setChatHistory] = useState<
@@ -185,6 +196,23 @@ export function ChatWindow(props: {
     await sendMessage(question);
   };
 
+  const handleDeleteConversation = async () => {
+    try {
+      const resp = await fetch(apiBaseUrl + "/clear_memory", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      if (resp.status !== 200) throw resp;
+      setMessages([]);
+      setShowDeleteConfirmationModal(false);
+    } catch (e) {
+      window.alert("Unable to process your request. Please try again later.");
+    }
+  };
+
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
       {messages.length > 0 && (
@@ -221,7 +249,7 @@ export function ChatWindow(props: {
         <AutoResizeTextarea
           value={input}
           maxRows={5}
-          marginRight={"56px"}
+          marginRight={"68px"}
           placeholder="Type your question here"
           textColor={"white"}
           borderColor={"rgb(58, 58, 61)"}
@@ -247,9 +275,29 @@ export function ChatWindow(props: {
               e.preventDefault();
               sendMessage();
             }}
+            marginRight="2"
           />
+          {messages.length > 0 && (
+            <IconButton
+              colorScheme="red"
+              rounded="full"
+              aria-label="Delete"
+              icon={<CloseIcon />}
+              isDisabled={isLoading}
+              onClick={(e) => {
+                e.preventDefault();
+                setShowDeleteConfirmationModal(true);
+              }}
+            />
+          )}
         </InputRightElement>
       </InputGroup>
+
+      <DeleteConfirmationModal
+        isOpen={showDeleteConfirmationModal}
+        handleClose={() => setShowDeleteConfirmationModal(false)}
+        handleDelete={handleDeleteConversation}
+      />
 
       {messages.length === 0 ? (
         <footer className="flex justify-center absolute bottom-8">
