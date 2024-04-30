@@ -1,7 +1,6 @@
 import os
 from typing import Any, List, Optional, Tuple
 
-from chromadb.utils import embedding_functions
 import weaviate
 import weaviate.classes as wvc
 from weaviate.client import WeaviateClient
@@ -97,26 +96,6 @@ def query_near_text_with_filters(
     )
 
     return response
-
-
-
-def embed_text(query: str, model_name: str = "all-MiniLM-L6-v2") -> List[float]:
-    """
-    Args:
-        query: the text to embed
-        model_name: the name of the model to use for embedding, defaults to "all-MiniLM-L6-v2"
-
-    Returns:
-        a list of floats representing the document's embedding 
-    """
-    emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name=model_name
-    )
-
-    embedded_text = emb_fn([query])
-    embedded_text = embedded_text[0]
-
-    return embedded_text
 
 
 def get_equal_filter(property_name: str, property_value: Any) -> wvc.query.Filter:
