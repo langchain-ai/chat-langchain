@@ -1,8 +1,8 @@
 # Run this script from AWS CloudShell
-# > nano update_pdf_metadata.sh
+# > nano update_s3_metadata.sh
 # ( Copy and paste the script ) 
-# > chmod +x update_pdf_metadata.sh
-# > ./update_pdf_metadata.sh > metadata_update_log.txt 2>&1
+# > chmod +x update_s3_metadata.sh
+# > ./update_s3_metadata.sh > metadata_update_log.txt 2>&1
 
 #!/bin/bash
 
