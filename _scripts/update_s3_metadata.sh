@@ -2,7 +2,7 @@
 # > nano update_s3_metadata.sh
 # ( Copy and paste the script ) 
 # > chmod +x update_s3_metadata.sh
-# > ./update_s3_metadata.sh > metadata_update_log.txt 2>&1
+# > ./update_s3_metadata.sh > log_update_s3_metadata.txt 2>&1
 
 #!/bin/bash
 
@@ -19,4 +19,5 @@ aws s3 ls s3://$BUCKET_NAME/ --recursive | grep '.pdf' | awk '{print $4}' | whil
         --content-disposition "inline; filename='$(basename "$file_key")'" \
         --content-type application/pdf \
         --acl public-read
+    sleep 1
 done
