@@ -60,7 +60,7 @@ class OpenAIAgentModelFactory:
         self.input_key = input_key
         self.output_key = output_key
 
-    def get_model(self, return_intermediate_steps=False, no_memory=False) -> Tuple[Chain, AgentTokenBufferMemory]:
+    def get_model(self, convert_response_chain_to_str=True, no_memory=False) -> Tuple[Chain, AgentTokenBufferMemory]:
         """
         Returns:
             - newly created OpenAI LLM chat agent using ChromaDB vectorstore
@@ -118,10 +118,12 @@ class OpenAIAgentModelFactory:
                 memory=memory,
                 verbose=True,
                 max_iterations=10,
-                return_intermediate_steps=True,
+                return_intermediate_steps=True, # we always want to return the intermediate steps to see them in the run trace
             ).with_config(run_name="AgentExecutor")
         
-        if return_intermediate_steps:
+        if not convert_response_chain_to_str:
+            # Skip the last step of converting the response to a string 
+            # to have access to the chain as an object, i.e. retrieve the intermediate steps
             return agent_executor, memory
 
         agent_executor_parsed = (
@@ -179,7 +181,7 @@ class OpenAIAgentModelFactory:
 
 
 # create singleton model
-def initialize_model(return_intermediate_steps=False, no_memory=False):
+def initialize_model(convert_response_chain_to_str=True, no_memory=False):
     """
     Returns:
         - newly created OpenAI LLM chat agent using ChromaDB vectorstore
@@ -192,7 +194,7 @@ def initialize_model(return_intermediate_steps=False, no_memory=False):
         top_k=int(os.getenv("VECTORSTORE_TOP_K")),
         input_key="question",
         output_key="output",
-    ).get_model(return_intermediate_steps=return_intermediate_steps, no_memory=no_memory)
+    ).get_model(convert_response_chain_to_str=convert_response_chain_to_str, no_memory=no_memory)
     return model, memory
 
 model, memory = initialize_model()

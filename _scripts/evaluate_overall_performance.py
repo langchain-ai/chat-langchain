@@ -62,7 +62,7 @@ def tool_evaluator(run: Run, example: Example) -> dict:
 
 
 # Helper to run the model
-MODEL, _ = initialize_model(return_intermediate_steps=True, no_memory=True)
+MODEL, _ = initialize_model(convert_response_chain_to_str=False, no_memory=True)
 
 def predict(inputs: dict) -> dict:
     print(f"inputs: {inputs}")
