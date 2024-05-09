@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: BackendDockerfile
     ports:
-      - "8080:8080"
+      - "443:8080"
     volumes:
       - ./data:/app/data  # Map the ./data directory on the host to /app/data in the container
     environment:
@@ -17,7 +17,7 @@ services:
       context: ./chat-langchain
       dockerfile: FrontendDockerfile
     ports:
-      - "3000:3000" # - "3000:80"
+      - "80:3000"
     entrypoint: ["yarn", "dev"]
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://3.143.235.233:8080
+      - NEXT_PUBLIC_API_BASE_URL=http://3.143.235.233:443
