@@ -11,11 +11,11 @@ provider "google" {
 
 # Load secrets from Secret Manager. You can specify your secrets in anyway you see fit.
 data "google_secret_manager_secret_version" "chat_langchain_backend_secrets" {
-  secret = "chat-langchain-backend"
+  secret = "chat-looker-docs-backend"
 }
 
 module "chat_langchain_backend" {
-  source = "./modules/chat_langchain_backend"
+  source = "./modules/chat_looker_docs_backend"
 
   project_id                  = local.project_id
   region                      = local.region

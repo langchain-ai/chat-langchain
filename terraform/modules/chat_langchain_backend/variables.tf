@@ -58,7 +58,7 @@ variable "langsmith_api_key" {
 variable "langchain_project" {
   description = "Langchain project to use for the backend"
   type        = string
-  default     = "chat-langchain"
+  default     = "chat-looker-doc"
 }
 
 variable "min_instance_count" {

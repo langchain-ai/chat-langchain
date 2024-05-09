@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "chat-langchain"
+name = "chat-looker-docs"
 version = "0.1.1"
 description = ""
 authors = ["SN <6432132+samnoyes@users.noreply.github.com>"]
