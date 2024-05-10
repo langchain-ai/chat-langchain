@@ -82,7 +82,7 @@ yarn build
 
 Then, to deploy to Google Cloud Run use the following command:
 
-First create a `.env.gcp.yaml` file with the contents from [`.env.gcp.yaml.example`](.env.gcp.yaml.example) and fill in the values. Then run:
+First create a `.env.gcp.yaml` file with the contents from [`.env.gcp.yaml.example`](.env.gcp.yaml) and fill in the values. Then run:
 
 ```shell
 gcloud run deploy chat-langchain --source . --port 8000 --env-vars-file .env.gcp.yaml --allow-unauthenticated --region us-central1 --min-instances 1

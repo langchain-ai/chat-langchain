@@ -14,14 +14,14 @@ data "google_secret_manager_secret_version" "chat_langchain_backend_secrets" {
   secret = "chat-looker-docs-backend"
 }
 
-module "chat_langchain_backend" {
+module "chat_looker_docs_backend" {
   source = "./modules/chat_looker_docs_backend"
 
   project_id                  = local.project_id
   region                      = local.region
-  chat_langchain_backend_name = "chat-langchain-backend"
-  domain_name                 = "YOUR DOMAIN NAME"
-  image_tag                   = "docker.io/langchain/chat-langchain-backend:0.0.1"
+  chat_looker-docs_backend_name = "chat-looker-docs-backend"
+  domain_name                 = "chat-looker-docs.vercel.app"
+  image_tag                   = "docker.io/langchain/chat-looker-docs-backend:0.0.1"
   openai_api_key              = local.secret_json["openai_api_key"]
   weaviate_api_key            = local.secret_json["weaviate_api_key"]
   weaviate_url                = local.secret_json["weaviate_url"]
