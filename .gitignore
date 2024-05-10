@@ -153,3 +153,4 @@ node_modules/
 !.yarn/versions
 
 notebooks
+.env.gcp.yaml
