@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "chat-looker-docs"
 version = "0.1.1"
-description = ""
+description = "Looker chhat app"
 authors = ["SN <6432132+samnoyes@users.noreply.github.com>"]
 readme = "README.md"
 
@@ -31,6 +31,15 @@ psycopg2-binary = "^2.9.9"
 
 [tool.poetry.group.lint.dependencies]
 ruff = "^0.2.2"
+
+[[tool.poetry.packages]]
+include = "backend/**/*"
+
+[[tool.poetry.packages]]
+include = "*.py"
+
+[[tool.poetry.packages]]
+include = "_scripts/**/*"
 
 [build-system]
 requires = ["poetry-core"]
