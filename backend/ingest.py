@@ -119,16 +119,14 @@ def ingest_docs():
     )
     record_manager.create_schema()
 
-    #docs_from_documentation = load_langchain_docs()
-    #logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
-    #docs_from_api = load_api_docs()
-    #logger.info(f"Loaded {len(docs_from_api)} docs from API")
+    # docs_from_documentation = load_langchain_docs()
+    # logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
+    # docs_from_api = load_api_docs()
+    # logger.info(f"Loaded {len(docs_from_api)} docs from API")
     docs_from_looker = load_looker_docs()
     logger.info(f"Loaded {len(docs_from_looker)} docs from Langsmith")
 
-    docs_transformed = text_splitter.split_documents(
-         docs_from_looker
-    )
+    docs_transformed = text_splitter.split_documents(docs_from_looker)
     docs_transformed = [doc for doc in docs_transformed if len(doc.page_content) > 10]
 
     # We try to return 'source' and 'title' metadata when querying vector store and
