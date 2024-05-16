@@ -46,15 +46,18 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository content
+        uses: actions/checkout@v2
+        with:
+            lfs: true
       - name: Set up Git LFS
         run: |
             sudo apt-get update
             sudo apt-get install git-lfs
             git lfs install
             
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+      #- name: Install Vercel CLI
+      #  run: npm install --global vercel@latest
       - name: Pull Vercel Environment Information
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build Project Artifacts
