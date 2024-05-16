@@ -36,37 +36,6 @@ jobs:
         push: true
         tags: docker.io/prabhakaranmails/chat-langchain-backend:${{ env.GIT_SHORT_SHA }}
 
-    - name: Checkout deployments repo
-      uses: actions/checkout@v3
-      with:
-        repository: langchain-ai/deployments
-        path: deployments
-        token: ${{ secrets.DEPLOYMENTS_PAT }}
-
-    - name: Update Docker image in Terraform files (dev)
-      run: |
-        cd deployments/environments/gcp/chat-looker-docs
-        # Modify the main.tf terraform file
-        sed -i "s|image_tag                   = \"docker.io/langchain/chat-langchain-backend:[^\"]*\"|image_tag                   = \"docker.io/prabhakaranmails/chat-langchain-backend:${{ env.GIT_SHORT_SHA }}\"|" main.tf
-
-    - name: Create Pull Request
-      id: create-pr
-      uses: peter-evans/create-pull-request@v5
-      with:
-        token: ${{ secrets.DEPLOYMENTS_PAT }}
-        title: "Update Chat Langchain Docker image to ${{ env.GIT_SHORT_SHA }}"
-        commit-message: "Update Docker image"
-        base: "main"
-        branch: "actions/update-docker-image-${{ env.GIT_SHORT_SHA }}"
-        body: 'Update Chat Langchain Docker image to ${{ env.GIT_SHORT_SHA }}'
-        path: deployments
-
-    - name: Enable Pull Request Automerge
-      uses: peter-evans/enable-pull-request-automerge@v3
-      with:
-        token: ${{ secrets.DEPLOYMENTS_PAT }}
-        pull-request-number: ${{ steps.create-pr.outputs.pull-request-number }}
-        repository: langchain-ai/deployments
 
   deploy-frontend:
     name: Deploy Frontend to Vercel
