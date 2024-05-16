@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="../assets/style.css">
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
         var endpoint = "{{ websocketEndpoint }}";
         console.log("Connecting to " + endpoint)
@@ -27,9 +28,11 @@
                     var header = document.getElementById('header');
                     header.innerHTML = "Computing answer...";
                     var div = document.createElement('div');
-                    div.className = 'server-message';
+                    div.className = 'server-message';                    
                     var p = document.createElement('p');
-                    p.innerHTML = "<strong>" + "Chatbot: " + "</strong>";
+                    p.innerHTML = "";
+                    p.className = "chatbot-message-response"
+                    p.id = "chatbot-message-response";
                     div.appendChild(p);
                     messages.appendChild(div);
                 } else if (data.type === "stream") {
@@ -45,27 +48,30 @@
                     var header = document.getElementById('header');
                     header.innerHTML = data.message;
                 } else if (data.type === "end") {
-                    console.log(data);
-                    //Write the source of the answer
+                    //console.log(data);
+                    var elements = document.querySelectorAll('.chatbot-message-response');
+                        elements.forEach(function(element) {                        
+                        element.innerHTML = marked.parse(element.innerHTML);
+                    });
                     var div = document.createElement('div');
                     div.className = 'source-message';
                     var p = document.createElement('p');
                     p.innerHTML = "<strong>" + "Sources: " + "</strong>";
                     div.appendChild(p);
                     messages.appendChild(div);
-                    console.log(data.sources);
+                    //console.log(data.sources);
 
                     _.forEach(data.sources, (item) => {
-                        console.log('Page Content:');
-                        console.log(item.page_content);
-                        console.log('\nMeta Data:');
+                        //console.log('Page Content:');
+                        //console.log(item.page_content);
+                        //console.log('\nMeta Data:');
 
                         var sourceDiv = document.createElement('div');
                         sourceDiv.className = 'group cursor-pointer relative inline-block text-left w-full italic text-sm';
-                        sourceDiv.innerHTML = item.meta_data.file_path + " - page(" + item.meta_data.page_number + ")";
+                        sourceDiv.innerHTML = item.meta_data.file_path + " - page(" + item.meta_data.page + ")";
                         var tooltipDiv = document.createElement('div');
                         tooltipDiv.className = 'opacity-0 bg-black text-white text-center text-xs rounded-lg py-2 absolute z-100 group-hover:opacity-100 bottom-full px-3 pointer-events-none';
-                        tooltipDiv.innerHTML = item.page_content;
+                        tooltipDiv.innerHTML =  marked.parse(item.page_content);
                         sourceDiv.appendChild(tooltipDiv);
                         div.appendChild(sourceDiv);
 
@@ -188,13 +194,7 @@
         </div>
     </main>
 
-    <footer class="fixed bottom-0 left-0 z-20 w-full p-4 md:items-center md:flex md:justify-between md:p-6">
-        <div class="text-right w-full">
-            <span class="text-sm text-gray-500 sm:text-center dark:text-gray-400">Made with 🤖 by <a
-                    href="https://opioinc.com/" class="hover:underline">Opio™</a>
-            </span>
-        </div>
-    </footer>
+
 
 </body>
 

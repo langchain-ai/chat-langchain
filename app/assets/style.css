@@ -213,7 +213,7 @@ body {
 .client-message,
 .server-message,
 .source-message {
-    width: 85%;
+    width: 95%;
     padding: 1rem 1.2rem;
     margin-bottom: 1rem;
     border-radius: 10px;
