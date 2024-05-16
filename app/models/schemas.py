@@ -1,4 +1,5 @@
 """Schemas for the chat app."""
+
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -43,4 +44,9 @@ class ChatResponse(BaseModel):
 class Legislation(BaseModel):
     act_name: str
     year: str
+    url: str
+
+
+class Policy(BaseModel):
+    policy_name: str
     url: str

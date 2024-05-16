@@ -1,4 +1,5 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
+
 import os
 
 from dotenv import load_dotenv
@@ -13,7 +14,9 @@ def ingest_docs():
     """Get documents from web pages."""
     loaders = []
 
-    doc_folder = "data/govt-docs/"
+    namespace = "vic-policies"
+
+    doc_folder = f"data/{namespace}/"
     # doc_folder = "data/security-docs/"
     # doc_folder = "data/prophet-docs/"
 
@@ -25,7 +28,11 @@ def ingest_docs():
 
     docs = []
     for loader in loaders:
-        docs.extend(loader.load())
+        try:
+            logger.debug(f"Loading {loader.file_path}")
+            docs.extend(loader.load())
+        except Exception as e:
+            logger.error(f"Failed to load {loader}: {e}")
 
     # loader = PyMuPDFLoader("data/security-docs/2022 Montoux Solution Overview.pdf")
     text_splitter = RecursiveCharacterTextSplitter()
@@ -37,7 +44,7 @@ def ingest_docs():
     PGVector.from_documents(
         embedding=embeddings,
         documents=documents,
-        collection_name="government-docs",
+        collection_name=namespace,
         pre_delete_collection=True,
     )
 

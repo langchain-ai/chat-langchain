@@ -6,6 +6,8 @@ from pydantic import BaseSettings
 
 class Settings(BaseSettings):
     openai_api_key: str
+    openai_model: str
+    pgvector_namespace_to_load: str
     docchat_database_url: str
     websocket_endpoint: str
 

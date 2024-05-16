@@ -1,4 +1,5 @@
 """Create a ConversationalRetrievalChain for question/answering."""
+
 from langchain.callbacks.manager import AsyncCallbackManager
 from langchain.callbacks.tracers import LangChainTracer
 from langchain.chains import ConversationalRetrievalChain
@@ -7,6 +8,10 @@ from langchain.chains.llm import LLMChain
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chat_models import ChatOpenAI
 from langchain.vectorstores.base import VectorStore
+
+from app.models import config
+
+settings = config.get_settings()
 
 
 def get_chain(
@@ -26,13 +31,13 @@ def get_chain(
         stream_manager.add_handler(tracer)
 
     question_gen_llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo-16k",
+        model_name=settings.openai_model,
         temperature=0,
         verbose=True,
         callback_manager=question_manager,
     )
     streaming_llm = ChatOpenAI(
-        model_name="gpt-3.5-turbo-16k",
+        model_name=settings.openai_model,
         streaming=True,
         callback_manager=stream_manager,
         verbose=True,

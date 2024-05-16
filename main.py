@@ -1,4 +1,5 @@
 """Main entrypoint for the app."""
+
 import datetime
 import random
 import string
@@ -73,7 +74,9 @@ async def websocket_endpoint(websocket: WebSocket):
     chat_trace = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
     embeddings = OpenAIEmbeddings()
-    vectorstore = PGVector.from_existing_index(embeddings, "government-docs")
+    vectorstore = PGVector.from_existing_index(
+        embeddings, settings.pgvector_namespace_to_load
+    )
     qa_chain = get_chain(vectorstore, question_handler, stream_handler)
     # qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
 

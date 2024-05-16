@@ -37,6 +37,7 @@ pytest = "^7.2.2"
 pytest-asyncio = "^0.21.0"
 safety = "^2.3.5"
 pytest-watch = "^4.2.0"
+selenium = "^4.20.0"
 
 
 [build-system]

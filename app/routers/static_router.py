@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from loguru import logger
 
 from app.models import config
-from app.models.schemas import Legislation
+from app.models.schemas import Legislation, Policy
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -44,6 +44,21 @@ async def get_acts(request: Request):
             acts.append(Legislation(act_name=row[0], year=row[1], url=row[2]))
 
     return templates.TemplateResponse("acts.html", {"request": request, "acts": acts})
+
+
+@router.get("/policies")
+async def get_policies(request: Request):
+    file_path = os.getcwd() + "/scripts/policies.csv"
+    policies = []
+    with open(file_path, "r", newline="", encoding="utf-8") as csvfile:
+        csv_reader = csv.reader(csvfile)
+        for row in csv_reader:
+            logger.debug(row)
+            policies.append(Policy(policy_name=row[0], url=row[1]))
+
+    return templates.TemplateResponse(
+        "policies.html", {"request": request, "policies": policies}
+    )
 
 
 @router.get("/faq")

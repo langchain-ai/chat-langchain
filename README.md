@@ -84,3 +84,16 @@ ptw -- --last-failed --new-first
 When you commit to `main` a build is run on [https://app.circleci.com/pipelines/github/opioinc/doc-chat?branch=main](https://app.circleci.com/pipelines/github/opioinc/doc-chat?branch=main) - ask Matt for acccess and then automatically deployed to the glorious [fly.io](www.fly.io) platform. (Again - ask Matt for access) then it gets automatically deployed to [https://opio-chat.fly.dev/](https://opio-chat.fly.dev/) - will set up a proper domain name soon.
 
 It's deployed using a docker container so if youw want to change the deployment process you can do that in the `Dockerfile` in the root.
+
+# PG Vector
+
+```
+docker build -f DockerfilePgVector . -t mrmattwright/fly-pg-pgvector --platform "linux/amd64"
+docker push mrmattwright/fly-pg-pgvector
+```
+
+then create the fly app
+
+```
+
+```
