@@ -22,5 +22,9 @@
       "src": "/(.*)",
       "dest": "/frontend/$1"
     }
+  ],
+   "ignore": [
+    ".*",
+    "**/node_modules/**"
   ]
 }
