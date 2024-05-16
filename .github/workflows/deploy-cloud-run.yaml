@@ -17,12 +17,6 @@ jobs:
       run: |
         echo "GIT_SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
         echo "LC_ENVIRONMENT=dev" >> $GITHUB_ENV
-
-    - name: Set up Git LFS
-      run: |
-        sudo apt-get update
-        sudo apt-get install git-lfs
-        git lfs install
         
     - name: Set up depot.dev multi-arch runner
       uses: depot/setup-action@v1
@@ -53,6 +47,12 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v2
+      - name: Set up Git LFS
+        run: |
+            sudo apt-get update
+            sudo apt-get install git-lfs
+            git lfs install
+            
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
       - name: Pull Vercel Environment Information
