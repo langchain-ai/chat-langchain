@@ -107,8 +107,8 @@ COHERE_MODEL_KEY = "cohere_command"
 
 class AgentState(TypedDict):
     query: str
-    documents: Sequence[Document]
-    messages: Annotated[Sequence[BaseMessage], add_messages]
+    documents: list[Document]
+    messages: Annotated[list[BaseMessage], add_messages]
 
 
 def get_model(model_name: str) -> LanguageModelLike:
@@ -125,14 +125,13 @@ def get_model(model_name: str) -> LanguageModelLike:
         max_tokens=16384,
         fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
     )
-    # TODO (VB): figure out why this is choking
-    # gemini_pro = ChatGoogleGenerativeAI(
-    #     model="gemini-pro",
-    #     temperature=0,
-    #     max_tokens=16384,
-    #     convert_system_message_to_human=True,
-    #     google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
-    # )
+    gemini_pro = ChatGoogleGenerativeAI(
+        model="gemini-pro",
+        temperature=0,
+        max_output_tokens=16384,
+        convert_system_message_to_human=True,
+        google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
+    )
     cohere_command = ChatCohere(
         model="command",
         temperature=0,
@@ -141,17 +140,15 @@ def get_model(model_name: str) -> LanguageModelLike:
     model_map = {
         ANTHROPIC_MODEL_KEY: claude_3_sonnet,
         FIREWORKS_MIXTRAL_MODEL_KEY: fireworks_mixtral,
-        # GOOGLE_MODEL_KEY: gemini_pro,
+        GOOGLE_MODEL_KEY: gemini_pro,
         COHERE_MODEL_KEY: cohere_command,
     }
     llm = gpt_3_5.configurable_alternatives(
         ConfigurableField(id="llm"),
         default_key=OPENAI_MODEL_KEY,
         **model_map
-    ).with_fallbacks([gpt_3_5, claude_3_sonnet, fireworks_mixtral,
-        #  gemini_pro,
-        cohere_command
-    ])
+    ).with_fallbacks([gpt_3_5, claude_3_sonnet, fireworks_mixtral, gemini_pro, cohere_command])
+    llm = gemini_pro
     return llm.with_config({"configurable": {"llm": model_name}})
 
 
