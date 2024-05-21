@@ -29,7 +29,7 @@ import { apiBaseUrl } from "../utils/constants";
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
-  "anthropic_claude_3_sonnet",
+  "anthropic_claude_3_haiku",
   "google_gemini_pro",
   "fireworks_mixtral",
   "cohere_command",
@@ -255,7 +255,7 @@ export function ChatWindow(props: { conversationId: string }) {
                 width={"240px"}
               >
                 <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
-                <option value="anthropic_claude_3_sonnet">Claude 3 Sonnet</option>
+                <option value="anthropic_claude_3_haiku">Claude 3 Haiku</option>
                 <option value="google_gemini_pro">Google Gemini Pro</option>
                 <option value="fireworks_mixtral">
                   Mixtral (via Fireworks.ai)
