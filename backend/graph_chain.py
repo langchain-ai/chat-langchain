@@ -4,7 +4,7 @@ from typing import Annotated, Literal, Sequence, TypedDict
 import weaviate
 from langchain_core.documents import Document
 from langchain_core.language_models import LanguageModelLike
-from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage, convert_to_messages
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -18,15 +18,15 @@ from langchain_core.runnables import (
     chain,
 )
 from langchain_openai import ChatOpenAI
+from langchain_cohere import ChatCohere
 from langchain_anthropic import ChatAnthropic
 from langchain_fireworks import ChatFireworks
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_community.chat_models.cohere import ChatCohere
 from langchain_community.vectorstores import Weaviate
 from langgraph.graph import StateGraph, START, END, add_messages
 
-from ingest import get_embeddings_model
-from constants import WEAVIATE_DOCS_INDEX_NAME
+from backend.ingest import get_embeddings_model
+from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
@@ -120,13 +120,14 @@ def get_model(model_name: str) -> LanguageModelLike:
         max_tokens=16384,
         fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
     )
-    gemini_pro = ChatGoogleGenerativeAI(
-        model="gemini-pro",
-        temperature=0,
-        max_tokens=16384,
-        convert_system_message_to_human=True,
-        google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
-    )
+    # TODO (VB): figure out why this is choking
+    # gemini_pro = ChatGoogleGenerativeAI(
+    #     model="gemini-pro",
+    #     temperature=0,
+    #     max_tokens=16384,
+    #     convert_system_message_to_human=True,
+    #     google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
+    # )
     cohere_command = ChatCohere(
         model="command",
         temperature=0,
@@ -139,11 +140,15 @@ def get_model(model_name: str) -> LanguageModelLike:
         default_key="openai_gpt_3_5_turbo",
         anthropic_claude_3_sonnet=claude_3_sonnet,
         fireworks_mixtral=fireworks_mixtral,
-        google_gemini_pro=gemini_pro,
+        # google_gemini_pro=gemini_pro,
         cohere_command=cohere_command,
-    ).with_fallbacks(
-        [gpt_3_5, claude_3_sonnet, fireworks_mixtral, gemini_pro, cohere_command]
-    )
+    ).with_fallbacks([
+        gpt_3_5,
+        claude_3_sonnet,
+        fireworks_mixtral,
+        #  gemini_pro,
+        cohere_command
+    ])
     return llm.with_config({"configurable": {"llm": model_name}})
 
 
@@ -173,7 +178,8 @@ def format_docs(docs: Sequence[Document]) -> str:
 
 def retrieve_documents(state: AgentState):
     retriever = get_retriever()
-    query = state["messages"][-1].content
+    messages = convert_to_messages(state["messages"])
+    query = messages[-1].content
     relevant_documents = retriever.get_relevant_documents(query)
     return {"messages": [ToolMessage(tool_call_id="fake_tool_call", content=format_docs(relevant_documents))]}
 
@@ -191,8 +197,9 @@ def retrieve_documents_with_chat_history(state: AgentState, config):
     ).with_config(
         run_name="CondenseQuestion",
     )
-    query = state["messages"][-1].content
-    print("condensed question", condense_question_chain.invoke({"question": query, "chat_history": get_chat_history(state)}))
+
+    messages = convert_to_messages(state["messages"])
+    query = messages[-1].content
     retriever_with_condensed_question = condense_question_chain | retriever
     relevant_documents = retriever_with_condensed_question.invoke({"question": query, "chat_history": get_chat_history(state)})
     return {"messages": [ToolMessage(tool_call_id="fake_tool_call", content=format_docs(relevant_documents))]}
@@ -203,11 +210,11 @@ def route_to_retriever(state: AgentState) -> Literal["retriever", "retriever_wit
         return "retriever"
     else:
         return "retriever_with_chat_history"
-  
+
 
 def get_chat_history(state: AgentState):
     chat_history = []
-    for message in state["messages"]:
+    for message in convert_to_messages(state["messages"]):
         if isinstance(message, AIMessage) or isinstance(message, HumanMessage):
             chat_history.append(message)
     return chat_history
@@ -222,8 +229,8 @@ def get_last_message(messages, condition):
 
 
 def synthesize_response(state: AgentState, config):
-    messages = state["messages"]
-    model_name = config.get("configurable", {}).get("model_name", "anthropic")
+    messages = convert_to_messages(state["messages"])
+    model_name = config.get("configurable", {}).get("model_name", "anthropic_claude_3_sonnet")
     model = get_model(model_name)
 
     last_human_message = get_last_message(messages, lambda message: isinstance(message, HumanMessage))
@@ -246,21 +253,23 @@ def synthesize_response(state: AgentState, config):
         ]
     )
 
-    @chain
-    def cohere_response_synthesizer(input: dict) -> RunnableSequence:
-        return cohere_prompt | model.bind(source_documents=input["docs"])
+    # TODO (VB): uncommend this, commented for debugging
 
-    response_synthesizer = (
-        default_response_synthesizer.configurable_alternatives(
-            ConfigurableField("llm"),
-            default_key="openai_gpt_3_5_turbo",
-            anthropic_claude_3_sonnet=default_response_synthesizer,
-            fireworks_mixtral=default_response_synthesizer,
-            google_gemini_pro=default_response_synthesizer,
-            cohere_command=cohere_response_synthesizer,
-        )
-    ).with_config(run_name="GenerateResponse")
-    synthesized_response = response_synthesizer.invoke({
+    # @chain
+    # def cohere_response_synthesizer(input: dict) -> RunnableSequence:
+    #     return cohere_prompt | model.bind(source_documents=input["docs"])
+
+    # response_synthesizer = (
+    #     default_response_synthesizer.configurable_alternatives(
+    #         ConfigurableField("llm"),
+    #         default_key="openai_gpt_3_5_turbo",
+    #         anthropic_claude_3_sonnet=default_response_synthesizer,
+    #         fireworks_mixtral=default_response_synthesizer,
+    #         google_gemini_pro=default_response_synthesizer,
+    #         cohere_command=cohere_response_synthesizer,
+    #     )
+    # ).with_config(run_name="GenerateResponse")
+    synthesized_response = default_response_synthesizer.invoke({
         "question": last_human_message.content,
         "context": messages[-1].content,
         "chat_history": get_chat_history(state)
