@@ -1,4 +1,4 @@
-# 🦜️🔗 Chat LangChain
+# 🦜️🔗 Chat Looker
 
 This repo is an implementation of a locally hosted chatbot specifically focused on question answering over the [LangChain documentation](https://python.langchain.com/).
 Built with [LangChain](https://github.com/langchain-ai/langchain/), [FastAPI](https://fastapi.tiangolo.com/), and [Next.js](https://nextjs.org).
