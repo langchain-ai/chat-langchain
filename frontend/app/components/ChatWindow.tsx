@@ -220,7 +220,7 @@ export function ChatWindow(props: { conversationId: string }) {
           mb={1}
           color={"white"}
         >
-          Chat LangChain 🦜🔗
+          Chat Looker
         </Heading>
         {messages.length > 0 ? (
           <Heading fontSize="md" fontWeight={"normal"} mb={1} color={"white"}>
@@ -234,9 +234,9 @@ export function ChatWindow(props: { conversationId: string }) {
             marginTop={"10px"}
             textAlign={"center"}
           >
-            Ask me anything about LangChain&apos;s{" "}
-            <Link href="https://python.langchain.com/" color={"blue.200"}>
-              Python documentation!
+            Ask me anything about Looker&apos;s{" "}
+            <Link href="https://cloud.google.com/looker/docs/intro" color={"blue.200"}>
+              Looker documentation!
             </Link>
           </Heading>
         )}
