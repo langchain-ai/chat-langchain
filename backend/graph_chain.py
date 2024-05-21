@@ -4,7 +4,7 @@ from typing import Annotated, Literal, Sequence, TypedDict
 import weaviate
 from langchain_core.documents import Document
 from langchain_core.language_models import LanguageModelLike
-from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage, convert_to_messages
+from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, convert_to_messages
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -23,7 +23,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_fireworks import ChatFireworks
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.vectorstores import Weaviate
-from langgraph.graph import StateGraph, START, END, add_messages
+from langgraph.graph import StateGraph, END, add_messages
 
 from backend.ingest import get_embeddings_model
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
@@ -102,6 +102,13 @@ Follow Up Input: {question}
 Standalone Question:"""
 
 
+OPENAI_MODEL_KEY = "openai_gpt_3_5_turbo"
+ANTHROPIC_MODEL_KEY = "anthropic_claude_3_sonnet"
+FIREWORKS_MIXTRAL_MODEL_KEY = "fireworks_mixtral"
+GOOGLE_MODEL_KEY = "google_gemini_pro"
+COHERE_MODEL_KEY = "cohere_command"
+
+
 class AgentState(TypedDict):
     query: str
     documents: Sequence[Document]
@@ -135,19 +142,17 @@ def get_model(model_name: str) -> LanguageModelLike:
         temperature=0,
         cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
     )
+    model_map = {
+        ANTHROPIC_MODEL_KEY: claude_3_sonnet,
+        FIREWORKS_MIXTRAL_MODEL_KEY: fireworks_mixtral,
+        # GOOGLE_MODEL_KEY: gemini_pro,
+        COHERE_MODEL_KEY: cohere_command,
+    }
     llm = gpt_3_5.configurable_alternatives(
-        # This gives this field an id
-        # When configuring the end runnable, we can then use this id to configure this field
         ConfigurableField(id="llm"),
-        default_key="openai_gpt_3_5_turbo",
-        anthropic_claude_3_sonnet=claude_3_sonnet,
-        fireworks_mixtral=fireworks_mixtral,
-        # google_gemini_pro=gemini_pro,
-        cohere_command=cohere_command,
-    ).with_fallbacks([
-        gpt_3_5,
-        claude_3_sonnet,
-        fireworks_mixtral,
+        default_key=OPENAI_MODEL_KEY,
+        **model_map
+    ).with_fallbacks([gpt_3_5, claude_3_sonnet, fireworks_mixtral,
         #  gemini_pro,
         cohere_command
     ])
@@ -191,7 +196,7 @@ def retrieve_documents(state: AgentState):
 
 
 def retrieve_documents_with_chat_history(state: AgentState, config):
-    model_name = config.get("configurable", {}).get("model_name", "anthropic_claude_3_sonnet")
+    model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
     retriever = get_retriever()
     model = get_model(model_name)
 
@@ -230,43 +235,16 @@ def get_chat_history(messages: Sequence[BaseMessage]) -> Sequence[BaseMessage]:
     return chat_history
 
 
-def synthesize_response(state: AgentState, config):
-    model_name = config.get("configurable", {}).get("model_name", "anthropic_claude_3_sonnet")
-    model = get_model(model_name)
-
+def synthesize_response(state: AgentState, model: LanguageModelLike, prompt_template: str):
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", RESPONSE_TEMPLATE),
+            ("system", prompt_template),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{question}"),
         ]
     )
-    default_response_synthesizer = prompt | model
-    cohere_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", COHERE_RESPONSE_TEMPLATE),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{question}"),
-        ]
-    )
-
-    # TODO (VB): uncommend this, commented for debugging
-
-    # @chain
-    # def cohere_response_synthesizer(input: dict) -> RunnableSequence:
-    #     return cohere_prompt | model.bind(source_documents=input["docs"])
-
-    # response_synthesizer = (
-    #     default_response_synthesizer.configurable_alternatives(
-    #         ConfigurableField("llm"),
-    #         default_key="openai_gpt_3_5_turbo",
-    #         anthropic_claude_3_sonnet=default_response_synthesizer,
-    #         fireworks_mixtral=default_response_synthesizer,
-    #         google_gemini_pro=default_response_synthesizer,
-    #         cohere_command=cohere_response_synthesizer,
-    #     )
-    # ).with_config(run_name="GenerateResponse")
-    synthesized_response = default_response_synthesizer.invoke({
+    response_synthesizer = prompt | model
+    synthesized_response = response_synthesizer.invoke({
         "question": state["query"],
         "context": format_docs(state["documents"]),
         "chat_history": get_chat_history(convert_to_messages(state["messages"]))
@@ -277,15 +255,42 @@ def synthesize_response(state: AgentState, config):
     }
 
 
+def synthesize_response_default(state: AgentState, config):
+    model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
+    model = get_model(model_name)
+    return synthesize_response(state, model, RESPONSE_TEMPLATE)
+
+
+def synthesize_response_cohere(state: AgentState):
+    model = get_model(COHERE_MODEL_KEY).bind(documents=state["documents"])
+    return synthesize_response(state, model, COHERE_RESPONSE_TEMPLATE)
+
+
+def route_to_response_synthesizer(state: AgentState, config) -> Literal["response_synthesizer", "response_synthesizer_cohere"]:
+    model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
+    if model_name == COHERE_MODEL_KEY:
+        return "response_synthesizer_cohere"
+    else:
+        return "response_synthesizer"
+
+
 workflow = StateGraph(AgentState)
 
-workflow.add_node("response_synthesizer", synthesize_response)
+# define nodes
 workflow.add_node("retriever", retrieve_documents)
 workflow.add_node("retriever_with_chat_history", retrieve_documents_with_chat_history)
+workflow.add_node("response_synthesizer", synthesize_response_default)
+workflow.add_node("response_synthesizer_cohere", synthesize_response_cohere)
 
+# set entry point to retrievers
 workflow.set_conditional_entry_point(route_to_retriever)
-workflow.add_edge("retriever", "response_synthesizer")
-workflow.add_edge("retriever_with_chat_history", "response_synthesizer")
+
+# connect retrievers and response synthesizers
+workflow.add_conditional_edges("retriever", route_to_response_synthesizer)
+workflow.add_conditional_edges("retriever_with_chat_history", route_to_response_synthesizer)
+
+# connect synthesizers to terminal node
 workflow.add_edge("response_synthesizer", END)
+workflow.add_edge("response_synthesizer_cohere", END)
 
 graph = workflow.compile()
