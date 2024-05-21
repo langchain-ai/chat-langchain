@@ -99,7 +99,7 @@ Standalone Question:"""
 
 
 OPENAI_MODEL_KEY = "openai_gpt_3_5_turbo"
-ANTHROPIC_MODEL_KEY = "anthropic_claude_3_sonnet"
+ANTHROPIC_MODEL_KEY = "anthropic_claude_3_haiku"
 FIREWORKS_MIXTRAL_MODEL_KEY = "fireworks_mixtral"
 GOOGLE_MODEL_KEY = "google_gemini_pro"
 COHERE_MODEL_KEY = "cohere_command"
@@ -113,8 +113,8 @@ class AgentState(TypedDict):
 
 def get_model(model_name: str) -> LanguageModelLike:
     gpt_3_5 = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0, streaming=True)
-    claude_3_sonnet = ChatAnthropic(
-        model="claude-3-sonnet-20240229",
+    claude_3_haiku = ChatAnthropic(
+        model="claude-3-haiku-20240307",
         temperature=0,
         max_tokens=4096,
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
@@ -138,7 +138,7 @@ def get_model(model_name: str) -> LanguageModelLike:
         cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
     )
     model_map = {
-        ANTHROPIC_MODEL_KEY: claude_3_sonnet,
+        ANTHROPIC_MODEL_KEY: claude_3_haiku,
         FIREWORKS_MIXTRAL_MODEL_KEY: fireworks_mixtral,
         GOOGLE_MODEL_KEY: gemini_pro,
         COHERE_MODEL_KEY: cohere_command,
@@ -147,7 +147,7 @@ def get_model(model_name: str) -> LanguageModelLike:
         ConfigurableField(id="llm"),
         default_key=OPENAI_MODEL_KEY,
         **model_map
-    ).with_fallbacks([gpt_3_5, claude_3_sonnet, fireworks_mixtral, gemini_pro, cohere_command])
+    ).with_fallbacks([gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command])
     llm = gemini_pro
     return llm.with_config({"configurable": {"llm": model_name}})
 
@@ -245,7 +245,7 @@ def synthesize_response(state: AgentState, model: LanguageModelLike, prompt_temp
 
 
 def synthesize_response_default(state: AgentState, config):
-    model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
+    model_name = config.get("configurable", {}).get("model_name", GOOGLE_MODEL_KEY)
     model = get_model(model_name)
     return synthesize_response(state, model, RESPONSE_TEMPLATE)
 
