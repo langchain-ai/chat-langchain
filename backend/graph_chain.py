@@ -103,6 +103,8 @@ Standalone Question:"""
 
 
 class AgentState(TypedDict):
+    query: str
+    documents: Sequence[Document]
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
 
@@ -181,7 +183,11 @@ def retrieve_documents(state: AgentState):
     messages = convert_to_messages(state["messages"])
     query = messages[-1].content
     relevant_documents = retriever.get_relevant_documents(query)
-    return {"messages": [ToolMessage(tool_call_id="fake_tool_call", content=format_docs(relevant_documents))]}
+    return {
+        "query": query,
+        "documents": relevant_documents,
+        "messages": messages
+    }
 
 
 def retrieve_documents_with_chat_history(state: AgentState, config):
@@ -201,8 +207,12 @@ def retrieve_documents_with_chat_history(state: AgentState, config):
     messages = convert_to_messages(state["messages"])
     query = messages[-1].content
     retriever_with_condensed_question = condense_question_chain | retriever
-    relevant_documents = retriever_with_condensed_question.invoke({"question": query, "chat_history": get_chat_history(state)})
-    return {"messages": [ToolMessage(tool_call_id="fake_tool_call", content=format_docs(relevant_documents))]}
+    relevant_documents = retriever_with_condensed_question.invoke({"question": query, "chat_history": get_chat_history(messages)})
+    return {
+        "query": query,
+        "documents": relevant_documents,
+        "messages": messages
+    }
 
 
 def route_to_retriever(state: AgentState) -> Literal["retriever", "retriever_with_chat_history"]:
@@ -212,30 +222,17 @@ def route_to_retriever(state: AgentState) -> Literal["retriever", "retriever_wit
         return "retriever_with_chat_history"
 
 
-def get_chat_history(state: AgentState):
+def get_chat_history(messages: Sequence[BaseMessage]) -> Sequence[BaseMessage]:
     chat_history = []
-    for message in convert_to_messages(state["messages"]):
+    for message in messages:
         if isinstance(message, AIMessage) or isinstance(message, HumanMessage):
             chat_history.append(message)
     return chat_history
 
 
-def get_last_message(messages, condition):
-    for message in reversed(messages):
-        if condition(message):
-            return message
-
-    return None
-
-
 def synthesize_response(state: AgentState, config):
-    messages = convert_to_messages(state["messages"])
     model_name = config.get("configurable", {}).get("model_name", "anthropic_claude_3_sonnet")
     model = get_model(model_name)
-
-    last_human_message = get_last_message(messages, lambda message: isinstance(message, HumanMessage))
-    if last_human_message is None:
-        raise AssertionError("Expecting to have at least 1 human message")
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -270,11 +267,14 @@ def synthesize_response(state: AgentState, config):
     #     )
     # ).with_config(run_name="GenerateResponse")
     synthesized_response = default_response_synthesizer.invoke({
-        "question": last_human_message.content,
-        "context": messages[-1].content,
-        "chat_history": get_chat_history(state)
+        "question": state["query"],
+        "context": format_docs(state["documents"]),
+        "chat_history": get_chat_history(convert_to_messages(state["messages"]))
     })
-    return {"messages": [synthesized_response]}
+    return {
+        **state,
+        "messages": [synthesized_response],
+    }
 
 
 workflow = StateGraph(AgentState)
@@ -283,7 +283,7 @@ workflow.add_node("response_synthesizer", synthesize_response)
 workflow.add_node("retriever", retrieve_documents)
 workflow.add_node("retriever_with_chat_history", retrieve_documents_with_chat_history)
 
-workflow.add_conditional_edges(START, route_to_retriever)
+workflow.set_conditional_entry_point(route_to_retriever)
 workflow.add_edge("retriever", "response_synthesizer")
 workflow.add_edge("retriever_with_chat_history", "response_synthesizer")
 workflow.add_edge("response_synthesizer", END)
