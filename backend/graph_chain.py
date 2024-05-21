@@ -12,11 +12,7 @@ from langchain_core.prompts import (
     PromptTemplate,
 )
 from langchain_core.retrievers import BaseRetriever
-from langchain_core.runnables import (
-    ConfigurableField,
-    RunnableSequence,
-    chain,
-)
+from langchain_core.runnables import ConfigurableField
 from langchain_openai import ChatOpenAI
 from langchain_cohere import ChatCohere
 from langchain_anthropic import ChatAnthropic
@@ -191,7 +187,7 @@ def retrieve_documents(state: AgentState):
     return {
         "query": query,
         "documents": relevant_documents,
-        "messages": messages
+        "messages": []
     }
 
 
@@ -201,11 +197,7 @@ def retrieve_documents_with_chat_history(state: AgentState, config):
     model = get_model(model_name)
 
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
-    condense_question_chain = (
-        CONDENSE_QUESTION_PROMPT |
-        model | 
-        StrOutputParser()
-    ).with_config(
+    condense_question_chain = (CONDENSE_QUESTION_PROMPT | model | StrOutputParser()).with_config(
         run_name="CondenseQuestion",
     )
 
@@ -216,7 +208,7 @@ def retrieve_documents_with_chat_history(state: AgentState, config):
     return {
         "query": query,
         "documents": relevant_documents,
-        "messages": messages
+        "messages": []
     }
 
 
