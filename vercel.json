@@ -2,15 +2,16 @@
   "version": 2,
   "builds": [
     {
-      "src": "pyproject.toml",
-      "use": "@vercel/python",
-      "config": {
-        "distDir": "backend"
-      }
+      "src": "frontend/next.config.js",
+      "use": "@vercel/next"
     },
     {
-      "src": "frontend/package.json",
-      "use": "@vercel/next"
+      "src": "backend/**/*.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "backend/**/*.ts",
+      "use": "@vercel/node"
     }
   ],
   "routes": [

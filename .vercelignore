@@ -1,8 +1,9 @@
 **/node_modules/
 frontend/node_modules/
-frontend/.next
-frontend/.vercel
+frontend/.next/
 frontend/public/
+frontend/public/images/
+frontend/public/images/*
 backend/
 terraform/
 werkzeug/
