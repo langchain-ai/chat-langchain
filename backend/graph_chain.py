@@ -148,7 +148,6 @@ def get_model(model_name: str) -> LanguageModelLike:
         default_key=OPENAI_MODEL_KEY,
         **model_map
     ).with_fallbacks([gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command])
-    llm = gemini_pro
     return llm.with_config({"configurable": {"llm": model_name}})
 
 
