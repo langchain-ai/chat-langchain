@@ -190,7 +190,7 @@ def retrieve_documents(state: AgentState):
 def retrieve_documents_with_chat_history(state: AgentState, config):
     model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
     retriever = get_retriever()
-    model = get_model(model_name)
+    model = get_model(model_name).with_config(tags=["nostream"])
 
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
     condense_question_chain = (CONDENSE_QUESTION_PROMPT | model | StrOutputParser()).with_config(
