@@ -7,7 +7,6 @@ from uuid import UUID
 import langsmith
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from langserve import add_routes
 from langsmith import Client
 from pydantic import BaseModel
 

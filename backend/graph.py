@@ -2,9 +2,17 @@ import os
 from typing import Annotated, Literal, Sequence, TypedDict
 
 import weaviate
+from langchain_anthropic import ChatAnthropic
+from langchain_cohere import ChatCohere
+from langchain_community.vectorstores import Weaviate
 from langchain_core.documents import Document
 from langchain_core.language_models import LanguageModelLike
-from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, convert_to_messages
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    convert_to_messages,
+)
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -12,17 +20,13 @@ from langchain_core.prompts import (
     PromptTemplate,
 )
 from langchain_core.retrievers import BaseRetriever
-from langchain_openai import ChatOpenAI
-from langchain_cohere import ChatCohere
-from langchain_anthropic import ChatAnthropic
 from langchain_fireworks import ChatFireworks
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_community.vectorstores import Weaviate
-from langgraph.graph import StateGraph, END, add_messages
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, StateGraph, add_messages
 
-from backend.ingest import get_embeddings_model
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
-
+from backend.ingest import get_embeddings_model
 
 WEAVIATE_URL = os.environ["WEAVIATE_URL"]
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
@@ -143,7 +147,9 @@ def get_model(model_name: str) -> LanguageModelLike:
         GOOGLE_MODEL_KEY: gemini_pro,
         COHERE_MODEL_KEY: cohere_command,
     }[model_name]
-    llm = llm.with_fallbacks([gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command])
+    llm = llm.with_fallbacks(
+        [gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command]
+    )
     return llm
 
 
@@ -176,11 +182,7 @@ def retrieve_documents(state: AgentState):
     messages = convert_to_messages(state["messages"])
     query = messages[-1].content
     relevant_documents = retriever.get_relevant_documents(query)
-    return {
-        "query": query,
-        "documents": relevant_documents,
-        "messages": []
-    }
+    return {"query": query, "documents": relevant_documents, "messages": []}
 
 
 def retrieve_documents_with_chat_history(state: AgentState, config):
@@ -189,22 +191,24 @@ def retrieve_documents_with_chat_history(state: AgentState, config):
     model = get_model(model_name).with_config(tags=["nostream"])
 
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
-    condense_question_chain = (CONDENSE_QUESTION_PROMPT | model | StrOutputParser()).with_config(
+    condense_question_chain = (
+        CONDENSE_QUESTION_PROMPT | model | StrOutputParser()
+    ).with_config(
         run_name="CondenseQuestion",
     )
 
     messages = convert_to_messages(state["messages"])
     query = messages[-1].content
     retriever_with_condensed_question = condense_question_chain | retriever
-    relevant_documents = retriever_with_condensed_question.invoke({"question": query, "chat_history": get_chat_history(messages)})
-    return {
-        "query": query,
-        "documents": relevant_documents,
-        "messages": []
-    }
+    relevant_documents = retriever_with_condensed_question.invoke(
+        {"question": query, "chat_history": get_chat_history(messages)}
+    )
+    return {"query": query, "documents": relevant_documents, "messages": []}
 
 
-def route_to_retriever(state: AgentState) -> Literal["retriever", "retriever_with_chat_history"]:
+def route_to_retriever(
+    state: AgentState,
+) -> Literal["retriever", "retriever_with_chat_history"]:
     if len(state["messages"]) == 1:
         return "retriever"
     else:
@@ -219,7 +223,9 @@ def get_chat_history(messages: Sequence[BaseMessage]) -> Sequence[BaseMessage]:
     return chat_history
 
 
-def synthesize_response(state: AgentState, model: LanguageModelLike, prompt_template: str):
+def synthesize_response(
+    state: AgentState, model: LanguageModelLike, prompt_template: str
+):
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", prompt_template),
@@ -228,11 +234,13 @@ def synthesize_response(state: AgentState, model: LanguageModelLike, prompt_temp
         ]
     )
     response_synthesizer = prompt | model
-    synthesized_response = response_synthesizer.invoke({
-        "question": state["query"],
-        "context": format_docs(state["documents"]),
-        "chat_history": get_chat_history(convert_to_messages(state["messages"]))
-    })
+    synthesized_response = response_synthesizer.invoke(
+        {
+            "question": state["query"],
+            "context": format_docs(state["documents"]),
+            "chat_history": get_chat_history(convert_to_messages(state["messages"])),
+        }
+    )
     return {
         **state,
         "messages": [synthesized_response],
@@ -250,7 +258,9 @@ def synthesize_response_cohere(state: AgentState):
     return synthesize_response(state, model, COHERE_RESPONSE_TEMPLATE)
 
 
-def route_to_response_synthesizer(state: AgentState, config) -> Literal["response_synthesizer", "response_synthesizer_cohere"]:
+def route_to_response_synthesizer(
+    state: AgentState, config
+) -> Literal["response_synthesizer", "response_synthesizer_cohere"]:
     model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
     if model_name == COHERE_MODEL_KEY:
         return "response_synthesizer_cohere"
@@ -271,7 +281,9 @@ workflow.set_conditional_entry_point(route_to_retriever)
 
 # connect retrievers and response synthesizers
 workflow.add_conditional_edges("retriever", route_to_response_synthesizer)
-workflow.add_conditional_edges("retriever_with_chat_history", route_to_response_synthesizer)
+workflow.add_conditional_edges(
+    "retriever_with_chat_history", route_to_response_synthesizer
+)
 
 # connect synthesizers to terminal node
 workflow.add_edge("response_synthesizer", END)
