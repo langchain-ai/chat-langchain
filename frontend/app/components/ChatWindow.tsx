@@ -24,8 +24,8 @@ import { ArrowUpIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
-import { Client } from "@langchain/langgraph-sdk"
-import { Document } from "@langchain/core/documents"
+import { Client } from "@langchain/langgraph-sdk";
+import { Document } from "@langchain/core/documents";
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
@@ -39,17 +39,23 @@ const defaultLlmValue =
   MODEL_TYPES[Math.floor(Math.random() * MODEL_TYPES.length)];
 
 const getThreadId = async (client: Client) => {
-  const response = await client.threads.create({ metadata: null })
-  return response["thread_id"]
-}
+  const response = await client.threads.create({ metadata: null });
+  return response["thread_id"];
+};
 
 const getAssistantId = async (client: Client) => {
-  const response = await client.assistants.search({ metadata: null, offset: 0, limit: 10 })
+  const response = await client.assistants.search({
+    metadata: null,
+    offset: 0,
+    limit: 10,
+  });
   if (response.length !== 1) {
-    throw Error(`Expected exactly one assistant, got ${response.length} instead`)
+    throw Error(
+      `Expected exactly one assistant, got ${response.length} instead`,
+    );
   }
-  return response[0]["assistant_id"]
-}
+  return response[0]["assistant_id"];
+};
 
 export function mergeMessagesById(
   left: Message[] | Record<string, any> | null | undefined,
@@ -84,14 +90,14 @@ export function ChatWindow() {
   const [threadId, setThreadId] = useState<string>("");
   const [assistantId, setAssistantId] = useState<string>("");
 
-  const client = new Client({ apiUrl: apiBaseUrl })
+  const client = new Client({ apiUrl: apiBaseUrl });
 
   const setLanggraphInfo = async () => {
     const assistantId = await getAssistantId(client);
-    setAssistantId(assistantId)
+    setAssistantId(assistantId);
     const threadId = await getThreadId(client);
     setThreadId(threadId);
-  }
+  };
 
   useEffect(() => {
     setLlm(searchParams.get("llm") ?? defaultLlmValue);
@@ -109,11 +115,12 @@ export function ChatWindow() {
     const messageValue = message ?? input;
     if (messageValue === "") return;
     setInput("");
-    const formattedMessage: Message = { id: Math.random().toString(), content: messageValue, type: "human" }
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      formattedMessage
-    ]);
+    const formattedMessage: Message = {
+      id: Math.random().toString(),
+      content: messageValue,
+      type: "human",
+    };
+    setMessages((prevMessages) => [...prevMessages, formattedMessage]);
     setIsLoading(true);
 
     let runId: string | undefined = undefined;
@@ -142,37 +149,38 @@ export function ChatWindow() {
     marked.setOptions({ renderer });
     try {
       const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
-      const streamResponse = await client.runs.stream(
-        threadId,
-        assistantId,
-        {
-          input: {
-            "messages": [formattedMessage],
-            "assistant_id": assistantId,
-          },
-          config: {
-            "configurable": { "model_name": llm },
-            tags: ["model:" + llmDisplayName],
-            recursion_limit: 10
-          },
-          // @ts-ignore
-          streamMode: ["messages", "values"],
-        }
-      )
+      const streamResponse = await client.runs.stream(threadId, assistantId, {
+        input: {
+          messages: [formattedMessage],
+          assistant_id: assistantId,
+        },
+        config: {
+          configurable: { model_name: llm },
+          tags: ["model:" + llmDisplayName],
+          recursion_limit: 10,
+        },
+        // @ts-ignore
+        streamMode: ["messages", "values"],
+      });
 
       for await (const chunk of streamResponse) {
         if (chunk.event === "metadata") {
-          runId = (chunk.data as Record<string, any>)["run_id"]
+          runId = (chunk.data as Record<string, any>)["run_id"];
         } else if (chunk.event === "messages/partial") {
           const chunkMessages = chunk.data as Message[];
-          setMessages(prevMessages => mergeMessagesById(prevMessages, chunkMessages.map(message => ({...message, sources }))))
+          setMessages((prevMessages) =>
+            mergeMessagesById(
+              prevMessages,
+              chunkMessages.map((message) => ({ ...message, sources })),
+            ),
+          );
         } else if (chunk.event === "values") {
-          const data = chunk.data as Record<string, any>
-          const documents = (data["documents"] ?? []) as Array<Document>
-          sources = documents.map(doc => ({
+          const data = chunk.data as Record<string, any>;
+          const documents = (data["documents"] ?? []) as Array<Document>;
+          sources = documents.map((doc) => ({
             url: doc.metadata.source,
-            title: doc.metadata.title
-          }))
+            title: doc.metadata.title,
+          }));
         }
       }
       setIsLoading(false);
