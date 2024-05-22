@@ -41,15 +41,6 @@ add_routes(app, model, path="/chat",
            input_type=ChatRequest, config_keys=["metadata"])
 
 
-class SendFeedbackBody(BaseModel):
-    run_id: UUID
-    key: str = "user_score"
-
-    score: Union[float, int, bool, None] = None
-    feedback_id: Optional[UUID] = None
-    comment: Optional[str] = None
-
-
 @app.post("/clear_memory")
 async def clear_memory():
     logging.info("CLEARING MEMORY")
@@ -66,16 +57,30 @@ async def clear_memory():
     return {"result": result, "code": code}
 
 
+class SendFeedbackBody(BaseModel):
+    run_id: UUID
+    key: str = "user_score"
+
+    score: Union[float, int, bool, None] = None
+    feedback_id: Optional[UUID] = None
+    comment: Optional[str] = None
+
+
 @app.post("/feedback")
 async def send_feedback(body: Dict[Any, Any]):
-    logging.info(f"Received feedback: {body}")
+
+    # instantiate SendFeedbackBody for type checking
+    send_feedback_body = SendFeedbackBody(**body)
+
+    # Call create_feedback method from langsmith client
     client.create_feedback(
-        run_id=body["run_id"],
-        key=body["key"],
-        score=body["score"],
-        comment=body["comment"],
-        feedback_id=body["feedback_id"]
+        run_id=send_feedback_body.run_id,
+        key=send_feedback_body.key,
+        score=send_feedback_body.score,
+        comment=send_feedback_body.comment,
+        feedback_id=send_feedback_body.feedback_id
     )
+
     return {"result": "posted feedback successfully", "code": 200}
 
 
