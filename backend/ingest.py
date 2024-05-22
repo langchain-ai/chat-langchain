@@ -1,7 +1,6 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
 import logging
 import os
-import re
 
 import weaviate
 from bs4 import BeautifulSoup
@@ -69,7 +68,11 @@ def load_looker_docs():
 
 def simple_extractor(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
-    elements = soup.body.find_all(recursive=False) if soup.body else soup.find_all(recursive=False)
+    elements = (
+        soup.body.find_all(recursive=False)
+        if soup.body
+        else soup.find_all(recursive=False)
+    )
 
     extracted_text = []
 
@@ -93,7 +96,9 @@ def format_table(table) -> str:
     # Extract headers if present
     headers = rows[0].find_all("th")
     if headers:
-        header_text = "| " + " | ".join(cell.get_text(strip=True) for cell in headers) + " |"
+        header_text = (
+            "| " + " | ".join(cell.get_text(strip=True) for cell in headers) + " |"
+        )
         separator = "| " + " | ".join("---" for _ in headers) + " |"
         body_start_idx = 1
     else:
