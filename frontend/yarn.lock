@@ -1108,6 +1108,16 @@
     zod "^3.22.4"
     zod-to-json-schema "^3.22.3"
 
+"@langchain/langgraph-sdk@0.0.1-rc.0":
+  version "0.0.1-rc.0"
+  resolved "https://registry.yarnpkg.com/@langchain/langgraph-sdk/-/langgraph-sdk-0.0.1-rc.0.tgz#14292e20d50f05660466a24381f239c85e89e919"
+  integrity sha512-zst3C3ZVeAZlBkIcbIfZ2GquzEuU8lz0axzPD7QMRPJ77a8Kgp8VN7pnIQcgg5lul9hKlm+UKdUKSvc/RqzUHg==
+  dependencies:
+    eventsource-parser "^1.1.2"
+    p-queue "^6.6.2"
+    p-retry "4"
+    uuid "^9.0.0"
+
 "@next/env@13.5.4":
   version "13.5.4"
   resolved "https://registry.yarnpkg.com/@next/env/-/env-13.5.4.tgz#777c3af16de2cf2f611b6c8126910062d13d222c"
@@ -3069,15 +3079,6 @@ keyv@^4.5.3:
   integrity sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==
   dependencies:
     json-buffer "3.0.1"
-
-"langgraph-sdk@file:../../langgraph-api/sdk/js/langgraph-sdk-0.0.1.tgz":
-  version "0.0.1"
-  resolved "file:../../langgraph-api/sdk/js/langgraph-sdk-0.0.1.tgz#23fc9323010028854e4374deaae34ae38adbad7f"
-  dependencies:
-    eventsource-parser "^1.1.2"
-    p-queue "^6.6.2"
-    p-retry "4"
-    uuid "^9.0.0"
 
 langsmith@^0.0.41:
   version "0.0.41"

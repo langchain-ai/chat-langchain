@@ -24,7 +24,7 @@ import { ArrowUpIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
-import { Client } from "langgraph-sdk"
+import { Client } from "@langchain/langgraph-sdk"
 import { Document } from "@langchain/core/documents"
 
 const MODEL_TYPES = [
@@ -142,7 +142,7 @@ export function ChatWindow() {
     marked.setOptions({ renderer });
     try {
       const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
-      const streamResponse = client.runs.stream(
+      const streamResponse = await client.runs.stream(
         threadId,
         assistantId,
         {
