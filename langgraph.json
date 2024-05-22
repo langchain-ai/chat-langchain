@@ -1,7 +1,7 @@
 {
     "dependencies": ["."],
     "graphs": {
-      "chat": "./backend/graph_chain.py:graph"
+      "chat": "./backend/graph.py:graph"
     },
     "env": ".env"
   }
