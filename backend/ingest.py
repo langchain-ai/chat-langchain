@@ -61,7 +61,7 @@ def load_looker_docs():
         # Drop trailing / to avoid duplicate pages.
         link_regex=(
             f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
-            r"(?![^\"]*(\?|&)hl=)(?:[\#'\"]|\/[\#'\"])"
+            r"(?![^\"]*\?hl=)(?:[\#'\"]|\/[\#'\"])"
         ),
         check_response_status=True,
     ).load()
