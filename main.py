@@ -12,6 +12,8 @@ from langchain.globals import set_debug
 from langserve import add_routes
 from langsmith import Client
 from pydantic.v1 import BaseModel
+from typing import Dict, Any
+
 
 from croptalk.model_openai_functions import model, memory
 
@@ -65,13 +67,14 @@ async def clear_memory():
 
 
 @app.post("/feedback")
-async def send_feedback(body: SendFeedbackBody):
+async def send_feedback(body: Dict[Any, Any]):
+    logging.info(f"Received feedback: {body}")
     client.create_feedback(
-        body.run_id,
-        body.key,
-        score=body.score,
-        comment=body.comment,
-        feedback_id=body.feedback_id,
+        run_id=body["run_id"],
+        key=body["key"],
+        score=body["score"],
+        comment=body["comment"],
+        feedback_id=body["feedback_id"]
     )
     return {"result": "posted feedback successfully", "code": 200}
 
