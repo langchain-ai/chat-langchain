@@ -61,7 +61,7 @@ def load_looker_docs():
         # Drop trailing / to avoid duplicate pages.
         link_regex=(
             f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
-            r"(?:[\#'\"]|\/[\#'\"])"
+            r"(?![^\"]*(\?|&)hl=)(?:[\#'\"]|\/[\#'\"])"
         ),
         check_response_status=True,
     ).load()
@@ -69,7 +69,53 @@ def load_looker_docs():
 
 def simple_extractor(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
-    return re.sub(r"\n\n+", "\n\n", soup.text).strip()
+    elements = soup.body.find_all(recursive=False) if soup.body else soup.find_all(recursive=False)
+
+    extracted_text = []
+
+    for element in elements:
+        if element.name == "table":
+            extracted_text.append(format_table(element))
+        else:
+            extracted_text.append(element.get_text(strip=True))
+
+    combined_text = "\n\n".join(extracted_text)
+
+    return combined_text
+
+
+def format_table(table) -> str:
+    rows = table.find_all("tr")
+
+    if not rows:
+        return ""
+
+    # Extract headers if present
+    headers = rows[0].find_all("th")
+    if headers:
+        header_text = "| " + " | ".join(cell.get_text(strip=True) for cell in headers) + " |"
+        separator = "| " + " | ".join("---" for _ in headers) + " |"
+        body_start_idx = 1
+    else:
+        header_text = ""
+        separator = ""
+        body_start_idx = 0
+
+    # Extract body rows
+    body_rows = rows[body_start_idx:]
+    body_text = ""
+    for row in body_rows:
+        cells = row.find_all(["td", "th"])
+        row_text = "| " + " | ".join(cell.get_text(strip=True) for cell in cells) + " |"
+        body_text += row_text + "\n"
+
+    # Combine header and body
+    if headers:
+        table_text = header_text + "\n" + separator + "\n" + body_text
+    else:
+        table_text = body_text
+
+    return table_text.strip()
 
 
 # def load_api_docs():
