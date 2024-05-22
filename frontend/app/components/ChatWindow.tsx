@@ -26,6 +26,8 @@ import { ArrowUpIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
+import { useStreamState } from "../hooks/useStreamState";
+import { Client } from "langgraph-sdk"
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
@@ -38,9 +40,39 @@ const MODEL_TYPES = [
 const defaultLlmValue =
   MODEL_TYPES[Math.floor(Math.random() * MODEL_TYPES.length)];
 
-export function ChatWindow(props: { conversationId: string }) {
-  const conversationId = props.conversationId;
+const getThreadId = async (client: Client) => {
+  const response = await client.threads.create({ metadata: null })
+  return response["thread_id"]
+}
 
+const getAssistantId = async (client: Client) => {
+  const response = await client.assistants.search({ metadata: null, offset: 0, limit: 10 })
+  if (response.length !== 1) {
+    throw Error(`Expected exactly one assistant, got ${response.length} instead`)
+  }
+  return response[0]["assistant_id"]
+}
+
+export function mergeMessagesById(
+  left: Message[] | Record<string, any> | null | undefined,
+  right: Message[] | Record<string, any> | null | undefined,
+): Message[] {
+  const leftMsgs = Array.isArray(left) ? left : left?.messages;
+  const rightMsgs = Array.isArray(right) ? right : right?.messages;
+
+  const merged = (leftMsgs ?? [])?.slice();
+  for (const msg of rightMsgs ?? []) {
+    const foundIdx = merged.findIndex((m: any) => m.id === msg.id);
+    if (foundIdx === -1) {
+      merged.push(msg);
+    } else {
+      merged[foundIdx] = msg;
+    }
+  }
+  return merged;
+}
+
+export function ChatWindow() {
   const searchParams = useSearchParams();
 
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
@@ -51,14 +83,23 @@ export function ChatWindow(props: { conversationId: string }) {
     searchParams.get("llm") ?? "openai_gpt_3_5_turbo",
   );
   const [llmIsLoading, setLlmIsLoading] = useState(true);
+  const [threadId, setThreadId] = useState<string>("");
+  const [assistantId, setAssistantId] = useState<string>("");
+
+  const client = new Client({ apiUrl: apiBaseUrl })
+
+  const setLanggraphInfo = async () => {
+    const assistantId = await getAssistantId(client);
+    setAssistantId(assistantId)
+    const threadId = await getThreadId(client);
+    setThreadId(threadId);
+  }
+
   useEffect(() => {
     setLlm(searchParams.get("llm") ?? defaultLlmValue);
+    setLanggraphInfo();
     setLlmIsLoading(false);
   }, []);
-
-  const [chatHistory, setChatHistory] = useState<
-    { human: string; ai: string }[]
-  >([]);
 
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
@@ -70,9 +111,10 @@ export function ChatWindow(props: { conversationId: string }) {
     const messageValue = message ?? input;
     if (messageValue === "") return;
     setInput("");
+    const formattedMessage: Message = { id: Math.random().toString(), content: messageValue, role: "user" }
     setMessages((prevMessages) => [
       ...prevMessages,
-      { id: Math.random().toString(), content: messageValue, role: "user" },
+      formattedMessage
     ]);
     setIsLoading(true);
 
@@ -105,80 +147,64 @@ export function ChatWindow(props: { conversationId: string }) {
     try {
       const sourceStepName = "FindDocs";
       let streamedResponse: Record<string, any> = {};
-      const remoteChain = new RemoteRunnable({
-        url: apiBaseUrl + "/chat",
-        options: {
-          timeout: 60000,
-        },
-      });
-      const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
-      const streamLog = await remoteChain.streamLog(
-        {
-          question: messageValue,
-          chat_history: chatHistory,
-        },
-        {
-          configurable: {
-            llm: llmDisplayName,
-          },
-          tags: ["model:" + llmDisplayName],
-          metadata: {
-            conversation_id: conversationId,
-            llm: llmDisplayName,
-          },
-        },
-        {
-          includeNames: [sourceStepName],
-        },
-      );
-      for await (const chunk of streamLog) {
-        streamedResponse = applyPatch(streamedResponse, chunk.ops).newDocument;
-        if (
-          Array.isArray(
-            streamedResponse?.logs?.[sourceStepName]?.final_output?.output,
-          )
-        ) {
-          sources = streamedResponse.logs[
-            sourceStepName
-          ].final_output.output.map((doc: Record<string, any>) => ({
-            url: doc.metadata.source,
-            title: doc.metadata.title,
-          }));
-        }
-        if (streamedResponse.id !== undefined) {
-          runId = streamedResponse.id;
-        }
-        if (Array.isArray(streamedResponse?.streamed_output)) {
-          accumulatedMessage = streamedResponse.streamed_output.join("");
-        }
-        const parsedResult = marked.parse(accumulatedMessage);
 
-        setMessages((prevMessages) => {
-          let newMessages = [...prevMessages];
-          if (
-            messageIndex === null ||
-            newMessages[messageIndex] === undefined
-          ) {
-            messageIndex = newMessages.length;
-            newMessages.push({
-              id: Math.random().toString(),
-              content: parsedResult.trim(),
-              runId: runId,
-              sources: sources,
-              role: "assistant",
-            });
-          } else if (newMessages[messageIndex] !== undefined) {
-            newMessages[messageIndex].content = parsedResult.trim();
-            newMessages[messageIndex].runId = runId;
-            newMessages[messageIndex].sources = sources;
-          }
-          return newMessages;
-        });
+      const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
+      const streamResponse = client.runs.stream(threadId, assistantId, { input: {
+        "messages": [formattedMessage],
+        "assistant_id": assistantId,
+      }, streamMode: "messages"})
+
+      for await (const chunk of streamResponse) {
+        console.log("chunk event", chunk.event)
+        if (chunk.event === "metadata") {
+          runId = chunk.data as Record<string, any>["run_id"]
+        } else if (chunk.event === "messages/partial") {
+          const chunkMessages = chunk.data as Message[];
+          setMessages(prevMessages => mergeMessagesById(prevMessages, chunkMessages.map(message => ({...message, runId: runId, role: message["type"]}))));
+        }
+
+        // TODO: figure out how to propagate sources
+        // if (
+        //   Array.isArray(
+        //     streamedResponse?.logs?.[sourceStepName]?.final_output?.output,
+        //   )
+        // ) {
+        //   sources = streamedResponse.logs[
+        //     sourceStepName
+        //   ].final_output.output.map((doc: Record<string, any>) => ({
+        //     url: doc.metadata.source,
+        //     title: doc.metadata.title,
+        //   }));
+        // }
+
+        // if (Array.isArray(streamedResponse?.streamed_output)) {
+        //   accumulatedMessage = streamedResponse.streamed_output.join("");
+        // }
+        // const parsedResult = marked.parse(accumulatedMessage);
+
+        // setMessages((prevMessages) => {
+        //   let newMessages = [...prevMessages];
+        //   if (
+        //     messageIndex === null ||
+        //     newMessages[messageIndex] === undefined
+        //   ) {
+        //     messageIndex = newMessages.length;
+        //     newMessages.push({
+        //       id: Math.random().toString(),
+        //       content: parsedResult.trim(),
+        //       runId: runId,
+        //       sources: sources,
+        //       role: "assistant",
+        //     });
+        //   } else if (newMessages[messageIndex] !== undefined) {
+        //     newMessages[messageIndex].content = parsedResult.trim();
+        //     newMessages[messageIndex].runId = runId;
+        //     newMessages[messageIndex].sources = sources;
+        //   }
+        //   return newMessages;
+        // });
       }
-      setChatHistory((prevChatHistory) => [
-        ...prevChatHistory,
-        { human: messageValue, ai: accumulatedMessage },
-      ]);
+      
       setIsLoading(false);
     } catch (e) {
       setMessages((prevMessages) => prevMessages.slice(0, -1));
