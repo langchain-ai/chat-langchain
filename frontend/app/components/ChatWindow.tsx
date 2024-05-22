@@ -2,8 +2,6 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { RemoteRunnable } from "@langchain/core/runnables/remote";
-import { applyPatch } from "@langchain/core/utils/json_patch";
 
 import { EmptyState } from "./EmptyState";
 import { ChatMessageBubble, Message } from "./ChatMessageBubble";
@@ -26,8 +24,8 @@ import { ArrowUpIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
 import { Source } from "./SourceBubble";
 import { apiBaseUrl } from "../utils/constants";
-import { useStreamState } from "../hooks/useStreamState";
 import { Client } from "langgraph-sdk"
+import { Document } from "@langchain/core/documents"
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
@@ -111,17 +109,15 @@ export function ChatWindow() {
     const messageValue = message ?? input;
     if (messageValue === "") return;
     setInput("");
-    const formattedMessage: Message = { id: Math.random().toString(), content: messageValue, role: "user" }
+    const formattedMessage: Message = { id: Math.random().toString(), content: messageValue, type: "human" }
     setMessages((prevMessages) => [
       ...prevMessages,
       formattedMessage
     ]);
     setIsLoading(true);
 
-    let accumulatedMessage = "";
     let runId: string | undefined = undefined;
     let sources: Source[] | undefined = undefined;
-    let messageIndex: number | null = null;
 
     let renderer = new Renderer();
     renderer.paragraph = (text) => {
@@ -145,66 +141,40 @@ export function ChatWindow() {
     };
     marked.setOptions({ renderer });
     try {
-      const sourceStepName = "FindDocs";
-      let streamedResponse: Record<string, any> = {};
-
       const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
-      const streamResponse = client.runs.stream(threadId, assistantId, { input: {
-        "messages": [formattedMessage],
-        "assistant_id": assistantId,
-      }, streamMode: "messages"})
+      const streamResponse = client.runs.stream(
+        threadId,
+        assistantId,
+        {
+          input: {
+            "messages": [formattedMessage],
+            "assistant_id": assistantId,
+          },
+          config: {
+            "configurable": { "model_name": llm },
+            tags: ["model:" + llmDisplayName],
+            recursion_limit: 10
+          },
+          // @ts-ignore
+          streamMode: ["messages", "values"],
+        }
+      )
 
       for await (const chunk of streamResponse) {
-        console.log("chunk event", chunk.event)
         if (chunk.event === "metadata") {
-          runId = chunk.data as Record<string, any>["run_id"]
+          runId = (chunk.data as Record<string, any>)["run_id"]
         } else if (chunk.event === "messages/partial") {
           const chunkMessages = chunk.data as Message[];
-          setMessages(prevMessages => mergeMessagesById(prevMessages, chunkMessages.map(message => ({...message, runId: runId, role: message["type"]}))));
+          setMessages(prevMessages => mergeMessagesById(prevMessages, chunkMessages.map(message => ({...message, sources }))))
+        } else if (chunk.event === "values") {
+          const data = chunk.data as Record<string, any>
+          const documents = (data["documents"] ?? []) as Array<Document>
+          sources = documents.map(doc => ({
+            url: doc.metadata.source,
+            title: doc.metadata.title
+          }))
         }
-
-        // TODO: figure out how to propagate sources
-        // if (
-        //   Array.isArray(
-        //     streamedResponse?.logs?.[sourceStepName]?.final_output?.output,
-        //   )
-        // ) {
-        //   sources = streamedResponse.logs[
-        //     sourceStepName
-        //   ].final_output.output.map((doc: Record<string, any>) => ({
-        //     url: doc.metadata.source,
-        //     title: doc.metadata.title,
-        //   }));
-        // }
-
-        // if (Array.isArray(streamedResponse?.streamed_output)) {
-        //   accumulatedMessage = streamedResponse.streamed_output.join("");
-        // }
-        // const parsedResult = marked.parse(accumulatedMessage);
-
-        // setMessages((prevMessages) => {
-        //   let newMessages = [...prevMessages];
-        //   if (
-        //     messageIndex === null ||
-        //     newMessages[messageIndex] === undefined
-        //   ) {
-        //     messageIndex = newMessages.length;
-        //     newMessages.push({
-        //       id: Math.random().toString(),
-        //       content: parsedResult.trim(),
-        //       runId: runId,
-        //       sources: sources,
-        //       role: "assistant",
-        //     });
-        //   } else if (newMessages[messageIndex] !== undefined) {
-        //     newMessages[messageIndex].content = parsedResult.trim();
-        //     newMessages[messageIndex].runId = runId;
-        //     newMessages[messageIndex].sources = sources;
-        //   }
-        //   return newMessages;
-        // });
       }
-      
       setIsLoading(false);
     } catch (e) {
       setMessages((prevMessages) => prevMessages.slice(0, -1));

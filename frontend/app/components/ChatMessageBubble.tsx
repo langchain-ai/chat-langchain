@@ -22,7 +22,7 @@ export type Message = {
   id: string;
   createdAt?: Date;
   content: string;
-  role: "system" | "user" | "assistant" | "function";
+  type: "system" | "human" | "ai" | "function";
   runId?: string;
   sources?: Source[];
   name?: string;
@@ -118,8 +118,8 @@ export function ChatMessageBubble(props: {
   isMostRecent: boolean;
   messageCompleted: boolean;
 }) {
-  const { role, content, runId } = props.message;
-  const isUser = role === "user";
+  const { type, content, runId } = props.message;
+  const isUser = type === "human";
   const [isLoading, setIsLoading] = useState(false);
   const [traceIsLoading, setTraceIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -214,7 +214,7 @@ export function ChatMessageBubble(props: {
     filteredSources.map(() => false),
   );
   const answerElements =
-    role === "assistant"
+    type === "ai"
       ? createAnswerElements(
           content,
           filteredSources,
@@ -310,7 +310,7 @@ export function ChatMessageBubble(props: {
         </Box>
       )}
 
-      {props.message.role !== "user" &&
+      {props.message.type !== "human" &&
         props.isMostRecent &&
         props.messageCompleted && (
           <HStack spacing={2}>
