@@ -12,7 +12,6 @@ from langchain_core.prompts import (
     PromptTemplate,
 )
 from langchain_core.retrievers import BaseRetriever
-from langchain_core.runnables import ConfigurableField
 from langchain_openai import ChatOpenAI
 from langchain_cohere import ChatCohere
 from langchain_anthropic import ChatAnthropic
@@ -137,18 +136,15 @@ def get_model(model_name: str) -> LanguageModelLike:
         temperature=0,
         cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
     )
-    model_map = {
+    llm: LanguageModelLike = {
+        OPENAI_MODEL_KEY: gpt_3_5,
         ANTHROPIC_MODEL_KEY: claude_3_haiku,
         FIREWORKS_MIXTRAL_MODEL_KEY: fireworks_mixtral,
         GOOGLE_MODEL_KEY: gemini_pro,
         COHERE_MODEL_KEY: cohere_command,
-    }
-    llm = gpt_3_5.configurable_alternatives(
-        ConfigurableField(id="llm"),
-        default_key=OPENAI_MODEL_KEY,
-        **model_map
-    ).with_fallbacks([gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command])
-    return llm.with_config({"configurable": {"llm": model_name}})
+    }[model_name]
+    llm = llm.with_fallbacks([gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command])
+    return llm
 
 
 def get_retriever() -> BaseRetriever:
