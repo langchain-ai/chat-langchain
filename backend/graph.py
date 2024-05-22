@@ -16,9 +16,9 @@ from langchain_core.messages import (
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import (
     ChatPromptTemplate,
-    MessagesPlaceholder,
     PromptTemplate,
 )
+from langchain_core.runnables import RunnableConfig
 from langchain_core.retrievers import BaseRetriever
 from langchain_fireworks import ChatFireworks
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -27,9 +27,6 @@ from langgraph.graph import END, StateGraph, add_messages
 
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 from backend.ingest import get_embeddings_model
-
-WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
 
 RESPONSE_TEMPLATE = """\
@@ -155,8 +152,8 @@ def get_model(model_name: str) -> LanguageModelLike:
 
 def get_retriever() -> BaseRetriever:
     weaviate_client = weaviate.Client(
-        url=WEAVIATE_URL,
-        auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
+        url=os.environ["WEAVIATE_URL"],
+        auth_client_secret=weaviate.AuthApiKey(api_key=os.environ.get("WEAVIATE_API_KEY", "not_provided")),
     )
     weaviate_client = Weaviate(
         client=weaviate_client,
@@ -177,7 +174,7 @@ def format_docs(docs: Sequence[Document]) -> str:
     return "\n".join(formatted_docs)
 
 
-def retrieve_documents(state: AgentState):
+def retrieve_documents(state: AgentState) -> AgentState:
     retriever = get_retriever()
     messages = convert_to_messages(state["messages"])
     query = messages[-1].content
@@ -185,7 +182,7 @@ def retrieve_documents(state: AgentState):
     return {"query": query, "documents": relevant_documents, "messages": []}
 
 
-def retrieve_documents_with_chat_history(state: AgentState, config):
+def retrieve_documents_with_chat_history(state: AgentState, config: RunnableConfig) -> AgentState:
     model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
     retriever = get_retriever()
     model = get_model(model_name).with_config(tags=["nostream"])
@@ -209,6 +206,8 @@ def retrieve_documents_with_chat_history(state: AgentState, config):
 def route_to_retriever(
     state: AgentState,
 ) -> Literal["retriever", "retriever_with_chat_history"]:
+    # at this point in the graph execution there is exactly one (i.e. first) message from the user,
+    # so use basic retriever without chat history
     if len(state["messages"]) == 1:
         return "retriever"
     else:
@@ -225,11 +224,11 @@ def get_chat_history(messages: Sequence[BaseMessage]) -> Sequence[BaseMessage]:
 
 def synthesize_response(
     state: AgentState, model: LanguageModelLike, prompt_template: str
-):
+) -> AgentState:
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", prompt_template),
-            MessagesPlaceholder(variable_name="chat_history"),
+            ("placeholder", "{chat_history}"),
             ("human", "{question}"),
         ]
     )
@@ -242,24 +241,23 @@ def synthesize_response(
         }
     )
     return {
-        **state,
         "messages": [synthesized_response],
     }
 
 
-def synthesize_response_default(state: AgentState, config):
+def synthesize_response_default(state: AgentState, config: RunnableConfig) -> AgentState:
     model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
     model = get_model(model_name)
     return synthesize_response(state, model, RESPONSE_TEMPLATE)
 
 
-def synthesize_response_cohere(state: AgentState):
+def synthesize_response_cohere(state: AgentState) -> AgentState:
     model = get_model(COHERE_MODEL_KEY).bind(documents=state["documents"])
     return synthesize_response(state, model, COHERE_RESPONSE_TEMPLATE)
 
 
 def route_to_response_synthesizer(
-    state: AgentState, config
+    state: AgentState, config: RunnableConfig
 ) -> Literal["response_synthesizer", "response_synthesizer_cohere"]:
     model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
     if model_name == COHERE_MODEL_KEY:
