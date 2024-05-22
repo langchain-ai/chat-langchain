@@ -244,7 +244,7 @@ def synthesize_response(state: AgentState, model: LanguageModelLike, prompt_temp
 
 
 def synthesize_response_default(state: AgentState, config):
-    model_name = config.get("configurable", {}).get("model_name", GOOGLE_MODEL_KEY)
+    model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
     model = get_model(model_name)
     return synthesize_response(state, model, RESPONSE_TEMPLATE)
 
