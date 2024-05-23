@@ -1,7 +1,7 @@
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { emojisplosion } from "emojisplosion";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { SourceBubble, Source } from "./SourceBubble";
 import {
   VStack,
