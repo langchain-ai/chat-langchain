@@ -146,6 +146,6 @@ node_modules/
 # Folders to ignore
 temp/
 data/*
-secrets/*
+secrets/.env.secret
 langchain_1/
 new_langchain/
