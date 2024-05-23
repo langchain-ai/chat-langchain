@@ -1,7 +1,7 @@
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { emojisplosion } from "emojisplosion";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { SourceBubble, Source } from "./SourceBubble";
 import {
   VStack,
@@ -252,6 +252,13 @@ export function ChatMessageBubble(props: {
       emojis: buttonId === "upButton" ? ["👍"] : ["👎"],
     });
   };
+
+  useEffect(() =>{
+    const links = Array.from(document.getElementsByTagName('a'));
+    links.forEach((link: HTMLAnchorElement) => {
+      link.setAttribute('target', '_blank')
+    })
+  },[content]);
 
   return (
     <VStack align="start" spacing={5} pb={5}>
