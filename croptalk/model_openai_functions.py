@@ -60,7 +60,7 @@ class OpenAIAgentModelFactory:
         self.input_key = input_key
         self.output_key = output_key
 
-    def get_model(self) -> Tuple[Chain, AgentTokenBufferMemory]:
+    def get_model(self, convert_response_chain_to_str=True, no_memory=False) -> Tuple[Chain, AgentTokenBufferMemory]:
         """
         Returns:
             - newly created OpenAI LLM chat agent using ChromaDB vectorstore
@@ -101,26 +101,37 @@ class OpenAIAgentModelFactory:
             | llm_with_tools
             | OpenAIFunctionsAgentOutputParser()
         )
-        memory_llm = ChatOpenAI(model=self.llm_model_name, temperature=0)
-        memory = AgentTokenBufferMemory(
-            memory_key=self.memory_key,
-            llm=memory_llm,
-            max_token_limit=6000,
-        )
 
-        agent_executor = (
-            AgentExecutor(
+        if no_memory:
+            memory = None
+        else:
+            memory_llm = ChatOpenAI(model=self.llm_model_name, temperature=0)
+            memory = AgentTokenBufferMemory(
+                memory_key=self.memory_key,
+                llm=memory_llm,
+                max_token_limit=6000,
+            )
+
+        agent_executor = AgentExecutor(
                 agent=agent,
                 tools=tools,
                 memory=memory,
                 verbose=True,
                 max_iterations=10,
-                return_intermediate_steps=True,
-            )
-            | itemgetter(self.output_key)
-        ).with_config(run_name="AgentExecutor")
+                return_intermediate_steps=True, # we always want to return the intermediate steps to see them in the run trace
+            ).with_config(run_name="AgentExecutor")
+        
+        if not convert_response_chain_to_str:
+            # Skip the last step of converting the response to a string 
+            # to have access to the chain as an object, i.e. retrieve the intermediate steps
+            return agent_executor, memory
 
-        return agent_executor, memory
+        agent_executor_parsed = (
+            agent_executor
+            | itemgetter(self.output_key)
+        ).with_config(run_name="AgentExecutorParsed")
+
+        return agent_executor_parsed, memory
 
     def _get_tools(self) -> List[StructuredTool]:
         """
@@ -170,13 +181,20 @@ class OpenAIAgentModelFactory:
 
 
 # create singleton model
-model_name = os.getenv("MODEL_NAME")
-collection_name = os.getenv("VECTORSTORE_COLLECTION")
-top_k = int(os.getenv("VECTORSTORE_TOP_K"))
-doc_retriever = DocumentRetriever(collection_name=collection_name)
-model, memory = OpenAIAgentModelFactory(
-    llm_model_name=model_name,
-    document_retriever=doc_retriever,
-    tools=TOOLS,
-    top_k=top_k,
-).get_model()
+def initialize_model(convert_response_chain_to_str=True, no_memory=False):
+    """
+    Returns:
+        - newly created OpenAI LLM chat agent using ChromaDB vectorstore
+        - memory object
+    """
+    model, memory = OpenAIAgentModelFactory(
+        llm_model_name=os.getenv("MODEL_NAME"),
+        document_retriever=DocumentRetriever(collection_name=os.getenv("VECTORSTORE_COLLECTION")),
+        tools=TOOLS,
+        top_k=int(os.getenv("VECTORSTORE_TOP_K")),
+        input_key="question",
+        output_key="output",
+    ).get_model(convert_response_chain_to_str=convert_response_chain_to_str, no_memory=no_memory)
+    return model, memory
+
+model, memory = initialize_model()

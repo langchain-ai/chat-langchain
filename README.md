@@ -90,7 +90,7 @@ export LANGCHAIN_PROJECT=
 ## Testing the performance
 
 With the running docker, execute the script (Modify dataset name if needed):
-`docker exec -it chat-langchain-backend-1 python croptalk/evaluate_overall_performance.py`
+`docker exec -it chat-langchain-backend-1 python _scripts/evaluate_overall_performance.py`
 
 ## 📚 Technical description
 
