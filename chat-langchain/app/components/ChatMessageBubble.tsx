@@ -253,13 +253,6 @@ export function ChatMessageBubble(props: {
     });
   };
 
-  useEffect(() =>{
-    const links = Array.from(document.getElementsByTagName('a'));
-    links.forEach((link: HTMLAnchorElement) => {
-      link.setAttribute('target', '_blank')
-    })
-  },[content]);
-
   return (
     <VStack align="start" spacing={5} pb={5}>
       {!isUser && filteredSources.length > 0 && (

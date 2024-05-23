@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
@@ -212,6 +212,19 @@ export function ChatWindow(props: {
       window.alert("Unable to process your request. Please try again later.");
     }
   };
+
+  useEffect(() => {
+    const links = Array.from(document.getElementsByTagName("a"));
+    links.forEach((link: HTMLAnchorElement) => {
+      if (link.href) {
+        const parts = link.href.split(".");
+        if (parts.length > 0) {
+          const ext = parts.pop();
+          if (ext === "pdf") link.setAttribute("target", "_blank");
+        }
+      }
+    });
+  }, [messages]);
 
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
