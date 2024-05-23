@@ -152,7 +152,6 @@ export function ChatWindow() {
       const streamResponse = await client.runs.stream(threadId, assistantId, {
         input: {
           messages: [formattedMessage],
-          assistant_id: assistantId,
         },
         config: {
           configurable: { model_name: llm },
