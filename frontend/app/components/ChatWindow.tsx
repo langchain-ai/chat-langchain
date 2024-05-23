@@ -157,9 +157,7 @@ export function ChatWindow() {
         config: {
           configurable: { model_name: llm },
           tags: ["model:" + llmDisplayName],
-          recursion_limit: 10,
         },
-        // @ts-ignore
         streamMode: ["messages", "values"],
       });
 
