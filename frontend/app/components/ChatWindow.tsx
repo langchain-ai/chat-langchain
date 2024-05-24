@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { EmptyState } from "./EmptyState";
 import { ChatMessageBubble } from "./ChatMessageBubble";
@@ -25,7 +25,6 @@ import { Select, Link } from "@chakra-ui/react";
 import { Message } from "../types";
 import { apiBaseUrl } from "../utils/constants";
 import { Client } from "@langchain/langgraph-sdk";
-import { Document } from "@langchain/core/documents";
 import { useThreadList } from "../hooks/useThreadList";
 import { ChatList } from "./ChatList";
 import { useThread } from "../hooks/useThread";
@@ -76,6 +75,7 @@ export function mergeMessagesById(
 }
 
 export function ChatWindow() {
+  const router = useRouter()
   const searchParams = useSearchParams();
   const { currentThread } = useThread()
   const { threads, createThread, updateThread, deleteThread } = useThreadList();
@@ -89,6 +89,7 @@ export function ChatWindow() {
   const [llmIsLoading, setLlmIsLoading] = useState(true);
   const [assistantId, setAssistantId] = useState<string>("");
 
+  // TODO: move this to a useLanggraphClient hook
   const client = new Client({ apiUrl: apiBaseUrl });
 
   const setLanggraphInfo = async () => {
@@ -145,6 +146,7 @@ export function ChatWindow() {
     };
     marked.setOptions({ renderer });
     try {
+      await updateThread(currentThread.thread_id, messageValue.slice(0, 20) + "...")
       const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
       const streamResponse = client.runs.stream(currentThread["thread_id"], assistantId, {
         input: {
@@ -170,24 +172,22 @@ export function ChatWindow() {
   };
 
   const insertUrlParam = (key: string, value?: string) => {
-    if (window.history.pushState) {
-      const searchParams = new URLSearchParams(window.location.search);
-      searchParams.set(key, value ?? "");
-      const newurl =
-        window.location.protocol +
-        "//" +
-        window.location.host +
-        window.location.pathname +
-        "?" +
-        searchParams.toString();
-      window.history.pushState({ path: newurl }, "", newurl);
-    }
+    const searchParams = new URLSearchParams(window.location.search);
+    searchParams.set(key, value ?? "");
+    const newUrl =
+      window.location.protocol +
+      "//" +
+      window.location.host +
+      window.location.pathname +
+      "?" +
+      searchParams.toString();
+    router.push(newUrl)
   };
 
   const selectChat = useCallback(
     async (id: string | null) => {
       if (!id) {
-        const thread = await createThread("New chat", assistantId)
+        const thread = await createThread("New chat")
         insertUrlParam("threadId", thread["thread_id"])
       } else {
         insertUrlParam("threadId", id)
@@ -198,8 +198,8 @@ export function ChatWindow() {
 
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
-      <Flex direction={"row"}>
-        <Flex direction={"column"}>
+      <Flex direction={"row"} columnGap={"20px"}>
+        <Flex direction={"column"} minWidth={"20%"}>
           <ChatList
             threads={threads}
             enterChat={selectChat}

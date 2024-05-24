@@ -1,91 +1,61 @@
-
 import { ThreadListProps } from "../hooks/useThreadList";
-import { useThread } from "../hooks/useThread";
 
-import { Text } from "@chakra-ui/react";
+import { Flex, List, ListItem, Spacer, Text } from "@chakra-ui/react";
 import { PlusSquareIcon  } from "@chakra-ui/icons"
+import { useThread } from "../hooks/useThread";
+import { Fragment } from "react";
 
+// TODO: this is super rudimentary and is meant to just test things working end-to-end
+// need to replace this with a proper UI
 export function ChatList(props: {
   threads: ThreadListProps["threads"];
   enterChat: (id: string | null) => void;
   deleteChat: (id: string) => void;
 }) {
-  const { currentThread } = useThread();
-
-  // State for tracking which chat's menu is visible
-  // const [visibleMenu, setVisibleMenu] = useState<string | null>(null);
-
-  // Event listener to close the menu when clicking outside of it
-  // useEffect(() => {
-    // const closeMenu = () => setVisibleMenu(null);
-    // window.addEventListener("click", closeMenu);
-    // return () => window.removeEventListener("click", closeMenu);
-  // }, []);
-
+  const { currentThread } = useThread()
   return (
     <>
-      <>
+      <Flex
+        direction={"row"}
+        alignItems={"center"}
+        columnGap={"2px"}
+        backgroundColor={"rgb(58, 58, 61)"}
+        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+        borderRadius={"8px"}
+        paddingLeft={"8px"}
+        paddingRight={"8px"}
+        onClick={() => props.enterChat(null)}
+      >
         <PlusSquareIcon color={"white"} onClick={() => props.enterChat(null)}/>
         <Text color={"white"}>New chat</Text>
-      </>
-      <ul role="list" className="-mx-2 mt-2 space-y-1">
-        {props.threads?.map(thread => (
-          <li
-            key={thread.thread_id}
-          >
-            <div
-              onClick={() => props.enterChat(thread.thread_id)}
-              className={
-                "group flex items-center gap-x-3 rounded-md px-2 leading-6 cursor-pointer flex-grow min-w-0"
-              }
-            >
-              <span
-                className={(
-                  thread.thread_id === currentThread?.thread_id
-                    ? "text-indigo-600 border-indigo-600"
-                    : "text-gray-400 border-gray-200 group-hover:border-indigo-600 group-hover:text-indigo-600") + 
-                  " flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border text-[0.625rem] font-medium bg-white"
-                }
+      </Flex>
+      <Text color={"white"}>Your chats</Text>
+      <List>
+        {
+          props.threads?.map((thread, idx) => (
+            <Fragment key={thread.thread_id}>
+              <ListItem
+                onClick={() => props.enterChat(thread.thread_id)}
+                style={{width: "100%"}}
+                backgroundColor={currentThread?.thread_id === thread.thread_id ? "rgb(78,78,81)" : "rgb(58, 58, 61)"}
+                _hover={{ backgroundColor: "rgb(78,78,81)" }}
+                borderRadius={"8px"}
+                paddingLeft={"8px"}
+                paddingRight={"8px"}
               >
-                {thread.metadata?.name as string ?? " "}
-              </span>
-            </div>
-            {/* Menu Dropdown
-            {visibleMenu === thread.thread_id && (
-              <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
-                <div
-                  className="py-1"
-                  role="menu"
-                  aria-orientation="vertical"
-                  aria-labelledby="options-menu"
-                >
-                  <a
-                    href="#"
-                    className="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100"
-                    role="menuitem"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      if (
-                        window.confirm(
-                          `Are you sure you want to delete chat "${thread.name}"?`,
-                        )
-                      ) {
-                        props.deleteChat(thread.thread_id);
-                      }
-                    }}
-                  >
-                    Delete
-                  </a>
-                </div>
-              </div>
-            )} */}
-          </li>
-        )) ?? (
-          <li className="leading-6 p-2 animate-pulse font-black text-gray-400 text-lg">
-            ...
-          </li>
-        )}
-      </ul>
+                  <Text color={"white"} style={{width: "100%"}}>
+                    {/* TODO: update this once the metadata bug is fixed in langgraph-sdk js */}
+                    {/* @ts-ignore */}
+                    {thread.metadata?.metadata["name"] as string ?? "New chat"}
+                  </Text>
+              </ListItem>
+              {
+                idx !== (props.threads?.length ?? 0 - 1) && <Spacer height={"4px"}/>
+              }
+            </Fragment>
+          ))
+        }
+      </List>
     </>
   );
 }

@@ -34,7 +34,7 @@ function getSources(values: Record<string, any>) {
 export function useThreadMessages(
   threadId: string | null,
 ) {
-  // TODO: move this into context
+  // TODO: move this into useLanggraphClient hook
   const client = new Client()
   const [messages, setMessages] = useState<Message[]>([]);
 

@@ -6,11 +6,10 @@ import { Thread } from "../types";
 
 export interface ThreadListProps {
   threads: Thread[] | null;
-  createThread: (name: string, assistant_id: string) => Promise<Thread>;
+  createThread: (name: string) => Promise<Thread>;
   updateThread: (
     name: string,
     thread_id: string,
-    assistant_id: string | null,
   ) => Promise<Thread>;
   deleteThread: (thread_id: string) => Promise<void>;
 }
@@ -28,13 +27,13 @@ function threadsReducer(
     ];
   }
   return action
-  // TODO: figure this one out
+  // TODO: figure this one out -- something is breaking with lodash.orderBy
   // return orderBy(action, "updated_at", "desc");
 }
 
 export function useThreadList(): ThreadListProps {
   const [threads, setThreads] = useReducer(threadsReducer, null);
-  // TODO: should this just be shared as a context?
+  // TODO: move this to a useLanggraphClient hook
   const client = new Client()
 
   useEffect(() => {
