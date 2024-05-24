@@ -1,11 +1,7 @@
 import "react-toastify/dist/ReactToastify.css";
 import { Card, CardBody, Heading } from "@chakra-ui/react";
 import { sendFeedback } from "../utils/sendFeedback";
-
-export type Source = {
-  url: string;
-  title: string;
-};
+import { Source } from "../types";
 
 export function SourceBubble({
   source,

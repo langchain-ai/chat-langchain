@@ -1108,10 +1108,10 @@
     zod "^3.22.4"
     zod-to-json-schema "^3.22.3"
 
-"@langchain/langgraph-sdk@0.0.1-rc.1":
-  version "0.0.1-rc.1"
-  resolved "https://registry.yarnpkg.com/@langchain/langgraph-sdk/-/langgraph-sdk-0.0.1-rc.1.tgz#c1b092c8e81cab820d92328a4593d68d4ac0d99a"
-  integrity sha512-2FwOZpJLZXQy092BHfEocvMgTOWcc9puk+HoNqiIotisia77nbjA63SKqJnQGM1DjPzCfdK7sijoiEeaGMYhYg==
+"@langchain/langgraph-sdk@^0.0.1-rc.2":
+  version "0.0.1-rc.2"
+  resolved "https://registry.yarnpkg.com/@langchain/langgraph-sdk/-/langgraph-sdk-0.0.1-rc.2.tgz#a4039b5cc6a918a3f02bc224c7c54ebd505b885e"
+  integrity sha512-as+4mHL74IIeER0Yi/jDcyuwLIHZzoeWdijZsjIXXNro16nuxfmjl0IyH2bIjdVW7RnGLeBd/J7JdW4xGqot0w==
   dependencies:
     eventsource-parser "^1.1.2"
     p-queue "^6.6.2"
@@ -3182,6 +3182,11 @@ lodash.mergewith@4.6.2:
   version "4.6.2"
   resolved "https://registry.yarnpkg.com/lodash.mergewith/-/lodash.mergewith-4.6.2.tgz#617121f89ac55f59047c7aec1ccd6654c6590f55"
   integrity sha512-GK3g5RPZWTRSeLSpgP8Xhra+pnjBC56q9FZYe1d5RN3TJ35dbkGy3YqBSMbyCrlbi+CM9Z3Jk5yTL7RCsqboyQ==
+
+lodash.orderby@^4.6.0:
+  version "4.6.0"
+  resolved "https://registry.yarnpkg.com/lodash.orderby/-/lodash.orderby-4.6.0.tgz#e697f04ce5d78522f54d9338b32b81a3393e4eb3"
+  integrity sha512-T0rZxKmghOOf5YPnn8EY5iLYeWCpZq8G41FfqoVHH5QDTAFaghJRmAdLiadEDq+ztgM2q5PjA+Z1fOwGrLgmtg==
 
 loose-envify@^1.0.0, loose-envify@^1.1.0, loose-envify@^1.4.0:
   version "1.4.0"
