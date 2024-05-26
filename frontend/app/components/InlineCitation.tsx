@@ -1,4 +1,4 @@
-import { Source } from "./SourceBubble";
+import { Source } from "../types";
 
 export function InlineCitation(props: {
   source: Source;
