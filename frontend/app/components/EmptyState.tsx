@@ -1,11 +1,5 @@
 import { MouseEvent } from "react";
-import {
-  Heading,
-  Card,
-  CardHeader,
-  Flex,
-  Spacer,
-} from "@chakra-ui/react";
+import { Heading, Card, CardHeader, Flex, Spacer } from "@chakra-ui/react";
 
 export function EmptyState(props: { onChoice: (question: string) => any }) {
   const handleClick = (e: MouseEvent) => {

@@ -75,12 +75,16 @@ export function mergeMessagesById(
 }
 
 export function ChatWindow() {
-  const router = useRouter()
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentThread } = useThread()
+  const { currentThread } = useThread();
   const { threads, createThread, updateThread, deleteThread } = useThreadList();
-  const { stream, startStream, stopStream } = useStreamState()
-  const { refreshMessages, messages, setMessages } = useThreadMessages(currentThread?.thread_id ?? null, stream, stopStream);
+  const { stream, startStream, stopStream } = useStreamState();
+  const { refreshMessages, messages, setMessages } = useThreadMessages(
+    currentThread?.thread_id ?? null,
+    stream,
+    stopStream,
+  );
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -90,7 +94,7 @@ export function ChatWindow() {
   const [llmIsLoading, setLlmIsLoading] = useState(true);
   const [assistantId, setAssistantId] = useState<string>("");
 
-  const client = useLangGraphClient()
+  const client = useLangGraphClient();
 
   const setLanggraphInfo = async () => {
     const assistantId = await getAssistantId(client);
@@ -146,8 +150,11 @@ export function ChatWindow() {
     };
     marked.setOptions({ renderer });
     try {
-      const threadName = messageValue.length > 20 ? messageValue.slice(0, 20) + "..." : messageValue
-      await updateThread(currentThread["thread_id"], threadName)
+      const threadName =
+        messageValue.length > 20
+          ? messageValue.slice(0, 20) + "..."
+          : messageValue;
+      await updateThread(currentThread["thread_id"], threadName);
       const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
       await startStream(
         [formattedMessage],
@@ -157,8 +164,8 @@ export function ChatWindow() {
           configurable: { model_name: llm },
           tags: ["model:" + llmDisplayName],
         },
-      )
-      await refreshMessages()
+      );
+      await refreshMessages();
       setIsLoading(false);
     } catch (e) {
       setIsLoading(false);
@@ -181,24 +188,21 @@ export function ChatWindow() {
       window.location.pathname +
       "?" +
       searchParams.toString();
-    router.push(newUrl)
+    router.push(newUrl);
   };
 
-  const selectChat = useCallback(
-    async (id: string | null) => {
-      if (currentThread) {
-        stopStream?.(true)
-      }
+  const selectChat = useCallback(async (id: string | null) => {
+    if (currentThread) {
+      stopStream?.(true);
+    }
 
-      if (!id) {
-        const thread = await createThread("New chat")
-        insertUrlParam("threadId", thread["thread_id"])
-      } else {
-        insertUrlParam("threadId", id)
-      }
-    },
-    []
-  );
+    if (!id) {
+      const thread = await createThread("New chat");
+      insertUrlParam("threadId", thread["thread_id"]);
+    } else {
+      insertUrlParam("threadId", id);
+    }
+  }, []);
 
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
@@ -225,7 +229,12 @@ export function ChatWindow() {
               Chat LangChain 🦜🔗
             </Heading>
             {messages.length > 0 ? (
-              <Heading fontSize="md" fontWeight={"normal"} mb={1} color={"white"}>
+              <Heading
+                fontSize="md"
+                fontWeight={"normal"}
+                mb={1}
+                color={"white"}
+              >
                 We appreciate feedback!
               </Heading>
             ) : (
@@ -257,7 +266,9 @@ export function ChatWindow() {
                     width={"240px"}
                   >
                     <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
-                    <option value="anthropic_claude_3_haiku">Claude 3 Haiku</option>
+                    <option value="anthropic_claude_3_haiku">
+                      Claude 3 Haiku
+                    </option>
                     <option value="google_gemini_pro">Google Gemini Pro</option>
                     <option value="fireworks_mixtral">
                       Mixtral (via Fireworks.ai)

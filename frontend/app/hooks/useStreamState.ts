@@ -46,13 +46,13 @@ export function getSources(values: Record<string, any>) {
     url: doc.metadata.source,
     title: doc.metadata.title,
   }));
-  return sources
+  return sources;
 }
 
 export function useStreamState(): StreamStateProps {
   const [current, setCurrent] = useState<StreamState | null>(null);
   const [controller, setController] = useState<AbortController | null>(null);
-  const client = useLangGraphClient()
+  const client = useLangGraphClient();
 
   // TODO: figure out how we actually deal with the controller here
   const startStream = useCallback(
@@ -60,23 +60,19 @@ export function useStreamState(): StreamStateProps {
       messages: Message[],
       threadId: string,
       assistantId: string,
-      config?: Config
+      config?: Config,
     ) => {
       const controller = new AbortController();
       setController(controller);
       setCurrent({ status: "inflight", messages: messages || [] });
 
-      const stream = client.runs.stream(
-        threadId,
-        assistantId,
-        {
-          input: { messages },
-          config,
-          streamMode: ["messages", "values"],
-        }
-      )
+      const stream = client.runs.stream(threadId, assistantId, {
+        input: { messages },
+        config,
+        streamMode: ["messages", "values"],
+      });
 
-      let sources: Source[] = []
+      let sources: Source[] = [];
       for await (const chunk of stream) {
         if (chunk.event === "metadata") {
           setCurrent((current) => ({
@@ -89,7 +85,8 @@ export function useStreamState(): StreamStateProps {
           setCurrent((current) => ({
             status: "inflight",
             messages: mergeMessagesById(
-              current?.messages, chunkMessages.map((message) => ({ ...message, sources }))
+              current?.messages,
+              chunkMessages.map((message) => ({ ...message, sources })),
             ),
             run_id: current?.run_id,
           }));
