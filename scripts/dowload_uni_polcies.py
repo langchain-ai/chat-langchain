@@ -66,7 +66,6 @@ def create_csv_index(pdf_links):
         for pdf_link in pdf_links:
             csv_writer.writerow([pdf_link.split("/")[-1], pdf_link])
 
-
 pdf_links = get_policies_pdfs()
 for pdf_link in pdf_links:
     download_policy(pdf_link)
