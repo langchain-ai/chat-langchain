@@ -1,14 +1,12 @@
 "use client";
 
 import { Fragment } from "react";
-import { Flex, List, ListItem, Spacer, Text } from "@chakra-ui/react";
+import { List, ListItem, Spacer, Text, Button } from "@chakra-ui/react";
 import { PlusSquareIcon } from "@chakra-ui/icons";
 
 import { ThreadListProps } from "../hooks/useThreadList";
 import { useThread } from "../hooks/useThread";
 
-// TODO: this is super rudimentary and is meant to just test things working end-to-end
-// need to replace this with a proper UI
 export function ChatList(props: {
   threads: ThreadListProps["threads"];
   enterChat: (id: string | null) => void;
@@ -17,21 +15,21 @@ export function ChatList(props: {
   const { currentThread } = useThread();
   return (
     <>
-      <Flex
-        direction={"row"}
-        alignItems={"center"}
-        columnGap={"2px"}
+      <Button
         backgroundColor={"rgb(58, 58, 61)"}
         _hover={{ backgroundColor: "rgb(78,78,81)" }}
-        borderRadius={"8px"}
-        paddingLeft={"8px"}
-        paddingRight={"8px"}
         onClick={() => props.enterChat(null)}
       >
-        <PlusSquareIcon color={"white"} onClick={() => props.enterChat(null)} />
+        <PlusSquareIcon
+          color={"white"}
+          marginRight={"4px"}
+          onClick={() => props.enterChat(null)}
+        />
         <Text color={"white"}>New chat</Text>
-      </Flex>
-      <Text color={"white"}>Your chats</Text>
+      </Button>
+      <Text color={"white"} marginTop={"24px"} fontWeight={"semibold"}>
+        Previous chats
+      </Text>
       <List>
         {props.threads?.map((thread, idx) => (
           <Fragment key={thread.thread_id}>

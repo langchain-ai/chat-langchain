@@ -205,150 +205,178 @@ export function ChatWindow() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center p-8 rounded grow max-h-full">
-      <Flex direction={"row"} columnGap={"20px"}>
-        <Flex direction={"column"} minWidth={"20%"}>
+    <>
+      <div className="flex items-center rounded grow max-h-full">
+        <Flex
+          direction={"column"}
+          minWidth={"212px"}
+          paddingTop={"36px"}
+          height={"100%"}
+          marginX={"24px"}
+        >
           <ChatList
             threads={threads}
             enterChat={selectChat}
             deleteChat={deleteThread}
           />
         </Flex>
-        <Flex direction={"column"}>
+        <Flex
+          direction={"column"}
+          justifyContent={"center"}
+          flexGrow={"1"}
+          marginX={"12px"}
+          height={"100%"}
+        >
           <Flex
             direction={"column"}
             alignItems={"center"}
-            marginTop={messages.length > 0 ? "" : "64px"}
+            flexGrow={"1"}
+            margin={"24px"}
+            height={"100%"}
           >
-            <Heading
-              fontSize={messages.length > 0 ? "2xl" : "3xl"}
-              fontWeight={"medium"}
-              mb={1}
-              color={"white"}
+            <Flex
+              direction={"column"}
+              alignItems={"center"}
+              marginTop={messages.length > 0 ? "" : "64px"}
             >
-              Chat LangChain 🦜🔗
-            </Heading>
-            {messages.length > 0 ? (
               <Heading
-                fontSize="md"
-                fontWeight={"normal"}
+                fontSize={messages.length > 0 ? "2xl" : "3xl"}
+                fontWeight={"medium"}
                 mb={1}
                 color={"white"}
               >
-                We appreciate feedback!
+                Chat LangChain 🦜🔗
               </Heading>
-            ) : (
-              <Heading
-                fontSize="xl"
-                fontWeight={"normal"}
-                color={"white"}
-                marginTop={"10px"}
-                textAlign={"center"}
-              >
-                Ask me anything about LangChain&apos;s{" "}
-                <Link href="https://python.langchain.com/" color={"blue.200"}>
-                  Python documentation!
-                </Link>
-              </Heading>
-            )}
-            <div className="text-white flex flex-wrap items-center mt-4">
-              <div className="flex items-center mb-2">
-                <span className="shrink-0 mr-2">Powered by</span>
-                {llmIsLoading ? (
-                  <Spinner className="my-2"></Spinner>
-                ) : (
-                  <Select
-                    value={llm}
-                    onChange={(e) => {
-                      insertUrlParam("llm", e.target.value);
-                      setLlm(e.target.value);
-                    }}
-                    width={"240px"}
-                  >
-                    <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
-                    <option value="anthropic_claude_3_haiku">
-                      Claude 3 Haiku
-                    </option>
-                    <option value="google_gemini_pro">Google Gemini Pro</option>
-                    <option value="fireworks_mixtral">
-                      Mixtral (via Fireworks.ai)
-                    </option>
-                    <option value="cohere_command">Cohere</option>
-                  </Select>
-                )}
+              {messages.length > 0 ? (
+                <Heading
+                  fontSize="md"
+                  fontWeight={"normal"}
+                  mb={1}
+                  color={"white"}
+                >
+                  We appreciate feedback!
+                </Heading>
+              ) : (
+                <Heading
+                  fontSize="xl"
+                  fontWeight={"normal"}
+                  color={"white"}
+                  marginTop={"10px"}
+                  textAlign={"center"}
+                >
+                  Ask me anything about LangChain&apos;s{" "}
+                  <Link href="https://python.langchain.com/" color={"blue.200"}>
+                    Python documentation!
+                  </Link>
+                </Heading>
+              )}
+              <div className="text-white flex flex-wrap items-center mt-4">
+                <div className="flex items-center mb-2">
+                  <span className="shrink-0 mr-2">Powered by</span>
+                  {llmIsLoading ? (
+                    <Spinner className="my-2"></Spinner>
+                  ) : (
+                    <Select
+                      value={llm}
+                      onChange={(e) => {
+                        insertUrlParam("llm", e.target.value);
+                        setLlm(e.target.value);
+                      }}
+                      width={"240px"}
+                    >
+                      <option value="openai_gpt_3_5_turbo">
+                        GPT-3.5-Turbo
+                      </option>
+                      <option value="anthropic_claude_3_haiku">
+                        Claude 3 Haiku
+                      </option>
+                      <option value="google_gemini_pro">
+                        Google Gemini Pro
+                      </option>
+                      <option value="fireworks_mixtral">
+                        Mixtral (via Fireworks.ai)
+                      </option>
+                      <option value="cohere_command">Cohere</option>
+                    </Select>
+                  )}
+                </div>
               </div>
+            </Flex>
+            <div
+              className="flex flex-col-reverse w-full mb-2 overflow-auto max-h-[75vh]"
+              ref={messageContainerRef}
+            >
+              {messages.length > 0 ? (
+                [...messages]
+                  .reverse()
+                  .map((m, index) => (
+                    <ChatMessageBubble
+                      key={m.id}
+                      message={{ ...m }}
+                      aiEmoji="🦜"
+                      isMostRecent={index === 0}
+                      messageCompleted={!isLoading}
+                    ></ChatMessageBubble>
+                  ))
+              ) : (
+                <EmptyState onChoice={sendInitialQuestion} />
+              )}
             </div>
-          </Flex>
-          <div
-            className="flex flex-col-reverse w-full mb-2 overflow-auto"
-            ref={messageContainerRef}
-          >
-            {messages.length > 0 ? (
-              [...messages]
-                .reverse()
-                .map((m, index) => (
-                  <ChatMessageBubble
-                    key={m.id}
-                    message={{ ...m }}
-                    aiEmoji="🦜"
-                    isMostRecent={index === 0}
-                    messageCompleted={!isLoading}
-                  ></ChatMessageBubble>
-                ))
-            ) : (
-              <EmptyState onChoice={sendInitialQuestion} />
-            )}
-          </div>
-          <InputGroup size="md" alignItems={"center"}>
-            <AutoResizeTextarea
-              value={input}
-              maxRows={5}
-              marginRight={"56px"}
-              placeholder="What does RunnablePassthrough.assign() do?"
-              textColor={"white"}
-              borderColor={"rgb(58, 58, 61)"}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                } else if (e.key === "Enter" && e.shiftKey) {
-                  e.preventDefault();
-                  setInput(input + "\n");
-                }
-              }}
-            />
-            <InputRightElement h="full">
-              <IconButton
-                colorScheme="blue"
-                rounded={"full"}
-                aria-label="Send"
-                icon={isLoading ? <Spinner /> : <ArrowUpIcon />}
-                type="submit"
-                onClick={(e) => {
-                  e.preventDefault();
-                  sendMessage();
+            <InputGroup
+              size="md"
+              alignItems={"center"}
+              maxWidth={messages.length === 0 ? "1024px" : "100%"}
+              marginY={"12px"}
+            >
+              <AutoResizeTextarea
+                value={input}
+                maxRows={5}
+                marginRight={"56px"}
+                placeholder="What does RunnablePassthrough.assign() do?"
+                textColor={"white"}
+                borderColor={"rgb(58, 58, 61)"}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  } else if (e.key === "Enter" && e.shiftKey) {
+                    e.preventDefault();
+                    setInput(input + "\n");
+                  }
                 }}
               />
-            </InputRightElement>
-          </InputGroup>
-
-          {messages.length === 0 ? (
-            <footer className="flex justify-center absolute bottom-8">
-              <a
-                href="https://github.com/langchain-ai/chat-langchain"
-                target="_blank"
-                className="text-white flex items-center"
-              >
-                <img src="/images/github-mark.svg" className="h-4 mr-1" />
-                <span>View Source</span>
-              </a>
-            </footer>
-          ) : (
-            ""
-          )}
+              <InputRightElement h="full">
+                <IconButton
+                  colorScheme="blue"
+                  rounded={"full"}
+                  aria-label="Send"
+                  icon={isLoading ? <Spinner /> : <ArrowUpIcon />}
+                  type="submit"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    sendMessage();
+                  }}
+                />
+              </InputRightElement>
+            </InputGroup>
+            {messages.length === 0 ? (
+              <footer className="flex justify-center mt-auto h-4 fixed bottom-4">
+                <a
+                  href="https://github.com/langchain-ai/chat-langchain"
+                  target="_blank"
+                  className="text-white flex items-center"
+                >
+                  <img src="/images/github-mark.svg" className="h-4 mr-1" />
+                  <span>View Source</span>
+                </a>
+              </footer>
+            ) : (
+              ""
+            )}
+          </Flex>
         </Flex>
-      </Flex>
-    </div>
+      </div>
+    </>
   );
 }
