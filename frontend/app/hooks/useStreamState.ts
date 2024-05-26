@@ -21,7 +21,7 @@ export interface StreamStateProps {
   stopStream?: (clear?: boolean) => void;
 }
 
-function mergeMessagesById(
+export function mergeMessagesById(
   left: Message[] | Record<string, any> | null | undefined,
   right: Message[] | Record<string, any> | null | undefined,
 ): Message[] {
@@ -40,7 +40,7 @@ function mergeMessagesById(
   return merged;
 }
 
-function getSources(values: Record<string, any>) {
+export function getSources(values: Record<string, any>) {
   const documents = (values["documents"] ?? []) as Array<Document>;
   const sources = documents.map((doc) => ({
     url: doc.metadata.source,
@@ -57,21 +57,20 @@ export function useStreamState(): StreamStateProps {
   // TODO: figure out how we actually deal with the controller here
   const startStream = useCallback(
     async (
-      input: Message[],//, | Record<string, any> | null,
+      messages: Message[],
       threadId: string,
       assistantId: string,
-      config?: Config//Record<string, unknown>,
+      config?: Config
     ) => {
       const controller = new AbortController();
       setController(controller);
-      setCurrent({ status: "inflight", messages: input || [] });
+      setCurrent({ status: "inflight", messages: messages || [] });
 
       const stream = client.runs.stream(
         threadId,
         assistantId,
         {
-          // @ts-ignore
-          input,
+          input: { messages },
           config,
           streamMode: ["messages", "values"],
         }

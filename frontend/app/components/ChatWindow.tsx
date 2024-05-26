@@ -28,6 +28,7 @@ import { useThread } from "../hooks/useThread";
 import { useThreadList } from "../hooks/useThreadList";
 import { useThreadMessages } from "../hooks/useThreadMessages";
 import { useLangGraphClient } from "../hooks/useLangGraphClient";
+import { useStreamState } from "../hooks/useStreamState";
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
@@ -78,7 +79,8 @@ export function ChatWindow() {
   const searchParams = useSearchParams();
   const { currentThread } = useThread()
   const { threads, createThread, updateThread, deleteThread } = useThreadList();
-  const { updateMessages, messages, setMessages } = useThreadMessages(currentThread?.thread_id ?? null);
+  const { stream, startStream, stopStream } = useStreamState()
+  const { refreshMessages, messages, setMessages } = useThreadMessages(currentThread?.thread_id ?? null, stream, stopStream);
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -144,19 +146,19 @@ export function ChatWindow() {
     };
     marked.setOptions({ renderer });
     try {
-      await updateThread(currentThread.thread_id, messageValue.slice(0, 20) + "...")
+      const threadName = messageValue.length > 20 ? messageValue.slice(0, 20) + "..." : messageValue
+      await updateThread(currentThread["thread_id"], threadName)
       const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
-      const streamResponse = client.runs.stream(currentThread["thread_id"], assistantId, {
-        input: {
-          messages: [formattedMessage],
-        },
-        config: {
+      await startStream(
+        [formattedMessage],
+        currentThread["thread_id"],
+        assistantId,
+        {
           configurable: { model_name: llm },
           tags: ["model:" + llmDisplayName],
         },
-        streamMode: ["messages", "values"],
-      });
-      await updateMessages(streamResponse);
+      )
+      await refreshMessages()
       setIsLoading(false);
     } catch (e) {
       setIsLoading(false);
@@ -184,6 +186,10 @@ export function ChatWindow() {
 
   const selectChat = useCallback(
     async (id: string | null) => {
+      if (currentThread) {
+        stopStream?.(true)
+      }
+
       if (!id) {
         const thread = await createThread("New chat")
         insertUrlParam("threadId", thread["thread_id"])
