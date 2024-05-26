@@ -38,6 +38,12 @@ export function ChatList(props: {
             <Fragment key={thread.thread_id}>
               <ListItem
                 onClick={() => props.enterChat(thread.thread_id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (confirm("Delete chat?")) {
+                    props.deleteChat(thread.thread_id)
+                  }
+                }}
                 style={{width: "100%"}}
                 backgroundColor={currentThread?.thread_id === thread.thread_id ? "rgb(78,78,81)" : "rgb(58, 58, 61)"}
                 _hover={{ backgroundColor: "rgb(78,78,81)" }}
