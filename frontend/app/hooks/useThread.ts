@@ -1,14 +1,15 @@
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "next/navigation"
-import { Client } from "@langchain/langgraph-sdk"
-import { useEffect, useState } from "react";
+
+import { useLangGraphClient } from "./useLangGraphClient";
 
 export function useThread() {
   // Extract route parameters
   const [threadId, setThreadId] = useState<string>()
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const langgraphClient = new Client();
+  const langGraphClient = useLangGraphClient()
 
   useEffect(() => {
     setThreadId(searchParams.get("threadId") as string)
@@ -17,7 +18,7 @@ export function useThread() {
   // React Query to fetch chat details if chatId is present
   const { data: currentThread, isLoading } = useQuery(
     ["thread", threadId],
-    async () => await langgraphClient.threads.get(threadId as string),
+    async () => await langGraphClient.threads.get(threadId as string),
     {
       enabled: !!threadId,
     },

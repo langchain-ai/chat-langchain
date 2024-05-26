@@ -2,15 +2,10 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
-import { EmptyState } from "./EmptyState";
-import { ChatMessageBubble } from "./ChatMessageBubble";
-import { AutoResizeTextarea } from "./AutoResizeTextarea";
 import { marked } from "marked";
 import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
-
 import "react-toastify/dist/ReactToastify.css";
 import {
   Heading,
@@ -22,11 +17,15 @@ import {
 } from "@chakra-ui/react";
 import { ArrowUpIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
-import { Message } from "../types";
 import { Client } from "@langchain/langgraph-sdk";
-import { useThreadList } from "../hooks/useThreadList";
+
+import { EmptyState } from "./EmptyState";
+import { ChatMessageBubble } from "./ChatMessageBubble";
+import { AutoResizeTextarea } from "./AutoResizeTextarea";
+import { Message } from "../types";
 import { ChatList } from "./ChatList";
 import { useThread } from "../hooks/useThread";
+import { useThreadList } from "../hooks/useThreadList";
 import { useThreadMessages } from "../hooks/useThreadMessages";
 import { useLangGraphClient } from "../hooks/useLangGraphClient";
 
