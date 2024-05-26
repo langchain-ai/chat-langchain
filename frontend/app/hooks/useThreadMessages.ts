@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Message, Source } from "../types";
 import { Document } from "@langchain/core/documents";
-import { Client } from "@langchain/langgraph-sdk";
+
+import { Message, Source } from "../types";
+import { useLangGraphClient } from "./useLangGraphClient";
 
 export function mergeMessagesById(
   left: Message[] | Record<string, any> | null | undefined,
@@ -34,8 +35,7 @@ function getSources(values: Record<string, any>) {
 export function useThreadMessages(
   threadId: string | null,
 ) {
-  // TODO: move this into useLanggraphClient hook
-  const client = new Client()
+  const client = useLangGraphClient()
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {

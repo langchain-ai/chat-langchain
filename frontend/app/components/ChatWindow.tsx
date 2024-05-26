@@ -23,12 +23,12 @@ import {
 import { ArrowUpIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
 import { Message } from "../types";
-import { apiBaseUrl } from "../utils/constants";
 import { Client } from "@langchain/langgraph-sdk";
 import { useThreadList } from "../hooks/useThreadList";
 import { ChatList } from "./ChatList";
 import { useThread } from "../hooks/useThread";
 import { useThreadMessages } from "../hooks/useThreadMessages";
+import { useLangGraphClient } from "../hooks/useLangGraphClient";
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
@@ -89,8 +89,7 @@ export function ChatWindow() {
   const [llmIsLoading, setLlmIsLoading] = useState(true);
   const [assistantId, setAssistantId] = useState<string>("");
 
-  // TODO: move this to a useLanggraphClient hook
-  const client = new Client({ apiUrl: apiBaseUrl });
+  const client = useLangGraphClient()
 
   const setLanggraphInfo = async () => {
     const assistantId = await getAssistantId(client);

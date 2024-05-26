@@ -1,3 +1,5 @@
+"use client";
+
 import { Fragment } from "react";
 import { Flex, List, ListItem, Spacer, Text } from "@chakra-ui/react";
 import { PlusSquareIcon  } from "@chakra-ui/icons"

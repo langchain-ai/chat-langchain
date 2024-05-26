@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useReducer } from "react";
 import orderBy from "lodash.orderby"
-import { Client, Thread } from "@langchain/langgraph-sdk"
+import { Thread } from "@langchain/langgraph-sdk"
+
+import { useLangGraphClient } from "./useLangGraphClient";
 
 export interface ThreadListProps {
   threads: Thread[] | null;
@@ -29,8 +31,7 @@ function threadsReducer(
 
 export function useThreadList(): ThreadListProps {
   const [threads, setThreads] = useReducer(threadsReducer, null);
-  // TODO: move this to a useLanggraphClient hook
-  const client = new Client()
+  const client = useLangGraphClient()
 
   useEffect(() => {
     async function fetchThreads() {
