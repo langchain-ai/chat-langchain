@@ -1,9 +1,9 @@
-import { ThreadListProps } from "../hooks/useThreadList";
-
+import { Fragment } from "react";
 import { Flex, List, ListItem, Spacer, Text } from "@chakra-ui/react";
 import { PlusSquareIcon  } from "@chakra-ui/icons"
+
+import { ThreadListProps } from "../hooks/useThreadList";
 import { useThread } from "../hooks/useThread";
-import { Fragment } from "react";
 
 // TODO: this is super rudimentary and is meant to just test things working end-to-end
 // need to replace this with a proper UI

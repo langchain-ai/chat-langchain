@@ -18,6 +18,7 @@
     "@langchain/core": "^0.1.27",
     "@langchain/langgraph-sdk": "^0.0.1-rc.2",
     "@types/dompurify": "^3.0.5",
+    "@types/lodash.orderby": "^4.6.9",
     "@types/marked": "^5.0.1",
     "@types/node": "20.4.9",
     "@types/react": "18.2.20",

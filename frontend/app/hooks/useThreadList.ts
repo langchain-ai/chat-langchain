@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useReducer } from "react";
-import { Client } from "@langchain/langgraph-sdk"
-// import orderBy from "lodash/orderBy";
-import { Thread } from "@langchain/langgraph-sdk"
+import orderBy from "lodash.orderby"
+import { Client, Thread } from "@langchain/langgraph-sdk"
 
 export interface ThreadListProps {
   threads: Thread[] | null;
@@ -25,9 +24,7 @@ function threadsReducer(
       newThread,
     ];
   }
-  return action
-  // TODO: figure this one out -- something is breaking with lodash.orderBy
-  // return orderBy(action, "updated_at", "desc");
+  return orderBy(action, "updated_at", "desc");
 }
 
 export function useThreadList(): ThreadListProps {
