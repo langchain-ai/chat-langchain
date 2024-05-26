@@ -29,13 +29,11 @@ function getSources(values: Record<string, any>) {
     url: doc.metadata.source,
     title: doc.metadata.title,
   }));
-  return sources
+  return sources;
 }
 
-export function useThreadMessages(
-  threadId: string | null,
-) {
-  const client = useLangGraphClient()
+export function useThreadMessages(threadId: string | null) {
+  const client = useLangGraphClient();
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
@@ -43,40 +41,43 @@ export function useThreadMessages(
       if (threadId) {
         const { values } = await client.threads.getState(threadId);
         if (values != null) {
-          const messages = (Array.isArray(values) ? values : values.messages ?? []) as Message[];
-          const sources = getSources(values)
-          setMessages(messages.map(message => ( {...message, sources })));
+          const messages = (
+            Array.isArray(values) ? values : values.messages ?? []
+          ) as Message[];
+          const sources = getSources(values);
+          setMessages(messages.map((message) => ({ ...message, sources })));
         }
       }
-    } 
-    fetchMessages()
-  }, [threadId])
-
-  const updateMessages = useCallback(async (
-    stream: AsyncGenerator<Record<string, any>>
-  ) => {
-    let sources: Source[] = []
-    for await (const chunk of stream) {
-      if (chunk.event === "messages/partial") {
-        const chunkMessages = chunk.data as Message[];
-        setMessages((prevMessages) =>
-          mergeMessagesById(
-            prevMessages,
-            chunkMessages.map((message) => ({ ...message, sources })),
-          ),
-        );
-      } else if (chunk.event === "values") {
-        const data = chunk.data as Record<string, any>;
-        sources = getSources(data);
-      }
     }
-  }, [threadId])
+    fetchMessages();
+  }, [threadId]);
+
+  const updateMessages = useCallback(
+    async (stream: AsyncGenerator<Record<string, any>>) => {
+      let sources: Source[] = [];
+      for await (const chunk of stream) {
+        if (chunk.event === "messages/partial") {
+          const chunkMessages = chunk.data as Message[];
+          setMessages((prevMessages) =>
+            mergeMessagesById(
+              prevMessages,
+              chunkMessages.map((message) => ({ ...message, sources })),
+            ),
+          );
+        } else if (chunk.event === "values") {
+          const data = chunk.data as Record<string, any>;
+          sources = getSources(data);
+        }
+      }
+    },
+    [threadId],
+  );
 
   return useMemo(
     () => ({
       updateMessages,
       messages,
-      setMessages
+      setMessages,
     }),
     [messages, updateMessages],
   );

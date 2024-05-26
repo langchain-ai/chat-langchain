@@ -5,18 +5,20 @@ import { createContext, useContext } from "react";
 
 export const LangGraphClientContext = createContext<Client | undefined>(
   undefined,
-)
+);
 
 export const useLangGraphClient = (langGraphClient?: Client) => {
-  const client = useContext(LangGraphClientContext)
+  const client = useContext(LangGraphClientContext);
 
   if (langGraphClient) {
-    return langGraphClient
+    return langGraphClient;
   }
 
   if (!client) {
-    throw new Error("No LangGraphClient set, use LangGraphClientContext to set one")
+    throw new Error(
+      "No LangGraphClient set, use LangGraphClientContext to set one",
+    );
   }
 
-  return client
-}
+  return client;
+};
