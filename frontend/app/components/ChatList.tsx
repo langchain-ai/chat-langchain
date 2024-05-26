@@ -44,9 +44,7 @@ export function ChatList(props: {
                 paddingRight={"8px"}
               >
                   <Text color={"white"} style={{width: "100%"}}>
-                    {/* TODO: update this once the metadata bug is fixed in langgraph-sdk js */}
-                    {/* @ts-ignore */}
-                    {thread.metadata?.metadata["name"] as string ?? "New chat"}
+                    {thread.metadata?.["name"] as string ?? "New chat"}
                   </Text>
               </ListItem>
               {

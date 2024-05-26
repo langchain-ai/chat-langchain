@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useReducer } from "react";
 import { Client } from "@langchain/langgraph-sdk"
 // import orderBy from "lodash/orderBy";
-// TODO: get rid of it once Thread & other types are exportable by the langgraph SDK
-import { Thread } from "../types";
+import { Thread } from "@langchain/langgraph-sdk"
 
 export interface ThreadListProps {
   threads: Thread[] | null;
