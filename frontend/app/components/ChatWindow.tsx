@@ -23,7 +23,7 @@ import {
   Button,
   Text,
 } from "@chakra-ui/react";
-import { ArrowDownIcon, ArrowUpIcon, CloseIcon } from "@chakra-ui/icons";
+import { ArrowDownIcon, ArrowUpIcon, SmallCloseIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
 import { Client } from "@langchain/langgraph-sdk";
 
@@ -179,6 +179,20 @@ export function ChatWindow() {
     await sendMessage(question);
   };
 
+  const continueStream = async (threadId: string) => {
+    try {
+      setIsLoading(true);
+      await startStream(null, threadId, assistantId, config);
+      setIsLoading(false);
+    } catch (e) {
+      setIsLoading(false);
+      if (!(e instanceof DOMException && e.name == "AbortError")) {
+        // we don't raise on "abort" signal errors
+        throw e;
+      }
+    }
+  };
+
   const insertUrlParam = (key: string, value?: string) => {
     const searchParams = new URLSearchParams(window.location.search);
     searchParams.set(key, value ?? "");
@@ -320,12 +334,7 @@ export function ChatWindow() {
                         backgroundColor={"rgb(58, 58, 61)"}
                         _hover={{ backgroundColor: "rgb(78,78,81)" }}
                         onClick={() =>
-                          startStream(
-                            null,
-                            currentThread["thread_id"],
-                            assistantId,
-                            config,
-                          )
+                          continueStream(currentThread["thread_id"])
                         }
                       >
                         <ArrowDownIcon color={"white"} marginRight={"4px"} />
@@ -375,7 +384,7 @@ export function ChatWindow() {
                   colorScheme="blue"
                   rounded={"full"}
                   aria-label="Send"
-                  icon={isLoading ? <CloseIcon /> : <ArrowUpIcon />}
+                  icon={isLoading ? <SmallCloseIcon /> : <ArrowUpIcon />}
                   type="submit"
                   onClick={(e) => {
                     e.preventDefault();
