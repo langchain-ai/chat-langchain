@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Message } from "../types";
 import { useLangGraphClient } from "./useLangGraphClient";
 import { StreamState, getSources, mergeMessagesById } from "./useStreamState";
+import { Document } from "@langchain/core/documents";
 
 function usePrevious<T>(value: T): T | undefined {
   const ref = useRef<T>();
@@ -12,11 +13,11 @@ function usePrevious<T>(value: T): T | undefined {
   return ref.current;
 }
 
-function getMessagesFromValues(values: Record<string, any>) {
-  const messages = ((Array.isArray(values) ? values : values.messages) ??
-    []) as Message[];
-  const sources = getSources(values);
-  return messages.map((message) => ({ ...message, sources }));
+function getMessagesWithSources(messages?: Message[], documents?: Document[]) {
+  return (messages ?? []).map((message) => ({
+    ...message,
+    sources: getSources(documents ?? []),
+  }));
 }
 
 export function useThreadMessages(
@@ -31,8 +32,14 @@ export function useThreadMessages(
 
   const refreshMessages = useCallback(async () => {
     if (threadId) {
-      const { values, next } = await client.threads.getState(threadId);
-      const messages = getMessagesFromValues(values);
+      const { values, next } = await client.threads.getState<{
+        messages: Message[];
+        documents: Document[];
+      }>(threadId);
+      const messages = getMessagesWithSources(
+        values.messages,
+        values.documents,
+      );
       setMessages(messages);
       setNext(next);
     }
@@ -48,8 +55,14 @@ export function useThreadMessages(
   useEffect(() => {
     async function fetchMessages() {
       if (threadId) {
-        const { values, next } = await client.threads.getState(threadId);
-        const messages = getMessagesFromValues(values);
+        const { values, next } = await client.threads.getState<{
+          messages: Message[];
+          documents: Document[];
+        }>(threadId);
+        const messages = getMessagesWithSources(
+          values.messages,
+          values.documents,
+        );
         setMessages(messages);
         setNext(next);
         stopStream?.(true);
@@ -67,10 +80,19 @@ export function useThreadMessages(
   return useMemo(
     () => ({
       refreshMessages,
-      messages: mergeMessagesById(messages, streamState?.messages),
+      messages: mergeMessagesById(
+        messages,
+        getMessagesWithSources(streamState?.messages, streamState?.documents),
+      ),
       setMessages,
       next,
     }),
-    [messages, streamState?.messages, next, refreshMessages],
+    [
+      messages,
+      streamState?.messages,
+      streamState?.documents,
+      next,
+      refreshMessages,
+    ],
   );
 }

@@ -6,7 +6,8 @@ import { Document } from "@langchain/core/documents";
 
 export interface StreamState {
   status: "inflight" | "error" | "done";
-  messages?: Message[] | Record<string, any>;
+  messages?: Message[];
+  documents?: Document[];
   run_id?: string;
 }
 
@@ -40,8 +41,7 @@ export function mergeMessagesById(
   return merged;
 }
 
-export function getSources(values: Record<string, any>) {
-  const documents = (values["documents"] ?? []) as Array<Document>;
+export function getSources(documents: Document[]) {
   const sources = documents.map((doc) => ({
     url: doc.metadata.source,
     title: doc.metadata.title,
@@ -72,38 +72,40 @@ export function useStreamState(): StreamStateProps {
         signal: controller.signal,
       });
 
-      let sources: Source[] = [];
       for await (const chunk of stream) {
         if (chunk.event === "metadata") {
           setCurrent((current) => ({
+            ...current,
             status: "inflight",
-            messages: current?.messages,
             run_id: chunk.data["run_id"] as string,
           }));
         } else if (chunk.event === "messages/partial") {
           const chunkMessages = chunk.data as Message[];
+          const sources = getSources(current?.documents ?? []);
           setCurrent((current) => ({
+            ...current,
             status: "inflight",
             messages: mergeMessagesById(
               current?.messages,
               chunkMessages.map((message) => ({ ...message, sources })),
             ),
-            run_id: current?.run_id,
           }));
         } else if (chunk.event === "values") {
           const data = chunk.data as Record<string, any>;
-          sources = getSources(data);
+          setCurrent((current) => ({
+            ...current,
+            status: "inflight",
+            documents: data["documents"],
+          }));
         } else if (chunk.event === "error") {
           setCurrent((current) => ({
+            ...current,
             status: "error",
-            messages: current?.messages,
-            run_id: current?.run_id,
           }));
         } else if (chunk.event === "end") {
           setCurrent((current) => ({
+            ...current,
             status: "done",
-            messages: current?.messages,
-            run_id: current?.run_id,
           }));
         }
       }
