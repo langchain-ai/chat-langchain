@@ -2,7 +2,7 @@
 
 import { Fragment } from "react";
 import { List, ListItem, Spacer, Text, Button } from "@chakra-ui/react";
-import { PlusSquareIcon } from "@chakra-ui/icons";
+import { PlusSquareIcon, DeleteIcon } from "@chakra-ui/icons";
 
 import { ThreadListProps } from "../hooks/useThreadList";
 import { useThread } from "../hooks/useThread";
@@ -30,13 +30,8 @@ export function ChatList(props: {
         {props.threads?.map((thread, idx) => (
           <Fragment key={thread.thread_id}>
             <ListItem
+              role="group"
               onClick={() => props.enterChat(thread.thread_id)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                if (confirm("Delete chat?")) {
-                  props.deleteChat(thread.thread_id);
-                }
-              }}
               style={{ width: "100%" }}
               backgroundColor={
                 currentThread?.thread_id === thread.thread_id
@@ -47,10 +42,29 @@ export function ChatList(props: {
               borderRadius={"8px"}
               paddingLeft={"8px"}
               paddingRight={"8px"}
+              position={"relative"}
             >
               <Text color={"white"} style={{ width: "100%" }}>
                 {(thread.metadata?.["name"] as string) ?? "New chat"}
               </Text>
+              <DeleteIcon
+                display={"none"}
+                _groupHover={{ display: "block" }}
+                position={"absolute"}
+                right={"12px"}
+                bottom={"18px"}
+                cursor={"pointer"}
+                color={"grey"}
+                height={"14px"}
+                width={"14px"}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (confirm("Delete chat?")) {
+                    props.deleteChat(thread.thread_id);
+                  }
+                }}
+              />
             </ListItem>
             {idx !== (props.threads?.length ?? 0 - 1) && (
               <Spacer height={"4px"} />
