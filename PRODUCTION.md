@@ -16,6 +16,6 @@ However, accounts are not enough to prevent all abuse. The next step is to add r
 
 Prompt injection is when a malicious user injects a prompt which tries to make the LLM answer or act in a way you did not originally intend for it to. This sometimes occurs because users want to use the LLM for other reasons than you intended, without having to pay for it themselves. Or the user might be trying to extract information/data they should not have access to, but the LLM does.
 
-The first step you should always do is scoping any permissions your LLM has (eg, database permissions) as tightly as possible. For example, if your LLM only has to answer questions about a database, it should most likely only have write access. Scoping permissions is a good practice in general, but especially important when deploying LLMs.
+The first step you should always do is scoping any permissions your LLM has (eg, database permissions) as tightly as possible. For example, if your LLM only has to answer questions about a database, it should most likely only have read access. Scoping permissions is a good practice in general, but especially important when deploying LLMs.
 
 For other prompt injection prevention methods, the water is a little more murky. We recommend you research your specific use case, and see what the latest security research says about it as the field is changing at a very rapid pace.
