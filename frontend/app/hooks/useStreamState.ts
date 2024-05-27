@@ -11,7 +11,7 @@ export interface StreamState {
 }
 
 export interface StreamStateProps {
-  stream: StreamState | null;
+  streamState: StreamState | null;
   startStream: (
     input: Message[],
     threadId: string,
@@ -134,6 +134,6 @@ export function useStreamState(): StreamStateProps {
   return {
     startStream,
     stopStream,
-    stream: current,
+    streamState: current,
   };
 }

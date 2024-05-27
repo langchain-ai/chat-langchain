@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "next/navigation";
 
@@ -11,8 +11,13 @@ export function useThread() {
   const queryClient = useQueryClient();
   const langGraphClient = useLangGraphClient();
 
+  const previousThreadId = useRef<string>();
   useEffect(() => {
-    setThreadId(searchParams.get("threadId") as string);
+    const threadId = searchParams.get("threadId") as string;
+    if (threadId !== previousThreadId.current) {
+      setThreadId(threadId);
+    }
+    previousThreadId.current = threadId;
   }, [searchParams]);
 
   // React Query to fetch chat details if chatId is present

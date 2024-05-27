@@ -55,34 +55,15 @@ const getAssistantId = async (client: Client) => {
   return response[0]["assistant_id"];
 };
 
-export function mergeMessagesById(
-  left: Message[] | Record<string, any> | null | undefined,
-  right: Message[] | Record<string, any> | null | undefined,
-): Message[] {
-  const leftMsgs = Array.isArray(left) ? left : left?.messages;
-  const rightMsgs = Array.isArray(right) ? right : right?.messages;
-
-  const merged = (leftMsgs ?? [])?.slice();
-  for (const msg of rightMsgs ?? []) {
-    const foundIdx = merged.findIndex((m: any) => m.id === msg.id);
-    if (foundIdx === -1) {
-      merged.push(msg);
-    } else {
-      merged[foundIdx] = msg;
-    }
-  }
-  return merged;
-}
-
 export function ChatWindow() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currentThread } = useThread();
   const { threads, createThread, updateThread, deleteThread } = useThreadList();
-  const { stream, startStream, stopStream } = useStreamState();
+  const { streamState, startStream, stopStream } = useStreamState();
   const { refreshMessages, messages, setMessages } = useThreadMessages(
     currentThread?.thread_id ?? null,
-    stream,
+    streamState,
     stopStream,
   );
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
@@ -191,18 +172,23 @@ export function ChatWindow() {
     router.push(newUrl);
   };
 
-  const selectChat = useCallback(async (id: string | null) => {
-    if (currentThread) {
-      stopStream?.(true);
-    }
+  const selectChat = useCallback(
+    async (id: string | null) => {
+      if (currentThread) {
+        stopStream?.(true);
+      }
 
-    if (!id) {
-      const thread = await createThread("New chat");
-      insertUrlParam("threadId", thread["thread_id"]);
-    } else {
-      insertUrlParam("threadId", id);
-    }
-  }, []);
+      setMessages([]);
+
+      if (!id) {
+        const thread = await createThread("New chat");
+        insertUrlParam("threadId", thread["thread_id"]);
+      } else {
+        insertUrlParam("threadId", id);
+      }
+    },
+    [currentThread, stopStream, setMessages, createThread, insertUrlParam],
+  );
 
   return (
     <>
