@@ -20,4 +20,4 @@ services:
       - "80:3000"
     entrypoint: ["yarn", "dev"]
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://3.128.203.104:443
+      - NEXT_PUBLIC_API_BASE_URL=http://3.131.185.39:443
