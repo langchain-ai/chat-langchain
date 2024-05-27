@@ -149,12 +149,19 @@ export function ChatWindow(props: { conversationId: string }) {
           runId = streamedResponse.id;
         }
         if (Array.isArray(streamedResponse?.streamed_output)) {
-          accumulatedMessage = streamedResponse.streamed_output.join("");
+          accumulatedMessage = streamedResponse.streamed_output.join(" ");
         }
-        const parsedResult = marked.parse(accumulatedMessage);
+        let completeMessage = ""
+        completeMessage += accumulatedMessage;
+        // Remove consecutive duplicate words from parsedResult
+        const uniqueWords = completeMessage
+            .split(/\s+/)
+            .filter((word, index, words) => word !== words[index - 1]);
+        const parsedResult = marked.parse(uniqueWords.join(' '));
 
         setMessages((prevMessages) => {
           let newMessages = [...prevMessages];
+          //console.log("newMessages -> ",newMessages);
           if (
             messageIndex === null ||
             newMessages[messageIndex] === undefined
@@ -172,6 +179,7 @@ export function ChatWindow(props: { conversationId: string }) {
             newMessages[messageIndex].runId = runId;
             newMessages[messageIndex].sources = sources;
           }
+          //console.log("prevMessages -> ",prevMessages);
           return newMessages;
         });
       }
