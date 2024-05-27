@@ -147,5 +147,6 @@ node_modules/
 temp/
 data/*
 secrets/.env.secret
+secrets/dsmain_ssh_ec2
 langchain_1/
 new_langchain/
