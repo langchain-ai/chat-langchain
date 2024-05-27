@@ -20,11 +20,7 @@ export function ChatList(props: {
         _hover={{ backgroundColor: "rgb(78,78,81)" }}
         onClick={() => props.enterChat(null)}
       >
-        <PlusSquareIcon
-          color={"white"}
-          marginRight={"4px"}
-          onClick={() => props.enterChat(null)}
-        />
+        <PlusSquareIcon color={"white"} marginRight={"4px"} />
         <Text color={"white"}>New chat</Text>
       </Button>
       <Text color={"white"} marginTop={"24px"} fontWeight={"semibold"}>

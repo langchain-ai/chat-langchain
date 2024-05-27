@@ -13,7 +13,7 @@ export interface StreamState {
 export interface StreamStateProps {
   streamState: StreamState | null;
   startStream: (
-    input: Message[],
+    input: Message[] | null,
     threadId: string,
     assistantId: string,
     config?: Config,
@@ -54,10 +54,9 @@ export function useStreamState(): StreamStateProps {
   const [controller, setController] = useState<AbortController | null>(null);
   const client = useLangGraphClient();
 
-  // TODO: figure out how we actually deal with the controller here
   const startStream = useCallback(
     async (
-      messages: Message[],
+      messages: Message[] | null,
       threadId: string,
       assistantId: string,
       config?: Config,
@@ -67,9 +66,10 @@ export function useStreamState(): StreamStateProps {
       setCurrent({ status: "inflight", messages: messages || [] });
 
       const stream = client.runs.stream(threadId, assistantId, {
-        input: { messages },
+        input: messages == null ? null : { messages },
         config,
         streamMode: ["messages", "values"],
+        signal: controller.signal,
       });
 
       let sources: Source[] = [];

@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { marked } from "marked";
 import { Renderer } from "marked";
@@ -14,8 +20,10 @@ import {
   InputGroup,
   InputRightElement,
   Spinner,
+  Button,
+  Text,
 } from "@chakra-ui/react";
-import { ArrowUpIcon } from "@chakra-ui/icons";
+import { ArrowDownIcon, ArrowUpIcon, CloseIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
 import { Client } from "@langchain/langgraph-sdk";
 
@@ -61,7 +69,7 @@ export function ChatWindow() {
   const { currentThread } = useThread();
   const { threads, createThread, updateThread, deleteThread } = useThreadList();
   const { streamState, startStream, stopStream } = useStreamState();
-  const { refreshMessages, messages, setMessages } = useThreadMessages(
+  const { refreshMessages, messages, setMessages, next } = useThreadMessages(
     currentThread?.thread_id ?? null,
     streamState,
     stopStream,
@@ -88,6 +96,10 @@ export function ChatWindow() {
     setLlmIsLoading(false);
   }, []);
 
+  const config = {
+    configurable: { model_name: llm },
+    tags: ["model:" + llm],
+  };
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -136,22 +148,20 @@ export function ChatWindow() {
           ? messageValue.slice(0, 20) + "..."
           : messageValue;
       await updateThread(currentThread["thread_id"], threadName);
-      const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
       await startStream(
         [formattedMessage],
         currentThread["thread_id"],
         assistantId,
-        {
-          configurable: { model_name: llm },
-          tags: ["model:" + llmDisplayName],
-        },
+        config,
       );
       await refreshMessages();
       setIsLoading(false);
     } catch (e) {
       setIsLoading(false);
-      setInput(messageValue);
-      throw e;
+      if (!(e instanceof DOMException && e.name == "AbortError")) {
+        // we don't raise on "abort" signal errors
+        throw e;
+      }
     }
   };
 
@@ -291,17 +301,37 @@ export function ChatWindow() {
               ref={messageContainerRef}
             >
               {messages.length > 0 ? (
-                [...messages]
-                  .reverse()
-                  .map((m, index) => (
+                <Fragment>
+                  {next.length > 0 &&
+                    streamState?.status !== "inflight" &&
+                    currentThread != null && (
+                      <Button
+                        key={"continue-button"}
+                        backgroundColor={"rgb(58, 58, 61)"}
+                        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+                        onClick={() =>
+                          startStream(
+                            null,
+                            currentThread["thread_id"],
+                            assistantId,
+                            config,
+                          )
+                        }
+                      >
+                        <ArrowDownIcon color={"white"} marginRight={"4px"} />
+                        <Text color={"white"}>Click to continue</Text>
+                      </Button>
+                    )}
+                  {[...messages].reverse().map((m, index) => (
                     <ChatMessageBubble
                       key={m.id}
                       message={{ ...m }}
                       aiEmoji="🦜"
                       isMostRecent={index === 0}
                       messageCompleted={!isLoading}
-                    ></ChatMessageBubble>
-                  ))
+                    />
+                  ))}
+                </Fragment>
               ) : (
                 <EmptyState onChoice={sendInitialQuestion} />
               )}
@@ -335,11 +365,15 @@ export function ChatWindow() {
                   colorScheme="blue"
                   rounded={"full"}
                   aria-label="Send"
-                  icon={isLoading ? <Spinner /> : <ArrowUpIcon />}
+                  icon={isLoading ? <CloseIcon /> : <ArrowUpIcon />}
                   type="submit"
                   onClick={(e) => {
                     e.preventDefault();
-                    sendMessage();
+                    if (isLoading) {
+                      stopStream?.();
+                    } else {
+                      sendMessage();
+                    }
                   }}
                 />
               </InputRightElement>
