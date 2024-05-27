@@ -7,7 +7,7 @@ import { useLangGraphClient } from "./useLangGraphClient";
 export interface ThreadListProps {
   threads: Thread[] | null;
   createThread: (name: string) => Promise<Thread>;
-  updateThread: (name: string, thread_id: string) => Promise<Thread>;
+  updateThread: (thread_id: string, name: string) => Promise<Thread>;
   deleteThread: (thread_id: string) => Promise<void>;
 }
 

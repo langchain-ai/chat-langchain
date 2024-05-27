@@ -100,6 +100,20 @@ export function ChatWindow() {
     configurable: { model_name: llm },
     tags: ["model:" + llm],
   };
+
+  const renameThread = async (messageValue: string) => {
+    // NOTE: we're only setting this on the first message
+    if (currentThread == null || messages.length > 1) {
+      return;
+    }
+
+    const threadName =
+      messageValue.length > 20
+        ? messageValue.slice(0, 20) + "..."
+        : messageValue;
+    await updateThread(currentThread["thread_id"], threadName);
+  };
+
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
@@ -143,11 +157,7 @@ export function ChatWindow() {
     };
     marked.setOptions({ renderer });
     try {
-      const threadName =
-        messageValue.length > 20
-          ? messageValue.slice(0, 20) + "..."
-          : messageValue;
-      await updateThread(currentThread["thread_id"], threadName);
+      await renameThread(messageValue);
       await startStream(
         [formattedMessage],
         currentThread["thread_id"],
