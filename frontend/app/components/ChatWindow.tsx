@@ -178,8 +178,6 @@ export function ChatWindow() {
         stopStream?.(true);
       }
 
-      setMessages([]);
-
       if (!id) {
         const thread = await createThread("New chat");
         insertUrlParam("threadId", thread["thread_id"]);
