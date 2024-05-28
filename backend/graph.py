@@ -18,8 +18,8 @@ from langchain_core.prompts import (
     ChatPromptTemplate,
     PromptTemplate,
 )
-from langchain_core.runnables import RunnableConfig
 from langchain_core.retrievers import BaseRetriever
+from langchain_core.runnables import ConfigurableField, RunnableConfig
 from langchain_fireworks import ChatFireworks
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
@@ -27,7 +27,6 @@ from langgraph.graph import END, StateGraph, add_messages
 
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 from backend.ingest import get_embeddings_model
-
 
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
@@ -111,49 +110,53 @@ class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
 
 
-def get_model(model_name: str) -> LanguageModelLike:
-    gpt_3_5 = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0, streaming=True)
-    claude_3_haiku = ChatAnthropic(
-        model="claude-3-haiku-20240307",
-        temperature=0,
-        max_tokens=4096,
-        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
-    )
-    fireworks_mixtral = ChatFireworks(
-        model="accounts/fireworks/models/mixtral-8x7b-instruct",
-        temperature=0,
-        max_tokens=16384,
-        fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
-    )
-    gemini_pro = ChatGoogleGenerativeAI(
-        model="gemini-pro",
-        temperature=0,
-        max_output_tokens=16384,
-        convert_system_message_to_human=True,
-        google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
-    )
-    cohere_command = ChatCohere(
-        model="command",
-        temperature=0,
-        cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
-    )
-    llm: LanguageModelLike = {
-        OPENAI_MODEL_KEY: gpt_3_5,
+gpt_3_5 = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0, streaming=True)
+claude_3_haiku = ChatAnthropic(
+    model="claude-3-haiku-20240307",
+    temperature=0,
+    max_tokens=4096,
+    anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
+)
+fireworks_mixtral = ChatFireworks(
+    model="accounts/fireworks/models/mixtral-8x7b-instruct",
+    temperature=0,
+    max_tokens=16384,
+    fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
+)
+gemini_pro = ChatGoogleGenerativeAI(
+    model="gemini-pro",
+    temperature=0,
+    max_output_tokens=16384,
+    convert_system_message_to_human=True,
+    google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
+)
+cohere_command = ChatCohere(
+    model="command",
+    temperature=0,
+    cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
+)
+llm = gpt_3_5.configurable_alternatives(
+    # This gives this field an id
+    # When configuring the end runnable, we can then use this id to configure this field
+    ConfigurableField(id="model_name"),
+    default_key=OPENAI_MODEL_KEY,
+    **{
         ANTHROPIC_MODEL_KEY: claude_3_haiku,
         FIREWORKS_MIXTRAL_MODEL_KEY: fireworks_mixtral,
         GOOGLE_MODEL_KEY: gemini_pro,
         COHERE_MODEL_KEY: cohere_command,
-    }[model_name]
-    llm = llm.with_fallbacks(
-        [gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command]
-    )
-    return llm
+    },
+).with_fallbacks(
+    [gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command]
+)
 
 
 def get_retriever() -> BaseRetriever:
     weaviate_client = weaviate.Client(
         url=os.environ["WEAVIATE_URL"],
-        auth_client_secret=weaviate.AuthApiKey(api_key=os.environ.get("WEAVIATE_API_KEY", "not_provided")),
+        auth_client_secret=weaviate.AuthApiKey(
+            api_key=os.environ.get("WEAVIATE_API_KEY", "not_provided")
+        ),
     )
     weaviate_client = Weaviate(
         client=weaviate_client,
@@ -182,10 +185,9 @@ def retrieve_documents(state: AgentState) -> AgentState:
     return {"query": query, "documents": relevant_documents, "messages": []}
 
 
-def retrieve_documents_with_chat_history(state: AgentState, config: RunnableConfig) -> AgentState:
-    model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
+def retrieve_documents_with_chat_history(state: AgentState) -> AgentState:
     retriever = get_retriever()
-    model = get_model(model_name).with_config(tags=["nostream"])
+    model = llm.with_config(tags=["nostream"])
 
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
     condense_question_chain = (
@@ -245,14 +247,12 @@ def synthesize_response(
     }
 
 
-def synthesize_response_default(state: AgentState, config: RunnableConfig) -> AgentState:
-    model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
-    model = get_model(model_name)
-    return synthesize_response(state, model, RESPONSE_TEMPLATE)
+def synthesize_response_default(state: AgentState) -> AgentState:
+    return synthesize_response(state, llm, RESPONSE_TEMPLATE)
 
 
 def synthesize_response_cohere(state: AgentState) -> AgentState:
-    model = get_model(COHERE_MODEL_KEY).bind(documents=state["documents"])
+    model = llm.bind(documents=state["documents"])
     return synthesize_response(state, model, COHERE_RESPONSE_TEMPLATE)
 
 
