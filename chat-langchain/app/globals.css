@@ -53,3 +53,12 @@ li {
   top: 0px;
   font-size: 14px;
 }
+.bottom-8 {
+  bottom: 0rem;
+  margin-bottom: 2pt;
+}
+.text-gray-footer {
+  /* --tw-text-opacity: 1; */
+  color: #adafad;
+  font-size: x-small;
+}

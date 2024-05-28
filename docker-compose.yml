@@ -9,7 +9,7 @@ services:
     volumes:
       - ./data:/app/data  # Map the ./data directory on the host to /app/data in the container
     environment:
-      - GRAPH_URL_HOST=http://3.128.203.104:8080
+      - GRAPH_URL_HOST=http://3.143.235.233:8080
       - DATA_FLD=data_mac
     entrypoint: /bin/bash -c "uvicorn main:app --host 0.0.0.0 --port 8080"
   frontend:

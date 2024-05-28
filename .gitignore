@@ -146,6 +146,7 @@ node_modules/
 # Folders to ignore
 temp/
 data/*
-secrets/*
+secrets/.env.secret
+secrets/dsmain_ssh_ec2
 langchain_1/
 new_langchain/

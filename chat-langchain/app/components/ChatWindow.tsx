@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { EmptyState } from "../components/EmptyState";
 import { ChatMessageBubble, Message } from "../components/ChatMessageBubble";
@@ -213,6 +213,19 @@ export function ChatWindow(props: {
     }
   };
 
+  useEffect(() => {
+    const links = Array.from(document.getElementsByTagName("a"));
+    links.forEach((link: HTMLAnchorElement) => {
+      if (link.href) {
+        const parts = link.href.split(".");
+        if (parts.length > 0) {
+          const ext = parts.pop();
+          if (ext === "pdf") link.setAttribute("target", "_blank");
+        }
+      }
+    });
+  }, [messages]);
+
   return (
     <div className="flex flex-col items-center p-8 rounded grow max-h-full">
       {messages.length > 0 && (
@@ -304,7 +317,7 @@ export function ChatWindow(props: {
           <a
             href="https://cropguard.ai"
             target="_blank"
-            className="text-white flex items-center"
+            className="text-gray-footer flex items-center"
           >
             {/* <img src="/images/github-mark.svg" className="h-4 mr-1" /> */}
             <span>CropGuard Inc, 2023</span>
