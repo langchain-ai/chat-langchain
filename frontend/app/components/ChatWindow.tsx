@@ -46,8 +46,6 @@ const MODEL_TYPES = [
   "cohere_command",
 ];
 
-const THREAD_NAME_PLACEHOLDER = "New chat"
-
 const defaultLlmValue =
   MODEL_TYPES[Math.floor(Math.random() * MODEL_TYPES.length)];
 
@@ -107,11 +105,8 @@ export function ChatWindow() {
     tags: ["model:" + llm],
   };
 
-  const getThreadName = (messageValue: string) => (
-    messageValue.length > 20
-      ? messageValue.slice(0, 20) + "..."
-      : messageValue
-  )
+  const getThreadName = (messageValue: string) =>
+    messageValue.length > 20 ? messageValue.slice(0, 20) + "..." : messageValue;
 
   const renameThread = async (messageValue: string) => {
     // NOTE: we're only setting this on the first message

@@ -20,6 +20,10 @@ function getMessagesWithSources(messages?: Message[], documents?: Document[]) {
   }));
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function getSources(documents: Document[]) {
   const sources = documents.map((doc) => ({
     url: doc.metadata.source,
@@ -63,6 +67,8 @@ export function useThreadMessages(
   useEffect(() => {
     async function fetchMessages() {
       if (threadId) {
+        // sleep a tiny bit to make sure the stop
+        await sleep(10);
         const { values, next } = await client.threads.getState<{
           messages: Message[];
           documents: Document[];
