@@ -27,6 +27,7 @@ pillow = "^10.2.0"
 tiktoken = "^0.5.2"
 cohere = "4.45"
 psycopg2-binary = "^2.9.9"
+python-dotenv = "^1.0.1"
 
 
 [tool.poetry.group.lint.dependencies]

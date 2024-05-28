@@ -65,40 +65,94 @@ def load_looker_docs():
         check_response_status=True,
     ).load()
 
-
 def simple_extractor(html: str) -> str:
-    soup = BeautifulSoup(html, "lxml")
-    elements = (
-        soup.body.find_all(recursive=False)
-        if soup.body
-        else soup.find_all(recursive=False)
-    )
+    """
+    Extracts and formats text from HTML content.
 
-    extracted_text = []
+    This function processes the given HTML content to remove unwanted tags (script, style, meta, and link),
+    HTML comments, and formats certain elements like <strong> tags. It also handles nested elements and
+    formats tables using the  function. Hyperlinks are simplified to display just the text.
 
-    for element in elements:
-        if element.name == "table":
-            extracted_text.append(format_table(element))
-        else:
-            extracted_text.append(element.get_text(strip=True))
+    Parameters:
+    - html (str): A string containing the HTML content to be processed.
 
-    combined_text = "\n\n".join(extracted_text)
+    Returns:
+    - str: The extracted and formatted text from the HTML content. If the main content div is not found,
+           returns a message indicating that the main content was not found.
+    """
+    soup = BeautifulSoup(html, "html.parser")
 
-    return combined_text
+    # Find the main content div
+    main_content = soup.find('devsite-content')
+
+    if main_content:
+        # Remove unwanted tags
+        for script_or_style in main_content(['script', 'style', 'meta', 'link']):
+            script_or_style.decompose()
+
+        # Remove HTML comments
+        for comment in main_content.find_all(string=lambda text: isinstance(text, Comment)):
+            comment.extract()
+
+        # Replace <strong> tags with asterisks for bold formatting
+        for strong_tag in main_content.find_all('strong'):
+            strong_tag.replace_with(f"**{strong_tag.text}**")
+
+        extracted_text = []
+
+        # Recursive function to handle nested elements
+        def process_element(element):
+            if element.name == "table":
+                extracted_text.append(format_table(element))
+            else:
+                for child in element.children:
+                    if child.name:
+                        if child.name == 'a':
+                            # Handle hyperlinks
+                            link_text = child.get_text(strip=True)
+                            link_url = child.get('href', '')
+                            extracted_text.append(f"{link_text}")
+                        elif child.name in ['p', 'br']:
+                            extracted_text.append("\n")
+                            process_element(child)
+                        elif child.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                            extracted_text.append(f"\n\n{child.get_text(strip=True)}")
+                        elif child.name in ['button']:
+                            pass
+                        elif child.name == 'devsite-feature-tooltip':
+                            pass
+                        elif child.name == 'devsite-content-footer':
+                            pass
+                        elif child.name == 'div' and 'class' in child.attrs and 'devsite-content-data' in child['class']:
+                            pass
+                        else:
+                            process_element(child)
+                    elif child.string:
+                        text = child.string.strip()
+                        if text:
+                            extracted_text.append(text + " ")
+
+        # Process the main content recursively
+        process_element(main_content)
+
+        # Combine extracted text while preserving necessary spaces and new lines
+        combined_text = ''.join(extracted_text).replace('\n ', '\n').strip()
+
+        return combined_text
+    else:
+        return "Main content not found."
+
 
 
 def format_table(table) -> str:
     rows = table.find_all("tr")
-
     if not rows:
         return ""
 
     # Extract headers if present
     headers = rows[0].find_all("th")
     if headers:
-        header_text = (
-            "| " + " | ".join(cell.get_text(strip=True) for cell in headers) + " |"
-        )
+        header_text = "| " + " | ".join(cell.get_text(strip=True) for cell in headers) + " |"
         separator = "| " + " | ".join("---" for _ in headers) + " |"
         body_start_idx = 1
     else:
@@ -120,7 +174,7 @@ def format_table(table) -> str:
     else:
         table_text = body_text
 
-    return table_text.strip()
+    return "\n" + table_text.strip() + "\n"
 
 
 # def load_api_docs():
@@ -193,12 +247,14 @@ def ingest_docs():
         docs_transformed,
         record_manager,
         vectorstore,
-        cleanup="full",
+        cleanup="incremental",
         source_id_key="source",
         force_update=(os.environ.get("FORCE_UPDATE") or "false").lower() == "true",
     )
 
     logger.info(f"Indexing stats: {indexing_stats}")
+
+
     num_vecs = client.query.aggregate(WEAVIATE_DOCS_INDEX_NAME).with_meta_count().do()
     logger.info(
         f"LangChain now has this many vectors: {num_vecs}",
