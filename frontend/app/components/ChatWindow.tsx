@@ -37,6 +37,7 @@ import { useThreadList } from "../hooks/useThreadList";
 import { useThreadMessages } from "../hooks/useThreadMessages";
 import { useLangGraphClient } from "../hooks/useLangGraphClient";
 import { useStreamState } from "../hooks/useStreamState";
+import { RESPONSE_FEEDBACK_KEY } from "../utils/constants";
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
@@ -345,6 +346,7 @@ export function ChatWindow() {
                     <ChatMessageBubble
                       key={m.id}
                       message={{ ...m }}
+                      feedbackUrls={streamState?.feedbackUrls}
                       aiEmoji="🦜"
                       isMostRecent={index === 0}
                       messageCompleted={!isLoading}

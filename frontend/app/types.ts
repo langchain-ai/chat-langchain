@@ -8,7 +8,6 @@ export type Message = {
   createdAt?: Date;
   content: string;
   type: "system" | "human" | "ai" | "function";
-  runId?: string;
   sources?: Source[];
   name?: string;
   function_call?: { name: string };
@@ -16,8 +15,6 @@ export type Message = {
 
 export type Feedback = {
   feedback_id: string;
-  run_id: string;
-  key: string;
   score: number;
   comment?: string;
 };

@@ -8,22 +8,21 @@ export function SourceBubble({
   highlighted,
   onMouseEnter,
   onMouseLeave,
-  runId,
+  feedbackUrl,
 }: {
   source: Source;
   highlighted: boolean;
   onMouseEnter: () => any;
   onMouseLeave: () => any;
-  runId?: string;
+  feedbackUrl?: string;
 }) {
   return (
     <Card
       onClick={async () => {
         window.open(source.url, "_blank");
-        if (runId) {
+        if (feedbackUrl) {
           await sendFeedback({
-            key: "user_click",
-            runId,
+            feedbackUrl,
             value: source.url,
             isExplicit: false,
           });

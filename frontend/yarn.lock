@@ -1108,10 +1108,10 @@
     zod "^3.22.4"
     zod-to-json-schema "^3.22.3"
 
-"@langchain/langgraph-sdk@^0.0.1-rc.2":
-  version "0.0.1-rc.4"
-  resolved "https://registry.yarnpkg.com/@langchain/langgraph-sdk/-/langgraph-sdk-0.0.1-rc.4.tgz#aa2370f64f1d538c9fa2c66242483ab6dac8d03f"
-  integrity sha512-xfTM7ZkjTV78flacXETzHQ0BH5QVjiA7wM3eslOGXQQ9VBu7H1y9afFi5GIHwZJR9BLNj6KKf/IyvRm3NhnroQ==
+"@langchain/langgraph-sdk@^0.0.1-rc.6":
+  version "0.0.1-rc.6"
+  resolved "https://registry.yarnpkg.com/@langchain/langgraph-sdk/-/langgraph-sdk-0.0.1-rc.6.tgz#c8e5db0fa8fe2f77a860d586f3e7a7d8a3a7dd6a"
+  integrity sha512-sBdqoWFGvnQ7Cm4kgUAIiw02Wa6Fua4prBuzAh50QK7ibtJCsk2d/Tkolup1KXjy+PYTTpmBnBHm8wu+6AcmvQ==
   dependencies:
     eventsource-parser "^1.1.2"
     p-queue "^6.6.2"

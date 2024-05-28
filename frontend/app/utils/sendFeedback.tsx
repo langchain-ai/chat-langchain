@@ -1,9 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
-import { apiBaseUrl } from "./constants";
 
 type SendFeedbackProps = {
-  key: string;
-  runId: string;
+  // NOTE: feedback URL is a signed langsmith URL that already includes the run information & key for the feedback
+  feedbackUrl: string;
   score?: number;
   value?: string;
   comment?: string;
@@ -17,24 +16,21 @@ type FeedbackResponse = {
   result: string;
 };
 export const sendFeedback = async ({
+  feedbackUrl,
   score,
-  key,
-  runId,
   value,
   comment,
   feedbackId,
   isExplicit = true,
 }: SendFeedbackProps) => {
   const feedback_id = feedbackId ?? uuidv4();
-  const response = await fetch(apiBaseUrl + "/feedback", {
+  const response = await fetch(feedbackUrl, {
     method: feedbackId ? "PATCH" : "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       score,
-      run_id: runId,
-      key,
       value,
       feedback_id,
       comment,

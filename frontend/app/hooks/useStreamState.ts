@@ -3,11 +3,13 @@ import { Message } from "../types";
 import { useLangGraphClient } from "./useLangGraphClient";
 import { Config } from "@langchain/langgraph-sdk";
 import { Document } from "@langchain/core/documents";
+import { RESPONSE_FEEDBACK_KEY, SOURCE_CLICK_KEY } from "../utils/constants";
 
 export interface StreamState {
   status: "inflight" | "error" | "done";
   messages?: Message[];
   documents?: Document[];
+  feedbackUrls?: Record<string, string>;
   run_id?: string;
 }
 
@@ -41,14 +43,6 @@ export function mergeMessagesById(
   return merged;
 }
 
-export function getSources(documents: Document[]) {
-  const sources = documents.map((doc) => ({
-    url: doc.metadata.source,
-    title: doc.metadata.title,
-  }));
-  return sources;
-}
-
 export function useStreamState(): StreamStateProps {
   const [current, setCurrent] = useState<StreamState | null>(null);
   const [controller, setController] = useState<AbortController | null>(null);
@@ -70,6 +64,7 @@ export function useStreamState(): StreamStateProps {
         config,
         streamMode: ["messages", "values"],
         signal: controller.signal,
+        feedbackKeys: [RESPONSE_FEEDBACK_KEY, SOURCE_CLICK_KEY],
       });
 
       for await (const chunk of stream) {
@@ -81,14 +76,10 @@ export function useStreamState(): StreamStateProps {
           }));
         } else if (chunk.event === "messages/partial") {
           const chunkMessages = chunk.data as Message[];
-          const sources = getSources(current?.documents ?? []);
           setCurrent((current) => ({
             ...current,
             status: "inflight",
-            messages: mergeMessagesById(
-              current?.messages,
-              chunkMessages.map((message) => ({ ...message, sources })),
-            ),
+            messages: mergeMessagesById(current?.messages, chunkMessages),
           }));
         } else if (chunk.event === "values") {
           const data = chunk.data as Record<string, any>;
@@ -101,6 +92,12 @@ export function useStreamState(): StreamStateProps {
           setCurrent((current) => ({
             ...current,
             status: "error",
+          }));
+        } else if (chunk.event === "feedback") {
+          setCurrent((current) => ({
+            ...current,
+            feedbackUrls: chunk.data,
+            status: "inflight",
           }));
         } else if (chunk.event === "end") {
           setCurrent((current) => ({

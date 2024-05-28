@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Message } from "../types";
 import { useLangGraphClient } from "./useLangGraphClient";
-import { StreamState, getSources, mergeMessagesById } from "./useStreamState";
+import { StreamState, mergeMessagesById } from "./useStreamState";
 import { Document } from "@langchain/core/documents";
 
 function usePrevious<T>(value: T): T | undefined {
@@ -18,6 +18,14 @@ function getMessagesWithSources(messages?: Message[], documents?: Document[]) {
     ...message,
     sources: getSources(documents ?? []),
   }));
+}
+
+export function getSources(documents: Document[]) {
+  const sources = documents.map((doc) => ({
+    url: doc.metadata.source,
+    title: doc.metadata.title,
+  }));
+  return sources;
 }
 
 export function useThreadMessages(
