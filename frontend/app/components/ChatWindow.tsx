@@ -7,9 +7,9 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { toast } from "react-toastify";
 import { useRouter, useSearchParams } from "next/navigation";
-import { marked } from "marked";
-import { Renderer } from "marked";
+import { Renderer, marked } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 import "react-toastify/dist/ReactToastify.css";
@@ -29,15 +29,14 @@ import { Client } from "@langchain/langgraph-sdk";
 
 import { EmptyState } from "./EmptyState";
 import { ChatMessageBubble } from "./ChatMessageBubble";
+import { ChatList } from "./ChatList";
 import { AutoResizeTextarea } from "./AutoResizeTextarea";
 import { Message } from "../types";
-import { ChatList } from "./ChatList";
 import { useThread } from "../hooks/useThread";
 import { useThreadList } from "../hooks/useThreadList";
 import { useThreadMessages } from "../hooks/useThreadMessages";
 import { useLangGraphClient } from "../hooks/useLangGraphClient";
 import { useStreamState } from "../hooks/useStreamState";
-import { RESPONSE_FEEDBACK_KEY } from "../utils/constants";
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
@@ -87,8 +86,12 @@ export function ChatWindow() {
   const client = useLangGraphClient();
 
   const setLanggraphInfo = async () => {
-    const assistantId = await getAssistantId(client);
-    setAssistantId(assistantId);
+    try {
+      const assistantId = await getAssistantId(client);
+      setAssistantId(assistantId);
+    } catch (e) {
+      toast.error("Could not load AI agent");
+    }
   };
 
   useEffect(() => {
@@ -326,7 +329,7 @@ export function ChatWindow() {
               ref={messageContainerRef}
             >
               {messages.length > 0 ? (
-                <Fragment>
+                <>
                   {next.length > 0 &&
                     streamState?.status !== "inflight" &&
                     currentThread != null && (
@@ -352,7 +355,7 @@ export function ChatWindow() {
                       messageCompleted={!isLoading}
                     />
                   ))}
-                </Fragment>
+                </>
               ) : (
                 <EmptyState onChoice={sendInitialQuestion} />
               )}

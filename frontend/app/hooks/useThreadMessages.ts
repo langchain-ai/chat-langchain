@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Document } from "@langchain/core/documents";
 
 import { Message } from "../types";
 import { useLangGraphClient } from "./useLangGraphClient";
 import { StreamState, mergeMessagesById } from "./useStreamState";
-import { Document } from "@langchain/core/documents";
 
 function usePrevious<T>(value: T): T | undefined {
   const ref = useRef<T>();

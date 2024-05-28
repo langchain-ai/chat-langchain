@@ -1,8 +1,9 @@
 import { useCallback, useState } from "react";
-import { Message } from "../types";
-import { useLangGraphClient } from "./useLangGraphClient";
 import { Config } from "@langchain/langgraph-sdk";
 import { Document } from "@langchain/core/documents";
+
+import { Message } from "../types";
+import { useLangGraphClient } from "./useLangGraphClient";
 import { RESPONSE_FEEDBACK_KEY, SOURCE_CLICK_KEY } from "../utils/constants";
 
 export interface StreamState {
@@ -10,7 +11,6 @@ export interface StreamState {
   messages?: Message[];
   documents?: Document[];
   feedbackUrls?: Record<string, string>;
-  run_id?: string;
 }
 
 export interface StreamStateProps {
@@ -68,13 +68,7 @@ export function useStreamState(): StreamStateProps {
       });
 
       for await (const chunk of stream) {
-        if (chunk.event === "metadata") {
-          setCurrent((current) => ({
-            ...current,
-            status: "inflight",
-            run_id: chunk.data["run_id"] as string,
-          }));
-        } else if (chunk.event === "messages/partial") {
+        if (chunk.event === "messages/partial") {
           const chunkMessages = chunk.data as Message[];
           setCurrent((current) => ({
             ...current,
@@ -116,14 +110,14 @@ export function useStreamState(): StreamStateProps {
       setController(null);
       if (clear) {
         setCurrent((current) => ({
+          ...current,
           status: "done",
-          run_id: current?.run_id,
         }));
       } else {
         setCurrent((current) => ({
+          ...current,
           status: "done",
           messages: current?.messages,
-          run_id: current?.run_id,
         }));
       }
     },

@@ -288,7 +288,7 @@ export function ChatMessageBubble(props: {
               variant="outline"
               colorScheme={feedback === null ? "red" : "gray"}
               onClick={() => {
-                if (feedback === null) {
+                if (feedback === null && responseFeedbackUrl) {
                   sendUserFeedback(0);
                   animateButton("downButton");
                 } else {
