@@ -1,16 +1,17 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-
-import { EmptyState } from "./EmptyState";
-import { ChatMessageBubble, Message } from "./ChatMessageBubble";
-import { AutoResizeTextarea } from "./AutoResizeTextarea";
+import React, {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { marked } from "marked";
 import { Renderer } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
-
 import "react-toastify/dist/ReactToastify.css";
 import {
   Heading,
@@ -19,13 +20,23 @@ import {
   InputGroup,
   InputRightElement,
   Spinner,
+  Button,
+  Text,
 } from "@chakra-ui/react";
-import { ArrowUpIcon } from "@chakra-ui/icons";
+import { ArrowDownIcon, ArrowUpIcon, SmallCloseIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
-import { Source } from "./SourceBubble";
-import { apiBaseUrl } from "../utils/constants";
 import { Client } from "@langchain/langgraph-sdk";
-import { Document } from "@langchain/core/documents";
+
+import { EmptyState } from "./EmptyState";
+import { ChatMessageBubble } from "./ChatMessageBubble";
+import { AutoResizeTextarea } from "./AutoResizeTextarea";
+import { Message } from "../types";
+import { ChatList } from "./ChatList";
+import { useThread } from "../hooks/useThread";
+import { useThreadList } from "../hooks/useThreadList";
+import { useThreadMessages } from "../hooks/useThreadMessages";
+import { useLangGraphClient } from "../hooks/useLangGraphClient";
+import { useStreamState } from "../hooks/useStreamState";
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
@@ -37,11 +48,6 @@ const MODEL_TYPES = [
 
 const defaultLlmValue =
   MODEL_TYPES[Math.floor(Math.random() * MODEL_TYPES.length)];
-
-const getThreadId = async (client: Client) => {
-  const response = await client.threads.create({ metadata: null });
-  return response["thread_id"];
-};
 
 const getAssistantId = async (client: Client) => {
   const response = await client.assistants.search({
@@ -57,46 +63,31 @@ const getAssistantId = async (client: Client) => {
   return response[0]["assistant_id"];
 };
 
-export function mergeMessagesById(
-  left: Message[] | Record<string, any> | null | undefined,
-  right: Message[] | Record<string, any> | null | undefined,
-): Message[] {
-  const leftMsgs = Array.isArray(left) ? left : left?.messages;
-  const rightMsgs = Array.isArray(right) ? right : right?.messages;
-
-  const merged = (leftMsgs ?? [])?.slice();
-  for (const msg of rightMsgs ?? []) {
-    const foundIdx = merged.findIndex((m: any) => m.id === msg.id);
-    if (foundIdx === -1) {
-      merged.push(msg);
-    } else {
-      merged[foundIdx] = msg;
-    }
-  }
-  return merged;
-}
-
 export function ChatWindow() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-
+  const { currentThread } = useThread();
+  const { threads, createThread, updateThread, deleteThread } = useThreadList();
+  const { streamState, startStream, stopStream } = useStreamState();
+  const { refreshMessages, messages, setMessages, next } = useThreadMessages(
+    currentThread?.thread_id ?? null,
+    streamState,
+    stopStream,
+  );
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
-  const [messages, setMessages] = useState<Array<Message>>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [llm, setLlm] = useState(
     searchParams.get("llm") ?? "openai_gpt_3_5_turbo",
   );
   const [llmIsLoading, setLlmIsLoading] = useState(true);
-  const [threadId, setThreadId] = useState<string>("");
   const [assistantId, setAssistantId] = useState<string>("");
 
-  const client = new Client({ apiUrl: apiBaseUrl });
+  const client = useLangGraphClient();
 
   const setLanggraphInfo = async () => {
     const assistantId = await getAssistantId(client);
     setAssistantId(assistantId);
-    const threadId = await getThreadId(client);
-    setThreadId(threadId);
   };
 
   useEffect(() => {
@@ -105,11 +96,32 @@ export function ChatWindow() {
     setLlmIsLoading(false);
   }, []);
 
+  const config = {
+    configurable: { model_name: llm },
+    tags: ["model:" + llm],
+  };
+
+  const renameThread = async (messageValue: string) => {
+    // NOTE: we're only setting this on the first message
+    if (currentThread == null || messages.length > 1) {
+      return;
+    }
+
+    const threadName =
+      messageValue.length > 20
+        ? messageValue.slice(0, 20) + "..."
+        : messageValue;
+    await updateThread(currentThread["thread_id"], threadName);
+  };
+
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
       messageContainerRef.current.classList.add("grow");
     }
     if (isLoading) {
+      return;
+    }
+    if (currentThread == null) {
       return;
     }
     const messageValue = message ?? input;
@@ -122,9 +134,6 @@ export function ChatWindow() {
     };
     setMessages((prevMessages) => [...prevMessages, formattedMessage]);
     setIsLoading(true);
-
-    let runId: string | undefined = undefined;
-    let sources: Source[] | undefined = undefined;
 
     let renderer = new Renderer();
     renderer.paragraph = (text) => {
@@ -148,44 +157,21 @@ export function ChatWindow() {
     };
     marked.setOptions({ renderer });
     try {
-      const llmDisplayName = llm ?? "openai_gpt_3_5_turbo";
-      const streamResponse = await client.runs.stream(threadId, assistantId, {
-        input: {
-          messages: [formattedMessage],
-        },
-        config: {
-          configurable: { model_name: llm },
-          tags: ["model:" + llmDisplayName],
-        },
-        streamMode: ["messages", "values"],
-      });
-
-      for await (const chunk of streamResponse) {
-        if (chunk.event === "metadata") {
-          runId = (chunk.data as Record<string, any>)["run_id"];
-        } else if (chunk.event === "messages/partial") {
-          const chunkMessages = chunk.data as Message[];
-          setMessages((prevMessages) =>
-            mergeMessagesById(
-              prevMessages,
-              chunkMessages.map((message) => ({ ...message, sources })),
-            ),
-          );
-        } else if (chunk.event === "values") {
-          const data = chunk.data as Record<string, any>;
-          const documents = (data["documents"] ?? []) as Array<Document>;
-          sources = documents.map((doc) => ({
-            url: doc.metadata.source,
-            title: doc.metadata.title,
-          }));
-        }
-      }
+      await renameThread(messageValue);
+      await startStream(
+        [formattedMessage],
+        currentThread["thread_id"],
+        assistantId,
+        config,
+      );
+      await refreshMessages();
       setIsLoading(false);
     } catch (e) {
-      setMessages((prevMessages) => prevMessages.slice(0, -1));
       setIsLoading(false);
-      setInput(messageValue);
-      throw e;
+      if (!(e instanceof DOMException && e.name == "AbortError")) {
+        // we don't raise on "abort" signal errors
+        throw e;
+      }
     }
   };
 
@@ -193,148 +179,241 @@ export function ChatWindow() {
     await sendMessage(question);
   };
 
-  const insertUrlParam = (key: string, value?: string) => {
-    if (window.history.pushState) {
-      const searchParams = new URLSearchParams(window.location.search);
-      searchParams.set(key, value ?? "");
-      const newurl =
-        window.location.protocol +
-        "//" +
-        window.location.host +
-        window.location.pathname +
-        "?" +
-        searchParams.toString();
-      window.history.pushState({ path: newurl }, "", newurl);
+  const continueStream = async (threadId: string) => {
+    try {
+      setIsLoading(true);
+      await startStream(null, threadId, assistantId, config);
+      setIsLoading(false);
+    } catch (e) {
+      setIsLoading(false);
+      if (!(e instanceof DOMException && e.name == "AbortError")) {
+        // we don't raise on "abort" signal errors
+        throw e;
+      }
     }
   };
 
-  return (
-    <div className="flex flex-col items-center p-8 rounded grow max-h-full">
-      <Flex
-        direction={"column"}
-        alignItems={"center"}
-        marginTop={messages.length > 0 ? "" : "64px"}
-      >
-        <Heading
-          fontSize={messages.length > 0 ? "2xl" : "3xl"}
-          fontWeight={"medium"}
-          mb={1}
-          color={"white"}
-        >
-          Chat LangChain 🦜🔗
-        </Heading>
-        {messages.length > 0 ? (
-          <Heading fontSize="md" fontWeight={"normal"} mb={1} color={"white"}>
-            We appreciate feedback!
-          </Heading>
-        ) : (
-          <Heading
-            fontSize="xl"
-            fontWeight={"normal"}
-            color={"white"}
-            marginTop={"10px"}
-            textAlign={"center"}
-          >
-            Ask me anything about LangChain&apos;s{" "}
-            <Link href="https://python.langchain.com/" color={"blue.200"}>
-              Python documentation!
-            </Link>
-          </Heading>
-        )}
-        <div className="text-white flex flex-wrap items-center mt-4">
-          <div className="flex items-center mb-2">
-            <span className="shrink-0 mr-2">Powered by</span>
-            {llmIsLoading ? (
-              <Spinner className="my-2"></Spinner>
-            ) : (
-              <Select
-                value={llm}
-                onChange={(e) => {
-                  insertUrlParam("llm", e.target.value);
-                  setLlm(e.target.value);
-                }}
-                width={"240px"}
-              >
-                <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
-                <option value="anthropic_claude_3_haiku">Claude 3 Haiku</option>
-                <option value="google_gemini_pro">Google Gemini Pro</option>
-                <option value="fireworks_mixtral">
-                  Mixtral (via Fireworks.ai)
-                </option>
-                <option value="cohere_command">Cohere</option>
-              </Select>
-            )}
-          </div>
-        </div>
-      </Flex>
-      <div
-        className="flex flex-col-reverse w-full mb-2 overflow-auto"
-        ref={messageContainerRef}
-      >
-        {messages.length > 0 ? (
-          [...messages]
-            .reverse()
-            .map((m, index) => (
-              <ChatMessageBubble
-                key={m.id}
-                message={{ ...m }}
-                aiEmoji="🦜"
-                isMostRecent={index === 0}
-                messageCompleted={!isLoading}
-              ></ChatMessageBubble>
-            ))
-        ) : (
-          <EmptyState onChoice={sendInitialQuestion} />
-        )}
-      </div>
-      <InputGroup size="md" alignItems={"center"}>
-        <AutoResizeTextarea
-          value={input}
-          maxRows={5}
-          marginRight={"56px"}
-          placeholder="What does RunnablePassthrough.assign() do?"
-          textColor={"white"}
-          borderColor={"rgb(58, 58, 61)"}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage();
-            } else if (e.key === "Enter" && e.shiftKey) {
-              e.preventDefault();
-              setInput(input + "\n");
-            }
-          }}
-        />
-        <InputRightElement h="full">
-          <IconButton
-            colorScheme="blue"
-            rounded={"full"}
-            aria-label="Send"
-            icon={isLoading ? <Spinner /> : <ArrowUpIcon />}
-            type="submit"
-            onClick={(e) => {
-              e.preventDefault();
-              sendMessage();
-            }}
-          />
-        </InputRightElement>
-      </InputGroup>
+  const insertUrlParam = (key: string, value?: string) => {
+    const searchParams = new URLSearchParams(window.location.search);
+    searchParams.set(key, value ?? "");
+    const newUrl =
+      window.location.protocol +
+      "//" +
+      window.location.host +
+      window.location.pathname +
+      "?" +
+      searchParams.toString();
+    router.push(newUrl);
+  };
 
-      {messages.length === 0 ? (
-        <footer className="flex justify-center absolute bottom-8">
-          <a
-            href="https://github.com/langchain-ai/chat-langchain"
-            target="_blank"
-            className="text-white flex items-center"
+  const selectChat = useCallback(
+    async (id: string | null) => {
+      if (currentThread) {
+        stopStream?.(true);
+      }
+
+      if (!id) {
+        const thread = await createThread("New chat");
+        insertUrlParam("threadId", thread["thread_id"]);
+      } else {
+        insertUrlParam("threadId", id);
+      }
+    },
+    [currentThread, stopStream, setMessages, createThread, insertUrlParam],
+  );
+
+  return (
+    <>
+      <div className="flex items-center rounded grow max-h-full">
+        <Flex
+          direction={"column"}
+          minWidth={"212px"}
+          paddingTop={"36px"}
+          height={"100%"}
+          marginX={"24px"}
+        >
+          <ChatList
+            threads={threads}
+            enterChat={selectChat}
+            deleteChat={deleteThread}
+          />
+        </Flex>
+        <Flex
+          direction={"column"}
+          justifyContent={"center"}
+          flexGrow={"1"}
+          marginX={"12px"}
+          height={"100%"}
+        >
+          <Flex
+            direction={"column"}
+            alignItems={"center"}
+            flexGrow={"1"}
+            margin={"24px"}
+            height={"100%"}
           >
-            <img src="/images/github-mark.svg" className="h-4 mr-1" />
-            <span>View Source</span>
-          </a>
-        </footer>
-      ) : (
-        ""
-      )}
-    </div>
+            <Flex
+              direction={"column"}
+              alignItems={"center"}
+              marginTop={messages.length > 0 ? "" : "64px"}
+            >
+              <Heading
+                fontSize={messages.length > 0 ? "2xl" : "3xl"}
+                fontWeight={"medium"}
+                mb={1}
+                color={"white"}
+              >
+                Chat LangChain 🦜🔗
+              </Heading>
+              {messages.length > 0 ? (
+                <Heading
+                  fontSize="md"
+                  fontWeight={"normal"}
+                  mb={1}
+                  color={"white"}
+                >
+                  We appreciate feedback!
+                </Heading>
+              ) : (
+                <Heading
+                  fontSize="xl"
+                  fontWeight={"normal"}
+                  color={"white"}
+                  marginTop={"10px"}
+                  textAlign={"center"}
+                >
+                  Ask me anything about LangChain&apos;s{" "}
+                  <Link href="https://python.langchain.com/" color={"blue.200"}>
+                    Python documentation!
+                  </Link>
+                </Heading>
+              )}
+              <div className="text-white flex flex-wrap items-center mt-4">
+                <div className="flex items-center mb-2">
+                  <span className="shrink-0 mr-2">Powered by</span>
+                  {llmIsLoading ? (
+                    <Spinner className="my-2"></Spinner>
+                  ) : (
+                    <Select
+                      value={llm}
+                      onChange={(e) => {
+                        insertUrlParam("llm", e.target.value);
+                        setLlm(e.target.value);
+                      }}
+                      width={"240px"}
+                    >
+                      <option value="openai_gpt_3_5_turbo">
+                        GPT-3.5-Turbo
+                      </option>
+                      <option value="anthropic_claude_3_haiku">
+                        Claude 3 Haiku
+                      </option>
+                      <option value="google_gemini_pro">
+                        Google Gemini Pro
+                      </option>
+                      <option value="fireworks_mixtral">
+                        Mixtral (via Fireworks.ai)
+                      </option>
+                      <option value="cohere_command">Cohere</option>
+                    </Select>
+                  )}
+                </div>
+              </div>
+            </Flex>
+            <div
+              className="flex flex-col-reverse w-full mb-2 overflow-auto max-h-[75vh]"
+              ref={messageContainerRef}
+            >
+              {messages.length > 0 ? (
+                <Fragment>
+                  {next.length > 0 &&
+                    streamState?.status !== "inflight" &&
+                    currentThread != null && (
+                      <Button
+                        key={"continue-button"}
+                        backgroundColor={"rgb(58, 58, 61)"}
+                        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+                        onClick={() =>
+                          continueStream(currentThread["thread_id"])
+                        }
+                      >
+                        <ArrowDownIcon color={"white"} marginRight={"4px"} />
+                        <Text color={"white"}>Click to continue</Text>
+                      </Button>
+                    )}
+                  {[...messages].reverse().map((m, index) => (
+                    <ChatMessageBubble
+                      key={m.id}
+                      message={{ ...m }}
+                      aiEmoji="🦜"
+                      isMostRecent={index === 0}
+                      messageCompleted={!isLoading}
+                    />
+                  ))}
+                </Fragment>
+              ) : (
+                <EmptyState onChoice={sendInitialQuestion} />
+              )}
+            </div>
+            <InputGroup
+              size="md"
+              alignItems={"center"}
+              maxWidth={messages.length === 0 ? "1024px" : "100%"}
+              marginY={"12px"}
+            >
+              <AutoResizeTextarea
+                value={input}
+                maxRows={5}
+                marginRight={"56px"}
+                placeholder="What does RunnablePassthrough.assign() do?"
+                textColor={"white"}
+                borderColor={"rgb(58, 58, 61)"}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  } else if (e.key === "Enter" && e.shiftKey) {
+                    e.preventDefault();
+                    setInput(input + "\n");
+                  }
+                }}
+              />
+              <InputRightElement h="full">
+                <IconButton
+                  colorScheme="blue"
+                  rounded={"full"}
+                  aria-label="Send"
+                  icon={isLoading ? <SmallCloseIcon /> : <ArrowUpIcon />}
+                  type="submit"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (isLoading) {
+                      stopStream?.();
+                    } else {
+                      sendMessage();
+                    }
+                  }}
+                />
+              </InputRightElement>
+            </InputGroup>
+            {messages.length === 0 ? (
+              <footer className="flex justify-center mt-auto h-4 fixed bottom-4">
+                <a
+                  href="https://github.com/langchain-ai/chat-langchain"
+                  target="_blank"
+                  className="text-white flex items-center"
+                >
+                  <img src="/images/github-mark.svg" className="h-4 mr-1" />
+                  <span>View Source</span>
+                </a>
+              </footer>
+            ) : (
+              ""
+            )}
+          </Flex>
+        </Flex>
+      </div>
+    </>
   );
 }

@@ -1,18 +1,29 @@
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "react-query";
-import { useSearchParams } from "next/navigation"
-import { Client } from "@langchain/langgraph-sdk"
+import { useSearchParams } from "next/navigation";
+
+import { useLangGraphClient } from "./useLangGraphClient";
 
 export function useThread() {
   // Extract route parameters
+  const [threadId, setThreadId] = useState<string>();
   const searchParams = useSearchParams();
-  const threadId = searchParams.get("thread_id");
   const queryClient = useQueryClient();
-  const langgraphClient = new Client();
+  const langGraphClient = useLangGraphClient();
+
+  const previousThreadId = useRef<string>();
+  useEffect(() => {
+    const threadId = searchParams.get("threadId") as string;
+    if (threadId !== previousThreadId.current) {
+      setThreadId(threadId);
+    }
+    previousThreadId.current = threadId;
+  }, [searchParams]);
 
   // React Query to fetch chat details if chatId is present
-  const { data: currentChat, isLoading } = useQuery(
+  const { data: currentThread, isLoading } = useQuery(
     ["thread", threadId],
-    async () => await langgraphClient.threads.get(threadId as string),
+    async () => await langGraphClient.threads.get(threadId as string),
     {
       enabled: !!threadId,
     },
@@ -24,7 +35,7 @@ export function useThread() {
 
   // Return both loading states, the chat data, and the assistant configuration
   return {
-    currentChat,
+    currentThread,
     isLoading,
     invalidateChat,
   };

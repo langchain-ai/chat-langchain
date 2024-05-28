@@ -3,7 +3,8 @@ import "react-toastify/dist/ReactToastify.css";
 import { emojisplosion } from "emojisplosion";
 import { useState, useRef } from "react";
 import * as DOMPurify from "dompurify";
-import { SourceBubble, Source } from "./SourceBubble";
+import { SourceBubble } from "./SourceBubble";
+import { Message, Source, Feedback } from "../types";
 import {
   VStack,
   Flex,
@@ -17,24 +18,6 @@ import {
 import { sendFeedback } from "../utils/sendFeedback";
 import { apiBaseUrl } from "../utils/constants";
 import { InlineCitation } from "./InlineCitation";
-
-export type Message = {
-  id: string;
-  createdAt?: Date;
-  content: string;
-  type: "system" | "human" | "ai" | "function";
-  runId?: string;
-  sources?: Source[];
-  name?: string;
-  function_call?: { name: string };
-};
-export type Feedback = {
-  feedback_id: string;
-  run_id: string;
-  key: string;
-  score: number;
-  comment?: string;
-};
 
 const filterSources = (sources: Source[]) => {
   const filtered: Source[] = [];
