@@ -215,7 +215,7 @@ export function ChatWindow() {
     router.push(newUrl);
   };
 
-  const selectChat = useCallback(
+  const selectThread = useCallback(
     async (id: string | null) => {
       if (currentThread) {
         stopStream?.(true);
@@ -231,6 +231,17 @@ export function ChatWindow() {
     [currentThread, stopStream, setMessages, createThread, insertUrlParam],
   );
 
+  const deleteThreadAndReset = async (id: string) => {
+    await deleteThread(id);
+    // reset
+    router.push(
+      window.location.protocol +
+        "//" +
+        window.location.host +
+        window.location.pathname,
+    );
+  };
+
   return (
     <>
       <div className="flex items-center rounded grow max-h-full">
@@ -243,8 +254,8 @@ export function ChatWindow() {
         >
           <ChatList
             threads={threads}
-            enterChat={selectChat}
-            deleteChat={deleteThread}
+            enterChat={selectThread}
+            deleteChat={deleteThreadAndReset}
           />
         </Flex>
         <Flex
