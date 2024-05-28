@@ -219,8 +219,10 @@ def route_to_retriever(
 def get_chat_history(messages: Sequence[BaseMessage]) -> Sequence[BaseMessage]:
     chat_history = []
     for message in messages:
-        if isinstance(message, AIMessage) or isinstance(message, HumanMessage):
-            chat_history.append(message)
+        if (isinstance(message, AIMessage) and not message.tool_calls) or isinstance(
+            message, HumanMessage
+        ):
+            chat_history.append({"content": message.content, "role": message.type})
     return chat_history
 
 
