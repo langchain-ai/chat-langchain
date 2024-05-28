@@ -317,7 +317,7 @@ export function ChatWindow(props: {
           <a
             href="https://cropguard.ai"
             target="_blank"
-            className="text-white flex items-center"
+            className="text-gray-footer flex items-center"
           >
             {/* <img src="/images/github-mark.svg" className="h-4 mr-1" /> */}
             <span>CropGuard Inc, 2023</span>
