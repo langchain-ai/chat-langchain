@@ -33,6 +33,12 @@ python-dotenv = "^1.0.1"
 [tool.poetry.group.lint.dependencies]
 ruff = "^0.2.2"
 
+[tool.ruff]
+exclude = [
+    "test.py",
+    "delete_weaviate_objects.py"
+]
+
 [[tool.poetry.packages]]
 include = "backend/**/*"
 

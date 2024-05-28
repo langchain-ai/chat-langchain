@@ -65,6 +65,7 @@ def load_looker_docs():
         check_response_status=True,
     ).load()
 
+
 def simple_extractor(html: str) -> str:
     """
     Extracts and formats text from HTML content.
@@ -83,19 +84,21 @@ def simple_extractor(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
     # Find the main content div
-    main_content = soup.find('devsite-content')
+    main_content = soup.find("devsite-content")
 
     if main_content:
         # Remove unwanted tags
-        for script_or_style in main_content(['script', 'style', 'meta', 'link']):
+        for script_or_style in main_content(["script", "style", "meta", "link"]):
             script_or_style.decompose()
 
         # Remove HTML comments
-        for comment in main_content.find_all(string=lambda text: isinstance(text, Comment)):
+        for comment in main_content.find_all(
+            string=lambda text: isinstance(text, Comment)
+        ):
             comment.extract()
 
         # Replace <strong> tags with asterisks for bold formatting
-        for strong_tag in main_content.find_all('strong'):
+        for strong_tag in main_content.find_all("strong"):
             strong_tag.replace_with(f"**{strong_tag.text}**")
 
         extracted_text = []
@@ -107,22 +110,26 @@ def simple_extractor(html: str) -> str:
             else:
                 for child in element.children:
                     if child.name:
-                        if child.name == 'a':
+                        if child.name == "a":
                             # Handle hyperlinks
                             link_text = child.get_text(strip=True)
                             extracted_text.append(f"{link_text}")
-                        elif child.name in ['p', 'br']:
+                        elif child.name in ["p", "br"]:
                             extracted_text.append("\n")
                             process_element(child)
-                        elif child.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                        elif child.name in ["h1", "h2", "h3", "h4", "h5", "h6"]:
                             extracted_text.append(f"\n\n{child.get_text(strip=True)}")
-                        elif child.name in ['button']:
+                        elif child.name in ["button"]:
                             pass
-                        elif child.name == 'devsite-feature-tooltip':
+                        elif child.name == "devsite-feature-tooltip":
                             pass
-                        elif child.name == 'devsite-content-footer':
+                        elif child.name == "devsite-content-footer":
                             pass
-                        elif child.name == 'div' and 'class' in child.attrs and 'devsite-content-data' in child['class']:
+                        elif (
+                            child.name == "div"
+                            and "class" in child.attrs
+                            and "devsite-content-data" in child["class"]
+                        ):
                             pass
                         else:
                             process_element(child)
@@ -135,12 +142,11 @@ def simple_extractor(html: str) -> str:
         process_element(main_content)
 
         # Combine extracted text while preserving necessary spaces and new lines
-        combined_text = ''.join(extracted_text).replace('\n ', '\n').strip()
+        combined_text = "".join(extracted_text).replace("\n ", "\n").strip()
 
         return combined_text
     else:
         return "Main content not found."
-
 
 
 def format_table(table) -> str:
@@ -151,7 +157,9 @@ def format_table(table) -> str:
     # Extract headers if present
     headers = rows[0].find_all("th")
     if headers:
-        header_text = "| " + " | ".join(cell.get_text(strip=True) for cell in headers) + " |"
+        header_text = (
+            "| " + " | ".join(cell.get_text(strip=True) for cell in headers) + " |"
+        )
         separator = "| " + " | ".join("---" for _ in headers) + " |"
         body_start_idx = 1
     else:
@@ -252,7 +260,6 @@ def ingest_docs():
     )
 
     logger.info(f"Indexing stats: {indexing_stats}")
-
 
     num_vecs = client.query.aggregate(WEAVIATE_DOCS_INDEX_NAME).with_meta_count().do()
     logger.info(
