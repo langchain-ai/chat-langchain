@@ -3,7 +3,7 @@ import logging
 import os
 
 import weaviate
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 from constants import WEAVIATE_DOCS_INDEX_NAME
 from langchain.document_loaders import RecursiveUrlLoader
 from langchain.indexes import SQLRecordManager, index
@@ -110,7 +110,6 @@ def simple_extractor(html: str) -> str:
                         if child.name == 'a':
                             # Handle hyperlinks
                             link_text = child.get_text(strip=True)
-                            link_url = child.get('href', '')
                             extracted_text.append(f"{link_text}")
                         elif child.name in ['p', 'br']:
                             extracted_text.append("\n")
