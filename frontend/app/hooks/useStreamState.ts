@@ -109,15 +109,13 @@ export function useStreamState(): StreamStateProps {
       controller?.abort();
       setController(null);
       if (clear) {
-        setCurrent((current) => ({
-          ...current,
+        setCurrent({
           status: "done",
-        }));
+        });
       } else {
         setCurrent((current) => ({
           ...current,
           status: "done",
-          messages: current?.messages,
         }));
       }
     },
