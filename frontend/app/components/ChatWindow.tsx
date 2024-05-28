@@ -46,6 +46,8 @@ const MODEL_TYPES = [
   "cohere_command",
 ];
 
+const THREAD_NAME_PLACEHOLDER = "New chat"
+
 const defaultLlmValue =
   MODEL_TYPES[Math.floor(Math.random() * MODEL_TYPES.length)];
 
@@ -105,16 +107,18 @@ export function ChatWindow() {
     tags: ["model:" + llm],
   };
 
+  const getThreadName = (messageValue: string) => (
+    messageValue.length > 20
+      ? messageValue.slice(0, 20) + "..."
+      : messageValue
+  )
+
   const renameThread = async (messageValue: string) => {
     // NOTE: we're only setting this on the first message
     if (currentThread == null || messages.length > 1) {
       return;
     }
-
-    const threadName =
-      messageValue.length > 20
-        ? messageValue.slice(0, 20) + "..."
-        : messageValue;
+    const threadName = getThreadName(messageValue);
     await updateThread(currentThread["thread_id"], threadName);
   };
 
@@ -125,11 +129,17 @@ export function ChatWindow() {
     if (isLoading) {
       return;
     }
-    if (currentThread == null) {
-      return;
-    }
+
     const messageValue = message ?? input;
     if (messageValue === "") return;
+
+    let thread = currentThread;
+    if (thread == null) {
+      const threadName = getThreadName(messageValue);
+      thread = await createThread(threadName);
+      insertUrlParam("threadId", thread["thread_id"]);
+    }
+
     setInput("");
     const formattedMessage: Message = {
       id: Math.random().toString(),
@@ -164,7 +174,7 @@ export function ChatWindow() {
       await renameThread(messageValue);
       await startStream(
         [formattedMessage],
-        currentThread["thread_id"],
+        thread["thread_id"],
         assistantId,
         config,
       );
