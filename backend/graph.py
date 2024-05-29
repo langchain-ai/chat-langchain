@@ -181,7 +181,7 @@ def retrieve_documents(state: AgentState) -> AgentState:
     retriever = get_retriever()
     messages = convert_to_messages(state["messages"])
     query = messages[-1].content
-    relevant_documents = retriever.get_relevant_documents(query)
+    relevant_documents = retriever.invoke(query)
     return {"query": query, "documents": relevant_documents, "messages": []}
 
 
