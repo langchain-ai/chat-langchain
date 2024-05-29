@@ -96,3 +96,8 @@ variable "env_vars" {
   type        = map(string)
   default     = {}
 }
+
+variable "cloudsql_instance_name" {
+  description = "The name of the Cloud SQL instance to connect to"
+  type        = string
+}
