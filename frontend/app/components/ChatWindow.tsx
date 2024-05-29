@@ -29,10 +29,10 @@ import { apiBaseUrl } from "../utils/constants";
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
+  "openai_gpt_4o",
   "anthropic_claude_3_sonnet",
+  "anthropic_claude_3_opus",
   "google_gemini_pro",
-  "fireworks_mixtral",
-  "cohere_command",
 ];
 
 const defaultLlmValue =
@@ -255,12 +255,10 @@ export function ChatWindow(props: { conversationId: string }) {
                 width={"240px"}
               >
                 <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
+                <option value="openai_gpt_4o">GPT-4o</option>
                 <option value="anthropic_claude_3_sonnet">Claude 3 Sonnet</option>
+                <option value="anthropic_claude_3_opus">Claude 3 Opus</option>
                 <option value="google_gemini_pro">Google Gemini Pro</option>
-                <option value="fireworks_mixtral">
-                  Mixtral (via Fireworks.ai)
-                </option>
-                <option value="cohere_command">Cohere</option>
               </Select>
             )}
           </div>
