@@ -5,7 +5,7 @@ Built with [LangChain](https://github.com/langchain-ai/langchain/), [FastAPI](ht
 
 Deployed version: [chat.langchain.com](https://chat.langchain.com)
 
-> Looking for the JS version? Click [here](https://github.com/langchain-ai/chat-langchainjs).
+> Looking for the JS version? Click [here](https://github.com/prabha-git/chat-looker-docsjs).
 
 The app leverages LangChain's streaming support and async API to update the page in real time for multiple users.
 

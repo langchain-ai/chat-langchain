@@ -34,7 +34,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         push: true
-        tags: docker.io/prabhakaranmails/chat-langchain-backend:${{ env.GIT_SHORT_SHA }}
+        tags: docker.io/prabhakaranmails/chat-looker-docs-backend:${{ env.GIT_SHORT_SHA }}
 
 
   deploy-frontend:

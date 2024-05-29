@@ -4,7 +4,7 @@ We recommend when deploying Chat LangChain, you use Vercel for the frontend, GCP
 
 ## Prerequisites
 
-First, fork [chat-langchain](https://github.com/langchain-ai/chat-langchain) to your GitHub account.
+First, fork [chat-looker-docs](https://github.com/prabha-git/chat-looker-docs) to your GitHub account.
 
 ## Weaviate (Vector Store)
 
@@ -40,7 +40,7 @@ Create a Vercel account for hosting [here](https://vercel.com/signup).
 Once you've created your Vercel account, navigate to [your dashboard](https://vercel.com/) and click the button "Add New..." in the top right.
 This will open a dropdown. From there select "Project".
 
-On the next screen, search for "chat-langchain" (if you did not modify the repo name when forking). Once shown, click "Import".
+On the next screen, search for "chat-looker-docs" (if you did not modify the repo name when forking). Once shown, click "Import".
 
 Finally, click "Deploy" and your frontend will be deployed!
 
@@ -85,7 +85,7 @@ Then, to deploy to Google Cloud Run use the following command:
 First create a `.env.gcp.yaml` file with the contents from [`.env.gcp.yaml.example`](.env.gcp.yaml) and fill in the values. Then run:
 
 ```shell
-gcloud run deploy chat-langchain --source . --port 8000 --env-vars-file .env.gcp.yaml --allow-unauthenticated --region us-central1 --min-instances 1
+gcloud run deploy chat-looker-docs-backend --source . --port 8000 --env-vars-file .env.gcp.yaml --allow-unauthenticated --region us-central1 --min-instances 1
 ```
 
 Finally, go back to Vercel and add an environment variable `NEXT_PUBLIC_API_BASE_URL` to match your Cloud Run URL.

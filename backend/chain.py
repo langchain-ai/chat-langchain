@@ -222,7 +222,7 @@ def create_chain(llm: LanguageModelLike, retriever: BaseRetriever) -> Runnable:
         default_response_synthesizer.configurable_alternatives(
             ConfigurableField("llm"),
             default_key="openai_gpt_4o",
-            anthropic_claude_3_sonnet=default_response_synthesizer,
+            anthropic_claude_3_opus=default_response_synthesizer,
             fireworks_mixtral=default_response_synthesizer,
             google_gemini_pro=default_response_synthesizer,
             cohere_command=cohere_response_synthesizer,
@@ -238,8 +238,8 @@ def create_chain(llm: LanguageModelLike, retriever: BaseRetriever) -> Runnable:
 
 gpt_3_5 = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0, streaming=True)
 gpt_4o = ChatOpenAI(model="gpt-4o", temperature=0, streaming=True)
-claude_3_sonnet = ChatAnthropic(
-    model="claude-3-sonnet-20240229",
+claude_3_opus = ChatAnthropic(
+    model="claude-3-opus-20240229",
     temperature=0,
     max_tokens=4096,
     anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
@@ -251,7 +251,7 @@ fireworks_mixtral = ChatFireworks(
     fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
 )
 gemini_pro = ChatGoogleGenerativeAI(
-    model="gemini-pro",
+    model="gemini-1.5-pro",
     temperature=0,
     max_tokens=16384,
     convert_system_message_to_human=True,
@@ -267,12 +267,12 @@ llm = gpt_4o.configurable_alternatives(
     # When configuring the end runnable, we can then use this id to configure this field
     ConfigurableField(id="llm"),
     default_key="openai_gpt_4o",
-    anthropic_claude_3_sonnet=claude_3_sonnet,
+    anthropic_claude_3_opus=claude_3_opus,
     fireworks_mixtral=fireworks_mixtral,
     google_gemini_pro=gemini_pro,
     cohere_command=cohere_command,
 ).with_fallbacks(
-    [gpt_4o, gpt_3_5, claude_3_sonnet, fireworks_mixtral, gemini_pro, cohere_command]
+    [gpt_4o, gpt_3_5, claude_3_opus, fireworks_mixtral, gemini_pro, cohere_command]
 )
 
 retriever = get_retriever()
