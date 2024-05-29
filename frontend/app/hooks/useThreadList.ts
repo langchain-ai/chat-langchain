@@ -37,7 +37,7 @@ function threadsReducer(
   }
 }
 
-export function useThreadList(): ThreadListProps {
+export function useThreadList(userId: string): ThreadListProps {
   const [threads, dispatch] = useReducer(threadsReducer, null);
   const [offset, setOffset] = useState(0);
   const [areThreadsLoading, setAreThreadsLoading] = useState(false);
@@ -49,6 +49,9 @@ export function useThreadList(): ThreadListProps {
       const fetchedThreads = await client.threads.search({
         offset,
         limit: PAGE_SIZE,
+        metadata: {
+          userId,
+        },
       });
       if (offset === 0) {
         dispatch({ type: "set", threads: fetchedThreads });
@@ -69,14 +72,14 @@ export function useThreadList(): ThreadListProps {
   }, [areThreadsLoading]);
 
   const createThread = useCallback(async (name: string) => {
-    const saved = await client.threads.create({ metadata: { name } });
+    const saved = await client.threads.create({ metadata: { name, userId } });
     dispatch({ type: "add", threads: [saved] });
     return saved;
   }, []);
 
   const updateThread = useCallback(async (thread_id: string, name: string) => {
     const saved = await client.threads.upsert(thread_id, {
-      metadata: { name },
+      metadata: { name, userId },
     });
     dispatch({ type: "add", threads: [saved] });
     return saved;

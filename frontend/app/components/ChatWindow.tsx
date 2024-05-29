@@ -1,12 +1,6 @@
 "use client";
 
-import React, {
-  Fragment,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Renderer, marked } from "marked";
@@ -26,6 +20,7 @@ import {
 import { ArrowDownIcon, ArrowUpIcon, SmallCloseIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
 import { Client } from "@langchain/langgraph-sdk";
+import { v4 as uuidv4 } from "uuid";
 
 import { EmptyState } from "./EmptyState";
 import { ChatMessageBubble } from "./ChatMessageBubble";
@@ -37,6 +32,7 @@ import { useThreadList } from "../hooks/useThreadList";
 import { useThreadMessages } from "../hooks/useThreadMessages";
 import { useLangGraphClient } from "../hooks/useLangGraphClient";
 import { useStreamState } from "../hooks/useStreamState";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
@@ -66,21 +62,7 @@ const getAssistantId = async (client: Client) => {
 export function ChatWindow() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentThread } = useThread();
-  const {
-    threads,
-    createThread,
-    updateThread,
-    deleteThread,
-    loadMoreThreads,
-    areThreadsLoading,
-  } = useThreadList();
-  const { streamState, startStream, stopStream } = useStreamState();
-  const { refreshMessages, messages, setMessages, next } = useThreadMessages(
-    currentThread?.thread_id ?? null,
-    streamState,
-    stopStream,
-  );
+
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -89,8 +71,25 @@ export function ChatWindow() {
   );
   const [llmIsLoading, setLlmIsLoading] = useState(true);
   const [assistantId, setAssistantId] = useState<string>("");
+  const [userId, setUserId] = useLocalStorage("userId", null);
 
   const client = useLangGraphClient();
+
+  const { currentThread } = useThread();
+  const {
+    threads,
+    createThread,
+    updateThread,
+    deleteThread,
+    loadMoreThreads,
+    areThreadsLoading,
+  } = useThreadList(userId);
+  const { streamState, startStream, stopStream } = useStreamState();
+  const { refreshMessages, messages, setMessages, next } = useThreadMessages(
+    currentThread?.thread_id ?? null,
+    streamState,
+    stopStream,
+  );
 
   const setLanggraphInfo = async () => {
     try {
@@ -101,8 +100,16 @@ export function ChatWindow() {
     }
   };
 
+  const setUserInfo = () => {
+    if (userId == null) {
+      const userId = uuidv4();
+      setUserId(userId);
+    }
+  };
+
   useEffect(() => {
     setLlm(searchParams.get("llm") ?? defaultLlmValue);
+    setUserInfo();
     setLanggraphInfo();
     setLlmIsLoading(false);
   }, []);
