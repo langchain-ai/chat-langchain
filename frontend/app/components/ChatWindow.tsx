@@ -75,7 +75,7 @@ export function ChatWindow() {
 
   const client = useLangGraphClient();
 
-  const { currentThread } = useThread();
+  const { currentThread } = useThread(userId);
   const {
     threads,
     createThread,
@@ -267,6 +267,7 @@ export function ChatWindow() {
           marginX={"24px"}
         >
           <ChatList
+            userId={userId}
             threads={threads}
             enterChat={selectThread}
             deleteChat={deleteThreadAndReset}

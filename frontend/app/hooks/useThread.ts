@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 
 import { useLangGraphClient } from "./useLangGraphClient";
 
-export function useThread() {
+export function useThread(userId: string) {
   // Extract route parameters
   const [threadId, setThreadId] = useState<string>();
   const searchParams = useSearchParams();
@@ -20,10 +20,18 @@ export function useThread() {
     previousThreadId.current = threadId;
   }, [searchParams]);
 
+  const getThread = async () => {
+    const thread = await langGraphClient.threads.get(threadId as string);
+    if (thread?.metadata?.["userId"] !== userId) {
+      return null;
+    }
+    return thread;
+  };
+
   // React Query to fetch chat details if chatId is present
   const { data: currentThread, isLoading } = useQuery(
     ["thread", threadId],
-    async () => await langGraphClient.threads.get(threadId as string),
+    getThread,
     {
       enabled: !!threadId,
     },

@@ -8,13 +8,14 @@ import { ThreadListProps } from "../hooks/useThreadList";
 import { useThread } from "../hooks/useThread";
 
 export function ChatList(props: {
+  userId: string;
   threads: ThreadListProps["threads"];
   areThreadsLoading: ThreadListProps["areThreadsLoading"];
   loadMoreThreads: ThreadListProps["loadMoreThreads"];
   enterChat: (id: string | null) => void;
   deleteChat: (id: string) => void;
 }) {
-  const { currentThread } = useThread();
+  const { currentThread } = useThread(props.userId);
 
   const [prevScrollTop, setPrevScrollTop] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);

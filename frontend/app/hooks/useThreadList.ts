@@ -47,7 +47,7 @@ export function useThreadList(userId: string): ThreadListProps {
     async function fetchThreads() {
       // wait until the user is set
       if (userId == null) {
-        return
+        return;
       }
 
       setAreThreadsLoading(true);
