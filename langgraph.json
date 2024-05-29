@@ -1,5 +1,4 @@
 {
-    "python_version": "3.12",
     "dependencies": ["."],
     "graphs": {
       "chat": "./backend/graph.py:graph"
