@@ -37,9 +37,6 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 const MODEL_TYPES = [
   "openai_gpt_3_5_turbo",
   "anthropic_claude_3_haiku",
-  "google_gemini_pro",
-  "fireworks_mixtral",
-  "cohere_command",
 ];
 
 const defaultLlmValue =
