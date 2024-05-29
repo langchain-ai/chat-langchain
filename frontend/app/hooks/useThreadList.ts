@@ -45,6 +45,11 @@ export function useThreadList(userId: string): ThreadListProps {
 
   useEffect(() => {
     async function fetchThreads() {
+      // wait until the user is set
+      if (userId == null) {
+        return
+      }
+
       setAreThreadsLoading(true);
       const fetchedThreads = await client.threads.search({
         offset,
