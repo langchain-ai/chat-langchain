@@ -13,27 +13,38 @@ export interface ThreadListProps {
 
 function threadsReducer(
   state: Thread[] | null,
-  action: Thread | Thread[],
+  action: { type: "add" | "set"; threads: Thread[] },
 ): Thread[] | null {
   state = state ?? [];
-  if (!Array.isArray(action)) {
-    const newThread = action;
-    action = [
-      ...state.filter((c) => c.thread_id !== newThread.thread_id),
-      newThread,
-    ];
+  if (action.type === "set") {
+    return orderBy(action.threads, "updated_at", "desc");
+  } else {
+    const newThreadIds = new Set(
+      action.threads.map((thread) => thread.thread_id),
+    );
+    const existingThreads = state.filter(
+      (thread) => !newThreadIds.has(thread.thread_id),
+    );
+    return orderBy(
+      [...existingThreads, ...action.threads],
+      "updated_at",
+      "desc",
+    );
   }
-  return orderBy(action, "updated_at", "desc");
 }
 
 export function useThreadList(): ThreadListProps {
-  const [threads, setThreads] = useReducer(threadsReducer, null);
+  const [threads, dispatch] = useReducer(threadsReducer, null);
   const client = useLangGraphClient();
 
   useEffect(() => {
-    async function fetchThreads() {
-      const threads = await client.threads.search();
-      setThreads(threads);
+    async function fetchThreads(offset = 0, limit = 20) {
+      const fetchedThreads = await client.threads.search({ offset, limit });
+      if (offset === 0) {
+        dispatch({ type: "set", threads: fetchedThreads });
+      } else {
+        dispatch({ type: "add", threads: fetchedThreads });
+      }
     }
 
     fetchThreads();
@@ -41,7 +52,7 @@ export function useThreadList(): ThreadListProps {
 
   const createThread = useCallback(async (name: string) => {
     const saved = await client.threads.create({ metadata: { name } });
-    setThreads(saved);
+    dispatch({ type: "add", threads: [saved] });
     return saved;
   }, []);
 
@@ -49,16 +60,19 @@ export function useThreadList(): ThreadListProps {
     const saved = await client.threads.upsert(thread_id, {
       metadata: { name },
     });
-    setThreads(saved);
+    dispatch({ type: "add", threads: [saved] });
     return saved;
   }, []);
 
   const deleteThread = useCallback(
     async (thread_id: string) => {
       await client.threads.delete(thread_id);
-      setThreads(
-        (threads || []).filter((c: Thread) => c.thread_id !== thread_id),
-      );
+      dispatch({
+        type: "set",
+        threads: (threads || []).filter(
+          (c: Thread) => c.thread_id !== thread_id,
+        ),
+      });
     },
     [threads],
   );
