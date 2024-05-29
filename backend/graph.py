@@ -182,7 +182,7 @@ def retrieve_documents(state: AgentState) -> AgentState:
     messages = convert_to_messages(state["messages"])
     query = messages[-1].content
     relevant_documents = retriever.invoke(query)
-    return {"query": query, "documents": relevant_documents, "messages": []}
+    return {"query": query, "documents": relevant_documents}
 
 
 def retrieve_documents_with_chat_history(state: AgentState) -> AgentState:
@@ -202,7 +202,7 @@ def retrieve_documents_with_chat_history(state: AgentState) -> AgentState:
     relevant_documents = retriever_with_condensed_question.invoke(
         {"question": query, "chat_history": get_chat_history(messages)}
     )
-    return {"query": query, "documents": relevant_documents, "messages": []}
+    return {"query": query, "documents": relevant_documents}
 
 
 def route_to_retriever(
