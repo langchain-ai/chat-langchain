@@ -40,10 +40,12 @@ export function useThreadMessages(
   const client = useLangGraphClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [next, setNext] = useState<string[]>([]);
+  const [areMessagesLoading, setAreMessagesLoading] = useState(false);
   const prevStreamStatus = usePrevious(streamState?.status);
 
   const refreshMessages = useCallback(async () => {
     if (threadId) {
+      setAreMessagesLoading(true);
       const { values, next } = await client.threads.getState<{
         messages: Message[];
         documents: Document[];
@@ -54,6 +56,7 @@ export function useThreadMessages(
       );
       setMessages(messages);
       setNext(next);
+      setAreMessagesLoading(false);
     }
   }, [threadId]);
 
@@ -100,6 +103,7 @@ export function useThreadMessages(
       ),
       setMessages,
       next,
+      areMessagesLoading,
     }),
     [
       messages,
@@ -107,6 +111,7 @@ export function useThreadMessages(
       streamState?.documents,
       next,
       refreshMessages,
+      areMessagesLoading,
     ],
   );
 }
