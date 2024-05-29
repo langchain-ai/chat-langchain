@@ -254,11 +254,11 @@ export function ChatWindow(props: { conversationId: string }) {
                 }}
                 width={"240px"}
               >
-                <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option>
+                {/* <option value="openai_gpt_3_5_turbo">GPT-3.5-Turbo</option> */}
                 <option value="openai_gpt_4o">GPT-4o</option>
-                <option value="anthropic_claude_3_sonnet">Claude 3 Sonnet</option>
-                <option value="anthropic_claude_3_opus">Claude 3 Opus</option>
-                <option value="google_gemini_pro">Google Gemini Pro</option>
+                {/* <option value="anthropic_claude_3_sonnet">Claude 3 Sonnet</option> */}
+                {/* <option value="anthropic_claude_3_opus">Claude 3 Opus</option> */}
+                {/* <option value="google_gemini_pro">Google Gemini Pro</option> */}
               </Select>
             )}
           </div>
@@ -289,7 +289,7 @@ export function ChatWindow(props: { conversationId: string }) {
           value={input}
           maxRows={5}
           marginRight={"56px"}
-          placeholder="What does RunnablePassthrough.assign() do?"
+          placeholder="What would happen to schedules created by the user after the user is disabled?"
           textColor={"white"}
           borderColor={"rgb(58, 58, 61)"}
           onChange={(e) => setInput(e.target.value)}
@@ -325,7 +325,7 @@ export function ChatWindow(props: { conversationId: string }) {
             target="_blank"
             className="text-white flex items-center"
           >
-            <img src="/images/github-mark.svg" className="h-4 mr-1" />
+            <img src="https://chat.langchain.com/images/github-mark.svg" className="h-4 mr-1" />
             <span>View Source</span>
           </a>
         </footer>
