@@ -67,7 +67,14 @@ export function ChatWindow() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currentThread } = useThread();
-  const { threads, createThread, updateThread, deleteThread } = useThreadList();
+  const {
+    threads,
+    createThread,
+    updateThread,
+    deleteThread,
+    loadMoreThreads,
+    areThreadsLoading,
+  } = useThreadList();
   const { streamState, startStream, stopStream } = useStreamState();
   const { refreshMessages, messages, setMessages, next } = useThreadMessages(
     currentThread?.thread_id ?? null,
@@ -256,6 +263,8 @@ export function ChatWindow() {
             threads={threads}
             enterChat={selectThread}
             deleteChat={deleteThreadAndReset}
+            areThreadsLoading={areThreadsLoading}
+            loadMoreThreads={loadMoreThreads}
           />
         </Flex>
         <Flex

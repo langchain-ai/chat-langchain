@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { List, ListItem, Spacer, Text, Button } from "@chakra-ui/react";
 import { PlusSquareIcon, DeleteIcon } from "@chakra-ui/icons";
 
@@ -9,10 +9,41 @@ import { useThread } from "../hooks/useThread";
 
 export function ChatList(props: {
   threads: ThreadListProps["threads"];
+  areThreadsLoading: ThreadListProps["areThreadsLoading"];
+  loadMoreThreads: ThreadListProps["loadMoreThreads"];
   enterChat: (id: string | null) => void;
   deleteChat: (id: string) => void;
 }) {
   const { currentThread } = useThread();
+
+  const [prevScrollTop, setPrevScrollTop] = useState(0);
+  const listRef = useRef<HTMLUListElement>(null);
+  const handleScroll = useCallback(() => {
+    if (!listRef.current || props.areThreadsLoading) {
+      return;
+    }
+
+    const { scrollTop, scrollHeight, clientHeight } = listRef.current;
+    const isScrollingDown = scrollTop > prevScrollTop;
+    setPrevScrollTop(scrollTop);
+
+    if (isScrollingDown && scrollTop + clientHeight >= scrollHeight - 5) {
+      props.loadMoreThreads();
+    }
+  }, [prevScrollTop, props.areThreadsLoading]);
+
+  useEffect(() => {
+    const listElement = listRef.current;
+    if (listElement) {
+      listElement.addEventListener("scroll", handleScroll);
+    }
+    return () => {
+      if (listElement) {
+        listElement.removeEventListener("scroll", handleScroll);
+      }
+    };
+  }, [props.areThreadsLoading]);
+
   return (
     <>
       <Button
@@ -26,7 +57,7 @@ export function ChatList(props: {
       <Text color={"white"} marginTop={"24px"} fontWeight={"semibold"}>
         Previous chats
       </Text>
-      <List>
+      <List ref={listRef} overflow={"auto"}>
         {props.threads?.map((thread, idx) => (
           <Fragment key={thread.thread_id}>
             <ListItem

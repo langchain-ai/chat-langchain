@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useReducer } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import orderBy from "lodash.orderby";
 import { Thread } from "@langchain/langgraph-sdk";
 
 import { useLangGraphClient } from "./useLangGraphClient";
+
+const PAGE_SIZE = 50;
 
 export interface ThreadListProps {
   threads: Thread[] | null;
   createThread: (name: string) => Promise<Thread>;
   updateThread: (thread_id: string, name: string) => Promise<Thread>;
   deleteThread: (thread_id: string) => Promise<void>;
+  areThreadsLoading: boolean;
+  loadMoreThreads: () => void;
 }
 
 function threadsReducer(
@@ -35,20 +39,34 @@ function threadsReducer(
 
 export function useThreadList(): ThreadListProps {
   const [threads, dispatch] = useReducer(threadsReducer, null);
+  const [offset, setOffset] = useState(0);
+  const [areThreadsLoading, setAreThreadsLoading] = useState(false);
   const client = useLangGraphClient();
 
   useEffect(() => {
-    async function fetchThreads(offset = 0, limit = 20) {
-      const fetchedThreads = await client.threads.search({ offset, limit });
+    async function fetchThreads() {
+      setAreThreadsLoading(true);
+      const fetchedThreads = await client.threads.search({
+        offset,
+        limit: PAGE_SIZE,
+      });
       if (offset === 0) {
         dispatch({ type: "set", threads: fetchedThreads });
       } else {
         dispatch({ type: "add", threads: fetchedThreads });
       }
+      setAreThreadsLoading(false);
     }
 
     fetchThreads();
-  }, []);
+  }, [offset]);
+
+  const loadMoreThreads = useCallback(() => {
+    if (areThreadsLoading) {
+      return;
+    }
+    setOffset((prevOffset) => prevOffset + PAGE_SIZE);
+  }, [areThreadsLoading]);
 
   const createThread = useCallback(async (name: string) => {
     const saved = await client.threads.create({ metadata: { name } });
@@ -82,5 +100,7 @@ export function useThreadList(): ThreadListProps {
     createThread,
     updateThread,
     deleteThread,
+    areThreadsLoading,
+    loadMoreThreads,
   };
 }
