@@ -272,7 +272,7 @@ llm = gpt_4o.configurable_alternatives(
     google_gemini_pro=gemini_pro,
     cohere_command=cohere_command,
 ).with_fallbacks(
-    [ gpt_4o,gpt_3_5, claude_3_sonnet, fireworks_mixtral, gemini_pro, cohere_command]
+    [gpt_4o, gpt_3_5, claude_3_sonnet, fireworks_mixtral, gemini_pro, cohere_command]
 )
 
 retriever = get_retriever()
