@@ -40,6 +40,12 @@ resource "google_cloud_run_v2_service" "chat_langchain_backend" {
       min_instance_count = var.min_instance_count
       max_instance_count = var.max_instance_count
     }
+    volumes {
+      name = "cloudsql"
+      cloud_sql_instance {
+        instances = [var.cloudsql_instance_name]
+      }
+    }
     containers {
       image = var.image_tag
 
@@ -57,6 +63,10 @@ resource "google_cloud_run_v2_service" "chat_langchain_backend" {
         }
         startup_cpu_boost = true
         cpu_idle          = false
+      }
+      volume_mounts {
+        name       = "cloudsql"
+        mount_path = "/cloudsql"
       }
     }
   }
