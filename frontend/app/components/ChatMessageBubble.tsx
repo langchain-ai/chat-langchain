@@ -91,7 +91,7 @@ const createAnswerElements = (
           key={`content:${prevIndex}`}
           dangerouslySetInnerHTML={{
             __html: DOMPurify.sanitize(
-              marked.parse(content.slice(prevIndex, match.index)).trim(),
+              marked.parse(content.slice(prevIndex, match.index)).trimEnd(),
             ),
           }}
         ></span>,
@@ -120,7 +120,7 @@ const createAnswerElements = (
       key={`content:${prevIndex}`}
       dangerouslySetInnerHTML={{
         __html: DOMPurify.sanitize(
-          marked.parse(content.slice(prevIndex)).trim(),
+          marked.parse(content.slice(prevIndex)).trimEnd(),
         ),
       }}
     ></span>,
