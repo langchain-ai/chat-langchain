@@ -5,6 +5,10 @@ on:
     branches: [master]
   workflow_dispatch:
 
+env:
+  POETRY_VERSION: "1.7.1"
+  PYTHON_VERSION: "3.11"
+
 jobs:
   deploy-backend:
     runs-on: ubuntu-latest
@@ -17,6 +21,13 @@ jobs:
       run: |
         echo "GIT_SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
         echo "LC_ENVIRONMENT=dev" >> $GITHUB_ENV
+    
+    - name: Set up Python ${{ env.PYTHON_VERSION }} + Poetry ${{ env.POETRY_VERSION }}
+      uses: "./.github/actions/poetry_setup"
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        poetry-version: ${{ env.POETRY_VERSION }}
+        cache-key: lint
 
     - name: Set up depot.dev multi-arch runner
       uses: depot/setup-action@v1
@@ -31,10 +42,10 @@ jobs:
       uses: docker/setup-buildx-action@v3
 
     - name: Build and push
-      uses: docker/build-push-action@v5
-      with:
-        push: true
-        tags: docker.io/langchain/chat-langchain-backend:${{ env.GIT_SHORT_SHA }}
+      run: |
+        pip install langgraph-cli
+        langgraph build -t docker.io/langchain/chat-langchain-backend:${{ env.GIT_SHORT_SHA }}
+        docker push docker.io/langchain/chat-langchain-backend:${{ env.GIT_SHORT_SHA }}
 
     - name: Checkout deployments repo
       uses: actions/checkout@v3

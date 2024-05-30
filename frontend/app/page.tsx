@@ -1,16 +1,25 @@
 "use client";
 
-import { v4 as uuidv4 } from "uuid";
-import { ChatWindow } from "./components/ChatWindow";
 import { ToastContainer } from "react-toastify";
-
 import { ChakraProvider } from "@chakra-ui/react";
+import { QueryClient, QueryClientProvider } from "react-query";
+import { Client } from "@langchain/langgraph-sdk";
+
+import { ChatWindow } from "./components/ChatWindow";
+import { LangGraphClientContext } from "./hooks/useLangGraphClient";
+import { apiBaseUrl } from "./utils/constants";
 
 export default function Home() {
+  const queryClient = new QueryClient();
+  const langGraphClient = new Client({ apiUrl: apiBaseUrl });
   return (
-    <ChakraProvider>
-      <ToastContainer />
-      <ChatWindow conversationId={uuidv4()}></ChatWindow>
-    </ChakraProvider>
+    <LangGraphClientContext.Provider value={langGraphClient}>
+      <QueryClientProvider client={queryClient}>
+        <ChakraProvider>
+          <ToastContainer />
+          <ChatWindow />
+        </ChakraProvider>
+      </QueryClientProvider>
+    </LangGraphClientContext.Provider>
   );
 }

@@ -1,6 +1,6 @@
 .PHONY: start
 start:
-	poetry run uvicorn --app-dir=backend main:app --reload --port 8080
+	langgraph up --watch
 
 .PHONY: format
 format:

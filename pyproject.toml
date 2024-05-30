@@ -4,28 +4,30 @@ version = "0.1.1"
 description = ""
 authors = ["SN <6432132+samnoyes@users.noreply.github.com>"]
 readme = "README.md"
+packages = [{include = "backend"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-langchain = "^0.1.12"
-langsmith =  "^0.1.25"
-langchain-community = ">=0.0.27,<0.1"
-langchain-openai = ">=0.0.8,<0.1"
-langchain-google-genai = ">=0.0.6,<0.1"
-langchain-anthropic = "^0.1.4"
-langchain-fireworks = "^0.1.1"
-langserve = {extras = ["server"], version = "^0.0.39"}
+langchain = ">=0.2.0"
+langsmith = "^0.1.60"
+langchain-cohere = ">=0.1.5,<0.2.0"
+langchain-community = ">=0.2.0,<0.3.0"
+langchain-openai = ">=0.1.7,<0.2.0"
+langchain-google-genai = ">=1.0.5,<2.0.0"
+langchain-anthropic = "^0.1.13"
+langchain-fireworks = "^0.1.3"
+langserve = {extras = ["server"], version = "^0.2.0"}
+langgraph = "^0.0.55"
+langgraph-cli= ">=0.1.21,<0.2.0"
 fastapi = "^0.103.1"
 pydantic = "1.10"
 uvicorn = "^0.23.2"
 beautifulsoup4 = "^4.12.2"
 weaviate-client = "^3.23.2"
-psycopg2 = "^2.9.7"
+psycopg2-binary = "^2.9.7"
 lxml = "^4.9.3"
 voyageai = "^0.1.4"
 pillow = "^10.2.0"
-tiktoken = "^0.5.2"
-cohere = "4.45"
 
 
 [tool.poetry.group.lint.dependencies]

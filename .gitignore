@@ -153,3 +153,5 @@ node_modules/
 !.yarn/versions
 
 notebooks
+
+.langgraph-data/

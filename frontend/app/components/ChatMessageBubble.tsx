@@ -3,7 +3,8 @@ import "react-toastify/dist/ReactToastify.css";
 import { emojisplosion } from "emojisplosion";
 import { useState, useRef } from "react";
 import * as DOMPurify from "dompurify";
-import { SourceBubble, Source } from "./SourceBubble";
+import { Renderer, marked } from "marked";
+import hljs from "highlight.js";
 import {
   VStack,
   Flex,
@@ -12,29 +13,13 @@ import {
   Box,
   Button,
   Divider,
-  Spacer,
 } from "@chakra-ui/react";
-import { sendFeedback } from "../utils/sendFeedback";
-import { apiBaseUrl } from "../utils/constants";
-import { InlineCitation } from "./InlineCitation";
 
-export type Message = {
-  id: string;
-  createdAt?: Date;
-  content: string;
-  role: "system" | "user" | "assistant" | "function";
-  runId?: string;
-  sources?: Source[];
-  name?: string;
-  function_call?: { name: string };
-};
-export type Feedback = {
-  feedback_id: string;
-  run_id: string;
-  key: string;
-  score: number;
-  comment?: string;
-};
+import { SourceBubble } from "./SourceBubble";
+import { Message, Source, Feedback } from "../types";
+import { sendFeedback } from "../utils/sendFeedback";
+import { RESPONSE_FEEDBACK_KEY, SOURCE_CLICK_KEY } from "../utils/constants";
+import { InlineCitation } from "./InlineCitation";
 
 const filterSources = (sources: Source[]) => {
   const filtered: Source[] = [];
@@ -57,6 +42,30 @@ const filterSources = (sources: Source[]) => {
   return { filtered, indexMap };
 };
 
+const getMarkedRenderer = () => {
+  let renderer = new Renderer();
+  renderer.paragraph = (text) => {
+    return text + "\n";
+  };
+  renderer.list = (text) => {
+    return `${text}\n\n`;
+  };
+  renderer.listitem = (text) => {
+    return `\n• ${text}`;
+  };
+  renderer.code = (code, language) => {
+    const validLanguage = hljs.getLanguage(language || "")
+      ? language
+      : "plaintext";
+    const highlightedCode = hljs.highlight(
+      validLanguage || "plaintext",
+      code,
+    ).value;
+    return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; display: block; line-height: 1.2"><code class="${language}" style="color: #d6e2ef; font-size: 12px; ">${highlightedCode}</code></pre>`;
+  };
+  return renderer;
+};
+
 const createAnswerElements = (
   content: string,
   filteredSources: Source[],
@@ -70,6 +79,9 @@ const createAnswerElements = (
   const elements: JSX.Element[] = [];
   let prevIndex = 0;
 
+  const renderer = getMarkedRenderer();
+  marked.setOptions({ renderer });
+
   matches.forEach((match) => {
     const sourceNum = parseInt(match[1], 10);
     const resolvedNum = sourceIndexMap.get(sourceNum) ?? 10;
@@ -78,7 +90,9 @@ const createAnswerElements = (
         <span
           key={`content:${prevIndex}`}
           dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(content.slice(prevIndex, match.index)),
+            __html: DOMPurify.sanitize(
+              marked.parse(content.slice(prevIndex, match.index)).trimEnd(),
+            ),
           }}
         ></span>,
       );
@@ -105,7 +119,9 @@ const createAnswerElements = (
     <span
       key={`content:${prevIndex}`}
       dangerouslySetInnerHTML={{
-        __html: DOMPurify.sanitize(content.slice(prevIndex)),
+        __html: DOMPurify.sanitize(
+          marked.parse(content.slice(prevIndex)).trimEnd(),
+        ),
       }}
     ></span>,
   );
@@ -114,17 +130,18 @@ const createAnswerElements = (
 
 export function ChatMessageBubble(props: {
   message: Message;
+  feedbackUrls?: Record<string, string>;
   aiEmoji?: string;
   isMostRecent: boolean;
   messageCompleted: boolean;
 }) {
-  const { role, content, runId } = props.message;
-  const isUser = role === "user";
+  const { type, content } = props.message;
+  const responseFeedbackUrl = props.feedbackUrls?.[RESPONSE_FEEDBACK_KEY];
+  const sourceFeedbackUrl = props.feedbackUrls?.[SOURCE_CLICK_KEY];
+  const isUser = type === "human";
   const [isLoading, setIsLoading] = useState(false);
-  const [traceIsLoading, setTraceIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [comment, setComment] = useState("");
-  const [feedbackColor, setFeedbackColor] = useState("");
   const upButtonRef = useRef(null);
   const downButtonRef = useRef(null);
 
@@ -143,9 +160,8 @@ export function ChatMessageBubble(props: {
     };
   };
 
-  const sendUserFeedback = async (score: number, key: string) => {
-    let run_id = runId;
-    if (run_id === undefined) {
+  const sendUserFeedback = async (score: number) => {
+    if (responseFeedbackUrl === undefined) {
       return;
     }
     if (isLoading) {
@@ -154,15 +170,14 @@ export function ChatMessageBubble(props: {
     setIsLoading(true);
     try {
       const data = await sendFeedback({
+        feedbackUrl: responseFeedbackUrl,
         score,
-        runId: run_id,
-        key,
         feedbackId: feedback?.feedback_id,
         comment,
         isExplicit: true,
       });
       if (data.code === 200) {
-        setFeedback({ run_id, score, key, feedback_id: data.feedbackId });
+        setFeedback({ score, feedback_id: data.feedbackId });
         score == 1 ? animateButton("upButton") : animateButton("downButton");
         if (comment) {
           setComment("");
@@ -173,35 +188,6 @@ export function ChatMessageBubble(props: {
       toast.error(e.message);
     }
     setIsLoading(false);
-  };
-  const viewTrace = async () => {
-    try {
-      setTraceIsLoading(true);
-      const response = await fetch(apiBaseUrl + "/get_trace", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          run_id: runId,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.code === 400) {
-        toast.error("Unable to view trace");
-        throw new Error("Unable to view trace");
-      } else {
-        const url = data.replace(/['"]+/g, "");
-        window.open(url, "_blank");
-        setTraceIsLoading(false);
-      }
-    } catch (e: any) {
-      console.error("Error:", e);
-      setTraceIsLoading(false);
-      toast.error(e.message);
-    }
   };
 
   const sources = props.message.sources ?? [];
@@ -214,7 +200,7 @@ export function ChatMessageBubble(props: {
     filteredSources.map(() => false),
   );
   const answerElements =
-    role === "assistant"
+    type === "ai"
       ? createAnswerElements(
           content,
           filteredSources,
@@ -286,7 +272,7 @@ export function ChatMessageBubble(props: {
                           filteredSources.map(() => false),
                         )
                       }
-                      runId={runId}
+                      feedbackUrl={sourceFeedbackUrl}
                     />
                   </Box>
                 ))}
@@ -310,7 +296,7 @@ export function ChatMessageBubble(props: {
         </Box>
       )}
 
-      {props.message.role !== "user" &&
+      {props.message.type !== "human" &&
         props.isMostRecent &&
         props.messageCompleted && (
           <HStack spacing={2}>
@@ -320,10 +306,9 @@ export function ChatMessageBubble(props: {
               variant="outline"
               colorScheme={feedback === null ? "green" : "gray"}
               onClick={() => {
-                if (feedback === null && props.message.runId) {
-                  sendUserFeedback(1, "user_score");
+                if (feedback === null && responseFeedbackUrl) {
+                  sendUserFeedback(1);
                   animateButton("upButton");
-                  setFeedbackColor("border-4 border-green-300");
                 } else {
                   toast.error("You have already provided your feedback.");
                 }
@@ -337,31 +322,15 @@ export function ChatMessageBubble(props: {
               variant="outline"
               colorScheme={feedback === null ? "red" : "gray"}
               onClick={() => {
-                if (feedback === null && props.message.runId) {
-                  sendUserFeedback(0, "user_score");
+                if (feedback === null && responseFeedbackUrl) {
+                  sendUserFeedback(0);
                   animateButton("downButton");
-                  setFeedbackColor("border-4 border-red-300");
                 } else {
                   toast.error("You have already provided your feedback.");
                 }
               }}
             >
               👎
-            </Button>
-            <Spacer />
-            <Button
-              size="sm"
-              variant="outline"
-              colorScheme={runId === null ? "blue" : "gray"}
-              onClick={(e) => {
-                e.preventDefault();
-                viewTrace();
-              }}
-              isLoading={traceIsLoading}
-              loadingText="🔄"
-              color="white"
-            >
-              🦜🛠️ View trace
             </Button>
           </HStack>
         )}
