@@ -199,8 +199,10 @@ def retrieve_documents_with_chat_history(state: AgentState) -> AgentState:
     messages = convert_to_messages(state["messages"])
     query = messages[-1].content
     retriever_with_condensed_question = condense_question_chain | retriever
+    # NOTE: we're ignoring the last message here, as it's going to contain the most recent
+    # query and we don't want that to be included in the chat history
     relevant_documents = retriever_with_condensed_question.invoke(
-        {"question": query, "chat_history": get_chat_history(messages)}
+        {"question": query, "chat_history": get_chat_history(messages[:-1])}
     )
     return {"query": query, "documents": relevant_documents}
 
@@ -241,7 +243,11 @@ def synthesize_response(
         {
             "question": state["query"],
             "context": format_docs(state["documents"]),
-            "chat_history": get_chat_history(convert_to_messages(state["messages"])),
+            # NOTE: we're ignoring the last message here, as it's going to contain the most recent
+            # query and we don't want that to be included in the chat history
+            "chat_history": get_chat_history(
+                convert_to_messages(state["messages"][:-1])
+            ),
         }
     )
     return {
