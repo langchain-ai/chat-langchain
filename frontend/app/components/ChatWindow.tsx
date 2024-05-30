@@ -3,8 +3,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Renderer, marked } from "marked";
-import hljs from "highlight.js";
 import "highlight.js/styles/gradient-dark.css";
 import "react-toastify/dist/ReactToastify.css";
 import {
@@ -34,10 +32,7 @@ import { useLangGraphClient } from "../hooks/useLangGraphClient";
 import { useStreamState } from "../hooks/useStreamState";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 
-const MODEL_TYPES = [
-  "openai_gpt_3_5_turbo",
-  "anthropic_claude_3_haiku",
-];
+const MODEL_TYPES = ["openai_gpt_3_5_turbo", "anthropic_claude_3_haiku"];
 
 const defaultLlmValue =
   MODEL_TYPES[Math.floor(Math.random() * MODEL_TYPES.length)];
@@ -156,27 +151,6 @@ export function ChatWindow() {
     setMessages((prevMessages) => [...prevMessages, formattedMessage]);
     setIsLoading(true);
 
-    let renderer = new Renderer();
-    renderer.paragraph = (text) => {
-      return text + "\n";
-    };
-    renderer.list = (text) => {
-      return `${text}\n\n`;
-    };
-    renderer.listitem = (text) => {
-      return `\n• ${text}`;
-    };
-    renderer.code = (code, language) => {
-      const validLanguage = hljs.getLanguage(language || "")
-        ? language
-        : "plaintext";
-      const highlightedCode = hljs.highlight(
-        validLanguage || "plaintext",
-        code,
-      ).value;
-      return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; display: block; line-height: 1.2"><code class="${language}" style="color: #d6e2ef; font-size: 12px; ">${highlightedCode}</code></pre>`;
-    };
-    marked.setOptions({ renderer });
     try {
       await renameThread(messageValue);
       await startStream(
@@ -280,7 +254,7 @@ export function ChatWindow() {
           height={"100%"}
         >
           {areMessagesLoading ? (
-            <Spinner className="my-2"/>
+            <Spinner className="my-2" />
           ) : (
             <Flex
               direction={"column"}

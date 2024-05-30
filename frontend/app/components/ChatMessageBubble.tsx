@@ -3,8 +3,8 @@ import "react-toastify/dist/ReactToastify.css";
 import { emojisplosion } from "emojisplosion";
 import { useState, useRef } from "react";
 import * as DOMPurify from "dompurify";
-import { SourceBubble } from "./SourceBubble";
-import { Message, Source, Feedback } from "../types";
+import { Renderer, marked } from "marked";
+import hljs from "highlight.js";
 import {
   VStack,
   Flex,
@@ -14,6 +14,9 @@ import {
   Button,
   Divider,
 } from "@chakra-ui/react";
+
+import { SourceBubble } from "./SourceBubble";
+import { Message, Source, Feedback } from "../types";
 import { sendFeedback } from "../utils/sendFeedback";
 import { RESPONSE_FEEDBACK_KEY, SOURCE_CLICK_KEY } from "../utils/constants";
 import { InlineCitation } from "./InlineCitation";
@@ -39,6 +42,30 @@ const filterSources = (sources: Source[]) => {
   return { filtered, indexMap };
 };
 
+const getMarkedRenderer = () => {
+  let renderer = new Renderer();
+  renderer.paragraph = (text) => {
+    return text + "\n";
+  };
+  renderer.list = (text) => {
+    return `${text}\n\n`;
+  };
+  renderer.listitem = (text) => {
+    return `\n• ${text}`;
+  };
+  renderer.code = (code, language) => {
+    const validLanguage = hljs.getLanguage(language || "")
+      ? language
+      : "plaintext";
+    const highlightedCode = hljs.highlight(
+      validLanguage || "plaintext",
+      code,
+    ).value;
+    return `<pre class="highlight bg-gray-700" style="padding: 5px; border-radius: 5px; overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; display: block; line-height: 1.2"><code class="${language}" style="color: #d6e2ef; font-size: 12px; ">${highlightedCode}</code></pre>`;
+  };
+  return renderer;
+};
+
 const createAnswerElements = (
   content: string,
   filteredSources: Source[],
@@ -52,6 +79,9 @@ const createAnswerElements = (
   const elements: JSX.Element[] = [];
   let prevIndex = 0;
 
+  const renderer = getMarkedRenderer();
+  marked.setOptions({ renderer });
+
   matches.forEach((match) => {
     const sourceNum = parseInt(match[1], 10);
     const resolvedNum = sourceIndexMap.get(sourceNum) ?? 10;
@@ -60,7 +90,9 @@ const createAnswerElements = (
         <span
           key={`content:${prevIndex}`}
           dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(content.slice(prevIndex, match.index)),
+            __html: DOMPurify.sanitize(
+              marked.parse(content.slice(prevIndex, match.index)).trim(),
+            ),
           }}
         ></span>,
       );
@@ -87,7 +119,9 @@ const createAnswerElements = (
     <span
       key={`content:${prevIndex}`}
       dangerouslySetInnerHTML={{
-        __html: DOMPurify.sanitize(content.slice(prevIndex)),
+        __html: DOMPurify.sanitize(
+          marked.parse(content.slice(prevIndex)).trim(),
+        ),
       }}
     ></span>,
   );

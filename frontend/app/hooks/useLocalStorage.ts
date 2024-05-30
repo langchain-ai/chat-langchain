@@ -6,7 +6,7 @@ export function useLocalStorage(key: string, initialValue: StoredValue) {
   const [storedValue, setStoredValue] = useState(() => {
     try {
       if (typeof window === "undefined") {
-        return
+        return;
       }
 
       const item = window.localStorage.getItem(key);
@@ -19,7 +19,7 @@ export function useLocalStorage(key: string, initialValue: StoredValue) {
   const setValue = (value: StoredValue) => {
     try {
       if (typeof window === "undefined") {
-        return
+        return;
       }
 
       setStoredValue(value);
