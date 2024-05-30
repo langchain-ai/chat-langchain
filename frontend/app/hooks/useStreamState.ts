@@ -14,14 +14,14 @@ export interface StreamState {
 }
 
 export interface StreamStateProps {
-  streamState: StreamState | null;
+  streamStates: { [threadId: string]: StreamState | null };
   startStream: (
     input: Message[] | null,
     threadId: string,
     assistantId: string,
     config?: Config,
   ) => Promise<void>;
-  stopStream?: (clear?: boolean) => void;
+  stopStream?: (threadId: string, clear?: boolean) => void;
 }
 
 export function mergeMessagesById(
@@ -44,7 +44,9 @@ export function mergeMessagesById(
 }
 
 export function useStreamState(): StreamStateProps {
-  const [current, setCurrent] = useState<StreamState | null>(null);
+  const [streamStates, setStreamStates] = useState<
+    StreamStateProps["streamStates"]
+  >({});
   const [controller, setController] = useState<AbortController | null>(null);
   const client = useLangGraphClient();
 
@@ -57,7 +59,10 @@ export function useStreamState(): StreamStateProps {
     ) => {
       const controller = new AbortController();
       setController(controller);
-      setCurrent({ status: "inflight", messages: messages || [] });
+      setStreamStates((streamStates) => ({
+        ...streamStates,
+        [threadId]: { status: "inflight", messages: messages || [] },
+      }));
 
       const stream = client.runs.stream(threadId, assistantId, {
         input: messages == null ? null : { messages },
@@ -70,33 +75,51 @@ export function useStreamState(): StreamStateProps {
       for await (const chunk of stream) {
         if (chunk.event === "messages/partial") {
           const chunkMessages = chunk.data as Message[];
-          setCurrent((current) => ({
-            ...current,
-            status: "inflight",
-            messages: mergeMessagesById(current?.messages, chunkMessages),
+          setStreamStates((streamStates) => ({
+            ...streamStates,
+            [threadId]: {
+              ...streamStates[threadId],
+              status: "inflight",
+              messages: mergeMessagesById(
+                streamStates[threadId]?.messages,
+                chunkMessages,
+              ),
+            },
           }));
         } else if (chunk.event === "values") {
           const data = chunk.data as Record<string, any>;
-          setCurrent((current) => ({
-            ...current,
-            status: "inflight",
-            documents: data["documents"],
+          setStreamStates((streamStates) => ({
+            ...streamStates,
+            [threadId]: {
+              ...streamStates[threadId],
+              status: "inflight",
+              documents: data["documents"],
+            },
           }));
         } else if (chunk.event === "error") {
-          setCurrent((current) => ({
-            ...current,
-            status: "error",
+          setStreamStates((streamStates) => ({
+            ...streamStates,
+            [threadId]: {
+              ...streamStates[threadId],
+              status: "error",
+            },
           }));
         } else if (chunk.event === "feedback") {
-          setCurrent((current) => ({
-            ...current,
-            feedbackUrls: chunk.data,
-            status: "inflight",
+          setStreamStates((streamStates) => ({
+            ...streamStates,
+            [threadId]: {
+              ...streamStates[threadId],
+              feedbackUrls: chunk.data,
+              status: "inflight",
+            },
           }));
         } else if (chunk.event === "end") {
-          setCurrent((current) => ({
-            ...current,
-            status: "done",
+          setStreamStates((streamStates) => ({
+            ...streamStates,
+            [threadId]: {
+              ...streamStates[threadId],
+              status: "done",
+            },
           }));
         }
       }
@@ -105,17 +128,23 @@ export function useStreamState(): StreamStateProps {
   );
 
   const stopStream = useCallback(
-    (clear: boolean = false) => {
+    (threadId: string, clear: boolean = false) => {
       controller?.abort();
       setController(null);
       if (clear) {
-        setCurrent({
-          status: "done",
-        });
+        setStreamStates((streamStates) => ({
+          ...streamStates,
+          [threadId]: {
+            status: "done",
+          },
+        }));
       } else {
-        setCurrent((current) => ({
-          ...current,
-          status: "done",
+        setStreamStates((streamStates) => ({
+          ...streamStates,
+          [threadId]: {
+            ...streamStates[threadId],
+            status: "done",
+          },
         }));
       }
     },
@@ -125,6 +154,6 @@ export function useStreamState(): StreamStateProps {
   return {
     startStream,
     stopStream,
-    streamState: current,
+    streamStates,
   };
 }

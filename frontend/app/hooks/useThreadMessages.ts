@@ -35,7 +35,7 @@ export function getSources(documents: Document[]) {
 export function useThreadMessages(
   threadId: string | null,
   streamState: StreamState | null,
-  stopStream?: (clear?: boolean) => void,
+  stopStream?: (threadId: string, clear?: boolean) => void,
 ) {
   const client = useLangGraphClient();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -82,7 +82,7 @@ export function useThreadMessages(
         );
         setMessages(messages);
         setNext(next);
-        stopStream?.(true);
+        stopStream?.(threadId, true);
       }
     }
 

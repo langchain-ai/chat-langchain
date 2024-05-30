@@ -76,7 +76,11 @@ export function ChatWindow() {
     loadMoreThreads,
     areThreadsLoading,
   } = useThreadList(userId);
-  const { streamState, startStream, stopStream } = useStreamState();
+  const { streamStates, startStream, stopStream } = useStreamState();
+  const streamState =
+    currentThread == null
+      ? null
+      : streamStates[currentThread.thread_id] ?? null;
   const { refreshMessages, messages, setMessages, next, areMessagesLoading } =
     useThreadMessages(
       currentThread?.thread_id ?? null,
@@ -203,10 +207,6 @@ export function ChatWindow() {
 
   const selectThread = useCallback(
     async (id: string | null) => {
-      if (currentThread) {
-        stopStream?.(true);
-      }
-
       if (!id) {
         const thread = await createThread("New chat");
         insertUrlParam("threadId", thread["thread_id"]);
@@ -214,7 +214,7 @@ export function ChatWindow() {
         insertUrlParam("threadId", id);
       }
     },
-    [currentThread, stopStream, setMessages, createThread, insertUrlParam],
+    [setMessages, createThread, insertUrlParam],
   );
 
   const deleteThreadAndReset = async (id: string) => {
@@ -338,11 +338,11 @@ export function ChatWindow() {
                 className="flex flex-col-reverse w-full mb-2 overflow-auto max-h-[75vh]"
                 ref={messageContainerRef}
               >
-                {messages.length > 0 ? (
+                {messages.length > 0 && currentThread != null ? (
                   <>
                     {next.length > 0 &&
-                      streamState?.status !== "inflight" &&
-                      currentThread != null && (
+                      streamStates[currentThread.thread_id]?.status !==
+                        "inflight" && (
                         <Button
                           key={"continue-button"}
                           backgroundColor={"rgb(58, 58, 61)"}
@@ -359,7 +359,9 @@ export function ChatWindow() {
                       <ChatMessageBubble
                         key={m.id}
                         message={{ ...m }}
-                        feedbackUrls={streamState?.feedbackUrls}
+                        feedbackUrls={
+                          streamStates[currentThread.thread_id]?.feedbackUrls
+                        }
                         aiEmoji="🦜"
                         isMostRecent={index === 0}
                         messageCompleted={!isLoading}
@@ -403,8 +405,12 @@ export function ChatWindow() {
                     type="submit"
                     onClick={(e) => {
                       e.preventDefault();
+                      if (currentThread == null) {
+                        return;
+                      }
+
                       if (isLoading) {
-                        stopStream?.();
+                        stopStream?.(currentThread.thread_id);
                       } else {
                         sendMessage();
                       }
