@@ -83,7 +83,7 @@ export function useThreadList(userId: string): ThreadListProps {
   }, []);
 
   const updateThread = useCallback(async (thread_id: string, name: string) => {
-    const saved = await client.threads.upsert(thread_id, {
+    const saved = await client.threads.update(thread_id, {
       metadata: { name, userId },
     });
     dispatch({ type: "add", threads: [saved] });
