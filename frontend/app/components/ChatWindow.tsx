@@ -405,11 +405,8 @@ export function ChatWindow() {
                     type="submit"
                     onClick={(e) => {
                       e.preventDefault();
-                      if (currentThread == null) {
-                        return;
-                      }
 
-                      if (isLoading) {
+                      if (currentThread != null && isLoading) {
                         stopStream?.(currentThread.thread_id);
                       } else {
                         sendMessage();
