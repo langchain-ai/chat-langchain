@@ -39,7 +39,7 @@ def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
 
 def load_langchain_docs():
     return SitemapLoader(
-        "https://python.langchain.com/sitemap.xml",
+        "https://python.langchain.com/v0.2/sitemap.xml",
         filter_urls=["https://python.langchain.com/"],
         parsing_function=langchain_docs_extractor,
         default_parser="lxml",
