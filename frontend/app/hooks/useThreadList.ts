@@ -67,7 +67,7 @@ export function useThreadList(userId: string): ThreadListProps {
     }
 
     fetchThreads();
-  }, [offset]);
+  }, [offset, userId]);
 
   const loadMoreThreads = useCallback(() => {
     if (areThreadsLoading) {
@@ -80,7 +80,7 @@ export function useThreadList(userId: string): ThreadListProps {
     const saved = await client.threads.create({ metadata: { name, userId } });
     dispatch({ type: "add", threads: [saved] });
     return saved;
-  }, []);
+  }, [userId]);
 
   const updateThread = useCallback(async (thread_id: string, name: string) => {
     const saved = await client.threads.update(thread_id, {
@@ -88,7 +88,7 @@ export function useThreadList(userId: string): ThreadListProps {
     });
     dispatch({ type: "add", threads: [saved] });
     return saved;
-  }, []);
+  }, [userId]);
 
   const deleteThread = useCallback(
     async (thread_id: string) => {
