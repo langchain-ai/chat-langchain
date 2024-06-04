@@ -4,7 +4,7 @@ from typing import Annotated, Literal, Sequence, TypedDict
 import weaviate
 from langchain_anthropic import ChatAnthropic
 from langchain_cohere import ChatCohere
-from langchain_community.vectorstores import Weaviate
+from langchain_weaviate import WeaviateVectorStore
 from langchain_core.documents import Document
 from langchain_core.language_models import LanguageModelLike
 from langchain_core.messages import (
@@ -158,7 +158,7 @@ def get_retriever() -> BaseRetriever:
             api_key=os.environ.get("WEAVIATE_API_KEY", "not_provided")
         ),
     )
-    weaviate_client = Weaviate(
+    weaviate_client = WeaviateVectorStore(
         client=weaviate_client,
         index_name=WEAVIATE_DOCS_INDEX_NAME,
         text_key="text",
