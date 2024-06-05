@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Question bot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;700&family=Open+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <!-- TODO: move styles here => <link rel="stylesheet" href="../assets/style.css"> --> 
+    <style>
+        /* TODO move out to asset/style.css */
+
+
+        
+        /* utililty for screen reader only text */
+        .sr-only:not(:focus):not(:active) {
+            clip: rect(0 0 0 0);
+            clip-path: inset(50%);
+            height: 1px;
+            overflow: hidden;
+            position: absolute;
+            white-space: nowrap;
+            width: 1px;
+        }
+
+        :root {
+            --black-full: #000000;
+            --black: #212121;
+            --white: #eeeeee;
+            --gray-brand: #393e46;
+            --gray-2: #3b3b3b;
+            --gray-1: #505050;
+            --gray-0: #8d8b8b;
+            --gradient-1: linear-gradient(to right, var(--brand-mid), var(--brand-color) 30%);
+
+            --brand-color: #4ecca3;
+            --brand-color-darker: #4abc93;
+
+            --brand-mid: #41a581;
+            --brand-dark: #317a5e;
+
+            --box-shadow-1: 0px 4px 16px -6px rgba(0, 0, 0, 1);
+            --box-shadow-2: 10px 14px 21px -9px rgba(0, 0, 0, 0.95);
+            --box-shadow-3: 0px 4px 16px -6px rgba(0, 0, 0, 0.35);
+
+            
+            --validation-success-color: var(--brand-mid);
+            --validation-error-color: rgb(247, 119, 97); /* change this */
+
+            --inset-border: inset 0 0 0 3px;
+            --inset-border-thin: inset 0 0 0 1px;
+
+            --font-family: font-family: 'Open Sans', sans-serif;
+        }
+
+        html {
+            box-sizing: border-box;
+        }
+
+        *, *::before, *::after {
+            box-sizing: inherit;
+        }
+
+        body, html {
+            min-height: 100vh;
+            /* border: 1px solid pink; */
+            padding: 0;
+            margin:0;
+            background-color: var(--black);
+        }
+
+        body {
+            font-family: var(--font-family);
+            display: flex;
+            flex-flow: column nowrap;
+        }
+
+        .helper-nav {
+            padding: 1rem;
+            background-color: var(--brand-color);
+            background: var(--gradient-1);
+            box-shadow: var(--box-shadow-1);
+
+        }
+        .helper-logo {
+            width: 100px;
+        }
+
+        .helper-header {
+            padding: 1.5rem 1rem 1rem;
+        }
+
+        .helper-header__logo-icon {
+            width: 50px;
+            margin: 1rem auto;
+            opacity: 0.4;
+
+        }
+        .helper-header__logo-icon svg {
+            fill: var(--white);
+        }
+
+        .helper-content {
+            box-shadow: var(--box-shadow-1);
+            
+            width: 90%;
+            max-width: 800px;
+            margin: 0 auto;
+            
+        }
+
+        .chat-body {
+            width: 100%;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-top: 2rem;
+            padding-bottom: 9rem;
+
+        }
+
+        .card-body {
+            background-color: var(--gray-1);
+            color: #fff;
+            border-radius: 10px;
+        }
+
+        .helper-heading {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .helper-input-controls {
+            padding-top: 1rem;
+            margin-top: 1rem;
+            border-top: 1px solid var(--gray-0);
+
+            /* TODO: ? this could suit being fixed at the bottom - maybe even just for mobile */
+        }
+
+        .helper-messaging-form {
+            padding-top: 1rem;
+        }
+
+        .helper-input-controls__input-wrapper {
+            margin-bottom: 1rem;
+        }
+        .helper-input-controls__input-label {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-size: 18px;
+        }
+
+        .helper-input-controls__input-wrapper input {
+            width: 100%;
+            font-size: 16px; /* keep to min 16 to stop zoom in on iOS */ 
+            box-shadow: var(--inset-border-thin) var(--white);
+        }
+        .helper-input-controls__input-wrapper input:focus {
+            outline: none; /* a11y ok as it's replaced below */
+            box-shadow: var(--inset-border) var(--brand-color);
+        }
+
+
+        .helper__submit-btn {
+            font-weight: bold;
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 3px;
+            background-color: var(--brand-color-darker);
+            transition: background-color 0.2s ease-out;
+        }
+        .helper__submit-btn:focus {
+            outline: none; /* a11y ok as it's replaced below */
+            box-shadow: var(--inset-border) var(--white);
+        }
+        .helper__submit-btn:hover {
+            background-color: var(--brand-color);
+        }
+        .helper__submit-btn:active {
+            background-color: var(--brand-mid);
+        }
+        .helper__submit-btn:disabled {
+            background-color: var(--brand-dark);
+        }
+
+        @media screen and (min-width: 50rem) {
+            
+            .helper-input-controls {
+                display: flex;
+                align-items: stretch;
+                gap: 0.5rem;
+            }
+            .helper__submit-btn {
+                height: 100%;
+            }
+
+            .helper-input-controls__input-wrapper {
+                flex: 1;
+                margin: 0;
+            }
+            .helper-input-controls__input-wrapper input {
+                margin: 0;
+            }
+
+            .helper-input-controls__actions {
+                min-width: 7rem;   
+            }
+        }
+
+        .client-message,
+        .server-message,
+        .source-message {
+            width: 85%;
+            padding: 1rem 1.2rem;
+            margin-bottom: 1rem;
+            border-radius: 10px;
+        }
+
+        .client-message {
+            background-color: var(--brand-dark);
+        }
+
+        .server-message,
+        .source-message {
+            transform: translateX(1rem);
+        }
+
+        .server-message {
+            position: relative;
+            background-color: var(--black);
+        }
+
+        .source-message::after,
+        .server-message::after {
+            content: '';
+            display: block;
+            position: absolute;
+            top: -12px;
+            left: 8px;
+            width: 18px;
+            height: 18px;
+            border-left: 16px solid transparent;
+            border-right: 16px solid transparent;
+            border-bottom: 16px solid var(--black);
+        }
+
+        .source-message::after {
+            border-bottom-color: #444;
+        }
+
+        .source-message {
+            position: relative;
+            background-color: #444;
+        }
+
+        .source-item {
+            font-size: small;
+            font-style: italic;
+        }
+
+        .form-inline {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .form-control {
+            width: 80%;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 10px;
+            margin-right: 10px;
+        }
+
+        #send {
+            /* background-color: #4C4CFF;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 20px; */
+        }
+
+        .form-message {
+            margin-top: 10px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    <script>
+        var endpoint = "wss://opio-chat.fly.dev/chat";
+        ///^^^^^ Need to turn that into an environment variable! ^^^^^
+        var ws = new WebSocket(endpoint);
+        // Receive message from server word by word. Display the words as they are received.
+        ws.onmessage = function (event) {
+            var messages = document.getElementById('messages');
+            var data = JSON.parse(event.data);
+            if (data.sender === "bot") {
+                if (data.type === "start") {
+                    var header = document.getElementById('header');
+                    header.innerHTML = "Computing answer...";
+                    var div = document.createElement('div');
+                    div.className = 'server-message';
+                    var p = document.createElement('p');
+                    p.innerHTML = "<strong>" + "Chatbot: " + "</strong>";
+                    div.appendChild(p);
+                    messages.appendChild(div);
+                } else if (data.type === "stream") {
+                    var header = document.getElementById('header');
+                    header.innerHTML = "Chatbot is typing...";
+                    var p = messages.lastChild.lastChild;
+                    if (data.message === "\n") {
+                        p.innerHTML += "<br>";
+                    } else {
+                        p.innerHTML += data.message;
+                    }
+                } else if (data.type === "info") {
+                    var header = document.getElementById('header');
+                    header.innerHTML = data.message;
+                } else if (data.type === "end") {
+                    console.log(data);
+                    //Write the source of the answer
+                    var div = document.createElement('div');
+                    div.className = 'source-message';
+                    var p = document.createElement('p');
+                    p.innerHTML = "<strong>" + "Sources: " + "</strong>";
+                    div.appendChild(p);
+                    messages.appendChild(div);
+                    console.log(data.sources);
+
+                    _.forEach(data.sources, (item) => {
+                        console.log('Page Content:');
+                        console.log(item.page_content);
+                        console.log('\nMeta Data:');
+
+                        var sourceDiv = document.createElement('div');
+                        sourceDiv.className = 'group cursor-pointer relative inline-block text-left w-full italic text-sm';
+                        sourceDiv.innerHTML = item.meta_data.file_path + " - page(" + item.meta_data.page_number + ")";
+
+                        // TODO - once working we won't need the tooltips as the content will already be no page
+                        // leaving in for now to ensure it's the same text
+                        var tooltipDiv = document.createElement('div');
+                        tooltipDiv.className = 'opacity-0 bg-black text-white text-center text-xs rounded-lg py-2 absolute z-100 group-hover:opacity-100 bottom-full px-3 pointer-events-none';
+                        tooltipDiv.innerHTML = item.page_content;
+                        
+                        // New sidebar content here
+                        var sourceContentForSidebar = document.createElement('div');
+                        sourceContentForSidebar.innerHTML = item.page_content;
+                        var sourceSidebar = document.getElementById('sources-sidebar');
+                        sourceSidebar.appendChild(sourceContentForSidebar);
+                        // might have to do this on click per section? depends how long
+                        // not sure if content comes in p tags or if we'll need to break it up and add them
+
+                        sourceDiv.appendChild(tooltipDiv);
+                        div.appendChild(sourceDiv);
+
+                        _.forEach(item.meta_data, (value, key) => {
+                            console.log(`${key}: ${value}`);
+                        });
+
+                        console.log('\n----------------------\n');
+                    });
+                    p.innerHTML += data.message;
+
+                    var header = document.getElementById('header');
+                    header.innerHTML = "Ask a question";
+                    var button = document.getElementById('send');
+                    button.innerHTML = "Ask";
+                    button.disabled = false;
+                } else if (data.type === "error") {
+                    console.log(data);
+                    var header = document.getElementById('header');
+                    header.innerHTML = "Ask a question";
+                    var button = document.getElementById('send');
+                    button.innerHTML = "Ask";
+                    button.disabled = false;
+                    var p = messages.lastChild.lastChild;
+
+                    p.innerHTML += data.message;
+                }
+            } else {
+                var div = document.createElement('div');
+                div.className = 'client-message';
+                var p = document.createElement('p');
+                p.innerHTML = "<strong>" + "You: " + "</strong>";
+                p.innerHTML += data.message;
+                div.appendChild(p);
+                messages.appendChild(div);
+            }
+            // Scroll to the bottom of the chat
+            messages.scrollTop = messages.scrollHeight;
+        };
+        // Send message to server
+        function sendMessage(event) {
+            event.preventDefault();
+            var message = document.getElementById('messageText').value;
+            if (message === "") {
+                return;
+            }
+            ws.send(message);
+            document.getElementById('messageText').value = "";
+
+            // Turn the button into a loading button
+            var button = document.getElementById('send');
+            button.innerHTML = "Loading...";
+            button.disabled = true;
+        }
+    </script>
+</head>
+
+<body>
+    <nav class="helper-nav">
+        <svg class="helper-logo" id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3000 926.64"><defs><style>.cls-1{fill:#393e46;}.cls-2{fill:#eee;}</style></defs><g id="SvgjsG2224"><path class="cls-1" d="M486.49,81.08,81.08,312.74V776.06l405.41,231.66L891.78,776.13l.11-.18V312.74Zm0,89.18L774.79,335l-78,44.57L486.49,259.42,276.21,379.59l-78-44.61ZM657.86,446.48V597.74L525.51,522.16V370.89Zm-210.4-75.59V522.13l-132.31,75.6V446.48Zm0,525.37L159.09,731.49V401.84l78,44.57V686.88L447.46,807.1ZM354.1,664.6,486.45,589,618.83,664.6,486.49,740.2Zm459.78,66.89L525.51,896.26V807.1L735.87,686.93V446.41l78-44.57V731.49Z" transform="translate(-81.08 -81.08)"/></g><g id="SvgjsG2225"><path class="cls-2" d="M1151.86,235.14V420.41h2.06a122.91,122.91,0,0,1,104.7-59.23q68.18,0,98.83,34.44t30.65,108.82V726.91h-97.8V524.42q0-43.39-14.12-64.75t-48.56-21.35q-39.25,0-57.51,23.76t-18.25,78.18V726.91h-97.81V235.14Zm475.24,126q50.28,0,89.54,23.42t61.65,67.84q22.38,44.43,22.38,102.28,0,5.5-.69,17.91h-256.9q1.37,42.71,22.38,66.46t64.4,23.77a94,94,0,0,0,49.25-13.43q22.38-13.44,28.58-32.72h86.09q-37.87,119.85-166.68,119.84-48.9-.69-90.57-21.35t-66.46-64.4q-24.79-43.72-24.8-101.59,0-54.4,25.14-99.18t66.81-66.81a189.26,189.26,0,0,1,89.88-22Zm75.08,149.46q-6.89-39.94-25.48-57.86t-53-17.9q-35.82,0-56.48,20.31t-24.1,55.45Zm256.22-275.5V726.91h-97.81V235.14Zm277.57,126q73.7,0,117.78,51.66t44.08,139.81q0,80.6-42.36,132.25t-114,51.65q-70.26,0-106.76-53.72h-1.38V852.27h-97.8V370.82h93v45.46h1.38Q2165,361.19,2236,361.18ZM2129.9,549.9q0,52.35,22,82.65t63.37,30.31q42.71,0,63.71-30.31t21-82.65q0-53.73-22.72-84.37t-63.37-30.65q-40.63,0-62.33,30.3t-21.7,84.72ZM2621,361.18q50.28,0,89.54,23.42t61.64,67.84q22.39,44.43,22.39,102.28,0,5.5-.69,17.91H2537q1.38,42.71,22.38,66.46t64.4,23.77A94,94,0,0,0,2673,649.43q22.38-13.44,28.58-32.72h86.1Q2749.78,736.56,2621,736.55q-48.9-.69-90.57-21.35T2464,650.8q-24.79-43.72-24.8-101.59,0-54.4,25.14-99.18t66.81-66.81a189.33,189.33,0,0,1,89.89-22Zm75.07,149.46q-6.89-39.94-25.48-57.86t-53-17.9q-35.8,0-56.47,20.31T2537,510.64Zm363.67-149.46q12.39,0,21.35,3.44v90.92A165.41,165.41,0,0,0,3046,452.1q-96.42,0-96.42,114.33V726.91h-97.81V370.82h93v66.12h1.37a120.6,120.6,0,0,1,45.81-55.1q31.34-20.65,67.84-20.66Z" transform="translate(-81.08 -81.08)"/></g></svg>
+    </nav>
+    <main class="chat-body card">
+        <div class="helper-content card-body p-5">
+            <header class="helper-header">
+                <div class="helper-header__logo-icon">
+                    <svg id="Layer_1" viewBox="0 0 136.57 156.08"><g id="SvgjsG2224"><path d="M80,2,11.72,41v78L80,158l68.26-39,0,0V41Zm0,15,48.56,27.75-13.13,7.5L80,32,44.58,52.24,31.44,44.73Zm28.86,46.53V89L86.57,76.25V50.77ZM73.43,50.77V76.25L51.14,89V63.51Zm0,88.49L24.86,111.51V56L38,63.5V104l35.44,20.25Zm-15.73-39L80,87.51l22.3,12.73L80,113Zm77.44,11.27L86.57,139.26v-15L122,104V63.5L135.14,56v55.52Z" transform="translate(-11.72 -1.96)"/></g></svg>
+                </div>
+                <h1 class="card-title text-center text-xl font-medium helper-heading">
+                    Document Chat
+                </h1>
+                <p class="card-text text-center" id="header">
+                    Ask a question about the documents
+                </p>
+            </header>
+            
+            
+            <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-md">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Column 1 for main messages-->
+                    <div class="bg-blue-100 p-4 rounded-lg">
+                        <div id="messages" class="helper-messages">
+                        </div>
+                    </div>
+                    <!-- Column 2 for sources that were previously shown on hover-->
+                    <div class="bg-green-100 p-4 rounded-lg">
+                        <h2>Sources</h2>
+                        <div id="sources-sidebar" class="bg-black text-white text-left text-xs rounded-lg py-2 bottom-full px-3">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <form action="" class="helper-messaging-form" id="chat-form" onsubmit="sendMessage(event)">
+                <div class="helper-input-controls">
+                    <div class="helper-input-controls__input-wrapper">
+                        <label class="sr-only helper-input-controls__input-label" for="messageText">Your question</label>
+                        <input autofocus type="text" class="form-control" placeholder="Write your question" id="messageText">
+                    </div>
+
+                    <div class="helper-input-controls__actions">
+                        <!--value="What is the policy for offsite backups?"-->
+                        <button id="send" type="submit" class="helper__submit-btn">Ask</button>
+                    </div>
+
+                </div>
+            </form>
+        </div>
+    </main>
+</body>
+
+</html>
