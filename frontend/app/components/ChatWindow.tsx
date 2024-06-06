@@ -329,7 +329,6 @@ export function ChatWindow() {
                           Mixtral (via Fireworks.ai)
                         </option>
                         <option value="cohere_command">Cohere</option>
-                        </option>
                         <option value="groq_llama3">Groq</option>
                       </Select>
                     )}
