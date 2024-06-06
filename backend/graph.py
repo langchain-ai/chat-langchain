@@ -5,6 +5,7 @@ import weaviate
 from langchain_anthropic import ChatAnthropic
 from langchain_cohere import ChatCohere
 from langchain_community.vectorstores import Weaviate
+from langchain_groq import ChatGroq
 from langchain_core.documents import Document
 from langchain_core.language_models import LanguageModelLike
 from langchain_core.messages import (
@@ -102,6 +103,7 @@ ANTHROPIC_MODEL_KEY = "anthropic_claude_3_haiku"
 FIREWORKS_MIXTRAL_MODEL_KEY = "fireworks_mixtral"
 GOOGLE_MODEL_KEY = "google_gemini_pro"
 COHERE_MODEL_KEY = "cohere_command"
+GROQ_MODEL_KEY = "groq_llama3"
 
 
 class AgentState(TypedDict):
@@ -135,6 +137,11 @@ cohere_command = ChatCohere(
     temperature=0,
     cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
 )
+groq_llama3 =  ChatGroq(
+    model_name="llama3-70b-8192",
+    temperature=0,
+    groq_api_key=os.environ.get("GROQ_API_KEY", , "not_provided")
+    )
 llm = gpt_3_5.configurable_alternatives(
     # This gives this field an id
     # When configuring the end runnable, we can then use this id to configure this field
@@ -145,9 +152,10 @@ llm = gpt_3_5.configurable_alternatives(
         FIREWORKS_MIXTRAL_MODEL_KEY: fireworks_mixtral,
         GOOGLE_MODEL_KEY: gemini_pro,
         COHERE_MODEL_KEY: cohere_command,
+        GROQ_MODEL_KEY: groq_llama3,
     },
 ).with_fallbacks(
-    [gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command]
+    [gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command, groq_llama3]
 )
 
 

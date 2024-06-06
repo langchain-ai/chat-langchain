@@ -28,6 +28,9 @@ psycopg2-binary = "^2.9.7"
 lxml = "^4.9.3"
 voyageai = "^0.1.4"
 pillow = "^10.2.0"
+sentence-transformers = "^3.0.0"
+transformers = "^4.34.0"
+torch = "^2.0.0"
 
 
 [tool.poetry.group.lint.dependencies]
