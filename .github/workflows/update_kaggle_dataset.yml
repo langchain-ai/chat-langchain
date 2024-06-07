@@ -1,0 +1,53 @@
+name: Update Kaggle Dataset
+
+on:
+  push:
+    branches:
+      - main  # Change this to your branch if needed
+      - latest  # Include the latest branch if it's different
+
+jobs:
+  update-dataset:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10.x'  # Ensure this matches your environment
+
+      - name: Install Kaggle API
+        run: pip install kaggle
+
+      - name: Configure Kaggle API credentials
+        run: |
+          mkdir -p ~/.kaggle
+          echo '{"username":"${{ secrets.KAGGLE_USERNAME }}","key":"${{ secrets.KAGGLE_KEY }}"}' > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+
+      - name: Create dataset metadata
+        run: |
+          echo '{
+            "title": "chat-langchain forked github repository",
+            "id": "rogermt/chat-langchain-repo",
+            "licenses": [
+              {
+                "name": "CC0-1.0"
+              }
+            ]
+          }' > dataset-metadata.json
+
+      - name: Zip the dataset
+        run: |
+          powershell -Command "cd C:\Users\roger\Github\chat-langchain; if (Test-Path ../chat-langchain-repo.zip) { Remove-Item ../chat-langchain-repo.zip }"
+          powershell -Command "C:\Users\roger\Github\chat-langchain; Compress-Archive -Path * -DestinationPath ../chat-langchain-repo.zip"
+
+      - name: Check if dataset exists and create if not
+        run: |
+          kaggle datasets create -p . || echo "Dataset already exists, continuing to update."
+
+      - name: Update Kaggle Dataset
+        run: kaggle datasets version -p . -m "Updated dataset with new changes"
