@@ -3,8 +3,8 @@ name: Update Kaggle Dataset
 on:
   push:
     branches:
-      - main  # Change this to your branch if needed
-      - latest  # Include the latest branch if it's different
+      - master
+      - feature/add-groq-llm-model
 
 jobs:
   update-dataset:
@@ -17,7 +17,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10.x'  # Ensure this matches your environment
+          python-version: '3.10'  
 
       - name: Install Kaggle API
         run: pip install kaggle
