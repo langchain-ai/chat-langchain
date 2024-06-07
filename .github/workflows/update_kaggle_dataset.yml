@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-      - feature/add-groq-llm-model  # Include your feature branch
+      - feature/add-groq-llm-model
 
 jobs:
   update-dataset:
@@ -31,8 +31,8 @@ jobs:
       - name: Create dataset metadata
         run: |
           echo '{
-            "title": "My New Dataset",
-            "id": "username/my-new-dataset",
+            "title": "chat-langchain forked github repository",
+            "id": "rogermt/chat-langchain-repo",
             "licenses": [
               {
                 "name": "CC0-1.0"
