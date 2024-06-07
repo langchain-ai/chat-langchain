@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-      - feature/add-groq-llm-model
+      - feature/add-groq-llm-model  # Include your feature branch
 
 jobs:
   update-dataset:
@@ -17,7 +17,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'  
+          python-version: '3.10'
 
       - name: Install Kaggle API
         run: pip install kaggle
@@ -31,8 +31,8 @@ jobs:
       - name: Create dataset metadata
         run: |
           echo '{
-            "title": "chat-langchain forked github repository",
-            "id": "rogermt/chat-langchain-repo",
+            "title": "My New Dataset",
+            "id": "username/my-new-dataset",
             "licenses": [
               {
                 "name": "CC0-1.0"
@@ -42,8 +42,10 @@ jobs:
 
       - name: Zip the dataset
         run: |
-          powershell -Command "cd C:\Users\roger\Github\chat-langchain; if (Test-Path ../chat-langchain-repo.zip) { Remove-Item ../chat-langchain-repo.zip }"
-          powershell -Command "cd C:\Users\roger\Github\chat-langchain; Compress-Archive -Path * -DestinationPath ../chat-langchain-repo.zip"
+          cd C:\Users\roger\Github\chat-langchain
+          if (Test-Path ../chat-langchain-repo.zip) { Remove-Item ../chat-langchain-repo.zip }
+          $filesToZip = Get-ChildItem -Recurse -File | Where-Object { $_.FullName -notmatch "\.env$" }
+          Compress-Archive -Path $filesToZip.FullName -DestinationPath ../chat-langchain-repo.zip -Force
 
       - name: Check if dataset exists and create if not
         run: |
