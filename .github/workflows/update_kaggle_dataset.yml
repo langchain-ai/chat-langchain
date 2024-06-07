@@ -43,7 +43,7 @@ jobs:
       - name: Zip the dataset
         run: |
           powershell -Command "cd C:\Users\roger\Github\chat-langchain; if (Test-Path ../chat-langchain-repo.zip) { Remove-Item ../chat-langchain-repo.zip }"
-          powershell -Command "C:\Users\roger\Github\chat-langchain; Compress-Archive -Path * -DestinationPath ../chat-langchain-repo.zip"
+          powershell -Command "cd C:\Users\roger\Github\chat-langchain; Compress-Archive -Path * -DestinationPath ../chat-langchain-repo.zip"
 
       - name: Check if dataset exists and create if not
         run: |
