@@ -104,7 +104,9 @@ GOOGLE_MODEL_KEY = "google_gemini_pro"
 COHERE_MODEL_KEY = "cohere_command"
 
 
-def update_documents(_: list[Document], right: list[Document] | list[dict]):
+def update_documents(
+    _: list[Document], right: list[Document] | list[dict]
+) -> list[Document]:
     res: list[Document] = []
 
     for item in right:
