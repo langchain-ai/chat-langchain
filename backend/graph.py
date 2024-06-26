@@ -114,6 +114,8 @@ def update_documents(
             res.append(Document(**item))
         elif isinstance(item, Document):
             res.append(item)
+        else:
+            raise TypeError(f"Got unknown document type '{type(item)}'")
     return res
 
 
