@@ -104,9 +104,20 @@ GOOGLE_MODEL_KEY = "google_gemini_pro"
 COHERE_MODEL_KEY = "cohere_command"
 
 
+def update_documents(_: list[Document], right: list[Document] | list[dict]):
+    res: list[Document] = []
+
+    for item in right:
+        if isinstance(item, dict):
+            res.append(Document(**item))
+        elif isinstance(item, Document):
+            res.append(item)
+    return res
+
+
 class AgentState(TypedDict):
     query: str
-    documents: list[Document]
+    documents: Annotated[list[Document], update_documents]
     messages: Annotated[list[BaseMessage], add_messages]
 
 
