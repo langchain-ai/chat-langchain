@@ -443,20 +443,6 @@ files = [
 ]
 
 [[package]]
-name = "click"
-version = "8.1.7"
-description = "Composable command line interface toolkit"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "click-8.1.7-py3-none-any.whl", hash = "sha256:ae74fb96c20a0277a1d615f1e4d73c8414f5a98db8b799a7931d1582f3390c28"},
-    {file = "click-8.1.7.tar.gz", hash = "sha256:ca9853ad459e787e2192211578cc907e7594e294c7ccc834310722b41b9ca6de"},
-]
-
-[package.dependencies]
-colorama = {version = "*", markers = "platform_system == \"Windows\""}
-
-[[package]]
 name = "cohere"
 version = "5.5.8"
 description = ""
@@ -1621,20 +1607,6 @@ files = [
 
 [package.dependencies]
 langchain-core = ">=0.2,<0.3"
-
-[[package]]
-name = "langgraph-cli"
-version = "0.1.42"
-description = "CLI for interacting with LangGraph API"
-optional = false
-python-versions = "<4.0.0,>=3.9.0"
-files = [
-    {file = "langgraph_cli-0.1.42-py3-none-any.whl", hash = "sha256:1bd6b34d4e7326c14c63a7eab15ee6bac1c1efdcbad4fe04a963b44ac0abc412"},
-    {file = "langgraph_cli-0.1.42.tar.gz", hash = "sha256:a513d6c9d81f496f66032a9ca45b8b22c7203e0c52214bc882323d817a5a3d91"},
-]
-
-[package.dependencies]
-click = ">=8.1.7,<9.0.0"
 
 [[package]]
 name = "langsmith"
@@ -3145,4 +3117,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "1ec530b1174d78b53522ea4ac4b4e6e29bc3872d7a69ff9d975de678efafa978"
+content-hash = "6d85819477260103f02e42e0c266b02aa5c844708ea8fed8b67aae06e76b3e16"
