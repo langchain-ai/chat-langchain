@@ -80,6 +80,6 @@ yarn
 yarn build
 ```
 
-Then deploy your app with [LangGraph Cloud](https://langchain-ai.github.io/langgraph/cloud/).
+Then, deploy your app with [LangGraph Cloud](https://langchain-ai.github.io/langgraph/cloud/).
 
 Finally, go back to Vercel and add an environment variable `NEXT_PUBLIC_API_BASE_URL` to match your LangGraph Cloud URL as well as `NEXT_PUBLIC_LANGCHAIN_API_KEY`.
