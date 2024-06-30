@@ -2,11 +2,15 @@
     "name": "chat-langchain",
     "version": "1.0.0",
     "description": "Backend serverless function for chat-langchain project",
-    "main": "api/ingest_docs.js",
     "scripts": {
-      "start": "vercel dev"
+      "dev": "next dev",
+      "build": "next build",
+      "start": "next start"
     },
     "dependencies": {
+      "next": "latest",
+      "react": "latest",
+      "react-dom": "latest",
       "weaviate-client": "^3.5.0",
       "fs": "^0.0.1-security",
       "path": "^0.12.7",

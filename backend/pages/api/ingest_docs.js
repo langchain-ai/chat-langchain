@@ -1,13 +1,13 @@
-const weaviate = require('weaviate-client');
-const fs = require('fs');
-const path = require('path');
-const { JSDOM } = require('jsdom');
-const { RecursiveCharacterTextSplitter } = require('langchain/text_splitter');
-const { Weaviate: WeaviateStore } = require('langchain_community/vectorstores');
-const { OpenAIEmbeddings } = require('langchain_openai');
-const { SQLRecordManager, index } = require('langchain/indexes');
+import weaviate from 'weaviate-client';
+import fs from 'fs';
+import path from 'path';
+import { JSDOM } from 'jsdom';
+import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
+import { Weaviate as WeaviateStore } from 'langchain_community/vectorstores';
+import { OpenAIEmbeddings } from 'langchain_openai';
+import { SQLRecordManager, index } from 'langchain/indexes';
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   try {
     const WEAVIATE_URL = process.env.WEAVIATE_URL;
     const WEAVIATE_API_KEY = process.env.WEAVIATE_API_KEY;
@@ -76,4 +76,4 @@ module.exports = async (req, res) => {
     console.error(error);
     res.status(500).json({ error: error.message });
   }
-};
+}
