@@ -9,6 +9,10 @@ Deployed version: [chat.langchain.com](https://chat.langchain.com)
 
 The app leverages LangChain and LangGraph's streaming support and async API to update the page in real time for multiple users.
 
+## Running locally
+
+To run the app end-to-end locally, please use the code and documentation from this [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve).
+
 ## 📚 Technical description
 
 There are two components: ingestion and question-answering.
