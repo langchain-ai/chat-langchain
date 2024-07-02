@@ -41,15 +41,15 @@ def evaluate_retrieval_recall(run: Run, example: Example) -> dict:
 
 
 class GradeAnswer(BaseModel):
-    """Continuous score to assess the correctness of the answer."""
+    """Evaluate correctness of the answer and assign a continuous score."""
 
-    score: float = Field(
-        description="How correct is the answer? 1.0 if completely correct or 0.0 if completely incorrect",
-        minimum=0.0,
-        maximum=1.0,
-    )
     reason: str = Field(
         description="1-2 short sentences with the reason why the score was assigned"
+    )
+    score: float = Field(
+        description="Score that shows how correct the answer is. Use 1.0 if completely correct and 0.0 if completely incorrect",
+        minimum=0.0,
+        maximum=1.0,
     )
 
 
