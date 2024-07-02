@@ -16,6 +16,7 @@ concurrency:
 jobs:
   run_eval:
     runs-on: ubuntu-latest
+    environment: Evaluation
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -32,7 +33,7 @@ jobs:
 
       - name: Evaluate
         env:
-          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
