@@ -13,6 +13,9 @@ The app leverages LangChain and LangGraph's streaming support and async API to u
 
 To run the app end-to-end locally, please use the code and documentation from this [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve).
 
+> [!NOTE]
+> Fully local implementation [here](https://github.com/langchain-ai/chat-langchain/tree/langserve) **does not** currently support "Previous chats" functionality.
+
 ## 📚 Technical description
 
 There are two components: ingestion and question-answering.
