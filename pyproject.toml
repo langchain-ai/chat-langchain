@@ -25,9 +25,10 @@ voyageai = "^0.1.4"
 pillow = "^10.2.0"
 psycopg2-binary = "^2.9.9"
 
-
-[tool.poetry.group.lint.dependencies]
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.0"
 ruff = "^0.2.2"
+pandas = "^2.2.2"
 
 [build-system]
 requires = ["poetry-core"]

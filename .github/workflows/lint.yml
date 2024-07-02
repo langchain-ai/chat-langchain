@@ -44,7 +44,7 @@ jobs:
         run: poetry lock --check
 
       - name: Install dependencies
-        run: poetry install --with lint
+        run: poetry install --with dev
 
       - name: Get .mypy_cache to speed up mypy
         uses: actions/cache@v3
