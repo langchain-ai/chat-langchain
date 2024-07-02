@@ -16,7 +16,7 @@ EXPERIMENT_PREFIX = "chat-langchain-ci"
 
 SCORE_RETRIEVAL_RECALL = "retrieval_recall"
 SCORE_ANSWER_CORRECTNESS = "answer_correctness_score"
-SCORE_ANSWER_VS_CONTEXT_CORRETNESS = "answer_vs_context_correctness_score"
+SCORE_ANSWER_VS_CONTEXT_CORRECTNESS = "answer_vs_context_correctness_score"
 
 # claude sonnet / gpt-4o are a bit too expensive
 JUDGE_MODEL_NAME = "claude-3-haiku-20240307"
@@ -135,7 +135,7 @@ def evaluate_qa_context(run: Run, example: Example) -> dict:
             "answer": last_message.content,
         }
     )
-    return {"key": SCORE_ANSWER_VS_CONTEXT_CORRETNESS, "score": float(score.score)}
+    return {"key": SCORE_ANSWER_VS_CONTEXT_CORRECTNESS, "score": float(score.score)}
 
 
 # Run evaluation
@@ -183,4 +183,4 @@ def test_scores_regression():
 
     assert average_scores[SCORE_RETRIEVAL_RECALL] >= 0.65
     assert average_scores[SCORE_ANSWER_CORRECTNESS] >= 0.9
-    assert average_scores[SCORE_ANSWER_VS_CONTEXT_CORRETNESS] >= 0.9
+    assert average_scores[SCORE_ANSWER_VS_CONTEXT_CORRECTNESS] >= 0.9
