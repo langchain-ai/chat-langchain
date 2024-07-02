@@ -11,10 +11,7 @@ The app leverages LangChain and LangGraph's streaming support and async API to u
 
 ## Running locally
 
-To run the app end-to-end locally, please use this [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve).
-
-> [!NOTE]
-> Running the LangGraph server for `chat-langchain` locally is not supported at the moment. If you would like to deploy on LangGraph Cloud please read documentation [here](https://langchain-ai.github.io/langgraph/cloud/).
+To run the app end-to-end locally, please use the code and documentation from this [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve).
 
 ## 📚 Technical description
 
