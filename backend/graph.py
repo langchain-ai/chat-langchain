@@ -154,7 +154,11 @@ cohere_command = ChatCohere(
     temperature=0,
     cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
 )
-groq_llama3 = ChatGroq(model="llama3-70b-8192")
+groq_llama3 = ChatGroq(
+    model="llama3-70b-8192",
+    temperature=0,
+    groq_api_key=os.environ.get("GROQ_API_KEY", "not_provided"),
+)
 llm = gpt_3_5.configurable_alternatives(
     # This gives this field an id
     # When configuring the end runnable, we can then use this id to configure this field

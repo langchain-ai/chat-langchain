@@ -328,7 +328,7 @@ export function ChatWindow() {
                         <option value="fireworks_mixtral">
                           Mixtral (via Fireworks.ai)
                         </option>
-                        <option value="groq_llama3">
+                        <option value="groq_llama_3">
                           Llama 3 (via Groq.com)
                         </option>
                         <option value="cohere_command">Cohere</option>
