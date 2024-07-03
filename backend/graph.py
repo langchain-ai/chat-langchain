@@ -123,6 +123,8 @@ class AgentState(TypedDict):
     query: str
     documents: Annotated[list[Document], update_documents]
     messages: Annotated[list[BaseMessage], add_messages]
+    # for convenience in evaluations
+    answer: str
 
 
 gpt_3_5 = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0, streaming=True)
@@ -267,6 +269,7 @@ def synthesize_response(
     )
     return {
         "messages": [synthesized_response],
+        "answer": synthesized_response.content
     }
 
 
