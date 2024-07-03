@@ -267,10 +267,7 @@ def synthesize_response(
             ),
         }
     )
-    return {
-        "messages": [synthesized_response],
-        "answer": synthesized_response.content
-    }
+    return {"messages": [synthesized_response], "answer": synthesized_response.content}
 
 
 def synthesize_response_default(state: AgentState) -> AgentState:
