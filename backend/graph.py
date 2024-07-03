@@ -22,6 +22,7 @@ from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import ConfigurableField, RunnableConfig
 from langchain_fireworks import ChatFireworks
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph, add_messages
 
@@ -102,6 +103,7 @@ ANTHROPIC_MODEL_KEY = "anthropic_claude_3_haiku"
 FIREWORKS_MIXTRAL_MODEL_KEY = "fireworks_mixtral"
 GOOGLE_MODEL_KEY = "google_gemini_pro"
 COHERE_MODEL_KEY = "cohere_command"
+GROQ_LLAMA_3_MODEL_KEY = "groq_llama_3"
 
 
 def update_documents(
@@ -152,6 +154,11 @@ cohere_command = ChatCohere(
     temperature=0,
     cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
 )
+groq_llama3 = ChatGroq(
+    model="llama3-70b-8192",
+    temperature=0,
+    groq_api_key=os.environ.get("GROQ_API_KEY", "not_provided"),
+)
 llm = gpt_3_5.configurable_alternatives(
     # This gives this field an id
     # When configuring the end runnable, we can then use this id to configure this field
@@ -162,9 +169,17 @@ llm = gpt_3_5.configurable_alternatives(
         FIREWORKS_MIXTRAL_MODEL_KEY: fireworks_mixtral,
         GOOGLE_MODEL_KEY: gemini_pro,
         COHERE_MODEL_KEY: cohere_command,
+        GROQ_LLAMA_3_MODEL_KEY: groq_llama3,
     },
 ).with_fallbacks(
-    [gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command]
+    [
+        gpt_3_5,
+        claude_3_haiku,
+        fireworks_mixtral,
+        gemini_pro,
+        cohere_command,
+        groq_llama3,
+    ]
 )
 
 
