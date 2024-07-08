@@ -11,7 +11,7 @@ The app leverages LangChain and LangGraph's streaming support and async API to u
 
 ## Running locally
 
-This project is now deployed using [LangGraph Cloud](https://langchain-ai.github.io/langgraph/cloud/), which means you won't be able to run it locally. If you want to run it without LangGraph Cloud, please use the code and documentation from this [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve).
+This project is now deployed using [LangGraph Cloud](https://langchain-ai.github.io/langgraph/cloud/), which means you won't be able to run it locally (or without a LangGraph Cloud account). If you want to run it WITHOUT LangGraph Cloud, please use the code and documentation from this [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve).
 
 > [!NOTE]
 > This [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve) **does not** have the same set of features.
