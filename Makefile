@@ -1,13 +1,9 @@
-.PHONY: start
-start:
-	langgraph up --watch
+.PHONY: start, format, lint
 
-.PHONY: format
 format:
 	poetry run ruff format .
 	poetry run ruff --select I --fix .
 
-.PHONY: lint
 lint:
 	poetry run ruff .
 	poetry run ruff format . --diff

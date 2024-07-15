@@ -1,0 +1,41 @@
+name: Eval
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run_eval:
+    runs-on: ubuntu-latest
+    environment: Evaluation
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python + Poetry
+        uses: "./.github/actions/poetry_setup"
+        with:
+          python-version: "3.11"
+          poetry-version: "1.7.1"
+          cache-key: lint
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Evaluate
+        env:
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
+          WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+        run: poetry run pytest backend/tests/evals

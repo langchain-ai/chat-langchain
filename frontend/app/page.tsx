@@ -7,11 +7,14 @@ import { Client } from "@langchain/langgraph-sdk";
 
 import { ChatWindow } from "./components/ChatWindow";
 import { LangGraphClientContext } from "./hooks/useLangGraphClient";
-import { apiBaseUrl } from "./utils/constants";
+import { API_BASE_URL, LANGCHAIN_API_KEY } from "./utils/constants";
 
 export default function Home() {
   const queryClient = new QueryClient();
-  const langGraphClient = new Client({ apiUrl: apiBaseUrl });
+  const langGraphClient = new Client({
+    apiUrl: API_BASE_URL,
+    defaultHeaders: { "x-api-key": LANGCHAIN_API_KEY },
+  });
   return (
     <LangGraphClientContext.Provider value={langGraphClient}>
       <QueryClientProvider client={queryClient}>

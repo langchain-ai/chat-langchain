@@ -1,6 +1,6 @@
 # Deployment
 
-We recommend when deploying Chat LangChain, you use Vercel for the frontend, GCP Cloud Run for the backend API, and GitHub action for the recurring ingestion tasks. This setup provides a simple and effective way to deploy and manage your application.
+We recommend when deploying Chat LangChain, you use Vercel for the frontend, [LangGraph Cloud](https://langchain-ai.github.io/langgraph/cloud/) for the backend API, and GitHub action for the recurring ingestion tasks. This setup provides a simple and effective way to deploy and manage your application.
 
 ## Prerequisites
 
@@ -35,7 +35,15 @@ That's all you need to do for the record manager. The LangChain RecordManager AP
 
 ## Vercel (Frontend)
 
-Create a Vercel account for hosting [here](https://vercel.com/signup).
+First, build the frontend and confirm it's working locally:
+
+```shell
+cd frontend
+yarn
+yarn build
+```
+
+Then, create a Vercel account for hosting [here](https://vercel.com/signup).
 
 Once you've created your Vercel account, navigate to [your dashboard](https://vercel.com/) and click the button "Add New..." in the top right.
 This will open a dropdown. From there select "Project".
@@ -70,22 +78,15 @@ Then, click on the "Update index" workflow, and click "Enable workflow". Finally
 
 Once this has finished you can visit your production URL from Vercel, and start using the app!
 
-## Backend API via Cloud Run
+## Run and deploy backend API server
 
-First, build the frontend:
+If you have a valid LangGraph Cloud [license key](https://langchain-ai.github.io/langgraph/cloud/deployment/self_hosted/), you can run a fully functional LangGraph server locally with a `langgraph up` command. Otherwise, you can use `langgraph test` to test that the API server is functional.
 
-```shell
-cd frontend
-yarn
-yarn build
-```
+> [!NOTE]
+> When running `langgraph test`, you will only be able to [create stateless runs](https://langchain-ai.github.io/langgraph/cloud/how-tos/cloud_examples/stateless_runs/), and the previous chats functionality will not be available.
 
-Then, to deploy to Google Cloud Run use the following command:
+Once you confirm that the server is working locally, you can deploy your app with [LangGraph Cloud](https://langchain-ai.github.io/langgraph/cloud/).
 
-First create a `.env.gcp.yaml` file with the contents from [`.env.gcp.yaml.example`](.env.gcp.yaml.example) and fill in the values. Then run:
+## Connect to the backend API (LangGraph Cloud)
 
-```shell
-gcloud run deploy chat-langchain --source . --port 8000 --env-vars-file .env.gcp.yaml --allow-unauthenticated --region us-central1 --min-instances 1
-```
-
-Finally, go back to Vercel and add an environment variable `NEXT_PUBLIC_API_BASE_URL` to match your Cloud Run URL.
+In Vercel add an environment variable `NEXT_PUBLIC_API_BASE_URL` to match your LangGraph Cloud URL as well as `NEXT_PUBLIC_LANGCHAIN_API_KEY`.
