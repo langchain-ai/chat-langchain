@@ -25,7 +25,9 @@ def get_embeddings_model() -> Embeddings:
     return OpenAIEmbeddings(model="text-embedding-3-small", chunk_size=200)
 
 
-def metadata_extractor(meta: dict, soup: BeautifulSoup, title_suffix: Optional[str] = None) -> dict:
+def metadata_extractor(
+    meta: dict, soup: BeautifulSoup, title_suffix: Optional[str] = None
+) -> dict:
     title_element = soup.find("title")
     description_element = soup.find("meta", attrs={"name": "description"})
     html_element = soup.find("html")
@@ -36,7 +38,9 @@ def metadata_extractor(meta: dict, soup: BeautifulSoup, title_suffix: Optional[s
     return {
         "source": meta["loc"],
         "title": title,
-        "description": description_element.get("content", "") if description_element else "",
+        "description": description_element.get("content", "")
+        if description_element
+        else "",
         "language": html_element.get("lang", "") if html_element else "",
         **meta,
     }
@@ -53,7 +57,7 @@ def load_langchain_docs():
                 name=("article", "title", "html", "lang", "content")
             ),
         },
-        meta_function=metadata_extractor
+        meta_function=metadata_extractor,
     ).load()
 
 
@@ -62,10 +66,10 @@ def load_langgraph_docs():
         "https://langchain-ai.github.io/langgraph/sitemap.xml",
         parsing_function=simple_extractor,
         default_parser="lxml",
-        bs_kwargs={
-            "parse_only": SoupStrainer(name=("article", "title"))
-        },
-        meta_function=lambda meta, soup: metadata_extractor(meta, soup, title_suffix=" | 🦜🕸️LangGraph"),
+        bs_kwargs={"parse_only": SoupStrainer(name=("article", "title"))},
+        meta_function=lambda meta, soup: metadata_extractor(
+            meta, soup, title_suffix=" | 🦜🕸️LangGraph"
+        ),
     ).load()
 
 
@@ -92,7 +96,9 @@ def simple_extractor(html: str | BeautifulSoup) -> str:
     elif isinstance(html, BeautifulSoup):
         soup = html
     else:
-        raise ValueError("Input should be either BeautifulSoup object or an HTML string")
+        raise ValueError(
+            "Input should be either BeautifulSoup object or an HTML string"
+        )
     return re.sub(r"\n\n+", "\n\n", soup.text).strip()
 
 
