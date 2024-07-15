@@ -4,7 +4,6 @@ from typing import Annotated, Literal, Sequence, TypedDict
 import weaviate
 from langchain_anthropic import ChatAnthropic
 from langchain_cohere import ChatCohere
-from langchain_community.vectorstores import Weaviate
 from langchain_core.documents import Document
 from langchain_core.language_models import LanguageModelLike
 from langchain_core.messages import (
@@ -24,6 +23,7 @@ from langchain_fireworks import ChatFireworks
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
+from langchain_weaviate import WeaviateVectorStore
 from langgraph.graph import END, StateGraph, add_messages
 
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
@@ -184,18 +184,18 @@ llm = gpt_3_5.configurable_alternatives(
 
 
 def get_retriever() -> BaseRetriever:
-    weaviate_client = weaviate.Client(
-        url=os.environ["WEAVIATE_URL"],
-        auth_client_secret=weaviate.AuthApiKey(
-            api_key=os.environ.get("WEAVIATE_API_KEY", "not_provided")
+    weaviate_client = weaviate.connect_to_wcs(
+        cluster_url=os.environ["WEAVIATE_URL"],
+        auth_credentials=weaviate.classes.init.Auth.api_key(
+            os.environ.get("WEAVIATE_API_KEY", "not_provided")
         ),
+        skip_init_checks=True,
     )
-    weaviate_client = Weaviate(
+    weaviate_client = WeaviateVectorStore(
         client=weaviate_client,
         index_name=WEAVIATE_DOCS_INDEX_NAME,
         text_key="text",
         embedding=get_embeddings_model(),
-        by_text=False,
         attributes=["source", "title"],
     )
     return weaviate_client.as_retriever(search_kwargs=dict(k=6))
