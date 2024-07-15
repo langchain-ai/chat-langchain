@@ -9,9 +9,9 @@ from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain.indexes import SQLRecordManager, index
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
-from langchain_community.vectorstores import Weaviate
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
+from langchain_weaviate import WeaviateVectorStore
 
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 from backend.parser import langchain_docs_extractor
@@ -103,16 +103,16 @@ def ingest_docs():
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     embedding = get_embeddings_model()
 
-    client = weaviate.Client(
-        url=WEAVIATE_URL,
-        auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
+    client = weaviate.connect_to_wcs(
+        cluster_url=WEAVIATE_URL,
+        auth_credentials=weaviate.classes.init.Auth.api_key(WEAVIATE_API_KEY),
+        skip_init_checks=True,
     )
-    vectorstore = Weaviate(
+    vectorstore = WeaviateVectorStore(
         client=client,
         index_name=WEAVIATE_DOCS_INDEX_NAME,
         text_key="text",
         embedding=embedding,
-        by_text=False,
         attributes=["source", "title"],
     )
 
@@ -152,7 +152,11 @@ def ingest_docs():
     )
 
     logger.info(f"Indexing stats: {indexing_stats}")
-    num_vecs = client.query.aggregate(WEAVIATE_DOCS_INDEX_NAME).with_meta_count().do()
+    num_vecs = (
+        client.collections.get(WEAVIATE_DOCS_INDEX_NAME)
+        .aggregate.over_all()
+        .total_count
+    )
     logger.info(
         f"LangChain now has this many vectors: {num_vecs}",
     )
