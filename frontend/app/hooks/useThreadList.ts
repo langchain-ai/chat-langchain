@@ -76,19 +76,25 @@ export function useThreadList(userId: string): ThreadListProps {
     setOffset((prevOffset) => prevOffset + PAGE_SIZE);
   }, [areThreadsLoading]);
 
-  const createThread = useCallback(async (name: string) => {
-    const saved = await client.threads.create({ metadata: { name, userId } });
-    dispatch({ type: "add", threads: [saved] });
-    return saved;
-  }, [userId]);
+  const createThread = useCallback(
+    async (name: string) => {
+      const saved = await client.threads.create({ metadata: { name, userId } });
+      dispatch({ type: "add", threads: [saved] });
+      return saved;
+    },
+    [userId],
+  );
 
-  const updateThread = useCallback(async (thread_id: string, name: string) => {
-    const saved = await client.threads.update(thread_id, {
-      metadata: { name, userId },
-    });
-    dispatch({ type: "add", threads: [saved] });
-    return saved;
-  }, [userId]);
+  const updateThread = useCallback(
+    async (thread_id: string, name: string) => {
+      const saved = await client.threads.update(thread_id, {
+        metadata: { name, userId },
+      });
+      dispatch({ type: "add", threads: [saved] });
+      return saved;
+    },
+    [userId],
+  );
 
   const deleteThread = useCallback(
     async (thread_id: string) => {
