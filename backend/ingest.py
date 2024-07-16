@@ -159,7 +159,7 @@ def ingest_docs():
     logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
 
     docs_transformed = text_splitter.split_documents(
-        docs_from_documentation + docs_from_api + docs_from_langsmith
+        docs_from_documentation + docs_from_api + docs_from_langsmith + docs_from_langgraph
     )
     docs_transformed = [doc for doc in docs_transformed if len(doc.page_content) > 10]
 
