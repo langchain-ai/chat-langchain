@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+from typing import Optional
 
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
@@ -24,15 +25,23 @@ def get_embeddings_model() -> Embeddings:
     return OpenAIEmbeddings(model="text-embedding-3-small", chunk_size=200)
 
 
-def metadata_extractor(meta: dict, soup: BeautifulSoup) -> dict:
-    title = soup.find("title")
-    description = soup.find("meta", attrs={"name": "description"})
-    html = soup.find("html")
+def metadata_extractor(
+    meta: dict, soup: BeautifulSoup, title_suffix: Optional[str] = None
+) -> dict:
+    title_element = soup.find("title")
+    description_element = soup.find("meta", attrs={"name": "description"})
+    html_element = soup.find("html")
+    title = title_element.get_text() if title_element else ""
+    if title_suffix is not None:
+        title += title_suffix
+
     return {
         "source": meta["loc"],
-        "title": title.get_text() if title else "",
-        "description": description.get("content", "") if description else "",
-        "language": html.get("lang", "") if html else "",
+        "title": title,
+        "description": description_element.get("content", "")
+        if description_element
+        else "",
+        "language": html_element.get("lang", "") if html_element else "",
         **meta,
     }
 
@@ -49,6 +58,18 @@ def load_langchain_docs():
             ),
         },
         meta_function=metadata_extractor,
+    ).load()
+
+
+def load_langgraph_docs():
+    return SitemapLoader(
+        "https://langchain-ai.github.io/langgraph/sitemap.xml",
+        parsing_function=simple_extractor,
+        default_parser="lxml",
+        bs_kwargs={"parse_only": SoupStrainer(name=("article", "title"))},
+        meta_function=lambda meta, soup: metadata_extractor(
+            meta, soup, title_suffix=" | 🦜🕸️LangGraph"
+        ),
     ).load()
 
 
@@ -69,8 +90,15 @@ def load_langsmith_docs():
     ).load()
 
 
-def simple_extractor(html: str) -> str:
-    soup = BeautifulSoup(html, "lxml")
+def simple_extractor(html: str | BeautifulSoup) -> str:
+    if isinstance(html, str):
+        soup = BeautifulSoup(html, "lxml")
+    elif isinstance(html, BeautifulSoup):
+        soup = html
+    else:
+        raise ValueError(
+            "Input should be either BeautifulSoup object or an HTML string"
+        )
     return re.sub(r"\n\n+", "\n\n", soup.text).strip()
 
 
@@ -126,10 +154,15 @@ def ingest_docs():
     docs_from_api = load_api_docs()
     logger.info(f"Loaded {len(docs_from_api)} docs from API")
     docs_from_langsmith = load_langsmith_docs()
-    logger.info(f"Loaded {len(docs_from_langsmith)} docs from Langsmith")
+    logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
+    docs_from_langgraph = load_langgraph_docs()
+    logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
 
     docs_transformed = text_splitter.split_documents(
-        docs_from_documentation + docs_from_api + docs_from_langsmith
+        docs_from_documentation
+        + docs_from_api
+        + docs_from_langsmith
+        + docs_from_langgraph
     )
     docs_transformed = [doc for doc in docs_transformed if len(doc.page_content) > 10]
 
