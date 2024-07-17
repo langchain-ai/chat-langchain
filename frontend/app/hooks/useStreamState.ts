@@ -68,8 +68,7 @@ export function useStreamState(): StreamStateProps {
         input: messages == null ? null : { messages },
         config,
         streamMode: ["messages", "values"],
-        signal: controller.signal,
-        feedbackKeys: [RESPONSE_FEEDBACK_KEY, SOURCE_CLICK_KEY],
+        signal: controller.signal
       });
 
       for await (const chunk of stream) {
