@@ -45,3 +45,13 @@ export const sendFeedback = async ({
     feedbackId: feedback_id,
   } as FeedbackResponse;
 };
+
+const ALLOWED_URL_PREFIXES = [
+  "https://api.smith.langchain.com",
+  "https://beta.api.smith.langchain.com",
+  "https://dev.api.smith.langchain.com",
+];
+export const hasAllowedURLPrefix = (url: string) =>
+  ALLOWED_URL_PREFIXES.some((prefix) =>
+    url.toLowerCase().startsWith(prefix.toLowerCase()),
+  );

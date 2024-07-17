@@ -68,7 +68,7 @@ export function useStreamState(): StreamStateProps {
         input: messages == null ? null : { messages },
         config,
         streamMode: ["messages", "values"],
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       for await (const chunk of stream) {
@@ -93,7 +93,7 @@ export function useStreamState(): StreamStateProps {
               ...streamStates[threadId],
               status: "inflight",
               documents: data["documents"],
-              feedbackUrls: data["feedback_urls"]
+              feedbackUrls: data["feedback_urls"],
             },
           }));
         } else if (chunk.event === "error") {
