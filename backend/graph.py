@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 from typing import Annotated, Literal, Sequence, TypedDict
 
 import weaviate
@@ -25,6 +26,7 @@ from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from langchain_weaviate import WeaviateVectorStore
 from langgraph.graph import END, StateGraph, add_messages
+from langsmith import Client as LangsmithClient
 
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 from backend.ingest import get_embeddings_model
@@ -105,6 +107,8 @@ GOOGLE_MODEL_KEY = "google_gemini_pro"
 COHERE_MODEL_KEY = "cohere_command"
 GROQ_LLAMA_3_MODEL_KEY = "groq_llama_3"
 
+FEEDBACK_KEYS = ["user_score", "user_click"]
+
 
 def update_documents(
     _: list[Document], right: list[Document] | list[dict]
@@ -127,6 +131,7 @@ class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     # for convenience in evaluations
     answer: str
+    feedback_urls: dict[str, list[str]]
 
 
 gpt_3_5 = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0, streaming=True)
@@ -260,8 +265,27 @@ def get_chat_history(messages: Sequence[BaseMessage]) -> Sequence[BaseMessage]:
     return chat_history
 
 
+def get_feedback_urls(config: RunnableConfig) -> dict[str, list[str]]:
+    ls_client = LangsmithClient()
+    run_id = config["configurable"].get("run_id")
+    if run_id is None:
+        return {}
+
+    tokens = ls_client.create_presigned_feedback_tokens(run_id, FEEDBACK_KEYS)
+    key_to_token_urls = defaultdict(list)
+
+    for token_idx, token in enumerate(tokens):
+        key_idx = token_idx % len(FEEDBACK_KEYS)
+        key = FEEDBACK_KEYS[key_idx]
+        key_to_token_urls[key].append(token.url)
+    return key_to_token_urls
+
+
 def synthesize_response(
-    state: AgentState, model: LanguageModelLike, prompt_template: str
+    state: AgentState,
+    config: RunnableConfig,
+    model: LanguageModelLike,
+    prompt_template: str,
 ) -> AgentState:
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -282,16 +306,24 @@ def synthesize_response(
             ),
         }
     )
-    return {"messages": [synthesized_response], "answer": synthesized_response.content}
+    # finally, add feedback URLs so that users can leave feedback
+    feedback_urls = get_feedback_urls(config)
+    return {
+        "messages": [synthesized_response],
+        "answer": synthesized_response.content,
+        "feedback_urls": feedback_urls,
+    }
 
 
-def synthesize_response_default(state: AgentState) -> AgentState:
-    return synthesize_response(state, llm, RESPONSE_TEMPLATE)
+def synthesize_response_default(
+    state: AgentState, config: RunnableConfig
+) -> AgentState:
+    return synthesize_response(state, config, llm, RESPONSE_TEMPLATE)
 
 
-def synthesize_response_cohere(state: AgentState) -> AgentState:
+def synthesize_response_cohere(state: AgentState, config: RunnableConfig) -> AgentState:
     model = llm.bind(documents=state["documents"])
-    return synthesize_response(state, model, COHERE_RESPONSE_TEMPLATE)
+    return synthesize_response(state, config, model, COHERE_RESPONSE_TEMPLATE)
 
 
 def route_to_response_synthesizer(

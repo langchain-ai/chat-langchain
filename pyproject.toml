@@ -9,7 +9,7 @@ packages = [{include = "backend"}]
 [tool.poetry.dependencies]
 python = "^3.11"
 langchain = ">=0.2.0"
-langsmith = "^0.1.60"
+langsmith = "^0.1.89"
 langchain-cohere = ">=0.1.5,<0.2.0"
 langchain-community = "^0.2.7"
 langchain-openai = ">=0.1.7,<0.2.0"

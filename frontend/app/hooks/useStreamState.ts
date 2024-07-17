@@ -10,7 +10,7 @@ export interface StreamState {
   status: "inflight" | "error" | "done";
   messages?: Message[];
   documents?: Document[];
-  feedbackUrls?: Record<string, string>;
+  feedbackUrls?: Record<string, string[]>;
 }
 
 export interface StreamStateProps {
@@ -68,8 +68,7 @@ export function useStreamState(): StreamStateProps {
         input: messages == null ? null : { messages },
         config,
         streamMode: ["messages", "values"],
-        signal: controller.signal,
-        feedbackKeys: [RESPONSE_FEEDBACK_KEY, SOURCE_CLICK_KEY],
+        signal: controller.signal
       });
 
       for await (const chunk of stream) {
@@ -94,6 +93,7 @@ export function useStreamState(): StreamStateProps {
               ...streamStates[threadId],
               status: "inflight",
               documents: data["documents"],
+              feedbackUrls: data["feedback_urls"]
             },
           }));
         } else if (chunk.event === "error") {
@@ -102,15 +102,6 @@ export function useStreamState(): StreamStateProps {
             [threadId]: {
               ...streamStates[threadId],
               status: "error",
-            },
-          }));
-        } else if (chunk.event === "feedback") {
-          setStreamStates((streamStates) => ({
-            ...streamStates,
-            [threadId]: {
-              ...streamStates[threadId],
-              feedbackUrls: chunk.data,
-              status: "inflight",
             },
           }));
         } else if (chunk.event === "end") {

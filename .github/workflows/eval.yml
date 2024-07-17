@@ -26,14 +26,14 @@ jobs:
         with:
           python-version: "3.11"
           poetry-version: "1.7.1"
-          cache-key: lint
+          cache-key: eval
 
       - name: Install dependencies
         run: poetry install --with dev
 
       - name: Evaluate
         env:
-          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}

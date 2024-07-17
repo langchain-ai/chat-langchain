@@ -130,14 +130,15 @@ const createAnswerElements = (
 
 export function ChatMessageBubble(props: {
   message: Message;
-  feedbackUrls?: Record<string, string>;
+  feedbackUrls?: Record<string, string[]>;
   aiEmoji?: string;
   isMostRecent: boolean;
   messageCompleted: boolean;
 }) {
   const { type, content } = props.message;
-  const responseFeedbackUrl = props.feedbackUrls?.[RESPONSE_FEEDBACK_KEY];
-  const sourceFeedbackUrl = props.feedbackUrls?.[SOURCE_CLICK_KEY];
+  const responseFeedbackUrls =
+    props.feedbackUrls?.[RESPONSE_FEEDBACK_KEY] ?? [];
+  const sourceFeedbackUrls = props.feedbackUrls?.[SOURCE_CLICK_KEY] ?? [];
   const isUser = type === "human";
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -161,7 +162,7 @@ export function ChatMessageBubble(props: {
   };
 
   const sendUserFeedback = async (score: number) => {
-    if (responseFeedbackUrl === undefined) {
+    if (responseFeedbackUrls.length === 0) {
       return;
     }
     if (isLoading) {
@@ -169,15 +170,19 @@ export function ChatMessageBubble(props: {
     }
     setIsLoading(true);
     try {
-      const data = await sendFeedback({
-        feedbackUrl: responseFeedbackUrl,
-        score,
-        feedbackId: feedback?.feedback_id,
-        comment,
-        isExplicit: true,
-      });
-      if (data.code === 200) {
-        setFeedback({ score, feedback_id: data.feedbackId });
+      const feedbackResponses = [];
+      for (const feedbackUrl of responseFeedbackUrls) {
+        const data = await sendFeedback({
+          feedbackUrl,
+          score,
+          feedbackId: feedback?.feedback_id,
+          comment,
+          isExplicit: true,
+        });
+        feedbackResponses.push(data);
+      }
+      if (feedbackResponses.every((response) => response.code === 200)) {
+        setFeedback({ score, feedback_id: feedbackResponses[0].feedbackId });
         score == 1 ? animateButton("upButton") : animateButton("downButton");
         if (comment) {
           setComment("");
@@ -272,7 +277,7 @@ export function ChatMessageBubble(props: {
                           filteredSources.map(() => false),
                         )
                       }
-                      feedbackUrl={sourceFeedbackUrl}
+                      feedbackUrls={sourceFeedbackUrls}
                     />
                   </Box>
                 ))}
@@ -306,7 +311,7 @@ export function ChatMessageBubble(props: {
               variant="outline"
               colorScheme={feedback === null ? "green" : "gray"}
               onClick={() => {
-                if (feedback === null && responseFeedbackUrl) {
+                if (feedback === null && responseFeedbackUrls) {
                   sendUserFeedback(1);
                   animateButton("upButton");
                 } else {
@@ -322,7 +327,7 @@ export function ChatMessageBubble(props: {
               variant="outline"
               colorScheme={feedback === null ? "red" : "gray"}
               onClick={() => {
-                if (feedback === null && responseFeedbackUrl) {
+                if (feedback === null && responseFeedbackUrls) {
                   sendUserFeedback(0);
                   animateButton("downButton");
                 } else {
