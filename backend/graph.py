@@ -265,20 +265,20 @@ def get_chat_history(messages: Sequence[BaseMessage]) -> Sequence[BaseMessage]:
     return chat_history
 
 
-def get_feedback_urls(config: RunnableConfig) -> dict[str, list[str]]:
-    ls_client = LangsmithClient()
-    run_id = config["configurable"].get("run_id")
-    if run_id is None:
-        return {}
+# def get_feedback_urls(config: RunnableConfig) -> dict[str, list[str]]:
+#     ls_client = LangsmithClient()
+#     run_id = config["configurable"].get("run_id")
+#     if run_id is None:
+#         return {}
 
-    tokens = ls_client.create_presigned_feedback_tokens(run_id, FEEDBACK_KEYS)
-    key_to_token_urls = defaultdict(list)
+#     tokens = ls_client.create_presigned_feedback_tokens(run_id, FEEDBACK_KEYS)
+#     key_to_token_urls = defaultdict(list)
 
-    for token_idx, token in enumerate(tokens):
-        key_idx = token_idx % len(FEEDBACK_KEYS)
-        key = FEEDBACK_KEYS[key_idx]
-        key_to_token_urls[key].append(token.url)
-    return key_to_token_urls
+#     for token_idx, token in enumerate(tokens):
+#         key_idx = token_idx % len(FEEDBACK_KEYS)
+#         key = FEEDBACK_KEYS[key_idx]
+#         key_to_token_urls[key].append(token.url)
+#     return key_to_token_urls
 
 
 def synthesize_response(
@@ -307,11 +307,11 @@ def synthesize_response(
         }
     )
     # finally, add feedback URLs so that users can leave feedback
-    feedback_urls = get_feedback_urls(config)
+    # feedback_urls = get_feedback_urls(config)
     return {
         "messages": [synthesized_response],
         "answer": synthesized_response.content,
-        "feedback_urls": feedback_urls,
+        # "feedback_urls": feedback_urls,
     }
 
 
