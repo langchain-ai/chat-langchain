@@ -94,6 +94,7 @@ export function useStreamState(): StreamStateProps {
               ...streamStates[threadId],
               status: "inflight",
               documents: data["documents"],
+              feedbackUrls: data["feedback_urls"]
             },
           }));
         } else if (chunk.event === "error") {
@@ -102,15 +103,6 @@ export function useStreamState(): StreamStateProps {
             [threadId]: {
               ...streamStates[threadId],
               status: "error",
-            },
-          }));
-        } else if (chunk.event === "feedback") {
-          setStreamStates((streamStates) => ({
-            ...streamStates,
-            [threadId]: {
-              ...streamStates[threadId],
-              feedbackUrls: chunk.data,
-              status: "inflight",
             },
           }));
         } else if (chunk.event === "end") {
