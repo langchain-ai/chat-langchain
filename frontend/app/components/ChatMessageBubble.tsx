@@ -17,6 +17,7 @@ import {
 
 import { SourceBubble } from "./SourceBubble";
 import { Message, Source, Feedback } from "../types";
+import { hasAllowedURLPrefix } from "../utils/sendFeedback";
 import { sendFeedback } from "../utils/sendFeedback";
 import { RESPONSE_FEEDBACK_KEY, SOURCE_CLICK_KEY } from "../utils/constants";
 import { InlineCitation } from "./InlineCitation";
@@ -172,6 +173,10 @@ export function ChatMessageBubble(props: {
     try {
       const feedbackResponses = [];
       for (const feedbackUrl of responseFeedbackUrls) {
+        if (!hasAllowedURLPrefix(feedbackUrl)) {
+          continue;
+        }
+
         const data = await sendFeedback({
           feedbackUrl,
           score,
