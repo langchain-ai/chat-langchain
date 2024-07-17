@@ -269,7 +269,7 @@ def get_feedback_urls(config: RunnableConfig) -> dict[str, list[str]]:
     ls_client = LangsmithClient()
     run_id = config["configurable"].get("run_id")
     if run_id is None:
-        raise ValueError("Missing run ID")
+        return {}
 
     tokens = ls_client.create_presigned_feedback_tokens(run_id, FEEDBACK_KEYS)
     key_to_token_urls = defaultdict(list)
