@@ -10,7 +10,7 @@ export interface StreamState {
   status: "inflight" | "error" | "done";
   messages?: Message[];
   documents?: Document[];
-  feedbackUrls?: Record<string, string>;
+  feedbackUrls?: Record<string, string[]>;
 }
 
 export interface StreamStateProps {
