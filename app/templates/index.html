@@ -22,7 +22,15 @@
         // Receive message from server word by word. Display the words as they are received.
         ws.onmessage = function (event) {
             var messages = document.getElementById('messages');
+            var sourceInfoSidebar = document.getElementById('source-info-sidebar')
+            sourceInfoSidebar.className = 'text-gray-900 text-xs'
+            
             var data = JSON.parse(event.data);
+
+            function setSourceSideBarContent(content) {
+                sourceInfoSidebar.innerHTML = content;
+            }
+
             if (data.sender === "bot") {
                 if (data.type === "start") {
                     var header = document.getElementById('header');
@@ -49,17 +57,36 @@
                     header.innerHTML = data.message;
                 } else if (data.type === "end") {
                     //console.log(data);
+
+                    
+
                     var elements = document.querySelectorAll('.chatbot-message-response');
                         elements.forEach(function(element) {                        
                         element.innerHTML = marked.parse(element.innerHTML);
                     });
                     var div = document.createElement('div');
                     div.className = 'source-message';
+
+                    
+                    // on click for source will transfer source from item into the sidepanel
+                    div.addEventListener('click', function(event) {
+                        if (event.target.closest('.sourceDiv')) {
+                            const targetDiv = event.target.closest('.sourceDiv');
+                            // each source item has it's full source text in the DOM but hidden
+                            const fullSourceElForTargetItem = targetDiv.querySelector('.sourceDivItemFullText');
+                            if (fullSourceElForTargetItem) {
+                                // copy the target source into the sidebar for readability
+                                setSourceSideBarContent(fullSourceElForTargetItem.innerHTML)
+                            }
+                        }
+                    })
+
+                    
                     var p = document.createElement('p');
                     p.innerHTML = "<strong>" + "Sources: " + "</strong>";
                     div.appendChild(p);
                     messages.appendChild(div);
-                    //console.log(data.sources);
+                    
 
                     _.forEach(data.sources, (item) => {
                         //console.log('Page Content:');
@@ -67,12 +94,23 @@
                         //console.log('\nMeta Data:');
 
                         var sourceDiv = document.createElement('div');
-                        sourceDiv.className = 'group cursor-pointer relative inline-block text-left w-full italic text-sm';
+                        sourceDiv.className = 'sourceDiv hover:underline group cursor-pointer relative inline-block text-left w-full italic text-sm';
                         sourceDiv.innerHTML = item.meta_data.file_path + " - page(" + item.meta_data.page + ")";
                         var tooltipDiv = document.createElement('div');
-                        tooltipDiv.className = 'opacity-0 bg-black text-white text-center text-xs rounded-lg py-2 absolute z-100 group-hover:opacity-100 bottom-full px-3 pointer-events-none';
+                        var tooltipDivBasic = document.createElement('div');
+                        tooltipDiv.className = 'sourceDivItemFullText opacity-0 bg-black text-white text-center text-xs rounded-lg py-2 absolute z-100 bottom-full px-3 pointer-events-none';
+                        tooltipDivBasic.className = 'sourceDivItemBasicTooltip opacity-0 group-hover:opacity-100 bg-black text-white text-center text-xs rounded-lg py-2 absolute z-100 bottom-full px-3 pointer-events-none';
                         tooltipDiv.innerHTML =  marked.parse(item.page_content);
+                        tooltipDivBasic.innerText = 'show source in sidebar' // tooltip that shows on hover
+                        
+                        // new sidebar is sourceInfoSidebar
+                        // when the user clicks the sourceDiv item
+                        // we take the content from the hidden div
+                        // and put it into the new sidebar
+                        // this is handled via event delegation from the parent to avoid multiple event listeners
+                        
                         sourceDiv.appendChild(tooltipDiv);
+                        sourceDiv.appendChild(tooltipDivBasic);
                         div.appendChild(sourceDiv);
 
                         _.forEach(item.meta_data, (value, key) => {
@@ -82,6 +120,8 @@
                         console.log('\n----------------------\n');
                     });
                     p.innerHTML += data.message;
+
+                    sourceInfoSidebar.innerText = '...select a source'
 
                     var header = document.getElementById('header');
                     header.innerHTML = "Ask a question";
@@ -138,13 +178,39 @@
         !function (t, e) { var o, n, p, r; e.__SV || (window.posthog = e, e._i = [], e.init = function (i, s, a) { function g(t, e) { var o = e.split("."); 2 == o.length && (t = t[o[0]], e = o[1]), t[e] = function () { t.push([e].concat(Array.prototype.slice.call(arguments, 0))) } } (p = t.createElement("script")).type = "text/javascript", p.async = !0, p.src = s.api_host + "/static/array.js", (r = t.getElementsByTagName("script")[0]).parentNode.insertBefore(p, r); var u = e; for (void 0 !== a ? u = e[a] = [] : a = "posthog", u.people = u.people || [], u.toString = function (t) { var e = "posthog"; return "posthog" !== a && (e += "." + a), t || (e += " (stub)"), e }, u.people.toString = function () { return u.toString(1) + ".people (stub)" }, o = "capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags".split(" "), n = 0; n < o.length; n++)g(u, o[n]); e._i.push([i, s, a]) }, e.__SV = 1) }(document, window.posthog || []);
         posthog.init('phc_DOhT603cKqL6hvqhqNFShB29ZTpOQtsT5rBLp69bWBc', { api_host: 'https://app.posthog.com' })
     </script>
+    <style>
+        .ask-a-question-col {
+            flex: 2;
+            min-width: 300px;
+        }
+
+        .helper-content--source-sidebar {
+            background-color: #fff;
+            position: sticky;
+            top: 0;
+        }
+
+        .sidebar-source-info-content {
+            min-width: 300px;
+            flex: 1;
+            
+        }
+
+        .helper-content-boxless.helper-content--ask-a-question-page {
+            max-width: 1600px;
+        }
+
+        .helper-content--ask-a-question-wrapper {
+            max-width: 100%;
+        }
+    </style>
 </head>
 
 <body>
     <div id="navBar"></div>
     {# <nav class="helper-nav" id="navBar"></nav> #}
     <main class="chat-body card">
-        <div class="helper-content-boxless">
+        <div class="helper-content-boxless helper-content--ask-a-question-page">
             <header class="helper-header">
                 <h1 class="text-left text-4xl font-bold tracking-tight text-zinc-800 dark:text-zinc-100 sm:text-5xl">
                     Policy Helper
@@ -167,31 +233,53 @@
                     
                     <!--<li class="relative  mb-6 text-sm text-zinc-600 dark:text-zinc-400">More...</li>-->
                 </ul>
-                <div class="helper-content card-body p-5">
-                    <p class="card-text text-center pb-2" id="header">
-                        Ask a question...
-                    </p>
 
-                    <div id="messages" class="helper-messages">
-                    </div>
-
-                    <form action="" class="pt-1" id="chat-form" onsubmit="sendMessage(event)">
-                        <div class="helper-input-controls">
-                            <div class="helper-input-controls__input-wrapper">
-                                <label class="sr-only helper-input-controls__input-label" for="messageText">Your
-                                    question</label>
-                                <input autofocus type="text" class="form-control" placeholder="Write your question"
-                                    id="messageText">
+                <div class="flex">
+                    <!-- // col 1 main content -->
+                    <div class="flex-1 ask-a-question-col">
+                        <div class="helper-content helper-content--ask-a-question-wrapper card-body p-5">
+                            <p class="card-text text-center pb-2" id="header">
+                                Ask a question...
+                            </p>
+        
+                            <div id="messages" class="helper-messages">
                             </div>
-
-                            <div class="helper-input-controls__actions">
-                                <!--value="What is the policy for offsite backups?"-->
-                                <button id="send" type="submit" class="helper__submit-btn">Ask</button>
-                            </div>
-
+        
+                            <form action="" class="pt-1" id="chat-form" onsubmit="sendMessage(event)">
+                                <div class="helper-input-controls">
+                                    <div class="helper-input-controls__input-wrapper">
+                                        <label class="sr-only helper-input-controls__input-label" for="messageText">Your
+                                            question</label>
+                                        <input autofocus type="text" class="form-control" placeholder="Write your question"
+                                            id="messageText">
+                                    </div>
+        
+                                    <div class="helper-input-controls__actions">
+                                        <!--value="What is the policy for offsite backups?"-->
+                                        <button id="send" type="submit" class="helper__submit-btn">Ask</button>
+                                    </div>
+        
+                                </div>
+                            </form>
                         </div>
-                    </form>
+
+                    </div>
+                    <!-- Col 2 sidebar for source info -->
+                    <aside class="sidebar-source-info-content ml-4">
+                        <div class="helper-content helper-content--source-sidebar card-body p-5 text-gray-900">
+                            <h3 class="text-gray-900 font-medium mb-6">Source information</h3>
+                            <!-- js content filled -->
+                            <div id="source-info-sidebar"></div> 
+                        </div>
+                    </aside>
                 </div>
+
+                
+                    
+                
+
+
+               
             </header>
         </div>
     </main>

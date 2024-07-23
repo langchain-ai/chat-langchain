@@ -93,14 +93,13 @@ body {
     box-shadow: var(--box-shadow-1);
 
     width: 100%;
-    max-width: 800px;
+    /* max-width: 800px; */
     margin: 0 auto;
 }
 
 .helper-content-boxless {
-
     width: 90%;
-    max-width: 800px;
+    max-width: 1400px;
     margin: 0 auto;
 }
 
