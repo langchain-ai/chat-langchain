@@ -100,7 +100,7 @@ Follow Up Input: {question}
 Standalone Question:"""
 
 
-OPENAI_MODEL_KEY = "openai_gpt_3_5_turbo"
+OPENAI_MODEL_KEY = "openai_gpt_4o_mini"
 ANTHROPIC_MODEL_KEY = "anthropic_claude_3_haiku"
 FIREWORKS_MIXTRAL_MODEL_KEY = "fireworks_mixtral"
 GOOGLE_MODEL_KEY = "google_gemini_pro"
@@ -134,7 +134,7 @@ class AgentState(TypedDict):
     feedback_urls: dict[str, list[str]]
 
 
-gpt_3_5 = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0, streaming=True)
+gpt_4o_mini = ChatOpenAI(model="gpt-4o-mini-2024-07-18", temperature=0, streaming=True)
 claude_3_haiku = ChatAnthropic(
     model="claude-3-haiku-20240307",
     temperature=0,
@@ -164,7 +164,7 @@ groq_llama3 = ChatGroq(
     temperature=0,
     groq_api_key=os.environ.get("GROQ_API_KEY", "not_provided"),
 )
-llm = gpt_3_5.configurable_alternatives(
+llm = gpt_4o_mini.configurable_alternatives(
     # This gives this field an id
     # When configuring the end runnable, we can then use this id to configure this field
     ConfigurableField(id="model_name"),
@@ -178,7 +178,7 @@ llm = gpt_3_5.configurable_alternatives(
     },
 ).with_fallbacks(
     [
-        gpt_3_5,
+        gpt_4o_mini,
         claude_3_haiku,
         fireworks_mixtral,
         gemini_pro,

@@ -32,7 +32,7 @@ import { useLangGraphClient } from "../hooks/useLangGraphClient";
 import { useStreamState } from "../hooks/useStreamState";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 
-const MODEL_TYPES = ["openai_gpt_3_5_turbo", "anthropic_claude_3_haiku"];
+const MODEL_TYPES = ["openai_gpt_4o_mini", "anthropic_claude_3_haiku"];
 
 const defaultLlmValue =
   MODEL_TYPES[Math.floor(Math.random() * MODEL_TYPES.length)];
@@ -59,7 +59,7 @@ export function ChatWindow() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [llm, setLlm] = useState(
-    searchParams.get("llm") ?? "openai_gpt_3_5_turbo",
+    searchParams.get("llm") ?? "openai_gpt_4o_mini",
   );
   const [llmIsLoading, setLlmIsLoading] = useState(true);
   const [assistantId, setAssistantId] = useState<string>("");
@@ -316,8 +316,8 @@ export function ChatWindow() {
                         }}
                         width={"240px"}
                       >
-                        <option value="openai_gpt_3_5_turbo">
-                          GPT-3.5-Turbo
+                        <option value="openai_gpt_4o_mini">
+                          GPT-4o Mini
                         </option>
                         <option value="anthropic_claude_3_haiku">
                           Claude 3 Haiku
