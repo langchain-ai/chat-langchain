@@ -105,7 +105,7 @@ ANTHROPIC_MODEL_KEY = "anthropic_claude_3_haiku"
 FIREWORKS_MIXTRAL_MODEL_KEY = "fireworks_mixtral"
 GOOGLE_MODEL_KEY = "gemini_flash"
 COHERE_MODEL_KEY = "cohere_command_r"
-GROQ_LLAMA_3_MODEL_KEY = "groq_llama_3_1"
+GROQ_LLAMA_3_MODEL_KEY = "groq_llama_3"
 
 FEEDBACK_KEYS = ["user_score", "user_click"]
 
@@ -147,14 +147,14 @@ fireworks_mixtral = ChatFireworks(
     max_tokens=16384,
     fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
 )
-gemini_pro = ChatGoogleGenerativeAI(
+gemini_flash = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash",
     temperature=0,
     max_output_tokens=16384,
     convert_system_message_to_human=True,
     google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
 )
-cohere_command = ChatCohere(
+cohere_command_r = ChatCohere(
     model="command-r",
     temperature=0,
     cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
@@ -172,8 +172,8 @@ llm = gpt_4o_mini.configurable_alternatives(
     **{
         ANTHROPIC_MODEL_KEY: claude_3_haiku,
         FIREWORKS_MIXTRAL_MODEL_KEY: fireworks_mixtral,
-        GOOGLE_MODEL_KEY: gemini_pro,
-        COHERE_MODEL_KEY: cohere_command,
+        GOOGLE_MODEL_KEY: gemini_flash,
+        COHERE_MODEL_KEY: cohere_command_r,
         GROQ_LLAMA_3_MODEL_KEY: groq_llama3,
     },
 ).with_fallbacks(
@@ -181,8 +181,8 @@ llm = gpt_4o_mini.configurable_alternatives(
         gpt_4o_mini,
         claude_3_haiku,
         fireworks_mixtral,
-        gemini_pro,
-        cohere_command,
+        gemini_flash,
+        cohere_command_r,
         groq_llama3,
     ]
 )
