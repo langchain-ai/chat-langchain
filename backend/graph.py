@@ -103,7 +103,7 @@ Standalone Question:"""
 OPENAI_MODEL_KEY = "openai_gpt_4o_mini"
 ANTHROPIC_MODEL_KEY = "anthropic_claude_3_haiku"
 FIREWORKS_MIXTRAL_MODEL_KEY = "fireworks_mixtral"
-GOOGLE_MODEL_KEY = "gemini_flash"
+GOOGLE_MODEL_KEY = "google_gemini_flash"
 COHERE_MODEL_KEY = "cohere_command_r"
 GROQ_LLAMA_3_MODEL_KEY = "groq_llama_3"
 

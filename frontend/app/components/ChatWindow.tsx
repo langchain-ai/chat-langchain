@@ -322,7 +322,7 @@ export function ChatWindow() {
                         <option value="anthropic_claude_3_haiku">
                           Claude 3 Haiku
                         </option>
-                        <option value="gemini_flash">
+                        <option value="google_gemini_flash">
                           Google Gemini 1.5 Flash
                         </option>
                         <option value="fireworks_mixtral">
