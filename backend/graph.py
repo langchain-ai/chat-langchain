@@ -106,6 +106,9 @@ FIREWORKS_MIXTRAL_MODEL_KEY = "fireworks_mixtral"
 GOOGLE_MODEL_KEY = "google_gemini_pro"
 COHERE_MODEL_KEY = "cohere_command"
 GROQ_LLAMA_3_MODEL_KEY = "groq_llama_3"
+# Not exposed in the UI
+GPT_4O_MODEL_KEY = "openai_gpt_4o"
+CLAUDE_35_SONNET_MODEL_KEY = "anthropic_claude_3_5_sonnet"
 
 FEEDBACK_KEYS = ["user_score", "user_click"]
 
@@ -135,6 +138,7 @@ class AgentState(TypedDict):
 
 
 gpt_4o_mini = ChatOpenAI(model="gpt-4o-mini-2024-07-18", temperature=0, streaming=True)
+
 claude_3_haiku = ChatAnthropic(
     model="claude-3-haiku-20240307",
     temperature=0,
@@ -164,6 +168,14 @@ groq_llama3 = ChatGroq(
     temperature=0,
     groq_api_key=os.environ.get("GROQ_API_KEY", "not_provided"),
 )
+
+# Not exposed in the UI
+gpt_4o = ChatOpenAI(model="gpt-4o-2024-08-06", temperature=0.3, streaming=True)
+claude_35_sonnet = ChatAnthropic(
+    model="claude-3-5-sonnet-20240620",
+    temperature=0.7,
+)
+
 llm = gpt_4o_mini.configurable_alternatives(
     # This gives this field an id
     # When configuring the end runnable, we can then use this id to configure this field
@@ -175,6 +187,8 @@ llm = gpt_4o_mini.configurable_alternatives(
         GOOGLE_MODEL_KEY: gemini_pro,
         COHERE_MODEL_KEY: cohere_command,
         GROQ_LLAMA_3_MODEL_KEY: groq_llama3,
+        GPT_4O_MODEL_KEY: gpt_4o,
+        CLAUDE_35_SONNET_MODEL_KEY: claude_35_sonnet,
     },
 ).with_fallbacks(
     [
