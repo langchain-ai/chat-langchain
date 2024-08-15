@@ -13,7 +13,7 @@ async function handleRequest(req: NextRequest, method: string) {
     const options: RequestInit = {
       method,
       headers: {
-        ...Object.fromEntries(req.headers),
+        ...req.headers,
         "x-api-key": process.env.LANGCHAIN_API_KEY || "",
       },
     };
