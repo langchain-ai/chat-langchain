@@ -16,6 +16,7 @@ async function handleRequest(req: NextRequest, method: string) {
     const url = new URL(req.url);
     const searchParams = new URLSearchParams(url.search);
     searchParams.delete("_path");
+    searchParams.delete("nxtP_path");
     const queryString = searchParams.toString()
       ? `?${searchParams.toString()}`
       : "";
