@@ -5,7 +5,7 @@ export const runtime = "edge";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.text();
-    const path = req.nextUrl.pathname.replace(/^\/?api/, "");
+    const path = req.nextUrl.pathname.replace(/^\/?api\//, "");
     const queryString = req.nextUrl.search;
     const res = await fetch(`${process.env.API_BASE_URL}/${path}${queryString}`, {
       method: "POST",
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const path = req.nextUrl.pathname.replace(/^\/?api/, "");
+    const path = req.nextUrl.pathname.replace(/^\/?api\//, "");
     const queryString = req.nextUrl.search;
     const res = await fetch(`${process.env.API_BASE_URL}/${path}${queryString}`, {
       method: "GET",
