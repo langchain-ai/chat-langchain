@@ -89,4 +89,7 @@ Once you confirm that the server is working locally, you can deploy your app wit
 
 ## Connect to the backend API (LangGraph Cloud)
 
-In Vercel add an environment variable `API_BASE_URL` to match your LangGraph Cloud URL as well as `LANGCHAIN_API_KEY`.
+In Vercel add the following environment variables:
+- `API_BASE_URL` that matches your LangGraph Cloud deployment API URL
+- `NEXT_PUBLIC_API_URL` - API URL that LangGraph Cloud deployment is proxied to, e.g. "https://chat.langchain.com/api"
+- `LANGCHAIN_API_KEY` - LangSmith API key
