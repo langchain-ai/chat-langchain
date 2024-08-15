@@ -8,8 +8,8 @@ import { Client } from "@langchain/langgraph-sdk";
 import { ChatWindow } from "./components/ChatWindow";
 import { LangGraphClientContext } from "./hooks/useLangGraphClient";
 
-const apiUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-  ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}/api/`
+const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  ? process.env.NEXT_PUBLIC_API_URL
   : "http://localhost:3000/api/";
 
 export default function Home() {
