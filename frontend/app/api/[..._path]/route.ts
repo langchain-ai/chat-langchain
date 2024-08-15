@@ -8,12 +8,13 @@ async function handleRequest(req: NextRequest, method: string) {
     const url = new URL(req.url);
     const searchParams = new URLSearchParams(url.search);
     searchParams.delete("_path");
-    const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
+    const queryString = searchParams.toString()
+      ? `?${searchParams.toString()}`
+      : "";
 
     const options: RequestInit = {
       method,
       headers: {
-        ...req.headers,
         "x-api-key": process.env.LANGCHAIN_API_KEY || "",
       },
     };
@@ -24,7 +25,7 @@ async function handleRequest(req: NextRequest, method: string) {
 
     const res = await fetch(
       `${process.env.API_BASE_URL}/${path}${queryString}`,
-      options
+      options,
     );
 
     return new NextResponse(res.body, {
