@@ -316,9 +316,7 @@ export function ChatWindow() {
                         }}
                         width={"240px"}
                       >
-                        <option value="openai_gpt_4o_mini">
-                          GPT-4o Mini
-                        </option>
+                        <option value="openai_gpt_4o_mini">GPT-4o Mini</option>
                         <option value="anthropic_claude_3_haiku">
                           Claude 3 Haiku
                         </option>

@@ -15,6 +15,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       API_BASE_URL: ${{ secrets.API_BASE_URL }}
       LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+      NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
     steps:
       - uses: actions/checkout@v2
       - name: Install Vercel CLI
