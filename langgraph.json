@@ -1,7 +1,17 @@
 {
-    "dependencies": ["."],
-    "graphs": {
-      "chat": "./backend/graph.py:graph"
-    },
-    "env": ".env"
-  }
+  "python_version": "3.11",
+  "dockerfile_lines": [],
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "chat": "./backend/graph.py:graph",
+    "researcher": "./backend/graph.py:researcher",
+    "agent": "./backend/graph.py:agent"
+  },
+  "env": [
+    "OPENAI_API_KEY",
+    "WEAVIATE_API_KEY",
+    "WEAVIATE_URL"
+  ]
+}
