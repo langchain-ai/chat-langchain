@@ -42,7 +42,7 @@ const getAssistantId = async (client: Client) => {
     metadata: null,
     offset: 0,
     limit: 10,
-    graph_id: "chat",
+    graphId: "chat",
   });
   if (response.length !== 1) {
     throw Error(
