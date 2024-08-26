@@ -120,14 +120,19 @@ export function ChatWindow() {
   const getThreadName = (messageValue: string) =>
     messageValue.length > 20 ? messageValue.slice(0, 20) + "..." : messageValue;
 
-  const renameThread = async (messageValue: string) => {
-    // NOTE: we're only setting this on the first message
-    if (currentThread == null || messages.length > 1) {
+  const renameThread = async (messageValue: string): Promise<void> => {
+    //  currentThread exists and if there is only one message
+    if (!currentThread || messages.length > 1) {
       return;
     }
-    const threadName = getThreadName(messageValue);
-    await updateThread(currentThread["thread_id"], threadName);
+    try {
+      const threadName = getThreadName(messageValue);
+      await updateThread(currentThread.thread_id, threadName);
+    } catch (error) {
+      console.error('Failed to rename thread:', error);
+    }
   };
+  
 
   const sendMessage = async (message?: string) => {
     if (messageContainerRef.current) {
