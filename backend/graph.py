@@ -4,7 +4,7 @@ from typing import Annotated, Literal, Optional, Sequence, TypedDict
 
 import weaviate
 from langchain_anthropic import ChatAnthropic
-from langchain_cohere import ChatCohere
+# from langchain_cohere import ChatCohere
 from langchain_core.documents import Document
 from langchain_core.language_models import LanguageModelLike
 from langchain_core.messages import (
@@ -22,7 +22,7 @@ from langchain_core.prompts import (
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import ConfigurableField, RunnableConfig, ensure_config
 from langchain_fireworks import ChatFireworks
-from langchain_google_genai import ChatGoogleGenerativeAI
+# from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from langchain_weaviate import WeaviateVectorStore
@@ -30,7 +30,7 @@ from langgraph.graph import END, StateGraph, add_messages
 from langsmith import Client as LangsmithClient
 
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
-from backend.ingest import get_embeddings_model
+from backend.embeddings import get_embeddings_model
 
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
@@ -152,18 +152,18 @@ fireworks_mixtral = ChatFireworks(
     max_tokens=16384,
     fireworks_api_key=os.environ.get("FIREWORKS_API_KEY", "not_provided"),
 )
-gemini_pro = ChatGoogleGenerativeAI(
-    model="gemini-pro",
-    temperature=0,
-    max_output_tokens=16384,
-    convert_system_message_to_human=True,
-    google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
-)
-cohere_command = ChatCohere(
-    model="command",
-    temperature=0,
-    cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
-)
+# gemini_pro = ChatGoogleGenerativeAI(
+#     model="gemini-pro",
+#     temperature=0,
+#     max_output_tokens=16384,
+#     convert_system_message_to_human=True,
+#     google_api_key=os.environ.get("GOOGLE_API_KEY", "not_provided"),
+# )
+# cohere_command = ChatCohere(
+#     model="command",
+#     temperature=0,
+#     cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
+# )
 groq_llama3 = ChatGroq(
     model="llama3-70b-8192",
     temperature=0,
@@ -185,8 +185,8 @@ llm = gpt_4o_mini.configurable_alternatives(
     **{
         ANTHROPIC_MODEL_KEY: claude_3_haiku,
         FIREWORKS_MIXTRAL_MODEL_KEY: fireworks_mixtral,
-        GOOGLE_MODEL_KEY: gemini_pro,
-        COHERE_MODEL_KEY: cohere_command,
+        # GOOGLE_MODEL_KEY: gemini_pro,
+        # COHERE_MODEL_KEY: cohere_command,
         GROQ_LLAMA_3_MODEL_KEY: groq_llama3,
         GPT_4O_MODEL_KEY: gpt_4o,
         CLAUDE_35_SONNET_MODEL_KEY: claude_35_sonnet,
@@ -196,8 +196,8 @@ llm = gpt_4o_mini.configurable_alternatives(
         gpt_4o_mini,
         claude_3_haiku,
         fireworks_mixtral,
-        gemini_pro,
-        cohere_command,
+        # gemini_pro,
+        # cohere_command,
         groq_llama3,
     ]
 )
