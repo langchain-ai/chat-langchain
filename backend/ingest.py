@@ -131,68 +131,70 @@ def ingest_docs():
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     embedding = get_embeddings_model()
 
-    client = weaviate.connect_to_wcs(
+    with weaviate.connect_to_weaviate_cloud(
         cluster_url=WEAVIATE_URL,
         auth_credentials=weaviate.classes.init.Auth.api_key(WEAVIATE_API_KEY),
         skip_init_checks=True,
-    )
-    vectorstore = WeaviateVectorStore(
-        client=client,
-        index_name=WEAVIATE_DOCS_INDEX_NAME,
-        text_key="text",
-        embedding=embedding,
-        attributes=["source", "title"],
-    )
+    ) as weaviate_client:
+        vectorstore = WeaviateVectorStore(
+            client=weaviate_client,
+            index_name=WEAVIATE_DOCS_INDEX_NAME,
+            text_key="text",
+            embedding=embedding,
+            attributes=["source", "title"],
+        )
 
-    record_manager = SQLRecordManager(
-        f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
-    )
-    record_manager.create_schema()
+        record_manager = SQLRecordManager(
+            f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
+        )
+        record_manager.create_schema()
 
-    docs_from_documentation = load_langchain_docs()
-    logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
-    docs_from_api = load_api_docs()
-    logger.info(f"Loaded {len(docs_from_api)} docs from API")
-    docs_from_langsmith = load_langsmith_docs()
-    logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
-    docs_from_langgraph = load_langgraph_docs()
-    logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
+        docs_from_documentation = load_langchain_docs()
+        logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
+        docs_from_api = load_api_docs()
+        logger.info(f"Loaded {len(docs_from_api)} docs from API")
+        docs_from_langsmith = load_langsmith_docs()
+        logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
+        docs_from_langgraph = load_langgraph_docs()
+        logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
 
-    docs_transformed = text_splitter.split_documents(
-        docs_from_documentation
-        + docs_from_api
-        + docs_from_langsmith
-        + docs_from_langgraph
-    )
-    docs_transformed = [doc for doc in docs_transformed if len(doc.page_content) > 10]
+        docs_transformed = text_splitter.split_documents(
+            docs_from_documentation
+            + docs_from_api
+            + docs_from_langsmith
+            + docs_from_langgraph
+        )
+        docs_transformed = [
+            doc for doc in docs_transformed if len(doc.page_content) > 10
+        ]
 
-    # We try to return 'source' and 'title' metadata when querying vector store and
-    # Weaviate will error at query time if one of the attributes is missing from a
-    # retrieved document.
-    for doc in docs_transformed:
-        if "source" not in doc.metadata:
-            doc.metadata["source"] = ""
-        if "title" not in doc.metadata:
-            doc.metadata["title"] = ""
+        # We try to return 'source' and 'title' metadata when querying vector store and
+        # Weaviate will error at query time if one of the attributes is missing from a
+        # retrieved document.
+        for doc in docs_transformed:
+            if "source" not in doc.metadata:
+                doc.metadata["source"] = ""
+            if "title" not in doc.metadata:
+                doc.metadata["title"] = ""
 
-    indexing_stats = index(
-        docs_transformed,
-        record_manager,
-        vectorstore,
-        cleanup="full",
-        source_id_key="source",
-        force_update=(os.environ.get("FORCE_UPDATE") or "false").lower() == "true",
-    )
+        indexing_stats = index(
+            docs_transformed,
+            record_manager,
+            vectorstore,
+            cleanup="full",
+            source_id_key="source",
+            force_update=(os.environ.get("FORCE_UPDATE") or "false").lower() == "true",
+        )
 
-    logger.info(f"Indexing stats: {indexing_stats}")
-    num_vecs = (
-        client.collections.get(WEAVIATE_DOCS_INDEX_NAME)
-        .aggregate.over_all()
-        .total_count
-    )
-    logger.info(
-        f"LangChain now has this many vectors: {num_vecs}",
-    )
+        logger.info(f"Indexing stats: {indexing_stats}")
+        num_vecs = (
+            weaviate_client.collections.get(WEAVIATE_DOCS_INDEX_NAME)
+            .aggregate.over_all()
+            .total_count
+        )
+        logger.info(
+            f"LangChain now has this many vectors: {num_vecs}",
+        )
 
 
 if __name__ == "__main__":
