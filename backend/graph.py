@@ -1,6 +1,7 @@
+import contextlib
 import os
 from collections import defaultdict
-from typing import Annotated, Literal, Optional, Sequence, TypedDict
+from typing import Annotated, Iterator, Literal, Optional, Sequence, TypedDict
 
 import weaviate
 from langchain_anthropic import ChatAnthropic
@@ -203,23 +204,24 @@ llm = gpt_4o_mini.configurable_alternatives(
 )
 
 
-def get_retriever(k: Optional[int] = None) -> BaseRetriever:
-    weaviate_client = weaviate.connect_to_wcs(
+@contextlib.contextmanager
+def get_retriever(k: Optional[int] = None) -> Iterator[BaseRetriever]:
+    with weaviate.connect_to_weaviate_cloud(
         cluster_url=os.environ["WEAVIATE_URL"],
         auth_credentials=weaviate.classes.init.Auth.api_key(
             os.environ.get("WEAVIATE_API_KEY", "not_provided")
         ),
         skip_init_checks=True,
-    )
-    weaviate_client = WeaviateVectorStore(
-        client=weaviate_client,
-        index_name=WEAVIATE_DOCS_INDEX_NAME,
-        text_key="text",
-        embedding=get_embeddings_model(),
-        attributes=["source", "title"],
-    )
-    k = k or 6
-    return weaviate_client.as_retriever(search_kwargs=dict(k=k))
+    ) as weaviate_client:
+        store = WeaviateVectorStore(
+            client=weaviate_client,
+            index_name=WEAVIATE_DOCS_INDEX_NAME,
+            text_key="text",
+            embedding=get_embeddings_model(),
+            attributes=["source", "title"],
+        )
+        k = k or 6
+        yield store.as_retriever(search_kwargs=dict(k=k))
 
 
 def format_docs(docs: Sequence[Document]) -> str:
@@ -234,15 +236,17 @@ def retrieve_documents(
     state: AgentState, *, config: Optional[RunnableConfig] = None
 ) -> AgentState:
     config = ensure_config(config)
-    retriever = get_retriever(k=config["configurable"].get("k"))
     messages = convert_to_messages(state["messages"])
     query = messages[-1].content
-    relevant_documents = retriever.invoke(query)
+    with get_retriever(k=config["configurable"].get("k")) as retriever:
+        relevant_documents = retriever.invoke(query)
     return {"query": query, "documents": relevant_documents}
 
 
-def retrieve_documents_with_chat_history(state: AgentState) -> AgentState:
-    retriever = get_retriever()
+def retrieve_documents_with_chat_history(
+    state: AgentState, *, config: Optional[RunnableConfig] = None
+) -> AgentState:
+    config = ensure_config(config)
     model = llm.with_config(tags=["nostream"])
 
     CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(REPHRASE_TEMPLATE)
@@ -254,12 +258,13 @@ def retrieve_documents_with_chat_history(state: AgentState) -> AgentState:
 
     messages = convert_to_messages(state["messages"])
     query = messages[-1].content
-    retriever_with_condensed_question = condense_question_chain | retriever
-    # NOTE: we're ignoring the last message here, as it's going to contain the most recent
-    # query and we don't want that to be included in the chat history
-    relevant_documents = retriever_with_condensed_question.invoke(
-        {"question": query, "chat_history": get_chat_history(messages[:-1])}
-    )
+    with get_retriever(k=config["configurable"].get("k")) as retriever:
+        retriever_with_condensed_question = condense_question_chain | retriever
+        # NOTE: we're ignoring the last message here, as it's going to contain the most recent
+        # query and we don't want that to be included in the chat history
+        relevant_documents = retriever_with_condensed_question.invoke(
+            {"question": query, "chat_history": get_chat_history(messages[:-1])}
+        )
     return {"query": query, "documents": relevant_documents}
 
 
