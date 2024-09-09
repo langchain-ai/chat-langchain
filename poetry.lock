@@ -1201,23 +1201,20 @@ tenacity = ">=8.1.0,<8.4.0 || >8.4.0,<9.0.0"
 
 [[package]]
 name = "langchain-core"
-version = "0.3.0.dev2"
+version = "0.3.0.dev4"
 description = "Building applications with LLMs through composability"
 optional = false
 python-versions = "<4.0,>=3.9"
 files = [
-    {file = "langchain_core-0.3.0.dev2-py3-none-any.whl", hash = "sha256:0fd8d81b64b3e42a0c506970af796b7170c130b46f361eb51b036fcb69f2d2b9"},
-    {file = "langchain_core-0.3.0.dev2.tar.gz", hash = "sha256:7962b378d5e545be482aff2599add23ba6bd030a49d18ac0739496a5bf2e15db"},
+    {file = "langchain_core-0.3.0.dev4-py3-none-any.whl", hash = "sha256:5b2e84b7ab9d3ed93341f44a276f046bfdd4df349801ed50d4201af7a29cf3ac"},
+    {file = "langchain_core-0.3.0.dev4.tar.gz", hash = "sha256:d090e34739599531a1c2597f5522091a647917c009fbd786cedd539dfa7b8a98"},
 ]
 
 [package.dependencies]
 jsonpatch = ">=1.33,<2.0"
-langsmith = ">=0.1.75,<0.2.0"
+langsmith = ">=0.1.112,<0.2.0"
 packaging = ">=23.2,<25"
-pydantic = [
-    {version = ">=1,<3", markers = "python_full_version < \"3.12.4\""},
-    {version = ">=2.7.4,<3.0.0", markers = "python_full_version >= \"3.12.4\""},
-]
+pydantic = ">=2.7.4,<3.0.0"
 PyYAML = ">=5.3"
 tenacity = ">=8.1.0,<8.4.0 || >8.4.0,<9.0.0"
 typing-extensions = ">=4.7"
@@ -1258,13 +1255,13 @@ pydantic = ">=2,<3"
 
 [[package]]
 name = "langchain-openai"
-version = "0.2.0.dev1"
+version = "0.2.0.dev2"
 description = "An integration package connecting OpenAI and LangChain"
 optional = false
 python-versions = "<4.0,>=3.9"
 files = [
-    {file = "langchain_openai-0.2.0.dev1-py3-none-any.whl", hash = "sha256:1adc49309cd13c77c36153461aa8c4a164c13ecfb6a8397fe63bd75123deb1fd"},
-    {file = "langchain_openai-0.2.0.dev1.tar.gz", hash = "sha256:b334f04ede9f82a8e215b233c29b10de4cce8eb115403833e72a5309f64536ec"},
+    {file = "langchain_openai-0.2.0.dev2-py3-none-any.whl", hash = "sha256:47ca99afe7ef674087e93744f810583487676de65c1fbc8b3121fe2a624f4b1a"},
+    {file = "langchain_openai-0.2.0.dev2.tar.gz", hash = "sha256:e10820926f84d0cd4c27ab3a8fce49f957c8e9e7d8e22a148021bf73fc046abc"},
 ]
 
 [package.dependencies]
@@ -1305,13 +1302,13 @@ weaviate-client = ">=4.0.0,<5.0.0"
 
 [[package]]
 name = "langgraph"
-version = "0.2.17"
+version = "0.2.19"
 description = "Building stateful, multi-actor applications with LLMs"
 optional = false
 python-versions = "<4.0,>=3.9.0"
 files = [
-    {file = "langgraph-0.2.17-py3-none-any.whl", hash = "sha256:06692dc5483c26a4df43398a2703518db8a00313c71f357ec31279c94c7c8321"},
-    {file = "langgraph-0.2.17.tar.gz", hash = "sha256:536c0fa91c6f3dbb3517ce978e7c25e4ca3252afe83bc28d5eda9052ef042c75"},
+    {file = "langgraph-0.2.19-py3-none-any.whl", hash = "sha256:f341de2d13a6b6256ddce23454e50273164344f13909e231c50ad2c0d0dbef89"},
+    {file = "langgraph-0.2.19.tar.gz", hash = "sha256:7d3f41cd61e4dcf248919fa3f66d0033bc70c5017148f7657c25c47f0daf8450"},
 ]
 
 [package.dependencies]
@@ -1334,16 +1331,17 @@ langchain-core = ">=0.2.38,<0.4"
 
 [[package]]
 name = "langsmith"
-version = "0.1.98"
+version = "0.1.116"
 description = "Client library to connect to the LangSmith LLM Tracing and Evaluation Platform."
 optional = false
 python-versions = "<4.0,>=3.8.1"
 files = [
-    {file = "langsmith-0.1.98-py3-none-any.whl", hash = "sha256:f79e8a128652bbcee4606d10acb6236973b5cd7dde76e3741186d3b97b5698e9"},
-    {file = "langsmith-0.1.98.tar.gz", hash = "sha256:e07678219a0502e8f26d35294e72127a39d25e32fafd091af5a7bb661e9a6bd1"},
+    {file = "langsmith-0.1.116-py3-none-any.whl", hash = "sha256:4b5ea64c81ba5ca309695c85dc3fb4617429a985129ed5d9eca00d1c9d6483f4"},
+    {file = "langsmith-0.1.116.tar.gz", hash = "sha256:5ccd7f5c1840f7c507ab3ee56334a1391de28c8bf72669782e2d82cafeefffa7"},
 ]
 
 [package.dependencies]
+httpx = ">=0.23.0,<1"
 orjson = ">=3.9.14,<4.0.0"
 pydantic = [
     {version = ">=1,<3", markers = "python_full_version < \"3.12.4\""},
@@ -3097,4 +3095,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "b127b71d05cadcf6a66381caa28ca30040b7a25785f0fc899dd2caf1406db90e"
+content-hash = "3699ef33bcdeffad45bc72a0fcbeaee07ff57fc59803afbd859e8406edd80c79"
