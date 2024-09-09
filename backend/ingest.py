@@ -131,12 +131,11 @@ def ingest_docs():
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     embedding = get_embeddings_model()
 
-    try:
-        weaviate_client = weaviate.connect_to_wcs(
-            cluster_url=WEAVIATE_URL,
-            auth_credentials=weaviate.classes.init.Auth.api_key(WEAVIATE_API_KEY),
-            skip_init_checks=True,
-        )
+    with weaviate.connect_to_weaviate_cloud(
+        cluster_url=WEAVIATE_URL,
+        auth_credentials=weaviate.classes.init.Auth.api_key(WEAVIATE_API_KEY),
+        skip_init_checks=True,
+    ) as weaviate_client:
         vectorstore = WeaviateVectorStore(
             client=weaviate_client,
             index_name=WEAVIATE_DOCS_INDEX_NAME,
@@ -196,8 +195,6 @@ def ingest_docs():
         logger.info(
             f"LangChain now has this many vectors: {num_vecs}",
         )
-    finally:
-        weaviate_client.close()
 
 
 if __name__ == "__main__":
