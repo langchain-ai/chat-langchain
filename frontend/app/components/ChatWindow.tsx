@@ -321,16 +321,16 @@ export function ChatWindow() {
                         <option value="anthropic_claude_3_haiku">
                           Claude 3 Haiku
                         </option>
-                        <option value="google_gemini_pro">
-                          Google Gemini Pro
+                        <option value="google_gemini_flash">
+                          Google Gemini 1.5 Flash
                         </option>
                         <option value="fireworks_mixtral">
                           Mixtral (via Fireworks.ai)
                         </option>
                         <option value="groq_llama_3">
-                          Llama 3 (via Groq.com)
+                          Llama 3.1 (via Groq.com)
                         </option>
-                        <option value="cohere_command">Cohere</option>
+                        <option value="cohere_command_r">Cohere</option>
                       </Select>
                     )}
                   </div>
