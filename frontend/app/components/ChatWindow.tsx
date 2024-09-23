@@ -275,7 +275,7 @@ export function ChatWindow() {
                   mb={1}
                   color={"white"}
                 >
-                  Chat LangChain 🦜🔗
+                  Venus StockGPT 🪙
                 </Heading>
                 {messages.length > 0 ? (
                   <Heading
@@ -284,7 +284,7 @@ export function ChatWindow() {
                     mb={1}
                     color={"white"}
                   >
-                    We appreciate feedback!
+                    We appreciate your usage!
                   </Heading>
                 ) : (
                   <Heading
@@ -294,13 +294,7 @@ export function ChatWindow() {
                     marginTop={"10px"}
                     textAlign={"center"}
                   >
-                    Ask me anything about LangChain&apos;s{" "}
-                    <Link
-                      href="https://python.langchain.com/"
-                      color={"blue.200"}
-                    >
-                      Python documentation!
-                    </Link>
+                    We provide the latest and insightful report, news, trading opportunities and more.                   
                   </Heading>
                 )}
                 <div className="text-white flex flex-wrap items-center mt-4">
@@ -384,7 +378,7 @@ export function ChatWindow() {
                   value={input}
                   maxRows={5}
                   marginRight={"56px"}
-                  placeholder="What does RunnablePassthrough.assign() do?"
+                  placeholder="What are the hottest stocks these days?"
                   textColor={"white"}
                   borderColor={"rgb(58, 58, 61)"}
                   onChange={(e) => setInput(e.target.value)}
@@ -420,12 +414,11 @@ export function ChatWindow() {
               {messages.length === 0 ? (
                 <footer className="flex justify-center mt-auto h-4 fixed bottom-4">
                   <a
-                    href="https://github.com/langchain-ai/chat-langchain"
+                    href="/"
                     target="_blank"
                     className="text-white flex items-center"
                   >
-                    <img src="/images/github-mark.svg" className="h-4 mr-1" />
-                    <span>View Source</span>
+                    Start trading today!
                   </a>
                 </footer>
               ) : (

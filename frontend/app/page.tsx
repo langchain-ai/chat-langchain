@@ -12,11 +12,20 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL
   ? process.env.NEXT_PUBLIC_API_URL
   : "http://localhost:3000/api";
 
+const apiKey = process.env.NEXT_PUBLIC_LANGCHAIN_API_KEY;
+const apiKeywithnext = process.env.LANGCHAIN_API_KEY;
+
 export default function Home() {
   const queryClient = new QueryClient();
+  
   const langGraphClient = new Client({
-    apiUrl,
-  });
+  apiUrl,
+  apiKey: process.env.NEXT_PUBLIC_LANGCHAIN_API_KEY,
+});
+
+
+
+  
   return (
     <LangGraphClientContext.Provider value={langGraphClient}>
       <QueryClientProvider client={queryClient}>
