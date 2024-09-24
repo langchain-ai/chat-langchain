@@ -67,7 +67,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              Explain multi-vector retrieval and how it can improve results.
+              What are the best stocks found by StockGPT?
             </Heading>
           </CardHeader>
         </Card>
