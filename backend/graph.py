@@ -427,7 +427,8 @@ workflow.set_conditional_entry_point(route_to_retriever)
 # Modify existing edges and add new ones
 workflow.add_conditional_edges("retriever", route_to_relevance_check)
 workflow.add_conditional_edges("retriever_with_chat_history", route_to_relevance_check)
-workflow.add_edge("relevance_check", "response_synthesizer", edge_condition="synthesize")
+workflow.add_edge("relevance_check", "response_synthesizer", condition=lambda x: x == "synthesize")
+#workflow.add_edge("relevance_check", "response_synthesizer", edge_condition="synthesize")
 workflow.add_edge("relevance_check", "external_search", edge_condition="external_search")
 workflow.add_edge("external_search", "response_synthesizer")
 
