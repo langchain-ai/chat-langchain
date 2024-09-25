@@ -407,6 +407,7 @@ class InputSchema(TypedDict):
 
 workflow = StateGraph(AgentState, Configuration, input=InputSchema)
 
+
 # define nodes
 workflow.add_node("retriever", retrieve_documents)
 workflow.add_node("retriever_with_chat_history", retrieve_documents_with_chat_history)
@@ -427,12 +428,12 @@ workflow.set_conditional_entry_point(route_to_retriever)
 # Modify existing edges and add new ones
 workflow.add_conditional_edges("retriever", route_to_relevance_check)
 workflow.add_conditional_edges("retriever_with_chat_history", route_to_relevance_check)
-workflow.add_edge("relevance_check", "response_synthesizer", condition=lambda x: x == "synthesize")
-#workflow.add_edge("relevance_check", "response_synthesizer", edge_condition="synthesize")
-workflow.add_edge("relevance_check", "external_search", edge_condition="external_search")
-workflow.add_edge("external_search", "response_synthesizer")
-
-
+workflow.add_conditional_edges(
+    "relevance_check",
+    lambda x: "external_search" if x == "external_search" else route_to_response_synthesizer(x)
+)
+workflow.add_conditional_edges("relevance_check", route_to_response_synthesizer, condition=lambda x: x == "synthesize")
+workflow.add_edge("external_search", route_to_response_synthesizer)
 
 # connect synthesizers to terminal node
 workflow.add_edge("response_synthesizer", END)
