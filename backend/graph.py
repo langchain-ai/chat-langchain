@@ -33,38 +33,39 @@ from langsmith import Client as LangsmithClient
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 from backend.ingest import get_embeddings_model
 
+from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
+
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
 about Langchain.
 
 Generate a comprehensive and informative answer of 80 words or less for the \
-given question based solely on the provided search results (URL and content). You must \
-only use information from the provided search results. Use an unbiased and \
-journalistic tone. Combine search results together into a coherent answer. Do not \
-repeat text. Cite search results using [${{number}}] notation. Only cite the most \
-relevant results that answer the question accurately. Place these citations at the end \
-of the sentence or paragraph that reference them - do not put them all at the end. If \
-different results refer to different entities within the same name, write separate \
-answers for each entity.
+given question based on the provided search results (URL and content). You must \
+only use information from the provided search results, which may include both internal \
+and external sources. Use an unbiased and journalistic tone. Combine search results \
+together into a coherent answer. Do not repeat text. Cite search results using [${{number}}] \
+notation. Only cite the most relevant results that answer the question accurately. \
+Place these citations at the end of the sentence or paragraph that reference them - do \
+not put them all at the end.
 
 You should use bullet points in your answer for readability. Put citations where they apply
 rather than putting them all at the end.
 
-If there is nothing in the context relevant to the question at hand, just say "Hmm, \
-I'm not sure." Don't try to make up an answer.
+If using information from external sources, clearly state this in your answer.
 
-Anything between the following `context`  html blocks is retrieved from a knowledge \
-bank, not part of the conversation with the user. 
+Anything between the following `context` html blocks is retrieved from a knowledge \
+bank or external sources, not part of the conversation with the user. 
 
 <context>
     {context} 
 <context/>
 
-REMEMBER: If there is no relevant information within the context, just say "Hmm, I'm \
-not sure." Don't try to make up an answer. Anything between the preceding 'context' \
-html blocks is retrieved from a knowledge bank, not part of the conversation with the \
-user.\
+REMEMBER: Only use information from the provided context. If using external sources, \
+clearly state this in your answer. If the information doesn't directly answer the \
+question, acknowledge this while providing the most relevant details available.\
 """
+
+
 
 COHERE_RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
@@ -268,6 +269,41 @@ def retrieve_documents_with_chat_history(
     return {"query": query, "documents": relevant_documents}
 
 
+
+
+def perform_external_search(state: AgentState) -> AgentState:
+    search = DuckDuckGoSearchAPIWrapper()
+    results = search.results(state["query"], num_results=3)
+    
+    external_docs = [
+        Document(
+            page_content=result["snippet"],
+            metadata={"source": result["link"], "title": result["title"]}
+        )
+        for result in results
+    ]
+    
+    # Combine the original and external search documents
+    all_documents = state["documents"] + external_docs
+    
+    state["documents"] = all_documents
+    return state
+
+def check_relevance(state: AgentState) -> Literal["synthesize", "external_search"]:
+    # Simple relevance check
+    if not state["documents"]:
+        return "external_search"
+    
+    query_keywords = set(state["query"].lower().split())
+    for doc in state["documents"]:
+        if any(keyword in doc.page_content.lower() for keyword in query_keywords):
+            return "synthesize"
+    return "external_search"
+
+def route_to_relevance_check(state: AgentState) -> Literal["relevance_check"]:
+    return "relevance_check"
+
+
 def route_to_retriever(
     state: AgentState,
 ) -> Literal["retriever", "retriever_with_chat_history"]:
@@ -377,14 +413,25 @@ workflow.add_node("retriever_with_chat_history", retrieve_documents_with_chat_hi
 workflow.add_node("response_synthesizer", synthesize_response_default)
 workflow.add_node("response_synthesizer_cohere", synthesize_response_cohere)
 
+
+# Add new nodes
+workflow.add_node("relevance_check", check_relevance)
+workflow.add_node("external_search", perform_external_search)
+
+
+
 # set entry point to retrievers
 workflow.set_conditional_entry_point(route_to_retriever)
 
-# connect retrievers and response synthesizers
-workflow.add_conditional_edges("retriever", route_to_response_synthesizer)
-workflow.add_conditional_edges(
-    "retriever_with_chat_history", route_to_response_synthesizer
-)
+
+# Modify existing edges and add new ones
+workflow.add_conditional_edges("retriever", route_to_relevance_check)
+workflow.add_conditional_edges("retriever_with_chat_history", route_to_relevance_check)
+workflow.add_edge("relevance_check", "response_synthesizer", edge_condition="synthesize")
+workflow.add_edge("relevance_check", "external_search", edge_condition="external_search")
+workflow.add_edge("external_search", "response_synthesizer")
+
+
 
 # connect synthesizers to terminal node
 workflow.add_edge("response_synthesizer", END)
