@@ -32,6 +32,7 @@ from langsmith import Client as LangsmithClient
 
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 from backend.ingest import get_embeddings_model
+from backend.stock_utils import extract_and_fetch_stock_data, format_stock_info
 
 
 RESPONSE_TEMPLATE = """
@@ -142,6 +143,7 @@ class AgentState(TypedDict):
     # for convenience in evaluations
     answer: str
     feedback_urls: dict[str, list[str]]
+    stock_data: Optional[list[dict]]  # New field
 
 
 gpt_4o_mini = ChatOpenAI(model="gpt-4o-mini-2024-07-18", temperature=0, streaming=True)
@@ -207,6 +209,17 @@ llm = gpt_4o_mini.configurable_alternatives(
         groq_llama3,
     ]
 )
+
+
+#for realtime stock info section
+def check_stock_symbols(state: AgentState) -> AgentState:
+    messages = convert_to_messages(state["messages"])
+    query = messages[-1].content
+    stock_data = extract_and_fetch_stock_data(query)
+    if stock_data:
+        state["stock_data"] = stock_data
+    return state
+
 
 
 @contextlib.contextmanager
@@ -310,7 +323,8 @@ def get_feedback_urls(config: RunnableConfig) -> dict[str, list[str]]:
     return key_to_token_urls
 
 
-def synthesize_response(
+
+def synthesize_response_old(
     state: AgentState,
     config: RunnableConfig,
     model: LanguageModelLike,
@@ -342,6 +356,44 @@ def synthesize_response(
         "answer": synthesized_response.content,
         "feedback_urls": feedback_urls,
     }
+
+def synthesize_response(
+    state: AgentState,
+    config: RunnableConfig,
+    model: LanguageModelLike,
+    prompt_template: str,
+) -> AgentState:
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", prompt_template),
+            ("placeholder", "{chat_history}"),
+            ("human", "{question}"),
+        ]
+    )
+    response_synthesizer = prompt | model
+    
+    # Include stock data in the context if available
+    context = format_docs(state["documents"])
+    if "stock_data" in state and state["stock_data"]:
+        stock_info = format_stock_info(state["stock_data"])
+        context = stock_info + "\n" + context
+
+    synthesized_response = response_synthesizer.invoke(
+        {
+            "question": state["query"],
+            "context": context,
+            "chat_history": get_chat_history(
+                convert_to_messages(state["messages"][:-1])
+            ),
+        }
+    )
+    feedback_urls = get_feedback_urls(config)
+    return {
+        "messages": [synthesized_response],
+        "answer": synthesized_response.content,
+        "feedback_urls": feedback_urls,
+    }
+
 
 
 def synthesize_response_default(
@@ -377,13 +429,17 @@ class InputSchema(TypedDict):
 workflow = StateGraph(AgentState, Configuration, input=InputSchema)
 
 # define nodes
+workflow.add_node("stock_symbol_check", check_stock_symbols)
 workflow.add_node("retriever", retrieve_documents)
 workflow.add_node("retriever_with_chat_history", retrieve_documents_with_chat_history)
 workflow.add_node("response_synthesizer", synthesize_response_default)
 workflow.add_node("response_synthesizer_cohere", synthesize_response_cohere)
 
-# set entry point to retrievers
-workflow.set_conditional_entry_point(route_to_retriever)
+# set entry point to stock symbol check
+workflow.set_entry_point("stock_symbol_check")
+
+# connect stock symbol check to retrievers
+workflow.add_conditional_edges("stock_symbol_check", route_to_retriever)
 
 # connect retrievers and response synthesizers
 workflow.add_conditional_edges("retriever", route_to_response_synthesizer)
