@@ -36,7 +36,7 @@ def fetch_stock_data_from_api_with_header(symbol: str) -> Optional[dict]:
 
 def fetch_stock_data_from_api(symbol: str) -> Optional[dict]:
     try:
-        response = requests.get(f"{STOCK_API_URL}/quote", params={"symbol": symbol})
+        response = requests.get(f"{STOCK_API_URL}/stock", params={"symbol": symbol})
         response.raise_for_status()
         data = response.json()
         return {
