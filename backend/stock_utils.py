@@ -1,6 +1,6 @@
 import requests
 from typing import Optional, List
-from backend.constants import STOCK_API_URL, STOCK_API_KEY
+from backend.constants import STOCK_API_URL
 
 # Replace with your Alpha Vantage API key
 ALPHA_VANTAGE_API_KEY = "YOUR_ALPHA_VANTAGE_API_KEY"
