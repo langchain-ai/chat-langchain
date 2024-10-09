@@ -169,7 +169,7 @@ def process_news_item(item):
 
 def ingest_docs():
     WEAVIATE_URL = os.environ["https://cpomnhnws06xj1jampfrjw.c0.asia-southeast1.gcp.weaviate.cloud"]
-    WEAVIATE_API_KEY = os.environ["WCS_API_KEY"]
+    WEAVIATE_API_KEY = os.environ["bAfSqpNpGXXgkukYTUg0np7gTdyF8iF6mw31"]
     RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
