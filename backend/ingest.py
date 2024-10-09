@@ -164,16 +164,6 @@ def load_sample_news():
 
 load_sample_news()
 
-# def load_sample_news():
-#     return SitemapLoader(
-#         "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml",
-#         filter_urls=[],  
-#         parsing_function=simple_extractor,  
-#         default_parser="lxml",
-#         bs_kwargs={"parse_only": SoupStrainer(name=("item", "title", "description"))},
-#         meta_function=metadata_extractor,  
-#     ).load()
-
 
 def ingest_docs():
     WEAVIATE_URL = os.environ["WEAVIATE_URL"]
@@ -217,6 +207,7 @@ def ingest_docs():
             + docs_from_api
             + docs_from_langsmith
             + docs_from_langgraph
+            + docs_from_sample_news
         )
         docs_transformed = [
             doc for doc in docs_transformed if len(doc.page_content) > 10
