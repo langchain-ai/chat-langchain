@@ -4,10 +4,11 @@ from backend.constants import STOCK_API_URL
 
 # Replace with your Alpha Vantage API key
 ALPHA_VANTAGE_API_KEY = "YOUR_ALPHA_VANTAGE_API_KEY"
-
+STOCK_API_KEY="YOUR_STOCK_API_KEY" #for test only
 # This list should contain all the stock symbols you want to recognize
 VALID_STOCK_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "JNJ"]
 # Add more symbols as needed
+
 
 def is_stock_symbol(text: str) -> bool:
     return text.upper() in VALID_STOCK_SYMBOLS
