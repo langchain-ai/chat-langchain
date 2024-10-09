@@ -156,15 +156,15 @@ def load_api_docs():
 
 #     return news_items
 
-def load_sample_news():
-    return SitemapLoader(
-        "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml",
-        filter_urls=[],  
-        parsing_function=simple_extractor,  
-        default_parser="lxml",
-        bs_kwargs={"parse_only": SoupStrainer(name=("item", "title", "description"))},
-        meta_function=metadata_extractor,  
-    ).load()
+# def load_sample_news():
+#     return SitemapLoader(
+#         "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml",
+#         filter_urls=[],  
+#         parsing_function=simple_extractor,  
+#         default_parser="lxml",
+#         bs_kwargs={"parse_only": SoupStrainer(name=("item", "title", "description"))},
+#         meta_function=metadata_extractor,  
+#     ).load()
 
 
 def ingest_docs():
@@ -201,8 +201,8 @@ def ingest_docs():
         logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
         docs_from_langgraph = load_langgraph_docs()
         logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
-        docs_from_sample_news = load_sample_news()
-        logger.info(f"Loaded {len(docs_from_sample_news)} docs from SampleNews")
+        # docs_from_sample_news = load_sample_news()
+        # logger.info(f"Loaded {len(docs_from_sample_news)} docs from SampleNews")
 
         docs_transformed = text_splitter.split_documents(
             docs_from_documentation
