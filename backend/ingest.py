@@ -165,7 +165,8 @@ def load_sample_news():
 def process_news_item(item):
     for key, value in item.items():
         print(f"{key}: {value}\n")
-        
+
+load_sample_news()
 
 def ingest_docs():
     WEAVIATE_URL = os.environ["WEAVIATE_URL"]
