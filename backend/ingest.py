@@ -201,6 +201,8 @@ def ingest_docs():
         logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
         docs_from_langgraph = load_langgraph_docs()
         logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
+        docs_from_sample_news = load_sample_news()
+        logger.info(f"Loaded {len(docs_from_sample_news)} docs from SampleNews")
 
         docs_transformed = text_splitter.split_documents(
             docs_from_documentation
