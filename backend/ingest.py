@@ -160,8 +160,6 @@ def extract_items_from_rss(feed_url: str):
 def load_sample_news():
     feed_url = "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml"
     items = extract_items_from_rss(feed_url)
-    for item in items:
-        process_news_item(item)
     return items
 
 load_sample_news()
