@@ -2,7 +2,7 @@
 import logging
 import os
 import re
-import requests
+# import requests
 from typing import Optional
 
 import weaviate
