@@ -170,7 +170,7 @@ def load_sample_news():
         filter_urls=[],  
         parsing_function=simple_extractor,  
         default_parser="lxml",
-        # bs_kwargs={"parse_only": SoupStrainer(name=("article", "title", "html", "lang", "content"))},
+        bs_kwargs={"parse_only": SoupStrainer(name=("article", "title", "html", "lang", "content"))},
         meta_function=metadata_extractor,  
     ).load()
 
