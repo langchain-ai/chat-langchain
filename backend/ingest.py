@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+import requests
 from typing import Optional
 
 import weaviate
@@ -122,6 +123,49 @@ def load_api_docs():
         ),
     ).load()
 
+def extract_items_from_rss(feed_url: str):
+    response = requests.get(feed_url)
+    soup = BeautifulSoup(response.content, "xml")
+    items = soup.find_all("item")
+    news_items = []
+
+    for item in items:
+        title = item.find("title").get_text() if item.find("title") else "No Title"
+        link = item.find("link").get_text() if item.find("link") else "No Link"
+        identifier = item.find("dc:identifier").get_text() if item.find("dc:identifier") else "No Identifier"
+        pub_date = item.find("pubDate").get_text() if item.find("pubDate") else "No Date"
+        creator = item.find("dc:creator").get_text() if item.find("dc:creator") else "No Creator"
+        thumbnail = item.find("media:thumbnail")['url'] if item.find("media:thumbnail") else "No Thumbnail"
+        guid = item.find("guid").get_text() if item.find("guid") else "No GUID"
+        description = item.find("description").get_text() if item.find("description") else "No Description"
+        content_encoded = item.find("content:encoded").decode_contents() if item.find("content:encoded") else "No Content"
+
+        news_item = {
+            "title": title,
+            "link": link,
+            "identifier": identifier,
+            "pub_date": pub_date,
+            "creator": creator,
+            "thumbnail": thumbnail,
+            "guid": guid,
+            "description": description,
+            "content": content_encoded,
+        }
+        news_items.append(news_item)
+
+
+    return news_items
+
+def load_sample_news():
+    feed_url = "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml"
+    items = extract_items_from_rss(feed_url)
+    for item in items:
+        process_news_item(item)
+
+def process_news_item(item):
+    for key, value in item.items():
+        print(f"{key}: {value}\n")
+        
 
 def ingest_docs():
     WEAVIATE_URL = os.environ["WEAVIATE_URL"]
