@@ -165,7 +165,7 @@ def load_api_docs():
 
 def load_sample_news():
     return SitemapLoader(
-        url="https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml",
+        "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml",
         filter_urls=[],  
         parsing_function=simple_extractor,  
         default_parser="lxml",
