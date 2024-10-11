@@ -122,56 +122,56 @@ def load_api_docs():
         ),
     ).load()
 
-# def extract_items_from_rss(feed_url: str):
-#     response = requests.get(feed_url)
-#     soup = BeautifulSoup(response.content, "xml")
-#     items = soup.find_all("item")
-#     news_items = []
+def extract_items_from_rss(feed_url: str):
+    response = requests.get(feed_url)
+    soup = BeautifulSoup(response.content, "xml")
+    items = soup.find_all("item")
+    news_items = []
 
-#     for item in items:
-#         title = item.find("title").get_text() if item.find("title") else "No Title"
-#         link = item.find("link").get_text() if item.find("link") else "No Link"
-#         identifier = item.find("dc:identifier").get_text() if item.find("dc:identifier") else "No Identifier"
-#         pub_date = item.find("pubDate").get_text() if item.find("pubDate") else "No Date"
-#         creator = item.find("dc:creator").get_text() if item.find("dc:creator") else "No Creator"
-#         thumbnail = item.find("media:thumbnail")['url'] if item.find("media:thumbnail") else "No Thumbnail"
-#         guid = item.find("guid").get_text() if item.find("guid") else "No GUID"
-#         description = item.find("description").get_text() if item.find("description") else "No Description"
-#         content_encoded = item.find("content:encoded").decode_contents() if item.find("content:encoded") else "No Content"
+    for item in items:
+        title = item.find("title").get_text() if item.find("title") else "No Title"
+        link = item.find("link").get_text() if item.find("link") else "No Link"
+        identifier = item.find("dc:identifier").get_text() if item.find("dc:identifier") else "No Identifier"
+        pub_date = item.find("pubDate").get_text() if item.find("pubDate") else "No Date"
+        creator = item.find("dc:creator").get_text() if item.find("dc:creator") else "No Creator"
+        thumbnail = item.find("media:thumbnail")['url'] if item.find("media:thumbnail") else "No Thumbnail"
+        guid = item.find("guid").get_text() if item.find("guid") else "No GUID"
+        description = item.find("description").get_text() if item.find("description") else "No Description"
+        content_encoded = item.find("content:encoded").decode_contents() if item.find("content:encoded") else "No Content"
 
-#         news_item = {
-#             "title": title,
-#             "link": link,
-#             "identifier": identifier,
-#             "pub_date": pub_date,
-#             "creator": creator,
-#             "thumbnail": thumbnail,
-#             "guid": guid,
-#             "description": description,
-#             "content": content_encoded,
-#         }
-#         news_items.append(news_item)
-
-
-#     return news_items
+        news_item = {
+            "title": title,
+            "link": link,
+            "identifier": identifier,
+            "pub_date": pub_date,
+            "creator": creator,
+            "thumbnail": thumbnail,
+            "guid": guid,
+            "description": description,
+            "content": content_encoded,
+        }
+        news_items.append(news_item)
 
 
-# def load_sample_news():
-#     feed_url = "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml"
-#     items = extract_items_from_rss(feed_url)
-#     return items
+    return news_items
 
-# load_sample_news()
 
 def load_sample_news():
-    return SitemapLoader(
-        "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml",
-        filter_urls=[],  
-        parsing_function=simple_extractor,  
-        default_parser="lxml",
-        bs_kwargs={"parse_only": SoupStrainer(name=("article", "title", "html", "lang", "content"))},
-        meta_function=metadata_extractor,  
-    ).load()
+    feed_url = "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml"
+    items = extract_items_from_rss(feed_url)
+    return items
+
+load_sample_news()
+
+# def load_sample_news():
+#     return SitemapLoader(
+#         "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml",
+#         filter_urls=[],  
+#         parsing_function=simple_extractor,  
+#         default_parser="lxml",
+#         bs_kwargs={"parse_only": SoupStrainer(name=("article", "title", "html", "lang", "content"))},
+#         meta_function=metadata_extractor,  
+#     ).load()
 
 
 
