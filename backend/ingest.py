@@ -188,7 +188,7 @@ def generate_sitemap_xml(xml_string) -> str:
     items = xml_tree.findall('.//item')
 
     extracted_data = []
-       for item in items:
+    for item in items:
         title = item.find("title").get_text() if item.find("title") else "No Title"
         link = item.find("link").get_text() if item.find("link") else "No Link"
         identifier = item.find("dc:identifier").get_text() if item.find("dc:identifier") else "No Identifier"
