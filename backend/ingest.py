@@ -4,6 +4,7 @@ import os
 import re
 import requests
 from typing import Optional
+from lxml import etree
 
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
