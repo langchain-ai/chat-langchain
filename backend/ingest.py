@@ -160,9 +160,17 @@ def extract_items_from_rss(feed_url: str):
 def load_sample_news():
     feed_url = "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml"
     items = extract_items_from_rss(feed_url)
-    return items
+    documents = []
+    for item in items:
+        doc = Document(
+            page_content=item['content'],
+            metadata={"title": item["title"], "source": item["link"], "identifier": item["identifier"], "pub_date": item["pub_date"], "creator": item[creator],
+                     "thumbnail": item[thumbnail], "guid": item[guid], "description": item[description]}  
+        )
+        documents.append(doc)
+    
+    return documents
 
-load_sample_news()
 
 # def load_sample_news():
 #     return SitemapLoader(
