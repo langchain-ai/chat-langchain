@@ -123,53 +123,53 @@ def load_api_docs():
         ),
     ).load()
 
-def extract_items_from_rss(feed_url: str):
-    response = requests.get(feed_url)
-    soup = BeautifulSoup(response.content, "xml")
-    items = soup.find_all("item")
-    news_items = []
+# def extract_items_from_rss(feed_url: str):
+#     response = requests.get(feed_url)
+#     soup = BeautifulSoup(response.content, "xml")
+#     items = soup.find_all("item")
+#     news_items = []
 
-    for item in items:
-        title = item.find("title").get_text() if item.find("title") else "No Title"
-        link = item.find("link").get_text() if item.find("link") else "No Link"
-        identifier = item.find("dc:identifier").get_text() if item.find("dc:identifier") else "No Identifier"
-        pub_date = item.find("pubDate").get_text() if item.find("pubDate") else "No Date"
-        creator = item.find("dc:creator").get_text() if item.find("dc:creator") else "No Creator"
-        thumbnail = item.find("media:thumbnail")['url'] if item.find("media:thumbnail") else "No Thumbnail"
-        guid = item.find("guid").get_text() if item.find("guid") else "No GUID"
-        description = item.find("description").get_text() if item.find("description") else "No Description"
-        content_encoded = item.find("content:encoded").decode_contents() if item.find("content:encoded") else "No Content"
+#     for item in items:
+#         title = item.find("title").get_text() if item.find("title") else "No Title"
+#         link = item.find("link").get_text() if item.find("link") else "No Link"
+#         identifier = item.find("dc:identifier").get_text() if item.find("dc:identifier") else "No Identifier"
+#         pub_date = item.find("pubDate").get_text() if item.find("pubDate") else "No Date"
+#         creator = item.find("dc:creator").get_text() if item.find("dc:creator") else "No Creator"
+#         thumbnail = item.find("media:thumbnail")['url'] if item.find("media:thumbnail") else "No Thumbnail"
+#         guid = item.find("guid").get_text() if item.find("guid") else "No GUID"
+#         description = item.find("description").get_text() if item.find("description") else "No Description"
+#         content_encoded = item.find("content:encoded").decode_contents() if item.find("content:encoded") else "No Content"
 
-        news_item = {
-            "title": title,
-            "link": link,
-            "identifier": identifier,
-            "pub_date": pub_date,
-            "creator": creator,
-            "thumbnail": thumbnail,
-            "guid": guid,
-            "description": description,
-            "content": content_encoded,
-        }
-        news_items.append(news_item)
-
-
-    return news_items
+#         news_item = {
+#             "title": title,
+#             "link": link,
+#             "identifier": identifier,
+#             "pub_date": pub_date,
+#             "creator": creator,
+#             "thumbnail": thumbnail,
+#             "guid": guid,
+#             "description": description,
+#             "content": content_encoded,
+#         }
+#         news_items.append(news_item)
 
 
-def load_sample_news():
-    feed_url = "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml"
-    items = extract_items_from_rss(feed_url)
-    documents = []
-    for item in items:
-        doc = Document(
-            page_content=item['content'],
-            metadata={"title": item["title"], "source": item["link"], "identifier": item["identifier"], "pub_date": item["pub_date"], "creator": item[creator],
-                     "thumbnail": item[thumbnail], "guid": item[guid], "description": item[description]}  
-        )
-        documents.append(doc)
+#     return news_items
+
+
+# def load_sample_news():
+#     feed_url = "https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml"
+#     items = extract_items_from_rss(feed_url)
+#     documents = []
+#     for item in items:
+#         doc = Document(
+#             page_content=item['content'],
+#             metadata={"title": item["title"], "source": item["link"], "identifier": item["identifier"], "pub_date": item["pub_date"], "creator": item[creator],
+#                      "thumbnail": item[thumbnail], "guid": item[guid], "description": item[description]}  
+#         )
+#         documents.append(doc)
     
-    return documents
+#     return documents
 
 
 # def load_sample_news():
@@ -183,7 +183,68 @@ def load_sample_news():
 #     ).load()
 
 
+def generate_sitemap_xml(xml_string) -> str:
+    xml_tree = etree.fromstring(xml_string)
+    items = xml_tree.findall('.//item')
 
+    extracted_data = []
+       for item in items:
+        title = item.find("title").get_text() if item.find("title") else "No Title"
+        link = item.find("link").get_text() if item.find("link") else "No Link"
+        identifier = item.find("dc:identifier").get_text() if item.find("dc:identifier") else "No Identifier"
+        pub_date = item.find("pubDate").get_text() if item.find("pubDate") else "No Date"
+        creator = item.find("dc:creator").get_text() if item.find("dc:creator") else "No Creator"
+        thumbnail = item.find("media:thumbnail")['url'] if item.find("media:thumbnail") else "No Thumbnail"
+        guid = item.find("guid").get_text() if item.find("guid") else "No GUID"
+        description = item.find("description").get_text() if item.find("description") else "No Description"
+        content_encoded = item.find("content:encoded").decode_contents() if item.find("content:encoded") else "No Content"
+        
+        extracted_data.append({
+            "title": title,
+            "link": link,
+            "identifier": identifier,
+            "pub_date": pub_date,
+            "creator": creator,
+            "thumbnail": thumbnail,
+            "guid": guid,
+            "description": description,
+            "content": content_encoded,
+        })
+
+
+    urlset = etree.Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
+
+    for entry in extracted_data:
+        url = etree.SubElement(urlset, "url")
+
+        loc = etree.SubElement(url, "loc")
+        loc.text = entry['link']
+
+        lastmod = etree.SubElement(url, "lastmod")
+        lastmod.text = entry['pub_date']
+
+    return etree.tostring(urlset, pretty_print=True, xml_declaration=True, encoding='UTF-8').decode('utf-8')
+
+def load_sample_news():
+    response = requests.get("https://cdn.feedcontrol.net/7512/12213-hIFHBiLc7Wh50.xml")
+    xml_content = response.content
+    sitemap_xml = generate_sitemap_xml(xml_content)
+    
+    with open('sample_news.xml', 'w', encoding='utf-8') as file:
+        file.write(sitemap_xml)
+    print("Sitemap XML has been saved to 'sitemap.xml'.")
+
+    return SitemapLoader(
+        "sample_news.xml",
+        is_local=True,
+        parsing_function=simple_extractor,  
+        default_parser="lxml",
+        bs_kwargs={"parse_only": SoupStrainer(name=("article", "title", "html", "lang", "content"))},
+          meta_function=lambda meta, soup: metadata_extractor(
+            meta, soup, title_suffix=" | sample_news"
+        ),
+    ).load()
+    
 def ingest_docs():
     WEAVIATE_URL = os.environ["WEAVIATE_URL"]
     WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
