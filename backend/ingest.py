@@ -185,8 +185,8 @@ def load_api_docs():
 
 
 def generate_sitemap_xml(xml_string) -> str:
-    xml_tree = etree.fromstring(xml_string)
-    items = xml_tree.findall('.//item')
+    soup = BeautifulSoup(xml_string, "xml")
+    items = soup.find_all("item")
 
     extracted_data = []
     for item in items:
