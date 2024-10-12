@@ -15,8 +15,9 @@ import {
   Button,
   Text,
   Box,
+  useBreakpointValue,
 } from "@chakra-ui/react";
-import { ArrowDownIcon, ArrowUpIcon, SmallCloseIcon } from "@chakra-ui/icons";
+import { ArrowDownIcon, ArrowUpIcon, SmallCloseIcon, HamburgerIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
 import { Client } from "@langchain/langgraph-sdk";
 import { v4 as uuidv4 } from "uuid";
@@ -58,6 +59,7 @@ export function ChatWindow() {
   const searchParams = useSearchParams();
 
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
+  const newestMessageRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [llm, setLlm] = useState(
@@ -66,6 +68,9 @@ export function ChatWindow() {
   const [llmIsLoading, setLlmIsLoading] = useState(true);
   const [assistantId, setAssistantId] = useState<string>("");
   const [userId, setUserId] = useLocalStorage("userId", null);
+  const [isChatListVisible, setIsChatListVisible] = useState(false);
+
+  const isMobile = useBreakpointValue({ base: true, md: false });
 
   const client = useLangGraphClient();
 
@@ -89,6 +94,18 @@ export function ChatWindow() {
       streamState,
       stopStream,
     );
+
+  const scrollToNewestMessage = useCallback(() => {
+    if (newestMessageRef.current) {
+      newestMessageRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToNewestMessage();
+    }
+  }, [messages, scrollToNewestMessage]);
 
   const setLanggraphInfo = async () => {
     try {
@@ -212,6 +229,7 @@ export function ChatWindow() {
       } else {
         insertUrlParam("threadId", id);
       }
+      setIsChatListVisible(false);
     },
     [setMessages, createThread, insertUrlParam],
   );
@@ -226,121 +244,125 @@ export function ChatWindow() {
     );
   };
 
+  const toggleChatList = () => setIsChatListVisible(!isChatListVisible);
+
   return (
-    <Flex direction={["column", "column", "row"]} h="100vh" overflow="hidden">
-      <Box
-        w={["full", "full", "212px"]}
-        minW={["auto", "auto", "212px"]}
-        pt={["4", "4", "36px"]}
-        px={["4", "4", "24px"]}
-        overflowY="auto"
-      >
-        <ChatList
-          userId={userId}
-          threads={threads}
-          enterChat={selectThread}
-          deleteChat={deleteThreadAndReset}
-          areThreadsLoading={areThreadsLoading}
-          loadMoreThreads={loadMoreThreads}
+    <Flex direction="column" h="100vh" overflow="hidden" w="full">
+      {isMobile && (
+        <IconButton
+          aria-label="Toggle chat list"
+          icon={<HamburgerIcon />}
+          onClick={toggleChatList}
+          position="absolute"
+          top="4"
+          left="4"
+          zIndex="10"
         />
-      </Box>
-      <Flex direction="column" flex="1" px={["4", "4", "12px"]} pt="4" overflow="hidden">
-        <Flex direction="column" alignItems="center" mb="4">
-          <Heading
-            fontSize={["xl", "2xl", messages.length > 0 ? "2xl" : "3xl"]}
-            fontWeight="medium"
-            mb="1"
-            color="white"
-            textAlign="center"
-          >
-            RichMaster StockGPT 🪙
-          </Heading>
-          {messages.length > 0 ? (
-            <Heading fontSize={["sm", "md"]} fontWeight="normal" color="white" textAlign="center">
-              We appreciate your usage!
-            </Heading>
-          ) : (
+      )}
+      
+      <Flex direction={["column", "column", "row"]} h="full">
+        <Box
+          w={["full", "full", "212px"]}
+          minW={["auto", "auto", "212px"]}
+          pt={["4", "4", "36px"]}
+          px={["4", "4", "24px"]}
+          overflowY="auto"
+          position={["fixed", "fixed", "relative"]}
+          left="0"
+          top="0"
+          bottom="0"
+          bg="gray.800"
+          zIndex="5"
+          transform={[
+            isChatListVisible ? "translateX(0)" : "translateX(-100%)",
+            isChatListVisible ? "translateX(0)" : "translateX(-100%)",
+            "translateX(0)"
+          ]}
+          transition="transform 0.3s"
+        >
+          <ChatList
+            userId={userId}
+            threads={threads}
+            enterChat={selectThread}
+            deleteChat={deleteThreadAndReset}
+            areThreadsLoading={areThreadsLoading}
+            loadMoreThreads={loadMoreThreads}
+            isMobile={isMobile}
+          />
+        </Box>
+
+        <Flex direction="column" flex="1" overflow="hidden" w="full" pt={isMobile ? "12" : "4"}>
+          <Flex direction="column" alignItems="center" mb="4">
             <Heading
-              fontSize={["md", "lg", "xl"]}
-              fontWeight="normal"
+              fontSize={["xl", "2xl", "3xl"]}
+              fontWeight="medium"
+              mb="1"
               color="white"
-              mt="10px"
               textAlign="center"
-              px="2"
             >
-              We provide the latest and insightful report, news, trading opportunities and more.
+              RichMaster StockGPT 🪙
             </Heading>
-          )}
-          <Flex flexWrap="wrap" justifyContent="center" alignItems="center" mt="4">
-            <Text mr="2" mb={["2", "0"]}>Powered by</Text>
-            {llmIsLoading ? (
-              <Spinner />
-            ) : (
-              <Select
-                value={llm}
-                onChange={(e) => {
-                  insertUrlParam("llm", e.target.value);
-                  setLlm(e.target.value);
-                }}
-                width={["full", "240px"]}
-              >
-                <option value="openai_gpt_4o_mini">GPT-4o Mini</option>
-                <option value="anthropic_claude_3_haiku">Claude 3 Haiku</option>
-                <option value="google_gemini_pro">Google Gemini Pro</option>
-                <option value="fireworks_mixtral">Mixtral (via Fireworks.ai)</option>
-                <option value="groq_llama_3">Llama 3 (via Groq.com)</option>
-                <option value="cohere_command">Cohere</option>
-              </Select>
-            )}
           </Flex>
-        </Flex>
-        {areMessagesLoading ? (
-          <Spinner alignSelf="center" my="2" />
-        ) : (
-          <Flex direction="column" flex="1" overflow="hidden">
-            <Box
-              ref={messageContainerRef}
-              flex="1"
-              overflowY="auto"
-              mb="2"
-              maxH={["60vh", "60vh", "75vh"]}
-            >
-              {messages.length > 0 && currentThread != null ? (
-                <Flex direction="column-reverse">
-                  {next.length > 0 && streamStates[currentThread.thread_id]?.status !== "inflight" && (
-                    <Button
-                      key="continue-button"
-                      backgroundColor="rgb(58, 58, 61)"
-                      _hover={{ backgroundColor: "rgb(78,78,81)" }}
-                      onClick={() => continueStream(currentThread["thread_id"])}
-                      mb="2"
-                    >
-                      <ArrowDownIcon color="white" mr="2" />
-                      <Text color="white">Click to continue</Text>
-                    </Button>
-                  )}
-                  {[...messages].reverse().map((m, index) => (
-                    <ChatMessageBubble
-                      key={m.id}
-                      message={{ ...m }}
-                      feedbackUrls={streamStates[currentThread.thread_id]?.feedbackUrls}
-                      aiEmoji="🦜"
-                      isMostRecent={index === 0}
-                      messageCompleted={!isLoading}
-                    />
-                  ))}
-                </Flex>
-              ) : (
-                <EmptyState onChoice={sendInitialQuestion} />
-              )}
-            </Box>
-            <Flex direction="column" alignItems="center" width="100%" maxW="600px" mx="auto" mt="auto" pb={4}>
+          {areMessagesLoading ? (
+            <Spinner alignSelf="center" my="2" />
+          ) : (
+            <Flex direction="column" flex="1" overflow="hidden">
+              <Box
+                ref={messageContainerRef}
+                flex="1"
+                overflowY="auto"
+                mb="2"
+                maxH={["60vh", "60vh", "calc(100vh - 300px)"]}
+                px={4}
+              >
+                {messages.length > 0 && currentThread != null ? (
+                  <Flex direction="column-reverse">
+                    {next.length > 0 && streamStates[currentThread.thread_id]?.status !== "inflight" && (
+                      <Button
+                        key="continue-button"
+                        backgroundColor="rgb(58, 58, 61)"
+                        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+                        onClick={() => continueStream(currentThread["thread_id"])}
+                        mb="2"
+                      >
+                        <ArrowDownIcon color="white" mr="2" />
+                        <Text color="white">Click to continue</Text>
+                      </Button>
+                    )}
+                    {[...messages].reverse().map((m, index) => (
+                      <Box 
+                        key={m.id} 
+                        ref={index === 0 ? newestMessageRef : null}
+                      >
+                        <ChatMessageBubble
+                          message={{ ...m }}
+                          feedbackUrls={streamStates[currentThread.thread_id]?.feedbackUrls}
+                          aiEmoji="🦜"
+                          isMostRecent={index === 0}
+                          messageCompleted={!isLoading}
+                        />
+                      </Box>
+                    ))}
+                  </Flex>
+                ) : (
+                  <EmptyState onChoice={sendInitialQuestion} isMobile={isMobile} />
+                )}
+              </Box>
+              <Flex 
+  direction="column" 
+  alignItems="center" 
+  width="100%" 
+  maxW={["100%", "100%", "800px"]} 
+  mx="auto" 
+  mt="auto" 
+  pb={4}
+>
   <InputGroup size="md" alignItems="center" width="100%">
     <AutoResizeTextarea
       value={input}
       maxRows={5}
       mr="56px"
-      placeholder="What are the hottest stocks these days?"
+      placeholder="Discover stocks now"
       textColor="white"
       borderColor="rgb(58, 58, 61)"
       onChange={(e) => setInput(e.target.value)}
@@ -373,16 +395,14 @@ export function ChatWindow() {
     </InputRightElement>
   </InputGroup>
   {messages.length === 0 && (
-          <Box as="footer" textAlign="center" mt="auto" mb="4">
-            <Link href="/" target="_blank" color="white">
-              Start trading today!
-            </Link>
-          </Box>
-        )}
+    <Text as="footer" textAlign="center" mt={2} color="white">
+      Start trading today!
+    </Text>
+  )}
 </Flex>
-          </Flex>
-        )}
-
+            </Flex>
+          )}
+        </Flex>
       </Flex>
     </Flex>
   );
