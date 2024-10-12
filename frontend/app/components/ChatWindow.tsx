@@ -287,7 +287,6 @@ export function ChatWindow() {
             deleteChat={deleteThreadAndReset}
             areThreadsLoading={areThreadsLoading}
             loadMoreThreads={loadMoreThreads}
-            isMobile={isMobile}
           />
         </Box>
 
@@ -349,57 +348,57 @@ export function ChatWindow() {
                 )}
               </Box>
               <Flex 
-  direction="column" 
-  alignItems="center" 
-  width="100%" 
-  maxW={["100%", "100%", "800px"]} 
-  mx="auto" 
-  mt="auto" 
-  pb={4}
->
-  <InputGroup size="md" alignItems="center" width="100%">
-    <AutoResizeTextarea
-      value={input}
-      maxRows={5}
-      mr="56px"
-      placeholder="Discover stocks now"
-      textColor="white"
-      borderColor="rgb(58, 58, 61)"
-      onChange={(e) => setInput(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
-        } else if (e.key === "Enter" && e.shiftKey) {
-          e.preventDefault();
-          setInput(input + "\n");
-        }
-      }}
-    />
-    <InputRightElement h="full">
-      <IconButton
-        colorScheme="blue"
-        rounded="full"
-        aria-label="Send"
-        icon={isLoading ? <SmallCloseIcon /> : <ArrowUpIcon />}
-        type="submit"
-        onClick={(e) => {
-          e.preventDefault();
-          if (currentThread != null && isLoading) {
-            stopStream?.(currentThread.thread_id);
-          } else {
-            sendMessage();
-          }
-        }}
-      />
-    </InputRightElement>
-  </InputGroup>
-  {messages.length === 0 && (
-    <Text as="footer" textAlign="center" mt={2} color="white">
-      Start trading today!
-    </Text>
-  )}
-</Flex>
+                direction="column" 
+                alignItems="center" 
+                width="100%" 
+                maxW={["100%", "100%", "800px"]} 
+                mx="auto" 
+                mt="auto" 
+                pb={4}
+              >
+                <InputGroup size="md" alignItems="center" width="100%">
+                  <AutoResizeTextarea
+                    value={input}
+                    maxRows={5}
+                    mr="56px"
+                    placeholder="Discover stocks now"
+                    textColor="white"
+                    borderColor="rgb(58, 58, 61)"
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      } else if (e.key === "Enter" && e.shiftKey) {
+                        e.preventDefault();
+                        setInput(input + "\n");
+                      }
+                    }}
+                  />
+                  <InputRightElement h="full">
+                    <IconButton
+                      colorScheme="blue"
+                      rounded="full"
+                      aria-label="Send"
+                      icon={isLoading ? <SmallCloseIcon /> : <ArrowUpIcon />}
+                      type="submit"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentThread != null && isLoading) {
+                          stopStream?.(currentThread.thread_id);
+                        } else {
+                          sendMessage();
+                        }
+                      }}
+                    />
+                  </InputRightElement>
+                </InputGroup>
+                {messages.length === 0 && (
+                  <Text as="footer" textAlign="center" mt={2} color="white">
+                    Start trading today!
+                  </Text>
+                )}
+              </Flex>
             </Flex>
           )}
         </Flex>
