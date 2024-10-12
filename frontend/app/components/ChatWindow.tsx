@@ -14,6 +14,7 @@ import {
   Spinner,
   Button,
   Text,
+  Box,
 } from "@chakra-ui/react";
 import { ArrowDownIcon, ArrowUpIcon, SmallCloseIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
@@ -121,7 +122,6 @@ export function ChatWindow() {
     messageValue.length > 20 ? messageValue.slice(0, 20) + "..." : messageValue;
 
   const renameThread = async (messageValue: string) => {
-    // NOTE: we're only setting this on the first message
     if (currentThread == null || messages.length > 1) {
       return;
     }
@@ -169,7 +169,6 @@ export function ChatWindow() {
     } catch (e) {
       setIsLoading(false);
       if (!(e instanceof DOMException && e.name == "AbortError")) {
-        // we don't raise on "abort" signal errors
         throw e;
       }
     }
@@ -187,7 +186,6 @@ export function ChatWindow() {
     } catch (e) {
       setIsLoading(false);
       if (!(e instanceof DOMException && e.name == "AbortError")) {
-        // we don't raise on "abort" signal errors
         throw e;
       }
     }
@@ -220,7 +218,6 @@ export function ChatWindow() {
 
   const deleteThreadAndReset = async (id: string) => {
     await deleteThread(id);
-    // reset
     router.push(
       window.location.protocol +
         "//" +
@@ -228,206 +225,165 @@ export function ChatWindow() {
         window.location.pathname,
     );
   };
-  return (
-    <>
-      <div className="flex items-center rounded grow max-h-full">
-        <Flex
-          direction={"column"}
-          minWidth={"212px"}
-          paddingTop={"36px"}
-          height={"100%"}
-          marginX={"24px"}
-        >
-          <ChatList
-            userId={userId}
-            threads={threads}
-            enterChat={selectThread}
-            deleteChat={deleteThreadAndReset}
-            areThreadsLoading={areThreadsLoading}
-            loadMoreThreads={loadMoreThreads}
-          />
-        </Flex>
-        <Flex
-          direction={"column"}
-          justifyContent={"center"}
-          flexGrow={"1"}
-          marginX={"12px"}
-          height={"100%"}
-        >
-          {areMessagesLoading ? (
-            <Spinner className="my-2" />
-          ) : (
-            <Flex
-              direction={"column"}
-              alignItems={"center"}
-              flexGrow={"1"}
-              margin={"24px"}
-              height={"100%"}
-            >
-              <Flex
-                direction={"column"}
-                alignItems={"center"}
-                marginTop={messages.length > 0 ? "" : "64px"}
-              >
-                <Heading
-                  fontSize={messages.length > 0 ? "2xl" : "3xl"}
-                  fontWeight={"medium"}
-                  mb={1}
-                  color={"white"}
-                >
-                  Venus StockGPT 🪙
-                </Heading>
-                {messages.length > 0 ? (
-                  <Heading
-                    fontSize="md"
-                    fontWeight={"normal"}
-                    mb={1}
-                    color={"white"}
-                  >
-                    We appreciate your usage!
-                  </Heading>
-                ) : (
-                  <Heading
-                    fontSize="xl"
-                    fontWeight={"normal"}
-                    color={"white"}
-                    marginTop={"10px"}
-                    textAlign={"center"}
-                  >
-                    We provide the latest and insightful report, news, trading opportunities and more.                   
-                  </Heading>
-                )}
-                <div className="text-white flex flex-wrap items-center mt-4">
-                  <div className="flex items-center mb-2">
-                    <span className="shrink-0 mr-2">Powered by</span>
-                    {llmIsLoading ? (
-                      <Spinner className="my-2"></Spinner>
-                    ) : (
-                      <Select
-                        value={llm}
-                        onChange={(e) => {
-                          insertUrlParam("llm", e.target.value);
-                          setLlm(e.target.value);
-                        }}
-                        width={"240px"}
-                      >
-                        <option value="openai_gpt_4o_mini">GPT-4o Mini</option>
-                        <option value="anthropic_claude_3_haiku">
-                          Claude 3 Haiku
-                        </option>
-                        <option value="google_gemini_pro">
-                          Google Gemini Pro
-                        </option>
-                        <option value="fireworks_mixtral">
-                          Mixtral (via Fireworks.ai)
-                        </option>
-                        <option value="groq_llama_3">
-                          Llama 3 (via Groq.com)
-                        </option>
-                        <option value="cohere_command">Cohere</option>
-                      </Select>
-                    )}
-                  </div>
-                </div>
-              </Flex>
-              <div
-                className="flex flex-col-reverse w-full mb-2 overflow-auto max-h-[75vh]"
-                ref={messageContainerRef}
-              >
-                {messages.length > 0 && currentThread != null ? (
-                  <>
-                    {next.length > 0 &&
-                      streamStates[currentThread.thread_id]?.status !==
-                        "inflight" && (
-                        <Button
-                          key={"continue-button"}
-                          backgroundColor={"rgb(58, 58, 61)"}
-                          _hover={{ backgroundColor: "rgb(78,78,81)" }}
-                          onClick={() =>
-                            continueStream(currentThread["thread_id"])
-                          }
-                        >
-                          <ArrowDownIcon color={"white"} marginRight={"4px"} />
-                          <Text color={"white"}>Click to continue</Text>
-                        </Button>
-                      )}
-                    {[...messages].reverse().map((m, index) => (
-                      <ChatMessageBubble
-                        key={m.id}
-                        message={{ ...m }}
-                        feedbackUrls={
-                          streamStates[currentThread.thread_id]?.feedbackUrls
-                        }
-                        aiEmoji="🦜"
-                        isMostRecent={index === 0}
-                        messageCompleted={!isLoading}
-                      />
-                    ))}
-                  </>
-                ) : (
-                  <EmptyState onChoice={sendInitialQuestion} />
-                )}
-              </div>
-              <InputGroup
-                size="md"
-                alignItems={"center"}
-                maxWidth={messages.length === 0 ? "1024px" : "100%"}
-                marginY={"12px"}
-              >
-                <AutoResizeTextarea
-                  value={input}
-                  maxRows={5}
-                  marginRight={"56px"}
-                  placeholder="What are the hottest stocks these days?"
-                  textColor={"white"}
-                  borderColor={"rgb(58, 58, 61)"}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    } else if (e.key === "Enter" && e.shiftKey) {
-                      e.preventDefault();
-                      setInput(input + "\n");
-                    }
-                  }}
-                />
-                <InputRightElement h="full">
-                  <IconButton
-                    colorScheme="blue"
-                    rounded={"full"}
-                    aria-label="Send"
-                    icon={isLoading ? <SmallCloseIcon /> : <ArrowUpIcon />}
-                    type="submit"
-                    onClick={(e) => {
-                      e.preventDefault();
 
-                      if (currentThread != null && isLoading) {
-                        stopStream?.(currentThread.thread_id);
-                      } else {
-                        sendMessage();
-                      }
-                    }}
-                  />
-                </InputRightElement>
-              </InputGroup>
-              {messages.length === 0 ? (
-                <footer className="flex justify-center mt-auto h-4 fixed bottom-4">
-                  <a
-                    href="/"
-                    target="_blank"
-                    className="text-white flex items-center"
-                  >
-                    Start trading today!
-                  </a>
-                </footer>
-              ) : (
-                ""
-              )}
-            </Flex>
+  return (
+    <Flex direction={["column", "column", "row"]} h="100vh" overflow="hidden">
+      <Box
+        w={["full", "full", "212px"]}
+        minW={["auto", "auto", "212px"]}
+        pt={["4", "4", "36px"]}
+        px={["4", "4", "24px"]}
+        overflowY="auto"
+      >
+        <ChatList
+          userId={userId}
+          threads={threads}
+          enterChat={selectThread}
+          deleteChat={deleteThreadAndReset}
+          areThreadsLoading={areThreadsLoading}
+          loadMoreThreads={loadMoreThreads}
+        />
+      </Box>
+      <Flex direction="column" flex="1" px={["4", "4", "12px"]} pt="4" overflow="hidden">
+        <Flex direction="column" alignItems="center" mb="4">
+          <Heading
+            fontSize={["xl", "2xl", messages.length > 0 ? "2xl" : "3xl"]}
+            fontWeight="medium"
+            mb="1"
+            color="white"
+            textAlign="center"
+          >
+            RichMaster StockGPT 🪙
+          </Heading>
+          {messages.length > 0 ? (
+            <Heading fontSize={["sm", "md"]} fontWeight="normal" color="white" textAlign="center">
+              We appreciate your usage!
+            </Heading>
+          ) : (
+            <Heading
+              fontSize={["md", "lg", "xl"]}
+              fontWeight="normal"
+              color="white"
+              mt="10px"
+              textAlign="center"
+              px="2"
+            >
+              We provide the latest and insightful report, news, trading opportunities and more.
+            </Heading>
           )}
+          <Flex flexWrap="wrap" justifyContent="center" alignItems="center" mt="4">
+            <Text mr="2" mb={["2", "0"]}>Powered by</Text>
+            {llmIsLoading ? (
+              <Spinner />
+            ) : (
+              <Select
+                value={llm}
+                onChange={(e) => {
+                  insertUrlParam("llm", e.target.value);
+                  setLlm(e.target.value);
+                }}
+                width={["full", "240px"]}
+              >
+                <option value="openai_gpt_4o_mini">GPT-4o Mini</option>
+                <option value="anthropic_claude_3_haiku">Claude 3 Haiku</option>
+                <option value="google_gemini_pro">Google Gemini Pro</option>
+                <option value="fireworks_mixtral">Mixtral (via Fireworks.ai)</option>
+                <option value="groq_llama_3">Llama 3 (via Groq.com)</option>
+                <option value="cohere_command">Cohere</option>
+              </Select>
+            )}
+          </Flex>
         </Flex>
-      </div>
-    </>
+        {areMessagesLoading ? (
+          <Spinner alignSelf="center" my="2" />
+        ) : (
+          <Flex direction="column" flex="1" overflow="hidden">
+            <Box
+              ref={messageContainerRef}
+              flex="1"
+              overflowY="auto"
+              mb="2"
+              maxH={["60vh", "60vh", "75vh"]}
+            >
+              {messages.length > 0 && currentThread != null ? (
+                <Flex direction="column-reverse">
+                  {next.length > 0 && streamStates[currentThread.thread_id]?.status !== "inflight" && (
+                    <Button
+                      key="continue-button"
+                      backgroundColor="rgb(58, 58, 61)"
+                      _hover={{ backgroundColor: "rgb(78,78,81)" }}
+                      onClick={() => continueStream(currentThread["thread_id"])}
+                      mb="2"
+                    >
+                      <ArrowDownIcon color="white" mr="2" />
+                      <Text color="white">Click to continue</Text>
+                    </Button>
+                  )}
+                  {[...messages].reverse().map((m, index) => (
+                    <ChatMessageBubble
+                      key={m.id}
+                      message={{ ...m }}
+                      feedbackUrls={streamStates[currentThread.thread_id]?.feedbackUrls}
+                      aiEmoji="🦜"
+                      isMostRecent={index === 0}
+                      messageCompleted={!isLoading}
+                    />
+                  ))}
+                </Flex>
+              ) : (
+                <EmptyState onChoice={sendInitialQuestion} />
+              )}
+            </Box>
+            <Flex direction="column" alignItems="center" width="100%" maxW="600px" mx="auto" mt="auto" pb={4}>
+  <InputGroup size="md" alignItems="center" width="100%">
+    <AutoResizeTextarea
+      value={input}
+      maxRows={5}
+      mr="56px"
+      placeholder="What are the hottest stocks these days?"
+      textColor="white"
+      borderColor="rgb(58, 58, 61)"
+      onChange={(e) => setInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        } else if (e.key === "Enter" && e.shiftKey) {
+          e.preventDefault();
+          setInput(input + "\n");
+        }
+      }}
+    />
+    <InputRightElement h="full">
+      <IconButton
+        colorScheme="blue"
+        rounded="full"
+        aria-label="Send"
+        icon={isLoading ? <SmallCloseIcon /> : <ArrowUpIcon />}
+        type="submit"
+        onClick={(e) => {
+          e.preventDefault();
+          if (currentThread != null && isLoading) {
+            stopStream?.(currentThread.thread_id);
+          } else {
+            sendMessage();
+          }
+        }}
+      />
+    </InputRightElement>
+  </InputGroup>
+  {messages.length === 0 && (
+          <Box as="footer" textAlign="center" mt="auto" mb="4">
+            <Link href="/" target="_blank" color="white">
+              Start trading today!
+            </Link>
+          </Box>
+        )}
+</Flex>
+          </Flex>
+        )}
+
+      </Flex>
+    </Flex>
   );
 }
