@@ -24,7 +24,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              How do I use a RecursiveUrlLoader to load content from a page?
+              What are the key factors affecting Tesla (TSLA) stock performance recently?
             </Heading>
           </CardHeader>
         </Card>
@@ -45,7 +45,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What does RunnablePassthrough.assign() do?
+              Is the current US stock market experiencing a bull run?
             </Heading>
           </CardHeader>
         </Card>
@@ -67,7 +67,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What are the best stocks found by StockGPT?
+              Can the FOMO (fear of missing out) in the Chinese stock market continue?
             </Heading>
           </CardHeader>
         </Card>
@@ -88,7 +88,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              How do I run a model locally on my laptop with Ollama?
+              What are the key factors affecting Tesla (TSLA) stock performance recently?
             </Heading>
           </CardHeader>
         </Card>
