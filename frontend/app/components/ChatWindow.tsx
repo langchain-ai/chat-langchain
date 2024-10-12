@@ -315,37 +315,37 @@ export function ChatWindow() {
                 px={4}
               >
                 {messages.length > 0 && currentThread != null ? (
-                  <Flex direction="column-reverse">
-                    {next.length > 0 && streamStates[currentThread.thread_id]?.status !== "inflight" && (
-                      <Button
-                        key="continue-button"
-                        backgroundColor="rgb(58, 58, 61)"
-                        _hover={{ backgroundColor: "rgb(78,78,81)" }}
-                        onClick={() => continueStream(currentThread["thread_id"])}
-                        mb="2"
-                      >
-                        <ArrowDownIcon color="white" mr="2" />
-                        <Text color="white">Click to continue</Text>
-                      </Button>
-                    )}
-                    {[...messages].reverse().map((m, index) => (
-                      <Box 
-                        key={m.id} 
-                        ref={index === 0 ? newestMessageRef : null}
-                      >
-                        <ChatMessageBubble
-                          message={{ ...m }}
-                          feedbackUrls={streamStates[currentThread.thread_id]?.feedbackUrls}
-                          aiEmoji="🦜"
-                          isMostRecent={index === 0}
-                          messageCompleted={!isLoading}
-                        />
-                      </Box>
-                    ))}
-                  </Flex>
-                ) : (
-                  <EmptyState onChoice={sendInitialQuestion} isMobile={isMobile} />
-                )}
+  <Flex direction="column-reverse">
+    {next.length > 0 && streamStates[currentThread.thread_id]?.status !== "inflight" && (
+      <Button
+        key="continue-button"
+        backgroundColor="rgb(58, 58, 61)"
+        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+        onClick={() => continueStream(currentThread["thread_id"])}
+        mb="2"
+      >
+        <ArrowDownIcon color="white" mr="2" />
+        <Text color="white">Click to continue</Text>
+      </Button>
+    )}
+    {[...messages].reverse().map((m, index) => (
+      <Box 
+        key={m.id} 
+        ref={index === 0 ? newestMessageRef : null}
+      >
+        <ChatMessageBubble
+          message={{ ...m }}
+          feedbackUrls={streamStates[currentThread.thread_id]?.feedbackUrls}
+          aiEmoji="🦜"
+          isMostRecent={index === 0}
+          messageCompleted={!isLoading}
+        />
+      </Box>
+    ))}
+  </Flex>
+) : (
+  <EmptyState onChoice={sendInitialQuestion} />
+)}
               </Box>
               <Flex 
                 direction="column" 
