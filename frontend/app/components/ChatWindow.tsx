@@ -67,7 +67,12 @@ const mockStockData = [
 ];
 
 // Add StockPanel component
-const StockPanel = ({ isVisible, onClose }) => (
+interface StockPanelProps {
+  isVisible: boolean;
+  onClose: () => void;
+}
+
+const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => (
   <Box
     position="fixed"
     right="0"
