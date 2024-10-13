@@ -16,8 +16,9 @@ import {
   Text,
   Box,
   useBreakpointValue,
+  VStack,
 } from "@chakra-ui/react";
-import { ArrowDownIcon, ArrowUpIcon, SmallCloseIcon, HamburgerIcon } from "@chakra-ui/icons";
+import { ArrowDownIcon, ArrowUpIcon, SmallCloseIcon, HamburgerIcon, InfoOutlineIcon, CloseIcon } from "@chakra-ui/icons";
 import { Select, Link } from "@chakra-ui/react";
 import { Client } from "@langchain/langgraph-sdk";
 import { v4 as uuidv4 } from "uuid";
@@ -54,6 +55,68 @@ const getAssistantId = async (client: Client) => {
   return response[0]["assistant_id"];
 };
 
+// Add mock stock data
+const mockStockData = [
+  { name: "Dow Jones", value: "34,721.91", change: "+0.30%" },
+  { name: "NASDAQ", value: "15,785.32", change: "-0.15%" },
+  { name: "S&P 500", value: "4,509.23", change: "+0.20%" },
+  { symbol: "AAPL", price: "150.25", change: "+1.25%" },
+  { symbol: "MSFT", price: "305.15", change: "+0.75%" },
+  { symbol: "GOOGL", price: "2750.80", change: "-0.20%" },
+  { symbol: "AMZN", price: "3380.45", change: "+1.50%" },
+];
+
+// Add StockPanel component
+const StockPanel = ({ isVisible, onClose }) => (
+  <Box
+    position="fixed"
+    right="0"
+    top="0"
+    bottom="0"
+    width="300px"
+    bg="#2D3748"
+    p={4}
+    overflowY="auto"
+    transform={isVisible ? "translateX(0)" : "translateX(100%)"}
+    transition="transform 0.3s"
+    zIndex="5"
+  >
+    <Flex justify="space-between" align="center" mb={4}>
+      <Heading size="md" color="white">Stock Info</Heading>
+      <IconButton
+        icon={<CloseIcon />}
+        onClick={onClose}
+        aria-label="Close stock panel"
+        size="sm"
+        variant="ghost"
+        color="white"
+      />
+    </Flex>
+    <VStack align="stretch" spacing={4}>
+      <Box>
+        <Heading size="sm" color="white" mb={2}>Market Indices</Heading>
+        {mockStockData.slice(0, 3).map((index) => (
+          <Flex key={index.name} justify="space-between" color="white">
+            <Text>{index.name}</Text>
+            <Text>{index.value}</Text>
+            <Text color={index.change.startsWith('+') ? "green.300" : "red.300"}>{index.change}</Text>
+          </Flex>
+        ))}
+      </Box>
+      <Box>
+        <Heading size="sm" color="white" mb={2}>Popular Stocks</Heading>
+        {mockStockData.slice(3).map((stock) => (
+          <Flex key={stock.symbol} justify="space-between" color="white">
+            <Text>{stock.symbol}</Text>
+            <Text>{stock.price}</Text>
+            <Text color={stock.change.startsWith('+') ? "green.300" : "red.300"}>{stock.change}</Text>
+          </Flex>
+        ))}
+      </Box>
+    </VStack>
+  </Box>
+);
+
 export function ChatWindow() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -69,6 +132,7 @@ export function ChatWindow() {
   const [assistantId, setAssistantId] = useState<string>("");
   const [userId, setUserId] = useLocalStorage("userId", null);
   const [isChatListVisible, setIsChatListVisible] = useState(false);
+  const [isStockPanelVisible, setIsStockPanelVisible] = useState(false);
 
   const isMobile = useBreakpointValue({ base: true, md: false });
 
@@ -245,6 +309,7 @@ export function ChatWindow() {
   };
 
   const toggleChatList = () => setIsChatListVisible(!isChatListVisible);
+  const toggleStockPanel = () => setIsStockPanelVisible(!isStockPanelVisible);
 
   return (
     <Flex direction="column" h="100vh" overflow="hidden" w="full">
@@ -302,6 +367,15 @@ export function ChatWindow() {
               RichMaster StockGPT 🪙
             </Heading>
           </Flex>
+          <IconButton
+            aria-label="Toggle stock panel"
+            icon={<InfoOutlineIcon />}
+            onClick={toggleStockPanel}
+            position="absolute"
+            top="4"
+            right="4"
+            zIndex="10"
+          />
           {areMessagesLoading ? (
             <Spinner alignSelf="center" my="2" />
           ) : (
@@ -315,37 +389,37 @@ export function ChatWindow() {
                 px={4}
               >
                 {messages.length > 0 && currentThread != null ? (
-  <Flex direction="column-reverse">
-    {next.length > 0 && streamStates[currentThread.thread_id]?.status !== "inflight" && (
-      <Button
-        key="continue-button"
-        backgroundColor="rgb(58, 58, 61)"
-        _hover={{ backgroundColor: "rgb(78,78,81)" }}
-        onClick={() => continueStream(currentThread["thread_id"])}
-        mb="2"
-      >
-        <ArrowDownIcon color="white" mr="2" />
-        <Text color="white">Click to continue</Text>
-      </Button>
-    )}
-    {[...messages].reverse().map((m, index) => (
-      <Box 
-        key={m.id} 
-        ref={index === 0 ? newestMessageRef : null}
-      >
-        <ChatMessageBubble
-          message={{ ...m }}
-          feedbackUrls={streamStates[currentThread.thread_id]?.feedbackUrls}
-          aiEmoji="🦜"
-          isMostRecent={index === 0}
-          messageCompleted={!isLoading}
-        />
-      </Box>
-    ))}
-  </Flex>
-) : (
-  <EmptyState onChoice={sendInitialQuestion} />
-)}
+                  <Flex direction="column-reverse">
+                    {next.length > 0 && streamStates[currentThread.thread_id]?.status !== "inflight" && (
+                      <Button
+                        key="continue-button"
+                        backgroundColor="rgb(58, 58, 61)"
+                        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+                        onClick={() => continueStream(currentThread["thread_id"])}
+                        mb="2"
+                      >
+                        <ArrowDownIcon color="white" mr="2" />
+                        <Text color="white">Click to continue</Text>
+                      </Button>
+                    )}
+                    {[...messages].reverse().map((m, index) => (
+                      <Box 
+                        key={m.id} 
+                        ref={index === 0 ? newestMessageRef : null}
+                      >
+                        <ChatMessageBubble
+                          message={{ ...m }}
+                          feedbackUrls={streamStates[currentThread.thread_id]?.feedbackUrls}
+                          aiEmoji="🦜"
+                          isMostRecent={index === 0}
+                          messageCompleted={!isLoading}
+                        />
+                      </Box>
+                    ))}
+                  </Flex>
+                ) : (
+                  <EmptyState onChoice={sendInitialQuestion} />
+                )}
               </Box>
               <Flex 
                 direction="column" 
@@ -403,6 +477,8 @@ export function ChatWindow() {
           )}
         </Flex>
       </Flex>
+
+      <StockPanel isVisible={isStockPanelVisible} onClose={() => setIsStockPanelVisible(false)} />
     </Flex>
   );
 }
