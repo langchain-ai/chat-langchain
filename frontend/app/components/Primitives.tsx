@@ -18,6 +18,7 @@ import { TooltipIconButton } from "./ui/assistant-ui/tooltip-icon-button";
 import { BaseMessage } from "@langchain/core/messages";
 import { cn } from "../utils/cn";
 import { useGeneratingQuestionsUI } from "./GeneratingQuestionsToolUI";
+import { useAnswerHeaderToolUI } from "./AnswerHeaderToolUI";
 
 export interface MyThreadProps extends MyComposerProps {}
 
@@ -25,29 +26,23 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
   const isEmpty = props.messages.length === 0;
 
   useGeneratingQuestionsUI();
+  useAnswerHeaderToolUI();
 
   return (
     <ThreadPrimitive.Root className="flex flex-col h-full relative">
-      <div className="pr-3 pl-6 pt-3 pb-2 flex flex-row gap-4 items-center justify-between">
-        <p className="text-xl text-gray-600">Open Canvas</p>
-      </div>
       <ThreadPrimitive.Viewport
         className={cn(
-          "flex-1 overflow-y-auto scroll-smooth bg-inherit px-4 pt-8 transition-all duration-300 ease-in-out",
+          "flex-1 overflow-y-auto scroll-smooth bg-inherit px-4 pt-8 transition-all duration-300 ease-in-out w-full",
           isEmpty ? "pb-[50vh]" : "pb-20",
         )}
       >
-        <div className="max-w-2xl mx-auto">
-          {" "}
-          {/* Add this wrapper div */}
-          <ThreadPrimitive.Messages
-            components={{
-              UserMessage: MyUserMessage,
-              EditComposer: MyEditComposer,
-              AssistantMessage: MyAssistantMessage,
-            }}
-          />
-        </div>
+        <ThreadPrimitive.Messages
+          components={{
+            UserMessage: MyUserMessage,
+            EditComposer: MyEditComposer,
+            AssistantMessage: MyAssistantMessage,
+          }}
+        />
       </ThreadPrimitive.Viewport>
       <MyThreadScrollToBottom />
       <MyComposer messages={props.messages} />
@@ -120,7 +115,7 @@ const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
 
 const MyUserMessage: FC = () => {
   return (
-    <MessagePrimitive.Root className="w-full max-w-2xl py-4">
+    <MessagePrimitive.Root className="w-full max-w-2xl py-4 mx-auto">
       <div className="bg-inherit text-gray-200 max-w-xl break-words rounded-3xl px-5 py-2.5 text-4xl font-light">
         <MessagePrimitive.Content />
       </div>
@@ -169,7 +164,7 @@ const MyEditComposer: FC = () => {
 
 const MyAssistantMessage: FC = () => {
   return (
-    <MessagePrimitive.Root className="relative flex w-full max-w-2xl py-4">
+    <MessagePrimitive.Root className="relative flex w-full max-w-2xl py-4 mx-auto">
       <div className="ml-6 bg-inherit text-white max-w-xl break-words leading-7">
         <MessagePrimitive.Content components={{ Text: MarkdownText }} />
       </div>

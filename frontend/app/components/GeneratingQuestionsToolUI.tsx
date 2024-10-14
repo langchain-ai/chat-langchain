@@ -1,67 +1,74 @@
 import { useAssistantToolUI } from "@assistant-ui/react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { LoaderCircle } from "lucide-react";
-import { Document } from "@langchain/core/documents";
+import { LoaderCircle, Globe } from "lucide-react";
 import { DocumentDialog } from "./DocumentDialog";
+
+type Question = {
+  question: string;
+  step: number;
+  // Not rendered in the UI ATM.
+  queries?: string[];
+  documents?: Record<string, any>[];
+};
+
+const QuestionCard = ({ question }: { question: Question }) => (
+  <Card className="w-[250px] h-[180px] bg-inherit border-gray-500 flex flex-col">
+    <CardHeader className="flex-shrink-0">
+      <CardTitle className="text-sm font-light text-gray-300">
+        {question.question}
+      </CardTitle>
+    </CardHeader>
+    <CardContent className="flex flex-col flex-grow justify-between">
+      <div className="flex flex-col gap-1 mt-auto">
+        <hr className="mb-2" />
+        <div className="flex items-center justify-start gap-1">
+          {question.documents?.length ? (
+            question.documents?.map((doc: Record<string, any>, idx: number) => (
+              <DocumentDialog
+                key={`document-${question.step}-${idx}`}
+                document={doc}
+              />
+            ))
+          ) : (
+            <span className="flex items-center justify-start gap-2 text-gray-400">
+              <p className="text-sm">Finding documents</p>
+              <LoaderCircle className="animate-spin w-4 h-4" />
+            </span>
+          )}
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 export const useGeneratingQuestionsUI = () =>
   useAssistantToolUI({
     toolName: "generating_questions",
     render: (input) => {
-      if (!input.args?.question) {
+      if (!input.args?.questions || input.args.questions.length === 0) {
         return null;
       }
 
-      if (input.args.documents) {
-        console.log("Gots docs!", input.args.documents.length);
-      }
-
       return (
-        <Card className="w-[500px] bg-black text-white">
-          <CardHeader>
-            <CardTitle>{input.args.question}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-col items-start justify-start w-full">
-              <p className="text-sm font-semibold">Sub-queries:</p>
-              {input.args.queries?.length ? (
-                <ul className="w-full space-y-2">
-                  {input.args.queries.map((query: string, idx: number) => (
-                    <li
-                      key={`query-${input.args.step}-${idx}`}
-                      className="bg-gray-800 rounded-md p-2 text-sm"
-                    >
-                      {query}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <span className="flex items-center justify-start gap-2">
-                  <p>Generating queries</p>
-                  <LoaderCircle className="animate-spin" />
-                </span>
+        <div className="flex flex-col mb-4">
+          <span className="flex flex-row gap-2 items-center justify-start pb-4 text-gray-300">
+            <Globe className="w-5 h-5" />
+            <p className="text-xl">Sources</p>
+          </span>
+          <div className="relative left-1/2 -translate-x-1/2 w-screen max-w-[70vw] mb-10">
+            <div className="flex items-center justify-center gap-2">
+              <div className="flex flex-row gap-3 items-center justify-center"></div>
+              {(input.args.questions as Question[]).map(
+                (question, questionIndex) => (
+                  <QuestionCard
+                    key={`question-${questionIndex}`}
+                    question={question}
+                  />
+                ),
               )}
             </div>
-            <div className="flex flex-col gap-1">
-              <p className="text-sm text-left font-semibold">Documents:</p>
-              <div className="flex items-center justify-start gap-5">
-                {input.args?.documents?.length ? (
-                  input.args.documents?.map((doc: Document, idx: number) => (
-                    <DocumentDialog
-                      key={`document-${input.args.step}-${idx}`}
-                      document={doc}
-                    />
-                  ))
-                ) : (
-                  <span className="flex items-center justify-start gap-2">
-                    <p>Finding documents</p>
-                    <LoaderCircle className="animate-spin" />
-                  </span>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       );
     },
   });

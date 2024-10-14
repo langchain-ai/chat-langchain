@@ -8,10 +8,6 @@ import { getCookie, setCookie } from "../utils/cookies";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
-  console.log(
-    "process.env.NEXT_PUBLIC_API_URL",
-    process.env.NEXT_PUBLIC_API_URL,
-  );
   return new Client({
     apiUrl,
   });
@@ -110,7 +106,6 @@ export function useGraph() {
       streamMode: "events",
     });
     let runId: string | undefined = undefined;
-    let messageId: string | undefined = undefined;
     let generatingQuestionsMessageId: string | undefined = undefined;
     let fullGeneratingQuestionsStr = "";
 
@@ -122,7 +117,6 @@ export function useGraph() {
       if (chunk.data.event === "on_chat_model_stream") {
         if (chunk.data.metadata.langgraph_node === "general") {
           const message = chunk.data.data.chunk;
-          messageId = message.id;
           setMessages((prevMessages) => {
             const existingMessageIndex = prevMessages.findIndex(
               (msg) => msg.id === message.id,
@@ -148,6 +142,92 @@ export function useGraph() {
           });
         }
 
+        // if (chunk.data.metadata.langgraph_node === "generate_questions") {
+        //   const message = chunk.data.data.chunk;
+        //   generatingQuestionsMessageId = message.id;
+        //   const toolCallChunk = message.tool_call_chunks?.[0];
+        //   fullGeneratingQuestionsStr += toolCallChunk?.args || "";
+        //   try {
+        //     const parsedData: { steps: string[] } = parsePartialJson(
+        //       fullGeneratingQuestionsStr,
+        //     );
+        //     if (parsedData && Array.isArray(parsedData.steps)) {
+        //       setMessages((prevMessages) => {
+        //         const existingMessageIndex = prevMessages.findIndex(
+        //           (msg) => msg.id === message.id,
+        //         );
+        //         if (existingMessageIndex !== -1) {
+        //           const existingMessage = prevMessages[
+        //             existingMessageIndex
+        //           ] as AIMessage;
+        //           const existingToolCalls = existingMessage.tool_calls || [];
+
+        //           const updatedToolCalls = parsedData.steps.flatMap(
+        //             (step, index) => {
+        //               const existingToolCall = existingToolCalls.find(
+        //                 (tc) => tc.args.step === index + 1,
+        //               );
+        //               if (existingToolCall) {
+        //                 // Update existing tool call
+        //                 return {
+        //                   ...existingToolCall,
+        //                   args: {
+        //                     ...existingToolCall.args,
+        //                     question: step.trim(),
+        //                   },
+        //                 };
+        //               } else if (step && step.trim() !== "") {
+        //                 // Create new tool call
+        //                 return {
+        //                   name: "generating_questions",
+        //                   args: { step: index + 1, question: step.trim() },
+        //                 };
+        //               }
+        //               // Return empty array because we're using .flatMap
+        //               return [];
+        //             },
+        //           );
+
+        //           if (updatedToolCalls.length > 0) {
+        //             return [
+        //               ...prevMessages.slice(0, existingMessageIndex),
+        //               new AIMessage({
+        //                 ...existingMessage,
+        //                 content: "",
+        //                 tool_calls: updatedToolCalls,
+        //               }),
+        //               ...prevMessages.slice(existingMessageIndex + 1),
+        //             ];
+        //           }
+        //         } else if (
+        //           parsedData.steps.some((step) => step && step.trim() !== "")
+        //         ) {
+        //           const newToolCalls = parsedData.steps
+        //             .map((step, index) => {
+        //               if (step && step.trim() !== "") {
+        //                 return {
+        //                   name: "generating_questions",
+        //                   args: { step: index + 1, question: step.trim() },
+        //                 };
+        //               }
+        //               return null;
+        //             })
+        //             .filter(Boolean);
+
+        //           const newMessage = new AIMessage({
+        //             ...message,
+        //             content: "",
+        //             tool_calls: newToolCalls,
+        //           });
+        //           return [...prevMessages, newMessage];
+        //         }
+        //         return prevMessages;
+        //       });
+        //     }
+        //   } catch (error) {
+        //     console.error("Error parsing generating questions data:", error);
+        //   }
+        // }
         if (chunk.data.metadata.langgraph_node === "generate_questions") {
           const message = chunk.data.data.chunk;
           generatingQuestionsMessageId = message.id;
@@ -162,68 +242,57 @@ export function useGraph() {
                 const existingMessageIndex = prevMessages.findIndex(
                   (msg) => msg.id === message.id,
                 );
+
+                const questions = parsedData.steps
+                  .map((step, index) => ({
+                    step: index + 1,
+                    question: step.trim(),
+                  }))
+                  .filter((q) => q.question !== "");
+
                 if (existingMessageIndex !== -1) {
                   const existingMessage = prevMessages[
                     existingMessageIndex
                   ] as AIMessage;
                   const existingToolCalls = existingMessage.tool_calls || [];
 
-                  const updatedToolCalls = parsedData.steps.flatMap(
-                    (step, index) => {
-                      const existingToolCall = existingToolCalls.find(
-                        (tc) => tc.args.step === index + 1,
-                      );
-                      if (existingToolCall) {
-                        // Update existing tool call
-                        return {
-                          ...existingToolCall,
-                          args: {
-                            ...existingToolCall.args,
-                            question: step.trim(),
-                          },
-                        };
-                      } else if (step && step.trim() !== "") {
-                        // Create new tool call
-                        return {
-                          name: "generating_questions",
-                          args: { step: index + 1, question: step.trim() },
-                        };
-                      }
-                      // Return empty array because we're using .flatMap
-                      return [];
-                    },
-                  );
-
-                  if (updatedToolCalls.length > 0) {
-                    return [
-                      ...prevMessages.slice(0, existingMessageIndex),
-                      new AIMessage({
-                        ...existingMessage,
-                        content: "",
-                        tool_calls: updatedToolCalls,
-                      }),
-                      ...prevMessages.slice(existingMessageIndex + 1),
-                    ];
+                  let updatedToolCall;
+                  if (existingToolCalls[0].name === "generating_questions") {
+                    // Update existing tool call
+                    updatedToolCall = {
+                      ...existingToolCalls[0],
+                      args: {
+                        questions,
+                      },
+                    };
+                  } else {
+                    // Create new tool call
+                    updatedToolCall = {
+                      name: "generating_questions",
+                      args: { questions },
+                    };
                   }
-                } else if (
-                  parsedData.steps.some((step) => step && step.trim() !== "")
-                ) {
-                  const newToolCalls = parsedData.steps
-                    .map((step, index) => {
-                      if (step && step.trim() !== "") {
-                        return {
-                          name: "generating_questions",
-                          args: { step: index + 1, question: step.trim() },
-                        };
-                      }
-                      return null;
-                    })
-                    .filter(Boolean);
+
+                  return [
+                    ...prevMessages.slice(0, existingMessageIndex),
+                    new AIMessage({
+                      ...existingMessage,
+                      content: "",
+                      tool_calls: [updatedToolCall],
+                    }),
+                    ...prevMessages.slice(existingMessageIndex + 1),
+                  ];
+                } else if (questions.length > 0) {
+                  // Create new message with tool call
+                  const newToolCall = {
+                    name: "generating_questions",
+                    args: { questions },
+                  };
 
                   const newMessage = new AIMessage({
                     ...message,
                     content: "",
-                    tool_calls: newToolCalls,
+                    tool_calls: [newToolCall],
                   });
                   return [...prevMessages, newMessage];
                 }
@@ -237,7 +306,6 @@ export function useGraph() {
 
         if (chunk.data.metadata.langgraph_node === "generate") {
           const message = chunk.data.data.chunk;
-          messageId = message.id;
           setMessages((prevMessages) => {
             const existingMessageIndex = prevMessages.findIndex(
               (msg) => msg.id === message.id,
@@ -255,10 +323,19 @@ export function useGraph() {
                 ...prevMessages.slice(existingMessageIndex + 1),
               ];
             } else {
+              const answerHeaderToolMsg = new AIMessage({
+                content: "",
+                tool_calls: [
+                  {
+                    name: "answer_header",
+                    args: {},
+                  },
+                ],
+              });
               const newMessage = new AIMessage({
                 ...message,
               });
-              return [...prevMessages, newMessage];
+              return [...prevMessages, answerHeaderToolMsg, newMessage];
             }
           });
         }
@@ -283,16 +360,27 @@ export function useGraph() {
               const messageToUpdate = prevMessages[foundIndex] as AIMessage;
               const updatedToolCalls = messageToUpdate.tool_calls?.map(
                 (toolCall) => {
-                  if (
-                    toolCall.args.question ===
-                    chunk.data.data.output.sub_question
-                  ) {
+                  if (toolCall.name === "generating_questions") {
+                    const updatedQuestions = toolCall.args.questions.map(
+                      (q: any) => {
+                        if (
+                          q.question === chunk.data.data.output.sub_question
+                        ) {
+                          return {
+                            ...q,
+                            queries: chunk.data.data.output.queries,
+                            documents: chunk.data.data.output.documents,
+                          };
+                        }
+                        return q;
+                      },
+                    );
+
                     return {
                       ...toolCall,
                       args: {
                         ...toolCall.args,
-                        queries: chunk.data.data.output.queries,
-                        documents: chunk.data.data.output.documents,
+                        questions: updatedQuestions,
                       },
                     };
                   }

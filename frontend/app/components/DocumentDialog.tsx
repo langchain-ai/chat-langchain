@@ -11,23 +11,21 @@ import { TooltipIconButton } from "./ui/assistant-ui/tooltip-icon-button";
 
 interface DocumentDialogProps {
   document: Record<string, any>;
-  key: string;
 }
 
-export function DocumentDialog({ document, key }: DocumentDialogProps) {
+export function DocumentDialog({ document }: DocumentDialogProps) {
   return (
     <Dialog>
       <DialogTrigger asChild>
         <TooltipIconButton
-          key={key}
           tooltip={document.metadata.title}
           variant="default"
-          className="size-8 p-2 transition-opacity ease-in"
+          className="w-6 h-6 z-50 transition-opacity ease-in"
         >
           <File />
         </TooltipIconButton>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto bg-gray-800 text-gray-200">
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto bg-gray-950 text-gray-200">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-start gap-4">
             <p className="text-gray-100 break-words">
