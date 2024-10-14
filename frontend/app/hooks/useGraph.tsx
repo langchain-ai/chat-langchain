@@ -8,6 +8,10 @@ import { getCookie, setCookie } from "../utils/cookies";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
+  console.log(
+    "process.env.NEXT_PUBLIC_API_URL",
+    process.env.NEXT_PUBLIC_API_URL,
+  );
   return new Client({
     apiUrl,
   });
@@ -36,8 +40,19 @@ export function useGraph() {
   const createThread = async () => {
     setMessages([]);
     const client = createClient();
-    const thread = await client.threads.create();
-    setThreadId(thread.thread_id);
+    let thread;
+    try {
+      thread = await client.threads.create();
+      if (!thread || !thread.thread_id) {
+        throw new Error("Thread creation failed.");
+      }
+      setThreadId(thread.thread_id);
+    } catch (e) {
+      console.error("Error creating thread", e);
+      toast({
+        title: "Error creating thread.",
+      });
+    }
     return thread;
   };
 
