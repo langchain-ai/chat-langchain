@@ -16,7 +16,7 @@ import { ArrowDownIcon, SendHorizontalIcon } from "lucide-react";
 import { MarkdownText } from "./ui/assistant-ui/markdown-text";
 import { TooltipIconButton } from "./ui/assistant-ui/tooltip-icon-button";
 import { BaseMessage } from "@langchain/core/messages";
-import { cn } from "@/lib/utils";
+import { cn } from "../utils/cn";
 import { useGeneratingQuestionsUI } from "./GeneratingQuestionsToolUI";
 
 export interface MyThreadProps extends MyComposerProps {}

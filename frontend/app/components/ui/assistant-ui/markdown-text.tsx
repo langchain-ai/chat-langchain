@@ -13,7 +13,7 @@ import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { TooltipIconButton } from "./tooltip-icon-button";
 import { SyntaxHighlighter } from "./syntax-highlighter";
-import { cn } from "@/lib/utils";
+import { cn } from "../../../utils/cn";
 
 import "katex/dist/katex.min.css";
 

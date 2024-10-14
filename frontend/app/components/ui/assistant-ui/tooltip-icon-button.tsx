@@ -9,7 +9,7 @@ import {
   TooltipTrigger,
 } from "../tooltip";
 import { Button, ButtonProps } from "../button";
-import { cn } from "@/lib/utils";
+import { cn } from "../../../utils/cn";
 
 export type TooltipIconButtonProps = ButtonProps & {
   tooltip: string | React.ReactNode;

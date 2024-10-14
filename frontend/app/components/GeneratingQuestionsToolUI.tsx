@@ -1,5 +1,5 @@
 import { useAssistantToolUI } from "@assistant-ui/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { LoaderCircle } from "lucide-react";
 import { Document } from "@langchain/core/documents";
 import { DocumentDialog } from "./DocumentDialog";
