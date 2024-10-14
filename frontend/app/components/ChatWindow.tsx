@@ -65,7 +65,15 @@ const getAssistantId = async (client: Client) => {
 //   { symbol: "GOOGL", price: "2750.80", change: "-0.20%" },
 //   { symbol: "AMZN", price: "3380.45", change: "+1.50%" },
 // ];
+interface StockData {
+  name?: string;
+  value?: string;
+  symbol: string;
+  price: string | number;
+  change: string | number;
+}
 
+type SetStockDataFunction = React.Dispatch<React.SetStateAction<StockData[]>>;
 // // Add StockPanel component
 // interface StockPanelProps {
 //   isVisible: boolean;
@@ -129,17 +137,17 @@ const STOCK_API_KEY = 'STOCK_API_KEY';
 const VALID_STOCK_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "JNJ"];
 
 // Initial mock data
-const initialMockStockData = [
-  { name: "Dow Jones", value: "34,721.91", change: "+0.50%" },
-  { name: "NASDAQ", value: "15,785.32", change: "-0.15%" },
-  { name: "S&P 500", value: "4,509.23", change: "+0.20%" },
+const initialMockStockData: StockData[] = [
+  { name: "Dow Jones", value: "34,721.91", change: "+0.50%", symbol: "DJI" },
+  { name: "NASDAQ", value: "15,785.32", change: "-0.15%", symbol: "IXIC" },
+  { name: "S&P 500", value: "4,509.23", change: "+0.20%", symbol: "SPX" },
   { symbol: "AAPL", price: "150.25", change: "+1.25%" },
   { symbol: "MSFT", price: "305.15", change: "+0.75%" },
   { symbol: "GOOGL", price: "2750.80", change: "-0.20%" },
   { symbol: "AMZN", price: "3380.45", change: "+1.50%" },
 ];
 
-const fetchStockDataFromApi = async (symbol: string) => {
+const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> => {
   try {
     const response = await fetch(`${STOCK_API_URL}/stock?symbol=${symbol}`, {
       method: 'GET',
@@ -164,22 +172,22 @@ const fetchStockDataFromApi = async (symbol: string) => {
 };
 
 // Function to update stock data
-const fetchAndUpdateStockData = async (setStockData) => {
+const fetchAndUpdateStockData = async (setStockData: SetStockDataFunction) => {
   const updates = await Promise.all(
     VALID_STOCK_SYMBOLS.map(async symbol => {
       const data = await fetchStockDataFromApi(symbol);
       return data || { symbol, price: 'N/A', change: 'N/A' };
     })
   );
-  console.log(update);
-  setStockData([
-    ...initialMockStockData,
+  
+  setStockData(prevData => [
+    ...prevData.slice(0, 3),  // Keep the first 3 items (market indices)
     ...updates
   ]);
 };
 
 const StockPanel = () => {
-  const [stockData, setStockData] = useState(initialMockStockData);
+  const [stockData, setStockData] = useState<StockData[]>(initialMockStockData);
 
   useEffect(() => {
     fetchAndUpdateStockData(setStockData);
