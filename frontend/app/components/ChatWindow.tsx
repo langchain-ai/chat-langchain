@@ -138,9 +138,9 @@ const VALID_STOCK_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "N
 
 // Initial mock data
 const initialMockStockData: StockData[] = [
-  { name: "Dow Jones", value: "34,721.91", change: "+0.50%", symbol: "DJI" },
-  { name: "NASDAQ", value: "15,785.32", change: "-0.15%", symbol: "IXIC" },
-  { name: "S&P 500", value: "4,509.23", change: "+0.20%", symbol: "SPX" },
+  { name: "Dow Jones", value: "34,721.91", change: "+0.50%", symbol: "DJI", price: "N/A" },
+  { name: "NASDAQ", value: "15,785.32", change: "-0.15%", symbol: "IXIC", price: "N/A" },
+  { name: "S&P 500", value: "4,509.23", change: "+0.20%", symbol: "SPX", price: "N/A" },
   { symbol: "AAPL", price: "150.25", change: "+1.25%" },
   { symbol: "MSFT", price: "305.15", change: "+0.75%" },
   { symbol: "GOOGL", price: "2750.80", change: "-0.20%" },
