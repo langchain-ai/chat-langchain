@@ -139,7 +139,7 @@ const initialMockStockData = [
   { symbol: "AMZN", price: "3380.45", change: "+1.50%" },
 ];
 
-const fetchStockDataFromApi = async (symbol) => {
+const fetchStockDataFromApi = async (symbol: string) => {
   try {
     const response = await fetch(`${STOCK_API_URL}/stock?symbol=${symbol}`, {
       method: 'GET',
