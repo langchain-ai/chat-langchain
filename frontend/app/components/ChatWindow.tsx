@@ -218,9 +218,9 @@ const StockPanel = () => {
             <Flex key={index.name} justify="space-between" color="white">
               <Text>{index.name}</Text>
               <Text>{index.value}</Text>
-              <Text color={typeof index.change === 'string' && index.change.startsWith('+') ? "green.300" : "red.300"}>
-                index.change}
-              </Text>            
+              <Text>
+  {typeof index.change === 'string' && index.change.startsWith('+') ? "green.300" : "red.300"}
+</Text>          
             </Flex>
           ))}
         </Box>
