@@ -140,91 +140,94 @@ const initialMockStockData = [
 ];
 
 const fetchStockDataFromApi = async (symbol) => {
-    try {
-        const response = await fetch(`${STOCK_API_URL}/stock?symbol=${symbol}`, {
-            method: 'GET',
-            headers: {
-                'X-API-KEY': STOCK_API_KEY,
-                'Content-Type': 'application/json',
-            },
-        });
+  try {
+    const response = await fetch(`${STOCK_API_URL}/stock?symbol=${symbol}`, {
+      method: 'GET',
+      headers: {
+        'X-API-KEY': STOCK_API_KEY,
+        'Content-Type': 'application/json',
+      },
+    });
 
-        if (!response.ok) throw new Error('Network response was not ok');
+    if (!response.ok) throw new Error('Network response was not ok');
 
-        const data = await response.json();
-        return {
-            symbol: data.symbol,
-            price: data.latestPrice,
-            change: data.changePercent,
-        };
-    } catch (error) {
-        console.error('Fetch stock data failed:', error);
-        return null;
-    }
+    const data = await response.json();
+    return {
+      symbol: data.symbol,
+      price: data.latestPrice,
+      change: data.changePercent,
+    };
+  } catch (error) {
+    console.error('Fetch stock data failed:', error);
+    return null;
+  }
+};
+
+// Function to update stock data
+const fetchAndUpdateStockData = async (setStockData) => {
+  const updates = await Promise.all(
+    VALID_STOCK_SYMBOLS.map(async symbol => {
+      const data = await fetchStockDataFromApi(symbol);
+      return data || { symbol, price: 'N/A', change: 'N/A' };
+    })
+  );
+  setStockData([
+    ...initialMockStockData,
+    ...updates
+  ]);
 };
 
 const StockPanel = () => {
-    const [stockData, setStockData] = useState(initialMockStockData);
+  const [stockData, setStockData] = useState(initialMockStockData);
 
-    useEffect(() => {
-        const fetchAndUpdateStockData = async () => {
-            const updates = await Promise.all(
-                VALID_STOCK_SYMBOLS.map(async symbol => {
-                    const data = await fetchStockDataFromApi(symbol);
-                    return data || { symbol, price: 'N/A', change: 'N/A' }; // Handle missing data gracefully
-                })
-            );
-            setStockData(prevData => [
-                ...initialMockStockData,
-                ...updates
-            ]);
-        };
+  useEffect(() => {
+    fetchAndUpdateStockData(setStockData);
 
-        fetchAndUpdateStockData(); // Initial fetch
-        const intervalId = setInterval(fetchAndUpdateStockData, 3000); // Update every 3 seconds
+    const intervalId = setInterval(() => fetchAndUpdateStockData(setStockData), 3000);
 
-        return () => clearInterval(intervalId);
-    }, []);
+    return () => clearInterval(intervalId);
+  }, [stockData]);
 
-    return (
-        <Box
-            position="fixed"
-            right="0"
-            top="0"
-            bottom="0"
-            width="300px"
-            bg="#2D3748"
-            p={4}
-            overflowY="auto"
-            transform="translateX(0)"
-            transition="transform 0.3s"
-            zIndex="5"
-        >
-            <VStack align="stretch" spacing={4}>
-                <Box>
-                    <Heading size="sm" color="white" mb={2}>Market Indices</Heading>
-                    {stockData.slice(0, 3).map((index) => (
-                        <Flex key={index.name} justify="space-between" color="white">
-                            <Text>{index.name}</Text>
-                            <Text>{index.value}</Text>
-                            <Text color={index.change.startsWith('+') ? "green.300" : "red.300"}>{index.change}</Text>
-                        </Flex>
-                    ))}
-                </Box>
-                <Box>
-                    <Heading size="sm" color="white" mb={2}>Popular Stocks</Heading>
-                    {stockData.slice(3).map((stock) => (
-                        <Flex key={stock.symbol} justify="space-between" color="white">
-                            <Text>{stock.symbol}</Text>
-                            <Text>{stock.price}</Text>
-                            <Text color={stock.change > 0 ? "green.300" : "red.300"}>{stock.change}%</Text>
-                        </Flex>
-                    ))}
-                </Box>
-            </VStack>
+  return (
+    <Box
+      position="fixed"
+      right="0"
+      top="0"
+      bottom="0"
+      width="300px"
+      bg="#2D3748"
+      p={4}
+      overflowY="auto"
+      transform="translateX(0)"
+      transition="transform 0.3s"
+      zIndex="5"
+    >
+      <VStack align="stretch" spacing={4}>
+        <Box>
+          <Heading size="sm" color="white" mb={2}>Market Indices</Heading>
+          {stockData.slice(0, 3).map((index) => (
+            <Flex key={index.name} justify="space-between" color="white">
+              <Text>{index.name}</Text>
+              <Text>{index.value}</Text>
+              <Text color={index.change.startsWith('+') ? "green.300" : "red.300"}>{index.change}</Text>
+            </Flex>
+          ))}
         </Box>
-    );
+        <Box>
+          <Heading size="sm" color="white" mb={2}>Popular Stocks</Heading>
+          {stockData.slice(3).map((stock) => (
+            <Flex key={stock.symbol} justify="space-between" color="white">
+              <Text>{stock.symbol}</Text>
+              <Text>{stock.price}</Text>
+              <Text color={stock.change > 0 ? "green.300" : "red.300"}>{stock.change}%</Text>
+            </Flex>
+          ))}
+        </Box>
+      </VStack>
+    </Box>
+  );
 };
+
 
 export function ChatWindow() {
   const router = useRouter();
