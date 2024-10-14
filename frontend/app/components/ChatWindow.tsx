@@ -130,7 +130,7 @@ const VALID_STOCK_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "N
 
 // Initial mock data
 const initialMockStockData = [
-  { name: "Dow Jones", value: "34,721.91", change: "+0.30%" },
+  { name: "Dow Jones", value: "34,721.91", change: "+0.50%" },
   { name: "NASDAQ", value: "15,785.32", change: "-0.15%" },
   { name: "S&P 500", value: "4,509.23", change: "+0.20%" },
   { symbol: "AAPL", price: "150.25", change: "+1.25%" },
@@ -589,8 +589,9 @@ export function ChatWindow() {
           )}
         </Flex>
       </Flex>
-
-      <StockPanel isVisible={isStockPanelVisible} onClose={() => setIsStockPanelVisible(false)} />
+      { isStockPanelVisible &&  
+      <StockPanel  onClose={() => setIsStockPanelVisible(false)} />}
+{/*       <StockPanel isVisible={isStockPanelVisible} onClose={() => setIsStockPanelVisible(false)} /> */}
     </Flex>
   );
 }
