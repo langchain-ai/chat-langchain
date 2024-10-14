@@ -130,7 +130,7 @@ const VALID_STOCK_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "N
 
 // Initial mock data
 const initialMockStockData = [
-  { name: "Dow Jones", value: "34,721.91", change: "+0.50%" },
+  { name: "Dow Jones", value: "34,721.91", change: "+0.30%" },
   { name: "NASDAQ", value: "15,785.32", change: "-0.15%" },
   { name: "S&P 500", value: "4,509.23", change: "+0.20%" },
   { symbol: "AAPL", price: "150.25", change: "+1.25%" },
@@ -186,7 +186,7 @@ const StockPanel = () => {
     const intervalId = setInterval(() => fetchAndUpdateStockData(setStockData), 3000);
 
     return () => clearInterval(intervalId);
-  }, [stockData]);
+  }, []);
 
   return (
     <Box
