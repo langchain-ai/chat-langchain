@@ -602,9 +602,9 @@ export function ChatWindow() {
           )}
         </Flex>
       </Flex>
-      { isStockPanelVisible &&  
-      <StockPanel  onClose={() => setIsStockPanelVisible(false)} />}
-{/*       <StockPanel isVisible={isStockPanelVisible} onClose={() => setIsStockPanelVisible(false)} /> */}
+{/*       { isStockPanelVisible &&  
+      <StockPanel  onClose={() => setIsStockPanelVisible(false)} />} */}
+      <StockPanel isVisible={isStockPanelVisible} onClose={() => setIsStockPanelVisible(false)} />
     </Flex>
   );
 }
