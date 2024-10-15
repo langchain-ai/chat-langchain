@@ -160,7 +160,6 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
     if (!response.ok) throw new Error('Network response was not ok');
 
     const data = await response.json();
-    console.log(`Data for ${symbol}:`, data);
     return {
       symbol: data.symbol,
       price: data.latestPrice,
@@ -187,7 +186,6 @@ const fetchAndUpdateStockData = async (setStockData: SetStockDataFunction) => {
   ]);
 };
 
-console.log("Updated stock data: ", updates);
 
 interface StockPanelProps {
   isVisible: boolean;
