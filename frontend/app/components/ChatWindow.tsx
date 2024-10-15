@@ -233,7 +233,6 @@ const StockPanel = () => {
               <Text color={parseFloat((stock.change as string).replace('%', '')) > 0 ? "green.300" : "red.300"}>{stock.change}%</Text> 
              
 
-</Text>
             </Flex>
           ))}
         </Box>
