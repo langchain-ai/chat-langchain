@@ -46,8 +46,8 @@ export default function ContentComposerChatInterface(): React.ReactElement {
 
       setMessages((prevMessages) => [
         ...prevMessages,
-        progressAIMessage,
         humanMessage,
+        progressAIMessage,
       ]);
 
       await streamMessage({

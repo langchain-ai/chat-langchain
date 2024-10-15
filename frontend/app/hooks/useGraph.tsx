@@ -28,6 +28,23 @@ const nodeToStep = (node: string) => {
   }
 };
 
+function addDocumentLinks(
+  text: string,
+  inputDocuments: Record<string, any>[],
+): string {
+  return text.replace(/\[(\d+)\]/g, (match, number) => {
+    const index = parseInt(number, 10);
+    if (index >= 0 && index < inputDocuments.length) {
+      const document = inputDocuments[index];
+      if (document && document.metadata && document.metadata.source) {
+        return `[[${number}]](${document.metadata.source})`;
+      }
+    }
+    // Return the original match if no corresponding document is found
+    return match;
+  });
+}
+
 export interface GraphInput {
   messages?: Record<string, any>[];
 }
@@ -147,9 +164,6 @@ export function useGraph() {
                 msg.tool_calls[0]?.name === "progress",
             );
             if (existingMessageIndex !== -1) {
-              const existingMessage = prevMessages[
-                existingMessageIndex
-              ] as AIMessage;
               return [
                 ...prevMessages.slice(0, existingMessageIndex),
                 new AIMessage({
@@ -430,6 +444,30 @@ export function useGraph() {
                 ],
               });
               return [...prevMessages, progressAIMessage];
+            }
+          });
+        }
+
+        if (chunk.data.metadata.langgraph_node === "generate") {
+          const inputDocuments = chunk.data.data.input.documents;
+          const message = chunk.data.data.output.messages;
+          setMessages((prevMessages) => {
+            const existingMessageIndex = prevMessages.findIndex(
+              (pMsg) => pMsg.id === message.id,
+            );
+            if (existingMessageIndex !== -1) {
+              const newMessageWithLinks = new AIMessage({
+                ...message,
+                content: addDocumentLinks(message.content, inputDocuments),
+              });
+
+              return [
+                ...prevMessages.slice(0, existingMessageIndex),
+                newMessageWithLinks,
+                ...prevMessages.slice(existingMessageIndex + 1),
+              ];
+            } else {
+              return prevMessages;
             }
           });
         }

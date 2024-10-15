@@ -9,13 +9,19 @@ import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import { FC, memo, useState } from "react";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, ExternalLink } from "lucide-react";
 
 import { TooltipIconButton } from "./tooltip-icon-button";
 import { SyntaxHighlighter } from "./syntax-highlighter";
 import { cn } from "../../../utils/cn";
 
 import "katex/dist/katex.min.css";
+
+const LinkWithIcon = () => (
+  <span className="flex flex-row gap-1 items-center">
+    <ExternalLink />
+  </span>
+);
 
 const MarkdownTextImpl = () => {
   return (
@@ -87,11 +93,14 @@ const MarkdownTextImpl = () => {
           <a
             target="_blank"
             className={cn(
-              "text-primary font-medium underline underline-offset-4",
+              "text-primary text-blue-400 font-medium underline underline-offset-4 inline-flex items-baseline relative pr-[1.1em]",
               className,
             )}
             {...props}
-          />
+          >
+            {props.children}
+            <ExternalLink className="w-3 h-3 absolute top-1 right-1" />
+          </a>
         ),
         blockquote: ({ node: _node, className, ...props }) => (
           <blockquote

@@ -16,19 +16,19 @@ export const stepToProgressFields = (step: number) => {
       };
     case 2:
       return {
-        text: "Doing research (1/3)",
-        progress: 55,
-      };
-    case 2.25:
-      return {
-        text: "Doing research (2/3)",
+        text: "Doing research",
         progress: 65,
       };
-    case 2.5:
-      return {
-        text: "Doing research (3/3)",
-        progress: 75,
-      };
+    // case 2.25:
+    //   return {
+    //     text: "Doing research (2/3)",
+    //     progress: 65,
+    //   };
+    // case 2.5:
+    //   return {
+    //     text: "Doing research (3/3)",
+    //     progress: 75,
+    //   };
     case 3:
       return {
         text: "Generating answer",
