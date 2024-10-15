@@ -212,6 +212,14 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
     }
     return "gray.300"; // Default color when change value is not a string
   };
+
+   const formatChange = (change: string | number) => {
+    if (typeof change === 'string') {
+      const numericChange = parseFloat(change.replace('%', ''));
+      return numericChange > 0 ? `+${change}` : change;
+    }
+    return change;
+  };
   
   return (
     <Box
