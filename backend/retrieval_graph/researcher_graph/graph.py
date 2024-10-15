@@ -4,7 +4,8 @@ This module defines the core structure and functionality of the researcher graph
 which is responsible for generating search queries and retrieving relevant documents.
 """
 
-from typing import TypedDict, cast
+from typing import cast
+from typing_extensions import TypedDict
 
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableConfig
