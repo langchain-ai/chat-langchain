@@ -223,9 +223,8 @@ const StockPanel: React.FC<StockPanelProps> = ({ onClose }) => {
             <Flex key={index.name} justify="space-between" color="white">
               <Text>{index.name}</Text>
               <Text>{index.value}</Text>
-              <Text>
-  {typeof index.change === 'string' && index.change.startsWith('+') ? "green.300" : "red.300"}
-</Text>          
+   <Text color={parseFloat((index.change as string).replace('%', '')) > 0 ? "green.300" : "red.300"}>{index.change}%</Text>
+       
             </Flex>
           ))}
         </Box>
