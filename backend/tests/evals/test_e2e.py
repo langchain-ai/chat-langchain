@@ -9,7 +9,8 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from langsmith.evaluation import EvaluationResults, evaluate
 from langsmith.schemas import Example, Run
 
-from backend.graph import OPENAI_MODEL_KEY, format_docs, graph
+from backend.retrieval_graph import graph
+from backend.utils import format_docs
 
 DATASET_NAME = "chat-langchain-qa"
 EXPERIMENT_PREFIX = "chat-langchain-ci"
@@ -141,22 +142,9 @@ def evaluate_qa_context(run: Run, example: Example) -> dict:
 # Run evaluation
 
 
-def run_graph(inputs: dict[str, Any], model_name: str) -> dict[str, Any]:
+def run_graph(inputs: dict[str, Any]) -> dict[str, Any]:
     results = graph.invoke(
         {"messages": [("human", inputs["question"])]},
-        config={"configurable": {"model_name": model_name}},
-    )
-    return results
-
-
-def evaluate_model(*, model_name: str):
-    results = evaluate(
-        lambda inputs: run_graph(inputs, model_name=model_name),
-        data=DATASET_NAME,
-        evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
-        experiment_prefix=EXPERIMENT_PREFIX,
-        metadata={"model_name": model_name, "judge_model_name": JUDGE_MODEL_NAME},
-        max_concurrency=4,
     )
     return results
 
@@ -174,7 +162,14 @@ def convert_single_example_results(evaluation_results: EvaluationResults):
 # NOTE: this is more of a regression test
 def test_scores_regression():
     # test most commonly used model
-    experiment_results = evaluate_model(model_name=OPENAI_MODEL_KEY)
+    experiment_results = evaluate(
+        lambda inputs: run_graph(inputs),
+        data=DATASET_NAME,
+        evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
+        experiment_prefix=EXPERIMENT_PREFIX,
+        metadata={"judge_model_name": JUDGE_MODEL_NAME},
+        max_concurrency=4,
+    )
     experiment_result_df = pd.DataFrame(
         convert_single_example_results(result["evaluation_results"])
         for result in experiment_results._results
