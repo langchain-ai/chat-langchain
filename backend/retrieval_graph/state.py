@@ -5,11 +5,12 @@ definitions for agent state, input state, and router classification schema.
 """
 
 from dataclasses import dataclass, field
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal
 
 from langchain_core.documents import Document
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
+from typing_extensions import TypedDict
 
 from backend.utils import reduce_docs
 

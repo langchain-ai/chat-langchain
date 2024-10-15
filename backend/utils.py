@@ -5,8 +5,8 @@ Functions:
     load_chat_model: Load a chat model from a model name.
 """
 
-from typing import Any, Optional, Union
 import uuid
+from typing import Any, Optional, Union
 
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document

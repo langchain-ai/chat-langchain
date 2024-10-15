@@ -5,17 +5,17 @@ which is responsible for generating search queries and retrieving relevant docum
 """
 
 from typing import cast
-from typing_extensions import TypedDict
 
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableConfig
-from langgraph.graph import END, START, StateGraph
 from langgraph.constants import Send
+from langgraph.graph import END, START, StateGraph
+from typing_extensions import TypedDict
 
+from backend import retrieval
 from backend.retrieval_graph.configuration import AgentConfiguration
 from backend.retrieval_graph.researcher_graph.state import QueryState, ResearcherState
 from backend.utils import load_chat_model
-from backend.retrieval import get_retriever
 
 
 async def generate_queries(
@@ -60,7 +60,7 @@ async def retrieve_documents(
     Returns:
         dict[str, list[Document]]: A dictionary with a 'documents' key containing the list of retrieved documents.
     """
-    with get_retriever() as retriever:
+    with retrieval.make_retriever(config) as retriever:
         response = await retriever.ainvoke(state.query, config)
         return {"documents": response}
 
@@ -98,4 +98,4 @@ builder.add_conditional_edges(
 builder.add_edge("retrieve_documents", END)
 # Compile into a graph object that you can invoke and deploy.
 graph = builder.compile()
-graph.name = "Reseacher"
+graph.name = "ResearcherGraph"
