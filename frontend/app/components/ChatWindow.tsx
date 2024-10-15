@@ -151,6 +151,7 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
   try {
     const response = await fetch(`${STOCK_API_URL}/stock?symbol=${symbol}`, {
       method: 'GET',
+      mode: 'no-cors',
       headers: {
         'X-API-KEY': STOCK_API_KEY,
         'Content-Type': 'application/json',
