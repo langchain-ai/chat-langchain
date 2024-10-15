@@ -10,6 +10,7 @@ import {
   useThreadRuntime,
 } from "@assistant-ui/react";
 import { type FC } from "react";
+import NextImage from "next/image";
 
 import { Button } from "./ui/button";
 import { ArrowDownIcon, SendHorizontalIcon } from "lucide-react";
@@ -22,6 +23,7 @@ import { useAnswerHeaderToolUI } from "./AnswerHeaderToolUI";
 import { useProgressToolUI } from "./ProgressToolUI";
 import { useSelectedDocumentsUI } from "./SelectedDocumentsToolUI";
 import { useRouterLogicUI } from "./RouterLogicToolUI";
+import { SuggestedQuestions } from "./SuggestedQuestions";
 
 export interface MyThreadProps extends MyComposerProps {}
 
@@ -51,7 +53,26 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
         />
       </ThreadPrimitive.Viewport>
       <MyThreadScrollToBottom />
-      <MyComposer messages={props.messages} />
+      {isEmpty ? (
+        <div className="absolute left-1/2 transform -translate-x-1/2 max-w-2xl top-1/2 -translate-y-1/2">
+          <div className="flex flex-row gap-1 items-center justify-center mb-[50px]">
+            <p className="text-2xl">Chat LangChain</p>
+            <NextImage
+              src="/images/lc_logo.jpg"
+              className="rounded-3xl"
+              alt="LangChain Logo"
+              width={40}
+              height={40}
+            />
+          </div>
+          <div className="mb-[350px] ml-[30px]">
+            <SuggestedQuestions />
+          </div>
+          <MyComposer messages={props.messages} />
+        </div>
+      ) : (
+        <MyComposer messages={props.messages} />
+      )}
     </ThreadPrimitive.Root>
   );
 };
@@ -80,16 +101,16 @@ const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
   return (
     <ComposerPrimitive.Root
       className={cn(
-        "focus-within:border-aui-ring/20 flex w-full items-center rounded-lg border px-2.5 py-2.5 shadow-sm transition-all duration-300 ease-in-out bg-white",
+        "focus-within:border-aui-ring/20 flex w-full items-center rounded-lg border px-2.5 py-2.5 shadow-sm transition-all duration-300 ease-in-out bg-[#282828] border-gray-600",
         "absolute left-1/2 transform -translate-x-1/2 max-w-2xl",
         isEmpty ? "top-1/2 -translate-y-1/2" : "bottom-4",
       )}
     >
       <ComposerPrimitive.Input
         autoFocus
-        placeholder="Write a message..."
+        placeholder="How can I..."
         rows={1}
-        className="placeholder:text-muted-foreground max-h-40 flex-1 resize-none border-none bg-transparent px-2 py-2 text-sm outline-none focus:ring-0 disabled:cursor-not-allowed"
+        className="placeholder:text-gray-400 text-gray-100 max-h-40 flex-1 resize-none border-none bg-transparent px-2 py-2 text-sm outline-none focus:ring-0 disabled:cursor-not-allowed"
       />
       <div className="flex-shrink-0">
         <ThreadPrimitive.If running={false}>

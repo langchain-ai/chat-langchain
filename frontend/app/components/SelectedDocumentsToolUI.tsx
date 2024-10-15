@@ -20,51 +20,65 @@ type Document = {
   metadata: Record<string, any>;
 };
 
-const DocumentCard = ({ document }: { document: Document }) => (
-  <Card className="w-[200px] h-[110px] bg-inherit border-gray-500 flex flex-col">
-    <CardHeader className="flex-shrink-0 px-3 pt-2 pb-0">
-      <CardTitle className="text-sm font-light text-gray-300 line-clamp-1 overflow-hidden p-[-24px]">
-        {document.metadata.title}
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="flex flex-col px-3 flex-grow justify-between">
-      <p className="text-xs font-light text-gray-400 line-clamp-4 overflow-hidden">
-        {document.metadata.description}
-      </p>
-    </CardContent>
-  </Card>
-);
+const DocumentCard = ({ document }: { document: Document }) => {
+  const description =
+    document.metadata.description && document.metadata.description !== ""
+      ? document.metadata.description
+      : document.page_content.slice(0, 250);
 
-const DocumentCardTooltip = ({ document }: { document: Document }) => (
-  <TooltipProvider>
-    <Tooltip defaultOpen delayDuration={0}>
-      <TooltipTrigger asChild>
-        <div>
-          <DocumentCard document={document} />
-        </div>
-      </TooltipTrigger>
-      <TooltipContent className="flex flex-col max-w-[600px] whitespace-pre-wrap">
-        <div className="flex flex-col gap-1">
-          <p className="font-medium text-gray-300">{document.metadata.title}</p>
-          <div className="flex flex-wrap justify-start">
-            <a
-              href={document.metadata.source}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center text-blue-400 hover:text-blue-300 transition-colors duration-200 break-all"
-            >
-              Source{" "}
-              <SquareArrowOutUpRight className="ml-1 h-4 w-4 flex-shrink-0" />
-            </a>
+  return (
+    <Card className="w-[200px] h-[110px] bg-inherit border-gray-500 flex flex-col">
+      <CardHeader className="flex-shrink-0 px-3 pt-2 pb-0">
+        <CardTitle className="text-sm font-light text-gray-300 line-clamp-1 overflow-hidden p-[-24px]">
+          {document.metadata.title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col px-3 flex-grow justify-between">
+        <p className="text-xs font-light text-gray-400 line-clamp-4 overflow-hidden">
+          {description}
+        </p>
+      </CardContent>
+    </Card>
+  );
+};
+
+const DocumentCardTooltip = ({ document }: { document: Document }) => {
+  const description =
+    document.metadata.description && document.metadata.description !== ""
+      ? document.metadata.description
+      : document.page_content.slice(0, 250);
+
+  return (
+    <TooltipProvider>
+      <Tooltip defaultOpen delayDuration={0}>
+        <TooltipTrigger asChild>
+          <div>
+            <DocumentCard document={document} />
           </div>
-          <p className="text-xs font-light text-gray-400">
-            {document.metadata.description}
-          </p>
-        </div>
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-);
+        </TooltipTrigger>
+        <TooltipContent className="flex flex-col max-w-[600px] whitespace-pre-wrap">
+          <div className="flex flex-col gap-1">
+            <p className="font-medium text-gray-300">
+              {document.metadata.title}
+            </p>
+            <div className="flex flex-wrap justify-start">
+              <a
+                href={document.metadata.source}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center text-blue-400 hover:text-blue-300 transition-colors duration-200 break-all"
+              >
+                Source{" "}
+                <SquareArrowOutUpRight className="ml-1 h-4 w-4 flex-shrink-0" />
+              </a>
+            </div>
+            <p className="text-xs font-light text-gray-400">{description}</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+};
 
 export const useSelectedDocumentsUI = () =>
   useAssistantToolUI({
@@ -91,7 +105,7 @@ export const useSelectedDocumentsUI = () =>
                 (document, docIndex) => (
                   <CarouselItem
                     key={`final-document-${docIndex}`}
-                    className="basis-[27%]"
+                    className="xl:basis-[38%] 2xl:basis-[27%] md:basis-1/2"
                   >
                     <DocumentCardTooltip document={document} />
                   </CarouselItem>
