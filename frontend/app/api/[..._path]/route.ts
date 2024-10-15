@@ -4,7 +4,7 @@ export const runtime = "edge";
 
 function getCorsHeaders() {
   return {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'https://tradingwithai.org/',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': '*',
   };
