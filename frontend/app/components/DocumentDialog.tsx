@@ -13,12 +13,12 @@ interface DocumentDialogProps {
   document: Record<string, any>;
 }
 
-export function DocumentDialog({ document }: DocumentDialogProps) {
+export function DocumentDialog(props: DocumentDialogProps) {
   return (
     <Dialog>
       <DialogTrigger asChild>
         <TooltipIconButton
-          tooltip={document.metadata.title}
+          tooltip={props.document.metadata.title}
           variant="default"
           className="w-6 h-6 z-50 transition-opacity ease-in"
         >
@@ -29,11 +29,11 @@ export function DocumentDialog({ document }: DocumentDialogProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center justify-start gap-4">
             <p className="text-gray-100 break-words">
-              {document.metadata.title}
+              {props.document.metadata.title}
             </p>
             <div className="flex flex-wrap justify-start">
               <a
-                href={document.metadata.source}
+                href={props.document.metadata.source}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center text-blue-400 hover:text-blue-300 transition-colors duration-200 break-all"
@@ -45,13 +45,13 @@ export function DocumentDialog({ document }: DocumentDialogProps) {
           </DialogTitle>
         </DialogHeader>
         <DialogDescription className="text-gray-300 break-words whitespace-normal">
-          {document.metadata.description}
+          {props.document.metadata.description}
         </DialogDescription>
 
         <hr />
         <div className="mt-2 overflow-hidden">
           <p className="whitespace-pre-wrap text-gray-200 break-words overflow-wrap-anywhere">
-            {document.page_content}
+            {props.document.page_content}
           </p>
         </div>
       </DialogContent>

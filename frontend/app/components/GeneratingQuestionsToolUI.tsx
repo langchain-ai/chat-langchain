@@ -68,7 +68,7 @@ export const useGeneratingQuestionsUI = () =>
         <div className="flex flex-col mb-4">
           <span className="flex flex-row gap-2 items-center justify-start pb-4 text-gray-300">
             <Globe className="w-5 h-5" />
-            <p className="text-xl">Sources</p>
+            <p className="text-xl">Generated Questions & Sources</p>
           </span>
           <div className="relative left-1/2 -translate-x-1/2 w-screen max-w-[70vw] mb-10">
             <div className="flex items-center justify-center gap-2">

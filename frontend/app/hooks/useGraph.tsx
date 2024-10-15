@@ -195,6 +195,23 @@ export function useGraph() {
             }
           });
         }
+
+        if (node === "generate") {
+          setMessages((prevMessages) => {
+            const selectedDocumentsAIMessage = new AIMessage({
+              content: "",
+              tool_calls: [
+                {
+                  name: "selected_documents",
+                  args: {
+                    documents: chunk.data.data.input.documents,
+                  },
+                },
+              ],
+            });
+            return [...prevMessages, selectedDocumentsAIMessage];
+          });
+        }
       }
 
       if (chunk.data.event === "on_chat_model_stream") {

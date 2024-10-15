@@ -19,6 +19,8 @@ import { cn } from "../utils/cn";
 import { useGeneratingQuestionsUI } from "./GeneratingQuestionsToolUI";
 import { useAnswerHeaderToolUI } from "./AnswerHeaderToolUI";
 import { useProgressToolUI } from "./ProgressToolUI";
+import { useSelectedDocumentsUI } from "./SelectedDocumentsToolUI";
+import { TooltipProvider } from "./ui/tooltip";
 
 export interface MyThreadProps extends MyComposerProps {}
 
@@ -28,6 +30,7 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
   useGeneratingQuestionsUI();
   useAnswerHeaderToolUI();
   useProgressToolUI();
+  useSelectedDocumentsUI();
 
   return (
     <ThreadPrimitive.Root className="flex flex-col h-full relative">
