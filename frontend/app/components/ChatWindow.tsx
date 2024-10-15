@@ -223,7 +223,7 @@ const StockPanel: React.FC<StockPanelProps> = ({ onClose }) => {
             <Flex key={index.name} justify="space-between" color="white">
               <Text>{index.name}</Text>
               <Text>{index.value}</Text>
-   <Text color={parseFloat((index.change as string).replace('%', '')) > 0 ? "green.300" : "red.300"}>{index.change}%</Text>
+   <Text color={parseFloat((index.change as string).replace('%', '')) > 0 ? "green.300" : "red.300"}>{index.change}</Text>
        
             </Flex>
           ))}
@@ -234,7 +234,7 @@ const StockPanel: React.FC<StockPanelProps> = ({ onClose }) => {
             <Flex key={stock.symbol} justify="space-between" color="white">
               <Text>{stock.symbol}</Text>
               <Text>{stock.price}</Text>
-              <Text color={parseFloat((stock.change as string).replace('%', '')) > 0 ? "green.300" : "red.300"}>{stock.change}%</Text> 
+              <Text color={parseFloat((stock.change as string).replace('%', '')) > 0 ? "green.300" : "red.300"}>{stock.change}</Text> 
              
 
             </Flex>
