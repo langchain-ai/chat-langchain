@@ -19,13 +19,13 @@ export function DocumentDialog(props: DocumentDialogProps) {
       <DialogTrigger asChild>
         <TooltipIconButton
           tooltip={props.document.metadata.title}
-          variant="default"
-          className="w-6 h-6 z-50 transition-opacity ease-in"
+          variant="outline"
+          className="w-6 h-6 z-50 transition-colors ease-in-out bg-transparent hover:bg-gray-500 border-gray-400 text-gray-300"
         >
           <File />
         </TooltipIconButton>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto bg-gray-950 text-gray-200">
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto bg-gray-700 text-gray-200">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-start gap-4">
             <p className="text-gray-100 break-words">

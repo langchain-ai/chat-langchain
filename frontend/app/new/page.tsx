@@ -32,23 +32,8 @@ export default function ContentComposerChatInterface(): React.ReactElement {
         content: message.content[0].text,
         id: uuidv4(),
       });
-      const progressAIMessage = new AIMessage({
-        content: "",
-        tool_calls: [
-          {
-            name: "progress",
-            args: {
-              step: 0,
-            },
-          },
-        ],
-      });
 
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        humanMessage,
-        progressAIMessage,
-      ]);
+      setMessages((prevMessages) => [...prevMessages, humanMessage]);
 
       await streamMessage({
         messages: [convertToOpenAIFormat(humanMessage)],

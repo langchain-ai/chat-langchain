@@ -84,7 +84,7 @@ export const useSelectedDocumentsUI = () =>
             opts={{
               align: "start",
             }}
-            className="relative left-1/2 -translate-x-1/2 w-screen max-w-[43vw] mb-10"
+            className="relative left-1/2 -translate-x-[39%] w-screen max-w-[43vw] mb-10"
           >
             <CarouselContent>
               {(input.args.documents as Document[]).map(

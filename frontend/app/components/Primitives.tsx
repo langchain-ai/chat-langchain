@@ -5,6 +5,7 @@ import {
   MessagePrimitive,
   ThreadPrimitive,
   useComposerStore,
+  useMessage,
   useMessageStore,
   useThreadRuntime,
 } from "@assistant-ui/react";
@@ -20,7 +21,7 @@ import { useGeneratingQuestionsUI } from "./GeneratingQuestionsToolUI";
 import { useAnswerHeaderToolUI } from "./AnswerHeaderToolUI";
 import { useProgressToolUI } from "./ProgressToolUI";
 import { useSelectedDocumentsUI } from "./SelectedDocumentsToolUI";
-import { TooltipProvider } from "./ui/tooltip";
+import { useRouterLogicUI } from "./RouterLogicToolUI";
 
 export interface MyThreadProps extends MyComposerProps {}
 
@@ -31,13 +32,14 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
   useAnswerHeaderToolUI();
   useProgressToolUI();
   useSelectedDocumentsUI();
+  useRouterLogicUI();
 
   return (
     <ThreadPrimitive.Root className="flex flex-col h-full relative">
       <ThreadPrimitive.Viewport
         className={cn(
           "flex-1 overflow-y-auto scroll-smooth bg-inherit px-4 pt-8 transition-all duration-300 ease-in-out w-full",
-          isEmpty ? "pb-[50vh]" : "pb-20",
+          isEmpty ? "pb-[50vh]" : "pb-32",
         )}
       >
         <ThreadPrimitive.Messages
@@ -60,9 +62,9 @@ const MyThreadScrollToBottom: FC = () => {
       <TooltipIconButton
         tooltip="Scroll to bottom"
         variant="outline"
-        className="absolute -top-8 rounded-full disabled:invisible"
+        className="absolute top-4 left-1/2 transform -translate-x-1/2 rounded-full disabled:invisible bg-white bg-opacity-75"
       >
-        <ArrowDownIcon />
+        <ArrowDownIcon className="text-gray-600 hover:text-gray-800 transition-colors ease-in-out" />
       </TooltipIconButton>
     </ThreadPrimitive.ScrollToBottom>
   );
@@ -119,8 +121,8 @@ const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
 
 const MyUserMessage: FC = () => {
   return (
-    <MessagePrimitive.Root className="w-full max-w-2xl py-4 mx-auto">
-      <div className="bg-inherit text-gray-200 max-w-xl break-words rounded-3xl px-5 py-2.5 text-4xl font-light">
+    <MessagePrimitive.Root className="w-full max-w-2xl pt-4 mx-auto">
+      <div className="bg-inherit text-white max-w-xl break-words rounded-3xl px-5 pt-2.5 mb-[-25px] text-4xl font-light">
         <MessagePrimitive.Content />
       </div>
     </MessagePrimitive.Root>
@@ -167,10 +169,20 @@ const MyEditComposer: FC = () => {
 };
 
 const MyAssistantMessage: FC = () => {
+  const threadRuntime = useThreadRuntime();
+  const threadState = threadRuntime.getState();
+  const isLast = useMessage((m) => m.isLast);
+  const shouldRenderMessageBreak =
+    threadState.messages.filter((msg) => msg.role === "user")?.length > 1 &&
+    !isLast;
+
   return (
     <MessagePrimitive.Root className="relative flex w-full max-w-2xl py-4 mx-auto">
       <div className="ml-6 bg-inherit text-white max-w-xl break-words leading-7">
         <MessagePrimitive.Content components={{ Text: MarkdownText }} />
+        {shouldRenderMessageBreak ? (
+          <hr className="relative left-1/2 -translate-x-[37.25%] w-[45vw] mt-6 border-gray-600" />
+        ) : null}
       </div>
     </MessagePrimitive.Root>
   );

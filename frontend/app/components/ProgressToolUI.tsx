@@ -19,16 +19,6 @@ export const stepToProgressFields = (step: number) => {
         text: "Doing research",
         progress: 65,
       };
-    // case 2.25:
-    //   return {
-    //     text: "Doing research (2/3)",
-    //     progress: 65,
-    //   };
-    // case 2.5:
-    //   return {
-    //     text: "Doing research (3/3)",
-    //     progress: 75,
-    //   };
     case 3:
       return {
         text: "Generating answer",
@@ -54,7 +44,7 @@ export const useProgressToolUI = () =>
       const { text, progress } = stepToProgressFields(input.args.step);
 
       return (
-        <div className="flex flex-row w-full min-w-[600px] items-center justify-start gap-3">
+        <div className="flex flex-row w-full min-w-[600px] items-center justify-start gap-3 pb-4 ml-[-5px]">
           <Progress
             value={progress}
             indicatorClassName="bg-gray-700"
@@ -62,7 +52,7 @@ export const useProgressToolUI = () =>
           />
           <p
             className={cn(
-              "text-gray-500 mt-2 text-sm font-light",
+              "text-gray-500 text-sm font-light",
               progress !== 100 ? "animate-pulse" : "",
             )}
           >

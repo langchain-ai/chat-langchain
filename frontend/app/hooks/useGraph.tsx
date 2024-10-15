@@ -2,6 +2,7 @@ import { parsePartialJson } from "@langchain/core/output_parsers";
 import { useEffect, useState } from "react";
 import { AIMessage, BaseMessage } from "@langchain/core/messages";
 import { useToast } from "./use-toast";
+import { v4 as uuidv4 } from "uuid";
 
 import { Client } from "@langchain/langgraph-sdk";
 import { getCookie, setCookie } from "../utils/cookies";
@@ -138,12 +139,59 @@ export function useGraph() {
       streamMode: "events",
     });
     let runId: string | undefined = undefined;
+    let fullRoutingStr = "";
     let generatingQuestionsMessageId: string | undefined = undefined;
     let fullGeneratingQuestionsStr = "";
+    const progressAIMessageId = uuidv4();
+    let hasProgressBeenSet = false;
 
     for await (const chunk of stream) {
       if (!runId && chunk.data?.metadata?.run_id) {
         runId = chunk.data.metadata.run_id;
+      }
+      if (!hasProgressBeenSet) {
+        setMessages((prevMessages) => {
+          const existingMessageIndex = prevMessages.findIndex(
+            (msg) => msg.id === progressAIMessageId,
+          );
+
+          if (existingMessageIndex !== -1) {
+            return [
+              ...prevMessages.slice(0, existingMessageIndex),
+              new AIMessage({
+                id: progressAIMessageId,
+                content: "",
+                tool_calls: [
+                  {
+                    name: "progress",
+                    args: {
+                      step: nodeToStep(chunk?.data?.metadata?.langgraph_node),
+                    },
+                  },
+                ],
+              }),
+              ...prevMessages.slice(existingMessageIndex + 1),
+            ];
+          } else {
+            console.warn(
+              "Progress message ID is defined but not found in messages",
+            );
+            const newMessage = new AIMessage({
+              id: progressAIMessageId,
+              content: "",
+              tool_calls: [
+                {
+                  name: "progress",
+                  args: {
+                    step: nodeToStep(chunk?.data?.metadata?.langgraph_node),
+                  },
+                },
+              ],
+            });
+            return [...prevMessages, newMessage];
+          }
+        });
+        hasProgressBeenSet = true;
       }
 
       if (chunk.data.event === "on_chain_start") {
@@ -158,15 +206,14 @@ export function useGraph() {
         ) {
           setMessages((prevMessages) => {
             const existingMessageIndex = prevMessages.findIndex(
-              (msg) =>
-                "tool_calls" in msg &&
-                Array.isArray(msg.tool_calls) &&
-                msg.tool_calls[0]?.name === "progress",
+              (msg) => msg.id === progressAIMessageId,
             );
+
             if (existingMessageIndex !== -1) {
               return [
                 ...prevMessages.slice(0, existingMessageIndex),
                 new AIMessage({
+                  id: progressAIMessageId,
                   content: "",
                   tool_calls: [
                     {
@@ -180,18 +227,10 @@ export function useGraph() {
                 ...prevMessages.slice(existingMessageIndex + 1),
               ];
             } else {
-              const progressAIMessage = new AIMessage({
-                content: "",
-                tool_calls: [
-                  {
-                    name: "progress",
-                    args: {
-                      step: nodeToStep(node),
-                    },
-                  },
-                ],
-              });
-              return [...prevMessages, progressAIMessage];
+              console.warn(
+                "Progress message ID is defined but not found in messages",
+              );
+              return prevMessages;
             }
           });
         }
@@ -215,6 +254,54 @@ export function useGraph() {
       }
 
       if (chunk.data.event === "on_chat_model_stream") {
+        if (chunk.data.metadata.langgraph_node === "route_at_start_node") {
+          const message = chunk.data.data.chunk;
+          const toolCallChunk = message.tool_call_chunks?.[0];
+          fullRoutingStr += toolCallChunk?.args || "";
+          try {
+            const parsedData: { logic: string } =
+              parsePartialJson(fullRoutingStr);
+            if (parsedData && parsedData.logic !== "") {
+              setMessages((prevMessages) => {
+                const existingMessageIndex = prevMessages.findIndex(
+                  (msg) => msg.id === message.id,
+                );
+
+                if (existingMessageIndex !== -1) {
+                  const newMessage = new AIMessage({
+                    ...prevMessages[existingMessageIndex],
+                    tool_calls: [
+                      {
+                        name: "router_logic",
+                        args: parsedData,
+                      },
+                    ],
+                  });
+
+                  return [
+                    ...prevMessages.slice(0, existingMessageIndex),
+                    newMessage,
+                    ...prevMessages.slice(existingMessageIndex + 1),
+                  ];
+                } else {
+                  const newMessage = new AIMessage({
+                    ...message,
+                    tool_calls: [
+                      {
+                        name: "router_logic",
+                        args: parsedData,
+                      },
+                    ],
+                  });
+                  return [...prevMessages, newMessage];
+                }
+              });
+            }
+          } catch (error) {
+            console.error("Error parsing router logic data:", error);
+          }
+        }
+
         if (chunk.data.metadata.langgraph_node === "general") {
           const message = chunk.data.data.chunk;
           setMessages((prevMessages) => {
@@ -353,7 +440,9 @@ export function useGraph() {
             }
           });
         }
-      } else if (chunk.data.event === "on_chain_end") {
+      }
+
+      if (chunk.data.event === "on_chain_end") {
         if (
           chunk.data.metadata.langgraph_node === "research_node" &&
           chunk.data.data?.output &&
@@ -426,16 +515,14 @@ export function useGraph() {
         ) {
           setMessages((prevMessages) => {
             const existingMessageIndex = prevMessages.findIndex(
-              (msg) =>
-                "tool_calls" in msg &&
-                Array.isArray(msg.tool_calls) &&
-                msg.tool_calls[0]?.name === "progress",
+              (msg) => msg.id === progressAIMessageId,
             );
             if (existingMessageIndex !== -1) {
               // Create a new array with the updated message
               return [
                 ...prevMessages.slice(0, existingMessageIndex),
                 new AIMessage({
+                  id: progressAIMessageId,
                   content: "",
                   tool_calls: [
                     {
@@ -449,18 +536,10 @@ export function useGraph() {
                 ...prevMessages.slice(existingMessageIndex + 1),
               ];
             } else {
-              const progressAIMessage = new AIMessage({
-                content: "",
-                tool_calls: [
-                  {
-                    name: "progress",
-                    args: {
-                      step: 4,
-                    },
-                  },
-                ],
-              });
-              return [...prevMessages, progressAIMessage];
+              console.warn(
+                "Progress message ID is defined but not found in messages",
+              );
+              return prevMessages;
             }
           });
         }
