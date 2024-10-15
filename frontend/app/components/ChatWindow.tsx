@@ -186,7 +186,12 @@ const fetchAndUpdateStockData = async (setStockData: SetStockDataFunction) => {
   ]);
 };
 
-const StockPanel = () => {
+interface StockPanelProps {
+  isVisible: boolean;
+  onClose: () => void;
+}
+
+const StockPanel: React.FC<StockPanelProps> = ({ onClose }) => {
   const [stockData, setStockData] = useState<StockData[]>(initialMockStockData);
 
   useEffect(() => {
