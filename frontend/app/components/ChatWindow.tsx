@@ -251,9 +251,9 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
           <Heading size="sm" color="white" mb={2}>Market Indices</Heading>
           {stockData.slice(0, 3).map((index) => (
             <Flex key={index.name} justify="space-between" color="white">
-              <Text>{index.name}</Text>
-              <Text>{index.value}</Text>
-              <Text color={getColorForChange(index.change)}>{formatChange(index.change)}</Text>
+              <Text width="40%">{index.name}</Text>
+              <Text width="30%" textAlign="center">{index.value}</Text>
+              <Text width="30%" textAlign="center" color={getColorForChange(index.change)}>{index.change}</Text>
             </Flex>
           ))}
         </Box>
@@ -261,9 +261,9 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
           <Heading size="sm" color="white" mb={2}>Popular Stocks</Heading>
           {stockData.slice(3).map((stock) => (
             <Flex key={stock.symbol} justify="space-between" color="white">
-              <Text>{stock.symbol}</Text>
-              <Text>{stock.price}</Text>
-              <Text color={getColorForChange(stock.change)}>{formatChange(stock.change)}</Text>
+              <Text width="40%">{stock.symbol}</Text>
+              <Text width="30%" textAlign="center">{stock.price}</Text>
+              <Text width="30%" textAlign="center" color={getColorForChange(stock.change)}>{formatChange(stock.change)}</Text>
             </Flex>
           ))}
         </Box>
