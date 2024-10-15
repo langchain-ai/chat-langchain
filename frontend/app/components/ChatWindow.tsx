@@ -230,7 +230,12 @@ const StockPanel = () => {
             <Flex key={stock.symbol} justify="space-between" color="white">
               <Text>{stock.symbol}</Text>
               <Text>{stock.price}</Text>
-              <Text color={stock.change > 0 ? "green.300" : "red.300"}>{stock.change}%</Text>
+{/*               <Text color={stock.change > 0 ? "green.300" : "red.300"}>{stock.change}%</Text> */}
+             
+const changeValue = parseFloat((stock.change as string).replace('%', ''));
+<Text color={changeValue > 0 ? "green.300" : "red.300"}>
+  {stock.change}%
+</Text>
             </Flex>
           ))}
         </Box>
