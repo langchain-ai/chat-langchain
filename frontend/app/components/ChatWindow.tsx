@@ -261,7 +261,7 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
           <Heading size="sm" color="white" mb={2}>Popular Stocks</Heading>
           {stockData.slice(3).map((stock) => (
             <Flex key={stock.symbol} justify="space-between" color="white">
-              <Text width="30%">{stock.symbol}</Text>
+              <Text width="30%" textAlign="center">{stock.symbol}</Text>
               <Text width="40%" textAlign="center">{stock.price}</Text>
               <Text width="30%" textAlign="center" color={getColorForChange(stock.change)}>{formatChange(stock.change)}</Text>
             </Flex>
