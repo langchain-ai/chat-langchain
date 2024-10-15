@@ -253,7 +253,7 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
             <Flex key={index.name} justify="space-between" color="white">
               <Text>{index.name}</Text>
               <Text>{index.value}</Text>
-              <Text color={getColorForChange(index.change)}>{index.change}</Text>
+              <Text color={getColorForChange(index.change)}>{formatChange(index.change)}</Text>
             </Flex>
           ))}
         </Box>
@@ -263,7 +263,7 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
             <Flex key={stock.symbol} justify="space-between" color="white">
               <Text>{stock.symbol}</Text>
               <Text>{stock.price}</Text>
-              <Text color={getColorForChange(stock.change)}>{stock.change}</Text>
+              <Text color={getColorForChange(stock.change)}>{formatChange(stock.change)}</Text>
             </Flex>
           ))}
         </Box>
