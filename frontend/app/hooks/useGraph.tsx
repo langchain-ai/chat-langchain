@@ -13,6 +13,21 @@ export const createClient = () => {
   });
 };
 
+const nodeToStep = (node: string) => {
+  switch (node) {
+    case "route_at_start_node":
+      return 0;
+    case "generate_questions":
+      return 1;
+    case "research_node":
+      return 2;
+    case "generate":
+      return 3;
+    default:
+      return 0;
+  }
+};
+
 export interface GraphInput {
   messages?: Record<string, any>[];
 }
@@ -114,6 +129,60 @@ export function useGraph() {
         runId = chunk.data.metadata.run_id;
       }
 
+      if (chunk.data.event === "on_chain_start") {
+        const node = chunk?.data?.metadata?.langgraph_node;
+        if (
+          [
+            "route_at_start_node",
+            "generate_questions",
+            "research_node",
+            "generate",
+          ].includes(node)
+        ) {
+          setMessages((prevMessages) => {
+            const existingMessageIndex = prevMessages.findIndex(
+              (msg) =>
+                "tool_calls" in msg &&
+                Array.isArray(msg.tool_calls) &&
+                msg.tool_calls[0]?.name === "progress",
+            );
+            if (existingMessageIndex !== -1) {
+              const existingMessage = prevMessages[
+                existingMessageIndex
+              ] as AIMessage;
+              return [
+                ...prevMessages.slice(0, existingMessageIndex),
+                new AIMessage({
+                  content: "",
+                  tool_calls: [
+                    {
+                      name: "progress",
+                      args: {
+                        step: nodeToStep(node),
+                      },
+                    },
+                  ],
+                }),
+                ...prevMessages.slice(existingMessageIndex + 1),
+              ];
+            } else {
+              const progressAIMessage = new AIMessage({
+                content: "",
+                tool_calls: [
+                  {
+                    name: "progress",
+                    args: {
+                      step: nodeToStep(node),
+                    },
+                  },
+                ],
+              });
+              return [...prevMessages, progressAIMessage];
+            }
+          });
+        }
+      }
+
       if (chunk.data.event === "on_chat_model_stream") {
         if (chunk.data.metadata.langgraph_node === "general") {
           const message = chunk.data.data.chunk;
@@ -142,92 +211,6 @@ export function useGraph() {
           });
         }
 
-        // if (chunk.data.metadata.langgraph_node === "generate_questions") {
-        //   const message = chunk.data.data.chunk;
-        //   generatingQuestionsMessageId = message.id;
-        //   const toolCallChunk = message.tool_call_chunks?.[0];
-        //   fullGeneratingQuestionsStr += toolCallChunk?.args || "";
-        //   try {
-        //     const parsedData: { steps: string[] } = parsePartialJson(
-        //       fullGeneratingQuestionsStr,
-        //     );
-        //     if (parsedData && Array.isArray(parsedData.steps)) {
-        //       setMessages((prevMessages) => {
-        //         const existingMessageIndex = prevMessages.findIndex(
-        //           (msg) => msg.id === message.id,
-        //         );
-        //         if (existingMessageIndex !== -1) {
-        //           const existingMessage = prevMessages[
-        //             existingMessageIndex
-        //           ] as AIMessage;
-        //           const existingToolCalls = existingMessage.tool_calls || [];
-
-        //           const updatedToolCalls = parsedData.steps.flatMap(
-        //             (step, index) => {
-        //               const existingToolCall = existingToolCalls.find(
-        //                 (tc) => tc.args.step === index + 1,
-        //               );
-        //               if (existingToolCall) {
-        //                 // Update existing tool call
-        //                 return {
-        //                   ...existingToolCall,
-        //                   args: {
-        //                     ...existingToolCall.args,
-        //                     question: step.trim(),
-        //                   },
-        //                 };
-        //               } else if (step && step.trim() !== "") {
-        //                 // Create new tool call
-        //                 return {
-        //                   name: "generating_questions",
-        //                   args: { step: index + 1, question: step.trim() },
-        //                 };
-        //               }
-        //               // Return empty array because we're using .flatMap
-        //               return [];
-        //             },
-        //           );
-
-        //           if (updatedToolCalls.length > 0) {
-        //             return [
-        //               ...prevMessages.slice(0, existingMessageIndex),
-        //               new AIMessage({
-        //                 ...existingMessage,
-        //                 content: "",
-        //                 tool_calls: updatedToolCalls,
-        //               }),
-        //               ...prevMessages.slice(existingMessageIndex + 1),
-        //             ];
-        //           }
-        //         } else if (
-        //           parsedData.steps.some((step) => step && step.trim() !== "")
-        //         ) {
-        //           const newToolCalls = parsedData.steps
-        //             .map((step, index) => {
-        //               if (step && step.trim() !== "") {
-        //                 return {
-        //                   name: "generating_questions",
-        //                   args: { step: index + 1, question: step.trim() },
-        //                 };
-        //               }
-        //               return null;
-        //             })
-        //             .filter(Boolean);
-
-        //           const newMessage = new AIMessage({
-        //             ...message,
-        //             content: "",
-        //             tool_calls: newToolCalls,
-        //           });
-        //           return [...prevMessages, newMessage];
-        //         }
-        //         return prevMessages;
-        //       });
-        //     }
-        //   } catch (error) {
-        //     console.error("Error parsing generating questions data:", error);
-        //   }
-        // }
         if (chunk.data.metadata.langgraph_node === "generate_questions") {
           const message = chunk.data.data.chunk;
           generatingQuestionsMessageId = message.id;
@@ -402,6 +385,52 @@ export function useGraph() {
 
             // Return the previous messages unchanged if no matching message found
             return prevMessages;
+          });
+        }
+
+        if (
+          ["generate", "general", "more_info"].includes(
+            chunk?.data?.metadata?.langgraph_node,
+          )
+        ) {
+          setMessages((prevMessages) => {
+            const existingMessageIndex = prevMessages.findIndex(
+              (msg) =>
+                "tool_calls" in msg &&
+                Array.isArray(msg.tool_calls) &&
+                msg.tool_calls[0]?.name === "progress",
+            );
+            if (existingMessageIndex !== -1) {
+              // Create a new array with the updated message
+              return [
+                ...prevMessages.slice(0, existingMessageIndex),
+                new AIMessage({
+                  content: "",
+                  tool_calls: [
+                    {
+                      name: "progress",
+                      args: {
+                        step: 4,
+                      },
+                    },
+                  ],
+                }),
+                ...prevMessages.slice(existingMessageIndex + 1),
+              ];
+            } else {
+              const progressAIMessage = new AIMessage({
+                content: "",
+                tool_calls: [
+                  {
+                    name: "progress",
+                    args: {
+                      step: 4,
+                    },
+                  },
+                ],
+              });
+              return [...prevMessages, progressAIMessage];
+            }
           });
         }
       }

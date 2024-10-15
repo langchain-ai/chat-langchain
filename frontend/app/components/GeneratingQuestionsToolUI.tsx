@@ -2,6 +2,12 @@ import { useAssistantToolUI } from "@assistant-ui/react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { LoaderCircle, Globe } from "lucide-react";
 import { DocumentDialog } from "./DocumentDialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 type Question = {
   question: string;
@@ -14,9 +20,18 @@ type Question = {
 const QuestionCard = ({ question }: { question: Question }) => (
   <Card className="w-[250px] h-[180px] bg-inherit border-gray-500 flex flex-col">
     <CardHeader className="flex-shrink-0">
-      <CardTitle className="text-sm font-light text-gray-300">
-        {question.question}
-      </CardTitle>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <CardTitle className="text-sm font-light text-gray-300 line-clamp-4 overflow-hidden">
+              {question.question}
+            </CardTitle>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[600px] whitespace-pre-wrap">
+            <p>{question.question}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </CardHeader>
     <CardContent className="flex flex-col flex-grow justify-between">
       <div className="flex flex-col gap-1 mt-auto">

@@ -9,7 +9,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { MyThread } from "../components/Primitives";
 import { useExternalMessageConverter } from "@assistant-ui/react";
-import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { Toaster } from "../components/ui/toaster";
 import {
   convertLangchainMessages,
@@ -32,8 +32,23 @@ export default function ContentComposerChatInterface(): React.ReactElement {
         content: message.content[0].text,
         id: uuidv4(),
       });
+      const progressAIMessage = new AIMessage({
+        content: "",
+        tool_calls: [
+          {
+            name: "progress",
+            args: {
+              step: 0,
+            },
+          },
+        ],
+      });
 
-      setMessages((prevMessages) => [...prevMessages, humanMessage]);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        progressAIMessage,
+        humanMessage,
+      ]);
 
       await streamMessage({
         messages: [convertToOpenAIFormat(humanMessage)],

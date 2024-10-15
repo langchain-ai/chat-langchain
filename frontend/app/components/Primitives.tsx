@@ -10,7 +10,6 @@ import {
 } from "@assistant-ui/react";
 import { type FC } from "react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
 import { ArrowDownIcon, SendHorizontalIcon } from "lucide-react";
 import { MarkdownText } from "./ui/assistant-ui/markdown-text";
@@ -19,6 +18,7 @@ import { BaseMessage } from "@langchain/core/messages";
 import { cn } from "../utils/cn";
 import { useGeneratingQuestionsUI } from "./GeneratingQuestionsToolUI";
 import { useAnswerHeaderToolUI } from "./AnswerHeaderToolUI";
+import { useProgressToolUI } from "./ProgressToolUI";
 
 export interface MyThreadProps extends MyComposerProps {}
 
@@ -27,6 +27,7 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
 
   useGeneratingQuestionsUI();
   useAnswerHeaderToolUI();
+  useProgressToolUI();
 
   return (
     <ThreadPrimitive.Root className="flex flex-col h-full relative">
