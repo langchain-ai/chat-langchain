@@ -232,7 +232,7 @@ const StockPanel = () => {
               <Text>{stock.price}</Text>
 {/*               <Text color={stock.change > 0 ? "green.300" : "red.300"}>{stock.change}%</Text> */}
              
-const changeValue = parseFloat((stock.change as string).replace('%', ''));
+const changeValue = parseFloat((stock.change as string).replace(&apos%&apos, &apos&apos));
 <Text color={changeValue > 0 ? "green.300" : "red.300"}>
   {stock.change}%
 </Text>
