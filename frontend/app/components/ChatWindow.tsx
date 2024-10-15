@@ -162,8 +162,8 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
     const data = await response.json();
     return {
       symbol: data.symbol,
-      price: data.latestPrice || 'N/A',
-      change: data.changePercent != null ? `${data.changePercent}%` : 'N/A',
+      price: data.currentPrice || 'N/A',
+      change: ((data.currentPrice-data.regularMarketPreviousClose)/data.regularMarketPreviousClose*)100% != null ? `${data.changePercent}%` : 'N/A',
     };
   } catch (error) {
     console.error('Fetch stock data failed:', error);
