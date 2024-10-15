@@ -31,7 +31,7 @@ from langgraph.graph import END, StateGraph, add_messages
 from langsmith import Client as LangsmithClient
 
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
-from backend.ingest import get_embeddings_model
+from backend.embeddings import get_embeddings_model
 
 RESPONSE_TEMPLATE = """\
 You are an expert programmer and problem-solver, tasked with answering any question \
