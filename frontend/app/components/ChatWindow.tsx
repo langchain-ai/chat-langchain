@@ -191,7 +191,7 @@ interface StockPanelProps {
   onClose: () => void;
 }
 
-const StockPanel: React.FC<StockPanelProps> = ({ onClose }) => {
+const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
   const [stockData, setStockData] = useState<StockData[]>(initialMockStockData);
 
   useEffect(() => {
@@ -203,46 +203,54 @@ const StockPanel: React.FC<StockPanelProps> = ({ onClose }) => {
   }, []);
 
   return (
-    <Box
-      position="fixed"
-      right="0"
-      top="0"
-      bottom="0"
-      width="300px"
-      bg="#2D3748"
-      p={4}
-      overflowY="auto"
-      transform="translateX(0)"
-      transition="transform 0.3s"
-      zIndex="5"
-    >
-      <VStack align="stretch" spacing={4}>
-        <Box>
-          <Heading size="sm" color="white" mb={2}>Market Indices</Heading>
-          {stockData.slice(0, 3).map((index) => (
-            <Flex key={index.name} justify="space-between" color="white">
-              <Text>{index.name}</Text>
-              <Text>{index.value}</Text>
-   <Text color={parseFloat((index.change as string).replace('%', '')) > 0 ? "green.300" : "red.300"}>{index.change}</Text>
-       
-            </Flex>
-          ))}
-        </Box>
-        <Box>
-          <Heading size="sm" color="white" mb={2}>Popular Stocks</Heading>
-          {stockData.slice(3).map((stock) => (
-            <Flex key={stock.symbol} justify="space-between" color="white">
-              <Text>{stock.symbol}</Text>
-              <Text>{stock.price}</Text>
-              <Text color={parseFloat((stock.change as string).replace('%', '')) > 0 ? "green.300" : "red.300"}>{stock.change}</Text> 
-             
-
-            </Flex>
-          ))}
-        </Box>
-      </VStack>
-    </Box>
-  );
+      <Box
+    position="fixed"
+    right="0"
+    top="0"
+    bottom="0"
+    width="300px"
+    bg="#2D3748"
+    p={4}
+    overflowY="auto"
+    transform={isVisible ? "translateX(0)" : "translateX(100%)"}
+    transition="transform 0.3s"
+    zIndex="5"
+  >
+    <Flex justify="space-between" align="center" mb={4}>
+      <Heading size="md" color="white">Stock Info</Heading>
+      <IconButton
+        icon={<CloseIcon />}
+        onClick={onClose}
+        aria-label="Close stock panel"
+        size="sm"
+        variant="ghost"
+        color="white"
+      />
+    </Flex>
+    <VStack align="stretch" spacing={4}>
+      <Box>
+        <Heading size="sm" color="white" mb={2}>Market Indices</Heading>
+        {stockData.slice(0, 3).map((index) => (
+          <Flex key={index.name} justify="space-between" color="white">
+            <Text>{index.name}</Text>
+            <Text>{index.value}</Text>
+            <Text color={parseFloat((index.change as string).replace('%', '')) > 0 ? "green.300" : "red.300"}>{index.change}</Text>
+          </Flex>
+        ))}
+      </Box>
+      <Box>
+        <Heading size="sm" color="white" mb={2}>Popular Stocks</Heading>
+        {stockData.slice(3).map((stock) => (
+          <Flex key={stock.symbol} justify="space-between" color="white">
+            <Text>{stock.symbol}</Text>
+            <Text>{stock.price}</Text>
+              <Text color={parseFloat((stock.change as string).replace('%', '')) > 0 ? "green.300" : "red.300"}>{stock.change}</Text>
+          </Flex>
+        ))}
+      </Box>
+    </VStack>
+  </Box>
+);
 };
 
 
