@@ -44,7 +44,7 @@ export const useProgressToolUI = () =>
       const { text, progress } = stepToProgressFields(input.args.step);
 
       return (
-        <div className="flex flex-row w-[550px] items-center justify-start gap-3 pb-4 ml-[-5px] mt-[16px]">
+        <div className="flex flex-row md:max-w-[550px] w-full items-center justify-start gap-3 pb-4 ml-[-5px] mt-[16px]">
           <Progress
             value={progress}
             indicatorClassName="bg-gray-700"

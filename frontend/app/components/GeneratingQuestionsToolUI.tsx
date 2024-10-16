@@ -18,7 +18,7 @@ type Question = {
 };
 
 const QuestionCard = ({ question }: { question: Question }) => (
-  <Card className="w-[250px] h-[140px] bg-inherit border-gray-500 flex flex-col">
+  <Card className="md:w-[250px] sm:w-[250px] w-full md:max-w-full min-h-[140px] max-h-fit bg-inherit border-gray-500 flex flex-col gap-2">
     <CardHeader className="flex-shrink-0 px-3 pt-2 pb-0">
       <TooltipProvider>
         <Tooltip>
@@ -36,7 +36,7 @@ const QuestionCard = ({ question }: { question: Question }) => (
     <CardContent className="flex flex-col flex-grow px-3 pb-2 justify-between">
       <div className="flex flex-col gap-1 mt-auto">
         <hr className="border-gray-400" />
-        <div className="flex items-center justify-start gap-2 pt-1">
+        <div className="flex flex-wrap items-start justify-start gap-2 pt-1">
           {question.documents?.length ? (
             question.documents?.map((doc: Record<string, any>, idx: number) => (
               <DocumentDialog
@@ -71,7 +71,7 @@ export const useGeneratingQuestionsUI = () =>
             <p className="text-xl">Generated Questions & Sources</p>
           </span>
           <div className="mb-10">
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex flex-wrap items-center justify-start gap-2">
               {(input.args.questions as Question[]).map(
                 (question, questionIndex) => (
                   <QuestionCard

@@ -34,17 +34,16 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
   useRouterLogicUI();
 
   return (
-    <ThreadPrimitive.Root className="flex flex-col h-full">
+    <ThreadPrimitive.Root className="flex flex-col h-full w-full">
       {!isEmpty ? (
         <ThreadPrimitive.Viewport
           className={cn(
             "flex-1 overflow-y-auto scroll-smooth bg-inherit transition-all duration-300 ease-in-out w-full",
             isEmpty ? "pb-[30vh] sm:pb-[50vh]" : "pb-32 sm:pb-24",
-            "pr-3 md:pr-6",
-            "scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent", // Add custom scrollbar styling
+            "scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent",
           )}
         >
-          <div className="md:ml-24 ml-3 mt-2">
+          <div className="md:pl-8 lg:pl-24 mt-2 max-w-full">
             <ThreadPrimitive.Messages
               components={{
                 UserMessage: MyUserMessage,
@@ -57,7 +56,7 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
       <MyThreadScrollToBottom />
       {isEmpty ? (
         <div className="flex items-center justify-center flex-grow my-auto">
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center mx-4 md:mt-0 mt-24">
             <div className="flex flex-row gap-1 items-center justify-center mb-4 sm:mb-[24px]">
               <p className="text-xl sm:text-2xl">Chat LangChain</p>
               <NextImage
@@ -69,7 +68,7 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
                 style={{ width: "auto", height: "auto" }}
               />
             </div>
-            <div className="md:mb-8">
+            <div className="md:mb-8 mb-4">
               <SuggestedQuestions />
             </div>
             <MyComposer messages={props.messages} />
@@ -108,7 +107,7 @@ const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
       className={cn(
         "focus-within:border-aui-ring/20 flex w-full items-center md:justify-left justify-center rounded-lg border px-2.5 py-2.5 shadow-sm transition-all duration-300 ease-in-out bg-[#282828] border-gray-600",
         isEmpty ? "" : "md:ml-24 ml-3 mb-6",
-        isEmpty ? "w-full" : "md:w-[70%] w-full max-w-[832px]",
+        isEmpty ? "w-full" : "md:w-[70%] w-[95%] md:max-w-[832px]",
       )}
     >
       <ComposerPrimitive.Input
@@ -147,8 +146,8 @@ const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
 
 const MyUserMessage: FC = () => {
   return (
-    <MessagePrimitive.Root className="pt-2 sm:pt-4 w-full max-w-4xl mr-auto">
-      <div className="bg-inherit text-white break-words rounded-2xl sm:rounded-3xl px-3 md:px-5 pt-2 md:pt-2.5 mb-[-15px] sm:mb-[-25px] text-2xl sm:text-4xl font-light">
+    <MessagePrimitive.Root className="pt-2 sm:pt-4 flex w-full md:max-w-4xl md:mx-0 mx-auto max-w-[95%] md:py-4 py-2">
+      <div className="bg-inherit text-white break-words rounded-2xl sm:rounded-3xl pt-2 md:pt-2.5 mb-[-15px] sm:mb-[-25px] text-2xl sm:text-4xl font-light">
         <MessagePrimitive.Content />
       </div>
     </MessagePrimitive.Root>
@@ -164,8 +163,8 @@ const MyAssistantMessage: FC = () => {
     !isLast;
 
   return (
-    <MessagePrimitive.Root className="flex w-full max-w-4xl md:py-4 py-2 mr-auto">
-      <div className="ml-2 sm:ml-6 bg-inherit text-white max-w-full sm:max-w-3xl break-words leading-6 sm:leading-7">
+    <MessagePrimitive.Root className="flex w-full md:max-w-4xl md:mx-0 mx-auto max-w-[95%] md:py-4 py-2">
+      <div className="bg-inherit text-white max-w-full sm:max-w-3xl break-words leading-6 sm:leading-7">
         <MessagePrimitive.Content components={{ Text: MarkdownText }} />
         {shouldRenderMessageBreak ? (
           <hr className="relative left-1/2 -translate-x-1/2 w-[90vw] sm:w-[45vw] mt-4 sm:mt-6 border-gray-600" />

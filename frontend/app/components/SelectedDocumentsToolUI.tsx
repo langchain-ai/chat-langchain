@@ -1,20 +1,13 @@
 import { useAssistantToolUI } from "@assistant-ui/react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { BookOpenText, SquareArrowOutUpRight } from "lucide-react";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "./ui/carousel";
+import { BookOpenText, Plus, SquareArrowOutUpRight } from "lucide-react";
 import {
   TooltipProvider,
   TooltipTrigger,
   TooltipContent,
   Tooltip,
 } from "./ui/tooltip";
-import { useState } from "react";
+import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 
 type Document = {
   page_content: string;
@@ -28,7 +21,7 @@ const DocumentCard = ({ document }: { document: Document }) => {
       : document.page_content.slice(0, 250);
 
   return (
-    <Card className="w-[200px] h-[110px] bg-inherit border-gray-500 flex flex-col">
+    <Card className="md:w-[200px] sm:w-[200px] w-full h-[110px] bg-inherit border-gray-500 flex flex-col">
       <CardHeader className="flex-shrink-0 px-3 pt-2 pb-0">
         <CardTitle className="text-sm font-light text-gray-300 line-clamp-1 overflow-hidden p-[-24px]">
           {document.metadata.title}
@@ -87,33 +80,51 @@ export const useSelectedDocumentsUI = () =>
         return null;
       }
 
+      const documents = input.args.documents as Document[];
+      const displayedDocuments = documents.slice(0, 3);
+      const remainingDocuments = documents.slice(3);
+
       return (
         <div className="flex flex-col mb-4">
           <span className="flex flex-row gap-2 items-center justify-start pb-4 text-gray-300">
             <BookOpenText className="w-5 h-5" />
             <p className="text-xl">Selected Context</p>
           </span>
-          <Carousel
-            opts={{
-              align: "start",
-            }}
-            className="mb-10 w-fit max-w-3xl"
-          >
-            <CarouselContent className="-ml-[0px]">
-              {(input.args.documents as Document[]).map(
-                (document, docIndex) => (
-                  <CarouselItem
-                    key={`final-document-${docIndex}`}
-                    className="pl-[0px] md:basis-[30%] lg:basis-[28%]"
-                  >
-                    <DocumentCardTooltip document={document} />
-                  </CarouselItem>
-                ),
-              )}
-            </CarouselContent>
-            <CarouselPrevious />
-            <CarouselNext />
-          </Carousel>
+          <div className="flex flex-wrap items-center justify-start gap-2">
+            {displayedDocuments.map((document, docIndex) => (
+              <DocumentCardTooltip
+                key={`final-document-${docIndex}`}
+                document={document}
+              />
+            ))}
+            {remainingDocuments.length > 0 && (
+              <Sheet>
+                <SheetTrigger>
+                  <div className="flex items-center border-[1px] border-gray-500 justify-center w-[40px] h-[110px] bg-[#282828] hover:bg-[#2b2b2b] rounded-md cursor-pointer transition-colors duration-200">
+                    <Plus className="w-6 h-6 text-gray-300" />
+                  </div>
+                </SheetTrigger>
+                <SheetContent
+                  side="right"
+                  className="bg-[#282828] border-none overflow-y-auto flex-grow scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent md:min-w-[50vw] min-w-[70vw]"
+                >
+                  <div className="flex flex-col gap-4">
+                    <h2 className="text-xl font-semibold text-gray-300">
+                      All Selected Documents
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                      {documents.map((document, docIndex) => (
+                        <DocumentCardTooltip
+                          key={`all-documents-${docIndex}`}
+                          document={document}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            )}
+          </div>
         </div>
       );
     },

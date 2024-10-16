@@ -545,13 +545,11 @@ export function useGraph() {
         if (chunk.data.metadata.langgraph_node === "respond") {
           const inputDocuments = chunk.data.data.input.documents;
           const message = chunk.data.data.output.messages[0];
-          console.log("setting messages respond", chunk);
           setMessages((prevMessages) => {
             const existingMessageIndex = prevMessages.findIndex(
               (pMsg) => pMsg.id === message.id,
             );
             if (existingMessageIndex !== -1) {
-              console.log("message.content", message.content);
               const newMessageWithLinks = new AIMessage({
                 ...message,
                 content: addDocumentLinks(message.content, inputDocuments),

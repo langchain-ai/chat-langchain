@@ -103,7 +103,7 @@ export function ThreadHistory(props: ThreadHistoryProps) {
     <span>
       {/* Tablet & up */}
       <div className="hidden md:flex flex-col w-[260px] h-full">
-        <div className="flex-grow border-r-[1px] border-[#393939] my-6">
+        <div className="flex-grow border-r-[1px] border-[#393939] my-6 flex flex-col overflow-hidden">
           <div className="flex flex-row items-center justify-between border-b-[1px] border-[#393939] pt-3 px-2 mx-4 -mt-4 text-gray-200">
             <p className="text-lg font-medium">Chat History</p>
             <TooltipIconButton
@@ -114,7 +114,9 @@ export function ThreadHistory(props: ThreadHistoryProps) {
               <SquarePen className="w-5 h-5" />
             </TooltipIconButton>
           </div>
-          <ThreadsList groupedThreads={groupedThreads} />
+          <div className="overflow-y-auto flex-grow scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
+            <ThreadsList groupedThreads={groupedThreads} />
+          </div>
         </div>
       </div>
       {/* Mobile */}
@@ -124,19 +126,19 @@ export function ThreadHistory(props: ThreadHistoryProps) {
             <TooltipIconButton
               tooltip="New chat"
               variant="ghost"
-              className="w-fit p-2"
+              className="w-fit h-fit p-2"
             >
               <History className="w-6 h-6" />
             </TooltipIconButton>
           </SheetTrigger>
-          <SheetContent className="bg-[#282828] border-none">
+          <SheetContent side="left" className="bg-[#282828] border-none">
             <ThreadsList groupedThreads={groupedThreads} />
           </SheetContent>
         </Sheet>
         <TooltipIconButton
           tooltip="New chat"
           variant="ghost"
-          className="w-fit p-2"
+          className="w-fit h-fit p-2"
         >
           <SquarePen className="w-6 h-6" />
         </TooltipIconButton>
