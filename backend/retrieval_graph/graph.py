@@ -6,7 +6,7 @@ and key functions for processing & routing user queries, generating research pla
 conducting research, and formulating responses.
 """
 
-from typing import Any, Literal, TypedDict, cast
+from typing import Any, Literal, Type, TypedDict, cast
 
 from langchain_core.messages import BaseMessage
 from langchain_core.runnables import RunnableConfig
@@ -33,6 +33,10 @@ async def analyze_and_route_query(
     Returns:
         dict[str, Router]: A dictionary containing the 'router' key with the classification result (classification type and logic).
     """
+    # allow skipping the router for testing
+    if state.router and state.router["logic"]:
+        return {"router": state.router}
+
     configuration = AgentConfiguration.from_runnable_config(config)
     model = load_chat_model(configuration.query_model)
     messages = [
@@ -207,22 +211,31 @@ async def respond(
 
 
 # Define the graph
-builder = StateGraph(AgentState, input=InputState, config_schema=AgentConfiguration)
-builder.add_node(analyze_and_route_query)
-builder.add_node(ask_for_more_info)
-builder.add_node(respond_to_general_query)
-builder.add_node(conduct_research)
-builder.add_node(create_research_plan)
-builder.add_node(respond)
 
-builder.add_edge(START, "analyze_and_route_query")
-builder.add_conditional_edges("analyze_and_route_query", route_query)
-builder.add_edge("create_research_plan", "conduct_research")
-builder.add_conditional_edges("conduct_research", check_finished)
-builder.add_edge("ask_for_more_info", END)
-builder.add_edge("respond_to_general_query", END)
-builder.add_edge("respond", END)
 
-# Compile into a graph object that you can invoke and deploy.
-graph = builder.compile()
-graph.name = "RetrievalGraph"
+def make_graph(*, input_schema: Type[Any]):
+    builder = StateGraph(
+        AgentState, input=input_schema, config_schema=AgentConfiguration
+    )
+    builder.add_node(analyze_and_route_query)
+    builder.add_node(ask_for_more_info)
+    builder.add_node(respond_to_general_query)
+    builder.add_node(conduct_research)
+    builder.add_node(create_research_plan)
+    builder.add_node(respond)
+
+    builder.add_edge(START, "analyze_and_route_query")
+    builder.add_conditional_edges("analyze_and_route_query", route_query)
+    builder.add_edge("create_research_plan", "conduct_research")
+    builder.add_conditional_edges("conduct_research", check_finished)
+    builder.add_edge("ask_for_more_info", END)
+    builder.add_edge("respond_to_general_query", END)
+    builder.add_edge("respond", END)
+
+    # Compile into a graph object that you can invoke and deploy.
+    graph = builder.compile()
+    graph.name = "RetrievalGraph"
+    return graph
+
+
+graph = make_graph(input_schema=InputState)

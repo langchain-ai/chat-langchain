@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 import pandas as pd
@@ -6,10 +7,11 @@ from langchain_core.documents import Document
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel, Field
-from langsmith.evaluation import EvaluationResults, evaluate
+from langsmith.evaluation import EvaluationResults, aevaluate
 from langsmith.schemas import Example, Run
 
-from backend.retrieval_graph.graph import graph
+from backend.retrieval_graph.graph import make_graph
+from backend.retrieval_graph.state import AgentState, Router
 from backend.utils import format_docs
 
 DATASET_NAME = "chat-langchain-qa"
@@ -141,10 +143,16 @@ def evaluate_qa_context(run: Run, example: Example) -> dict:
 
 # Run evaluation
 
+# TODO: this is a hack to allow for skipping the router for testing. Add testing for individual components.
+graph = make_graph(input_schema=AgentState)
 
-def run_graph(inputs: dict[str, Any]) -> dict[str, Any]:
-    results = graph.invoke(
-        {"messages": [("human", inputs["question"])]},
+
+async def run_graph(inputs: dict[str, Any]) -> dict[str, Any]:
+    results = await graph.ainvoke(
+        {
+            "messages": [("human", inputs["question"])],
+            "router": Router(type="langchain", logic="The question is about LangChain"),
+        }
     )
     return results
 
@@ -162,13 +170,15 @@ def convert_single_example_results(evaluation_results: EvaluationResults):
 # NOTE: this is more of a regression test
 def test_scores_regression():
     # test most commonly used model
-    experiment_results = evaluate(
-        lambda inputs: run_graph(inputs),
-        data=DATASET_NAME,
-        evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
-        experiment_prefix=EXPERIMENT_PREFIX,
-        metadata={"judge_model_name": JUDGE_MODEL_NAME},
-        max_concurrency=4,
+    experiment_results = asyncio.run(
+        aevaluate(
+            run_graph,
+            data=DATASET_NAME,
+            evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
+            experiment_prefix=EXPERIMENT_PREFIX,
+            metadata={"judge_model_name": JUDGE_MODEL_NAME},
+            max_concurrency=4,
+        )
     )
     experiment_result_df = pd.DataFrame(
         convert_single_example_results(result["evaluation_results"])

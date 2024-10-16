@@ -22,7 +22,7 @@ class AgentConfiguration(BaseConfiguration):
     )
 
     response_model: str = field(
-        default="anthropic/claude-3-5-sonnet-20240620",
+        default="openai/gpt-4o-mini",
         metadata={
             "description": "The language model used for generating responses. Should be in the form: provider/model-name."
         },
