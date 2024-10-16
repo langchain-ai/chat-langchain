@@ -34,37 +34,46 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
   useRouterLogicUI();
 
   return (
-    <ThreadPrimitive.Root className="flex flex-col h-full relative">
-      <ThreadPrimitive.Viewport
-        className={cn(
-          "flex-1 overflow-y-auto scroll-smooth bg-inherit px-4 pt-8 transition-all duration-300 ease-in-out w-full",
-          isEmpty ? "pb-[50vh]" : "pb-32",
-        )}
-      >
-        <ThreadPrimitive.Messages
-          components={{
-            UserMessage: MyUserMessage,
-            AssistantMessage: MyAssistantMessage,
-          }}
-        />
-      </ThreadPrimitive.Viewport>
-      <MyThreadScrollToBottom />
-      {isEmpty ? (
-        <div className="absolute left-1/2 transform -translate-x-1/2 max-w-2xl top-1/2 -translate-y-[70%]">
-          <div className="flex flex-row gap-1 items-center justify-center mb-[24px]">
-            <p className="text-2xl">Chat LangChain</p>
-            <NextImage
-              src="/images/lc_logo.jpg"
-              className="rounded-3xl"
-              alt="LangChain Logo"
-              width={40}
-              height={40}
+    <ThreadPrimitive.Root className="flex flex-col h-full">
+      {!isEmpty ? (
+        <ThreadPrimitive.Viewport
+          className={cn(
+            "flex-1 overflow-y-auto scroll-smooth bg-inherit transition-all duration-300 ease-in-out w-full",
+            isEmpty ? "pb-[30vh] sm:pb-[50vh]" : "pb-32 sm:pb-24",
+            "pr-3 md:pr-6",
+            "scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent", // Add custom scrollbar styling
+          )}
+        >
+          <div className="md:ml-24 ml-3 mt-2">
+            <ThreadPrimitive.Messages
+              components={{
+                UserMessage: MyUserMessage,
+                AssistantMessage: MyAssistantMessage,
+              }}
             />
           </div>
-          <div className="mb-[110px] ml-[30px]">
-            <SuggestedQuestions />
+        </ThreadPrimitive.Viewport>
+      ) : null}
+      <MyThreadScrollToBottom />
+      {isEmpty ? (
+        <div className="flex items-center justify-center flex-grow my-auto">
+          <div className="flex flex-col items-center">
+            <div className="flex flex-row gap-1 items-center justify-center mb-4 sm:mb-[24px]">
+              <p className="text-xl sm:text-2xl">Chat LangChain</p>
+              <NextImage
+                src="/images/lc_logo.jpg"
+                className="rounded-3xl"
+                alt="LangChain Logo"
+                width={32}
+                height={32}
+                style={{ width: "auto", height: "auto" }}
+              />
+            </div>
+            <div className="md:mb-8">
+              <SuggestedQuestions />
+            </div>
+            <MyComposer messages={props.messages} />
           </div>
-          <MyComposer messages={props.messages} />
         </div>
       ) : (
         <MyComposer messages={props.messages} />
@@ -97,9 +106,9 @@ const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
   return (
     <ComposerPrimitive.Root
       className={cn(
-        "focus-within:border-aui-ring/20 flex w-full items-center rounded-lg border px-2.5 py-2.5 shadow-sm transition-all duration-300 ease-in-out bg-[#282828] border-gray-600",
-        "absolute transform bottom-4",
-        !isEmpty ? "left-[43%] -translate-x-1/2 max-w-3xl" : "",
+        "focus-within:border-aui-ring/20 flex w-full items-center md:justify-left justify-center rounded-lg border px-2.5 py-2.5 shadow-sm transition-all duration-300 ease-in-out bg-[#282828] border-gray-600",
+        isEmpty ? "" : "md:ml-24 ml-3 mb-6",
+        isEmpty ? "w-full" : "md:w-[70%] w-full max-w-[832px]",
       )}
     >
       <ComposerPrimitive.Input
@@ -138,8 +147,8 @@ const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
 
 const MyUserMessage: FC = () => {
   return (
-    <MessagePrimitive.Root className="w-full max-w-5xl pt-4 mx-auto">
-      <div className="bg-inherit text-white max-w-3xl break-words rounded-3xl px-5 pt-2.5 mb-[-25px] text-4xl font-light">
+    <MessagePrimitive.Root className="pt-2 sm:pt-4 w-full max-w-4xl mr-auto">
+      <div className="bg-inherit text-white break-words rounded-2xl sm:rounded-3xl px-3 md:px-5 pt-2 md:pt-2.5 mb-[-15px] sm:mb-[-25px] text-2xl sm:text-4xl font-light">
         <MessagePrimitive.Content />
       </div>
     </MessagePrimitive.Root>
@@ -155,11 +164,11 @@ const MyAssistantMessage: FC = () => {
     !isLast;
 
   return (
-    <MessagePrimitive.Root className="relative flex w-full max-w-5xl py-4 mx-auto">
-      <div className="ml-6 bg-inherit text-white max-w-3xl break-words leading-7">
+    <MessagePrimitive.Root className="flex w-full max-w-4xl md:py-4 py-2 mr-auto">
+      <div className="ml-2 sm:ml-6 bg-inherit text-white max-w-full sm:max-w-3xl break-words leading-6 sm:leading-7">
         <MessagePrimitive.Content components={{ Text: MarkdownText }} />
         {shouldRenderMessageBreak ? (
-          <hr className="relative left-1/2 -translate-x-[37.25%] w-[45vw] mt-6 border-gray-600" />
+          <hr className="relative left-1/2 -translate-x-1/2 w-[90vw] sm:w-[45vw] mt-4 sm:mt-6 border-gray-600" />
         ) : null}
       </div>
     </MessagePrimitive.Root>

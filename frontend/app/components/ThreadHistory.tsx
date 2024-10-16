@@ -99,12 +99,11 @@ function ThreadsList(props: ThreadsListProps) {
 
 export function ThreadHistory(props: ThreadHistoryProps) {
   const groupedThreads = groupThreads(dummyThreads);
-
   return (
     <span>
       {/* Tablet & up */}
       <div className="hidden md:flex flex-col w-[260px] h-full">
-        <div className="flex-grow border-l-[1px] border-[#393939] my-6">
+        <div className="flex-grow border-r-[1px] border-[#393939] my-6">
           <div className="flex flex-row items-center justify-between border-b-[1px] border-[#393939] pt-3 px-2 mx-4 -mt-4 text-gray-200">
             <p className="text-lg font-medium">Chat History</p>
             <TooltipIconButton
@@ -119,9 +118,9 @@ export function ThreadHistory(props: ThreadHistoryProps) {
         </div>
       </div>
       {/* Mobile */}
-      <span className="md:hidden flex flex-row gap-2 mt-2 mr-2">
+      <span className="md:hidden flex flex-row gap-2 mt-2 ml-2">
         <Sheet>
-          <SheetTrigger>
+          <SheetTrigger asChild>
             <TooltipIconButton
               tooltip="New chat"
               variant="ghost"

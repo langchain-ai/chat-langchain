@@ -19,14 +19,14 @@ export function SuggestedQuestions() {
   };
 
   return (
-    <div className="w-full flex flex-wrap gap-2">
+    <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
       {suggestedQuestions.map((question, idx) => (
         <Card
           onClick={() => handleSend(question)}
           key={`suggested-question-${idx}`}
-          className="w-[300px] h-[75px] bg-[#282828] border-gray-600 cursor-pointer transition-colors ease-in hover:bg-[#2b2b2b]"
+          className="w-full bg-[#282828] border-gray-600 cursor-pointer transition-colors ease-in hover:bg-[#2b2b2b]"
         >
-          <CardTitle className="mx-auto p-5 text-gray-200 font-normal">
+          <CardTitle className="p-4 text-gray-200 font-normal text-sm">
             {question}
           </CardTitle>
         </Card>

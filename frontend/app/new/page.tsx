@@ -58,13 +58,13 @@ export default function ContentComposerChatInterface(): React.ReactElement {
 
   return (
     <div className="h-full flex flex-row">
+      <div>
+        <ThreadHistory assistantId={assistantId} />
+      </div>
       <div className="mr-auto w-full">
         <AssistantRuntimeProvider runtime={runtime}>
           <MyThread messages={messages} />
         </AssistantRuntimeProvider>
-      </div>
-      <div className="ml-auto">
-        <ThreadHistory assistantId={assistantId} />
       </div>
       <Toaster />
     </div>
