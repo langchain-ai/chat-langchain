@@ -44,8 +44,6 @@ const DocumentCard = ({ document }: { document: Document }) => {
 };
 
 const DocumentCardTooltip = ({ document }: { document: Document }) => {
-  const [isOpen, setIsOpen] = useState(true);
-
   const description =
     document.metadata.description && document.metadata.description !== ""
       ? document.metadata.description
@@ -53,25 +51,9 @@ const DocumentCardTooltip = ({ document }: { document: Document }) => {
 
   return (
     <TooltipProvider>
-      <Tooltip
-        defaultOpen
-        delayDuration={0}
-        open={isOpen}
-        onOpenChange={setIsOpen}
-      >
+      <Tooltip defaultOpen delayDuration={0}>
         <TooltipTrigger asChild>
-          <div
-            onMouseEnter={() => {
-              console.log("Mouse enter");
-              setIsOpen(true);
-            }}
-            onMouseLeave={() => {
-              console.log("Mouse leave");
-              setIsOpen(false);
-            }}
-          >
-            <DocumentCard document={document} />
-          </div>
+          <DocumentCard document={document} />
         </TooltipTrigger>
         <TooltipContent className="flex flex-col max-w-[600px] whitespace-pre-wrap">
           <div className="flex flex-col gap-1">

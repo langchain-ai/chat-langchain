@@ -16,13 +16,13 @@ export const createClient = () => {
 
 const nodeToStep = (node: string) => {
   switch (node) {
-    case "route_at_start_node":
+    case "analyze_and_route_query":
       return 0;
-    case "generate_questions":
+    case "create_research_plan":
       return 1;
-    case "research_node":
+    case "conduct_research":
       return 2;
-    case "generate":
+    case "respond":
       return 3;
     default:
       return 0;
@@ -86,17 +86,17 @@ export function useGraph() {
   };
 
   const getOrCreateThread = async () => {
-    const assistantIdCookie = getCookie("oc_assistant_id");
+    const assistantIdCookie = getCookie("clc_py_assistant_id");
     if (assistantIdCookie) {
       setAssistantId(assistantIdCookie);
       return;
     }
     const client = createClient();
     const assistant = await client.assistants.create({
-      graphId: "agent",
+      graphId: "chat",
     });
     setAssistantId(assistant.assistant_id);
-    setCookie("oc_assistant_id", assistant.assistant_id);
+    setCookie("clc_py_assistant_id", assistant.assistant_id);
   };
 
   const streamMessage = async (params: GraphInput) => {
@@ -198,10 +198,10 @@ export function useGraph() {
         const node = chunk?.data?.metadata?.langgraph_node;
         if (
           [
-            "route_at_start_node",
-            "generate_questions",
-            "research_node",
-            "generate",
+            "analyze_and_route_query",
+            "create_research_plan",
+            "conduct_research",
+            "respond",
           ].includes(node)
         ) {
           setMessages((prevMessages) => {
@@ -235,7 +235,7 @@ export function useGraph() {
           });
         }
 
-        if (node === "generate") {
+        if (node === "respond") {
           setMessages((prevMessages) => {
             const selectedDocumentsAIMessage = new AIMessage({
               content: "",
@@ -254,7 +254,7 @@ export function useGraph() {
       }
 
       if (chunk.data.event === "on_chat_model_stream") {
-        if (chunk.data.metadata.langgraph_node === "route_at_start_node") {
+        if (chunk.data.metadata.langgraph_node === "analyze_and_route_query") {
           const message = chunk.data.data.chunk;
           const toolCallChunk = message.tool_call_chunks?.[0];
           fullRoutingStr += toolCallChunk?.args || "";
@@ -302,7 +302,7 @@ export function useGraph() {
           }
         }
 
-        if (chunk.data.metadata.langgraph_node === "general") {
+        if (chunk.data.metadata.langgraph_node === "respond_to_general_query") {
           const message = chunk.data.data.chunk;
           setMessages((prevMessages) => {
             const existingMessageIndex = prevMessages.findIndex(
@@ -329,7 +329,7 @@ export function useGraph() {
           });
         }
 
-        if (chunk.data.metadata.langgraph_node === "generate_questions") {
+        if (chunk.data.metadata.langgraph_node === "create_research_plan") {
           const message = chunk.data.data.chunk;
           generatingQuestionsMessageId = message.id;
           const toolCallChunk = message.tool_call_chunks?.[0];
@@ -405,7 +405,7 @@ export function useGraph() {
           }
         }
 
-        if (chunk.data.metadata.langgraph_node === "generate") {
+        if (chunk.data.metadata.langgraph_node === "respond") {
           const message = chunk.data.data.chunk;
           setMessages((prevMessages) => {
             const existingMessageIndex = prevMessages.findIndex(
@@ -444,10 +444,10 @@ export function useGraph() {
 
       if (chunk.data.event === "on_chain_end") {
         if (
-          chunk.data.metadata.langgraph_node === "research_node" &&
+          chunk.data.metadata.langgraph_node === "conduct_research" &&
           chunk.data.data?.output &&
           typeof chunk.data.data.output === "object" &&
-          "sub_question" in chunk.data.data.output
+          "question" in chunk.data.data.output
         ) {
           setMessages((prevMessages) => {
             const foundIndex = prevMessages.findIndex(
@@ -466,9 +466,7 @@ export function useGraph() {
                   if (toolCall.name === "generating_questions") {
                     const updatedQuestions = toolCall.args.questions.map(
                       (q: any) => {
-                        if (
-                          q.question === chunk.data.data.output.sub_question
-                        ) {
+                        if (q.question === chunk.data.data.output.question) {
                           return {
                             ...q,
                             queries: chunk.data.data.output.queries,
@@ -509,7 +507,7 @@ export function useGraph() {
         }
 
         if (
-          ["generate", "general", "more_info"].includes(
+          ["respond", "respond_to_general_query", "ask_for_more_info"].includes(
             chunk?.data?.metadata?.langgraph_node,
           )
         ) {
@@ -544,14 +542,16 @@ export function useGraph() {
           });
         }
 
-        if (chunk.data.metadata.langgraph_node === "generate") {
+        if (chunk.data.metadata.langgraph_node === "respond") {
           const inputDocuments = chunk.data.data.input.documents;
-          const message = chunk.data.data.output.messages;
+          const message = chunk.data.data.output.messages[0];
+          console.log("setting messages respond", chunk);
           setMessages((prevMessages) => {
             const existingMessageIndex = prevMessages.findIndex(
               (pMsg) => pMsg.id === message.id,
             );
             if (existingMessageIndex !== -1) {
+              console.log("message.content", message.content);
               const newMessageWithLinks = new AIMessage({
                 ...message,
                 content: addDocumentLinks(message.content, inputDocuments),
