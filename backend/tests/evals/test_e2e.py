@@ -10,8 +10,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from langsmith.evaluation import EvaluationResults, aevaluate
 from langsmith.schemas import Example, Run
 
-from backend.retrieval_graph.graph import make_graph
-from backend.retrieval_graph.state import AgentState, Router
+from backend.retrieval_graph.graph import graph
 from backend.utils import format_docs
 
 DATASET_NAME = "chat-langchain-qa"
@@ -143,15 +142,11 @@ def evaluate_qa_context(run: Run, example: Example) -> dict:
 
 # Run evaluation
 
-# TODO: this is a hack to allow for skipping the router for testing. Add testing for individual components.
-graph = make_graph(input_schema=AgentState)
-
 
 async def run_graph(inputs: dict[str, Any]) -> dict[str, Any]:
     results = await graph.ainvoke(
         {
             "messages": [("human", inputs["question"])],
-            "router": Router(type="langchain", logic="The question is about LangChain"),
         }
     )
     return results

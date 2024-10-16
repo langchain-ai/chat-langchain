@@ -203,7 +203,9 @@ async def respond(
     """
     configuration = AgentConfiguration.from_runnable_config(config)
     model = load_chat_model(configuration.response_model)
-    context = format_docs(state.documents)
+    # TODO: add a re-ranker here
+    top_k = 10
+    context = format_docs(state.documents[:top_k])
     prompt = configuration.response_system_prompt.format(context=context)
     messages = [{"role": "system", "content": prompt}] + state.messages
     response = await model.ainvoke(messages)
@@ -213,29 +215,16 @@ async def respond(
 # Define the graph
 
 
-def make_graph(*, input_schema: Type[Any]):
-    builder = StateGraph(
-        AgentState, input=input_schema, config_schema=AgentConfiguration
-    )
-    builder.add_node(analyze_and_route_query)
-    builder.add_node(ask_for_more_info)
-    builder.add_node(respond_to_general_query)
-    builder.add_node(conduct_research)
-    builder.add_node(create_research_plan)
-    builder.add_node(respond)
+builder = StateGraph(AgentState, input=InputState, config_schema=AgentConfiguration)
+builder.add_node(create_research_plan)
+builder.add_node(conduct_research)
+builder.add_node(respond)
 
-    builder.add_edge(START, "analyze_and_route_query")
-    builder.add_conditional_edges("analyze_and_route_query", route_query)
-    builder.add_edge("create_research_plan", "conduct_research")
-    builder.add_conditional_edges("conduct_research", check_finished)
-    builder.add_edge("ask_for_more_info", END)
-    builder.add_edge("respond_to_general_query", END)
-    builder.add_edge("respond", END)
+builder.add_edge(START, "create_research_plan")
+builder.add_edge("create_research_plan", "conduct_research")
+builder.add_conditional_edges("conduct_research", check_finished)
+builder.add_edge("respond", END)
 
-    # Compile into a graph object that you can invoke and deploy.
-    graph = builder.compile()
-    graph.name = "RetrievalGraph"
-    return graph
-
-
-graph = make_graph(input_schema=InputState)
+# Compile into a graph object that you can invoke and deploy.
+graph = builder.compile()
+graph.name = "RetrievalGraph"
