@@ -9,7 +9,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 from langsmith.evaluation import EvaluationResults, evaluate
 from langsmith.schemas import Example, Run
 
-from backend.retrieval_graph import graph
+from backend.retrieval_graph.graph import graph
 from backend.utils import format_docs
 
 DATASET_NAME = "chat-langchain-qa"
