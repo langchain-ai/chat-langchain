@@ -128,8 +128,15 @@ def reduce_docs(
 
             elif isinstance(item, Document):
                 item_id = item.metadata.get("uuid")
+                if item_id is None:
+                    item_id = str(uuid.uuid4())
+                    new_item = item.copy(deep=True)
+                    new_item.metadata["uuid"] = item_id
+                else:
+                    new_item = item
+
                 if item_id not in existing_ids:
-                    new_list.append(item)
+                    new_list.append(new_item)
                     existing_ids.add(item_id)
 
-    return existing + new_list
+    return existing_list + new_list
