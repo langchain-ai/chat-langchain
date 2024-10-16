@@ -17,9 +17,21 @@ import {
 } from "../utils/convert_messages";
 import { useGraph } from "../hooks/useGraph";
 import { ThreadHistory } from "../components/ThreadHistory";
+import { useUser } from "../hooks/useUser";
+import { useThreads } from "../hooks/useThreads";
 
 export default function ContentComposerChatInterface(): React.ReactElement {
-  const { messages, setMessages, streamMessage, assistantId } = useGraph();
+  const { userId } = useUser();
+  const {
+    messages,
+    setMessages,
+    streamMessage,
+    assistantId,
+    createThread,
+    threadId: currentThread,
+    switchSelectedThread,
+  } = useGraph(userId);
+  const { userThreads } = useThreads(userId);
   const [isRunning, setIsRunning] = useState(false);
 
   async function onNew(message: AppendMessage): Promise<void> {
@@ -57,11 +69,19 @@ export default function ContentComposerChatInterface(): React.ReactElement {
   });
 
   return (
-    <div className="h-full w-full flex md:flex-row flex-col">
+    <div className="overflow-hidden w-full flex md:flex-row flex-col">
       <div>
-        <ThreadHistory assistantId={assistantId} />
+        <ThreadHistory
+          isEmpty={messages.length === 0}
+          switchSelectedThread={switchSelectedThread}
+          currentThread={currentThread}
+          userThreads={userThreads}
+          userId={userId}
+          createThread={createThread}
+          assistantId={assistantId}
+        />
       </div>
-      <div className="w-full h-full">
+      <div className="w-full h-full overflow-hidden">
         <AssistantRuntimeProvider runtime={runtime}>
           <MyThread messages={messages} />
         </AssistantRuntimeProvider>

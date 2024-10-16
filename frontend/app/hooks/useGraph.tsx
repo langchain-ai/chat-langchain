@@ -1,11 +1,12 @@
 import { parsePartialJson } from "@langchain/core/output_parsers";
 import { useEffect, useState } from "react";
-import { AIMessage, BaseMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { useToast } from "./use-toast";
 import { v4 as uuidv4 } from "uuid";
 
 import { Client } from "@langchain/langgraph-sdk";
 import { getCookie, setCookie } from "../utils/cookies";
+import { ThreadActual } from "./useThreads";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
@@ -50,28 +51,32 @@ export interface GraphInput {
   messages?: Record<string, any>[];
 }
 
-export function useGraph() {
+export function useGraph(userId: string | undefined) {
   const { toast } = useToast();
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [assistantId, setAssistantId] = useState<string>();
-  const [threadId, setThreadId] = useState<string | null>(null);
+  const [threadId, setThreadId] = useState<string>();
 
   useEffect(() => {
-    if (threadId || typeof window === "undefined") return;
-    createThread();
-  }, []);
+    if (threadId || typeof window === "undefined" || !userId) return;
+    createThread(userId);
+  }, [userId]);
 
   useEffect(() => {
     if (assistantId || typeof window === "undefined") return;
-    getOrCreateThread();
+    getOrCreateAssistant();
   }, []);
 
-  const createThread = async () => {
+  const createThread = async (id: string) => {
     setMessages([]);
     const client = createClient();
     let thread;
     try {
-      thread = await client.threads.create();
+      thread = await client.threads.create({
+        metadata: {
+          user_id: id,
+        },
+      });
       if (!thread || !thread.thread_id) {
         throw new Error("Thread creation failed.");
       }
@@ -85,7 +90,7 @@ export function useGraph() {
     return thread;
   };
 
-  const getOrCreateThread = async () => {
+  const getOrCreateAssistant = async () => {
     const assistantIdCookie = getCookie("clc_py_assistant_id");
     if (assistantIdCookie) {
       setAssistantId(assistantIdCookie);
@@ -569,11 +574,93 @@ export function useGraph() {
     }
   };
 
+  const switchSelectedThread = (thread: ThreadActual) => {
+    setThreadId(thread.thread_id);
+    if (!thread.values) {
+      setMessages([]);
+      return;
+    }
+
+    const actualMessages = (
+      thread.values.messages as Record<string, any>[]
+    ).flatMap((msg, index, array) => {
+      if (msg.type === "human") {
+        // insert progress bar afterwards
+        const progressAIMessage = new AIMessage({
+          id: uuidv4(),
+          content: "",
+          tool_calls: [
+            {
+              name: "progress",
+              args: {
+                step: 4, // Set to done.
+              },
+            },
+          ],
+        });
+        return [
+          new HumanMessage({
+            ...msg,
+            content: msg.content,
+          }),
+          progressAIMessage,
+        ];
+      }
+
+      if (msg.type === "ai") {
+        const isLastAiMessage =
+          index === array.length - 1 || array[index + 1].type === "human";
+        if (isLastAiMessage) {
+          const routerMessage = new AIMessage({
+            content: "",
+            id: uuidv4(),
+            tool_calls: [
+              {
+                name: "router_logic",
+                args: thread.values?.router,
+              },
+            ],
+          });
+          const selectedDocumentsAIMessage = new AIMessage({
+            content: "",
+            id: uuidv4(),
+            tool_calls: [
+              {
+                name: "selected_documents",
+                args: {
+                  documents: thread.values?.documents,
+                },
+              },
+            ],
+          });
+          return [
+            routerMessage,
+            selectedDocumentsAIMessage,
+            new AIMessage({
+              ...msg,
+              content: msg.content,
+            }),
+          ];
+        }
+        return new AIMessage({
+          ...msg,
+          content: msg.content,
+        });
+      }
+
+      return []; // Return an empty array for any other message types
+    });
+
+    setMessages(actualMessages);
+  };
+
   return {
     messages,
     assistantId,
+    threadId,
     setMessages,
     streamMessage,
     createThread,
+    switchSelectedThread,
   };
 }

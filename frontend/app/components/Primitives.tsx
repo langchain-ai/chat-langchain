@@ -34,7 +34,7 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
   useRouterLogicUI();
 
   return (
-    <ThreadPrimitive.Root className="flex flex-col h-full w-full">
+    <ThreadPrimitive.Root className="flex flex-col h-screen overflow-hidden w-full">
       {!isEmpty ? (
         <ThreadPrimitive.Viewport
           className={cn(

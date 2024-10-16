@@ -5,6 +5,8 @@
 body {
   color: #f8f8f8;
   background: #131318;
+  max-height: 100vh;
+  overflow-x: hidden;
 }
 
 body input,

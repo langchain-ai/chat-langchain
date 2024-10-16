@@ -3,22 +3,23 @@ import { dummyThreads } from "../utils/dummy";
 import { TooltipIconButton } from "./ui/assistant-ui/tooltip-icon-button";
 import { Button } from "./ui/button";
 import { SquarePen, History } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "./ui/sheet";
+import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
+import { ThreadActual } from "../hooks/useThreads";
+import { useToast } from "../hooks/use-toast";
 
 interface ThreadHistoryProps {
+  isEmpty: boolean;
+  currentThread: string | undefined;
+  userThreads: ThreadActual[];
+  userId: string | undefined;
+  createThread: (id: string) => Promise<any>;
   assistantId: string | undefined;
+  switchSelectedThread: (thread: ThreadActual) => void;
 }
 
 interface ThreadProps {
   id: string;
-  onClick: (id: string) => void;
+  onClick: () => void;
   label: string;
   createdAt: Date;
 }
@@ -28,27 +29,66 @@ const Thread = (props: ThreadProps) => (
     className="px-2 hover:bg-[#393939] hover:text-white justify-start"
     size="sm"
     variant="ghost"
-    onClick={() => props.onClick(props.id)}
+    onClick={props.onClick}
   >
     <p className="truncate ... text-sm font-light">{props.label}</p>
   </Button>
 );
 
-const groupThreads = (threads: ThreadProps[]) => {
+const convertThreadActualToThreadProps = (
+  thread: ThreadActual,
+  switchSelectedThread: (thread: ThreadActual) => void,
+): ThreadProps => ({
+  id: thread.thread_id,
+  label: thread.values?.messages?.[0].content || "Untitled",
+  createdAt: new Date(thread.created_at),
+  onClick: () => {
+    return switchSelectedThread(thread);
+  },
+});
+
+const groupThreads = (
+  threads: ThreadActual[],
+  switchSelectedThread: (thread: ThreadActual) => void,
+) => {
   const today = new Date();
   const yesterday = subDays(today, 1);
   const sevenDaysAgo = subDays(today, 7);
 
   return {
-    today: threads.filter((thread) => isToday(thread.createdAt)),
-    yesterday: threads.filter((thread) => isYesterday(thread.createdAt)),
-    lastSevenDays: threads.filter((thread) =>
-      isWithinInterval(thread.createdAt, {
-        start: sevenDaysAgo,
-        end: yesterday,
-      }),
-    ),
-    older: threads.filter((thread) => thread.createdAt < sevenDaysAgo),
+    today: threads
+      .filter((thread) => isToday(new Date(thread.created_at)))
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .map((t) => convertThreadActualToThreadProps(t, switchSelectedThread)),
+    yesterday: threads
+      .filter((thread) => isYesterday(new Date(thread.created_at)))
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .map((t) => convertThreadActualToThreadProps(t, switchSelectedThread)),
+    lastSevenDays: threads
+      .filter((thread) =>
+        isWithinInterval(new Date(thread.created_at), {
+          start: sevenDaysAgo,
+          end: yesterday,
+        }),
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .map((t) => convertThreadActualToThreadProps(t, switchSelectedThread)),
+    older: threads
+      .filter((thread) => new Date(thread.created_at) < sevenDaysAgo)
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .map((t) => convertThreadActualToThreadProps(t, switchSelectedThread)),
   };
 };
 
@@ -98,7 +138,29 @@ function ThreadsList(props: ThreadsListProps) {
 }
 
 export function ThreadHistory(props: ThreadHistoryProps) {
-  const groupedThreads = groupThreads(dummyThreads);
+  const { toast } = useToast();
+  const groupedThreads = groupThreads(
+    props.userThreads,
+    props.switchSelectedThread,
+  );
+
+  const createThread = async () => {
+    if (!props.userId) {
+      toast({
+        title: "Error creating thread",
+        description: "Your user ID was not found. Please try again later.",
+      });
+      return;
+    }
+    const currentThread = props.userThreads.find(
+      (thread) => thread.thread_id === props.currentThread,
+    );
+    if (currentThread && !currentThread.values && props.isEmpty) {
+      return;
+    }
+    await props.createThread(props.userId);
+  };
+
   return (
     <span>
       {/* Tablet & up */}
@@ -106,13 +168,16 @@ export function ThreadHistory(props: ThreadHistoryProps) {
         <div className="flex-grow border-r-[1px] border-[#393939] my-6 flex flex-col overflow-hidden">
           <div className="flex flex-row items-center justify-between border-b-[1px] border-[#393939] pt-3 px-2 mx-4 -mt-4 text-gray-200">
             <p className="text-lg font-medium">Chat History</p>
-            <TooltipIconButton
-              tooltip="New chat"
-              variant="ghost"
-              className="w-fit p-2"
-            >
-              <SquarePen className="w-5 h-5" />
-            </TooltipIconButton>
+            {props.userId ? (
+              <TooltipIconButton
+                tooltip="New chat"
+                variant="ghost"
+                className="w-fit p-2"
+                onClick={createThread}
+              >
+                <SquarePen className="w-5 h-5" />
+              </TooltipIconButton>
+            ) : null}
           </div>
           <div className="overflow-y-auto flex-grow scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
             <ThreadsList groupedThreads={groupedThreads} />
@@ -135,13 +200,16 @@ export function ThreadHistory(props: ThreadHistoryProps) {
             <ThreadsList groupedThreads={groupedThreads} />
           </SheetContent>
         </Sheet>
-        <TooltipIconButton
-          tooltip="New chat"
-          variant="ghost"
-          className="w-fit h-fit p-2"
-        >
-          <SquarePen className="w-6 h-6" />
-        </TooltipIconButton>
+        {props.userId ? (
+          <TooltipIconButton
+            tooltip="New chat"
+            variant="ghost"
+            className="w-fit h-fit p-2"
+            onClick={createThread}
+          >
+            <SquarePen className="w-6 h-6" />
+          </TooltipIconButton>
+        ) : null}
       </span>
     </span>
   );
