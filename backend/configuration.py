@@ -7,6 +7,31 @@ from typing import Annotated, Any, Literal, Optional, Type, TypeVar
 
 from langchain_core.runnables import RunnableConfig, ensure_config
 
+MODEL_NAME_TO_RESPONSE_MODEL = {
+    "anthropic_claude_3_5_sonnet": "anthropic/claude-3-5-sonnet-20240620",
+}
+
+
+def _update_configurable_for_backwards_compatibility(
+    configurable: dict[str, Any],
+) -> dict[str, Any]:
+    update = {}
+    if "k" in configurable:
+        update["search_kwargs"] = {"k": configurable["k"]}
+
+    if (
+        "model_name" in configurable
+        and configurable["model_name"] in MODEL_NAME_TO_RESPONSE_MODEL
+    ):
+        update["response_model"] = MODEL_NAME_TO_RESPONSE_MODEL[
+            configurable["model_name"]
+        ]
+
+    if update:
+        return {**configurable, **update}
+
+    return configurable
+
 
 @dataclass(kw_only=True)
 class BaseConfiguration:
@@ -64,6 +89,7 @@ class BaseConfiguration:
         """
         config = ensure_config(config)
         configurable = config.get("configurable") or {}
+        configurable = _update_configurable_for_backwards_compatibility(configurable)
         _fields = {f.name for f in fields(cls) if f.init}
         return cls(**{k: v for k, v in configurable.items() if k in _fields})
 

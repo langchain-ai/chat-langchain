@@ -42,8 +42,7 @@ def make_weaviate_retriever(
             embedding=embedding_model,
             attributes=["source", "title"],
         )
-        k = configuration.search_kwargs.get("k", configuration.k)
-        yield store.as_retriever(search_kwargs=dict(k=k))
+        yield store.as_retriever(search_kwargs=configuration.search_kwargs)
 
 
 @contextmanager
