@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { Client } from "@langchain/langgraph-sdk";
 import { getCookie, setCookie } from "../utils/cookies";
-import { ThreadActual } from "./useThreads";
+import { ThreadActual, useThreads } from "./useThreads";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
@@ -53,19 +53,40 @@ export interface GraphInput {
 
 export function useGraph(userId: string | undefined) {
   const { toast } = useToast();
+  const { getThreadById } = useThreads(userId);
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [assistantId, setAssistantId] = useState<string>();
   const [threadId, setThreadId] = useState<string>();
 
   useEffect(() => {
     if (threadId || typeof window === "undefined" || !userId) return;
-    createThread(userId);
+    searchOrCreateThread(userId);
   }, [userId]);
 
   useEffect(() => {
     if (assistantId || typeof window === "undefined") return;
     getOrCreateAssistant();
   }, []);
+
+  const searchOrCreateThread = async (id: string) => {
+    const threadIdCookie = getCookie("clc_py_thread_id");
+    if (!threadIdCookie) {
+      await createThread(id);
+      return;
+    }
+    // Thread ID is in cookies.
+
+    const thread = await getThreadById(threadIdCookie);
+    if (!thread.values) {
+      // No values = no activity. Can keep.
+      setThreadId(threadIdCookie);
+      return;
+    } else {
+      // Current thread has activity. Create a new thread.
+      await createThread(id);
+      return;
+    }
+  };
 
   const createThread = async (id: string) => {
     setMessages([]);
@@ -81,6 +102,7 @@ export function useGraph(userId: string | undefined) {
         throw new Error("Thread creation failed.");
       }
       setThreadId(thread.thread_id);
+      setCookie("clc_py_thread_id", thread.thread_id);
     } catch (e) {
       console.error("Error creating thread", e);
       toast({

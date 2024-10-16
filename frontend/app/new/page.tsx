@@ -19,8 +19,10 @@ import { useGraph } from "../hooks/useGraph";
 import { ThreadHistory } from "../components/ThreadHistory";
 import { useUser } from "../hooks/useUser";
 import { useThreads } from "../hooks/useThreads";
+import { useToast } from "../hooks/use-toast";
 
 export default function ContentComposerChatInterface(): React.ReactElement {
+  const { toast } = useToast();
   const { userId } = useUser();
   const {
     messages,
@@ -34,7 +36,25 @@ export default function ContentComposerChatInterface(): React.ReactElement {
   const { userThreads } = useThreads(userId);
   const [isRunning, setIsRunning] = useState(false);
 
+  const isSubmitDisabled = !userId || !assistantId || !currentThread;
+
   async function onNew(message: AppendMessage): Promise<void> {
+    if (isSubmitDisabled) {
+      let description = "";
+      if (!userId) {
+        description = "Unable to find user ID. Please try again later.";
+      } else if (!assistantId) {
+        description = "Unable to find assistant ID. Please try again later.";
+      } else if (!currentThread) {
+        description =
+          "Unable to find current thread ID. Please try again later.";
+      }
+      toast({
+        title: "Failed to send message",
+        description,
+      });
+      return;
+    }
     if (message.content[0]?.type !== "text") {
       throw new Error("Only text messages are supported");
     }
@@ -83,7 +103,7 @@ export default function ContentComposerChatInterface(): React.ReactElement {
       </div>
       <div className="w-full h-full overflow-hidden">
         <AssistantRuntimeProvider runtime={runtime}>
-          <MyThread messages={messages} />
+          <MyThread submitDisabled={isSubmitDisabled} messages={messages} />
         </AssistantRuntimeProvider>
       </div>
       <Toaster />

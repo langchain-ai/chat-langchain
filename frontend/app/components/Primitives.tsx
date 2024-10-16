@@ -97,6 +97,7 @@ const MyThreadScrollToBottom: FC = () => {
 
 interface MyComposerProps {
   messages: BaseMessage[];
+  submitDisabled: boolean;
 }
 
 const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
@@ -117,7 +118,7 @@ const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
         className="placeholder:text-gray-400 text-gray-100 max-h-40 flex-1 resize-none border-none bg-transparent px-2 py-2 text-sm outline-none focus:ring-0 disabled:cursor-not-allowed"
       />
       <div className="flex-shrink-0">
-        <ThreadPrimitive.If running={false}>
+        <ThreadPrimitive.If running={false} disabled={props.submitDisabled}>
           <ComposerPrimitive.Send asChild>
             <TooltipIconButton
               tooltip="Send"

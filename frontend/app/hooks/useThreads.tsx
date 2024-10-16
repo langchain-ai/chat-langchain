@@ -43,7 +43,13 @@ export function useThreads(userId: string | undefined) {
     }
   };
 
+  const getThreadById = async (id: string) => {
+    const client = createClient();
+    return (await client.threads.get(id)) as Awaited<ThreadActual>;
+  };
+
   return {
     userThreads,
+    getThreadById,
   };
 }
