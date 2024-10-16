@@ -51,5 +51,6 @@ export function useThreads(userId: string | undefined) {
   return {
     userThreads,
     getThreadById,
+    getUserThreads,
   };
 }

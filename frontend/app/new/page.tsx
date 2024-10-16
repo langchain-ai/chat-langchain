@@ -33,7 +33,7 @@ export default function ContentComposerChatInterface(): React.ReactElement {
     threadId: currentThread,
     switchSelectedThread,
   } = useGraph(userId);
-  const { userThreads } = useThreads(userId);
+  const { userThreads, getUserThreads } = useThreads(userId);
   const [isRunning, setIsRunning] = useState(false);
 
   const isSubmitDisabled = !userId || !assistantId || !currentThread;
@@ -73,6 +73,8 @@ export default function ContentComposerChatInterface(): React.ReactElement {
       });
     } finally {
       setIsRunning(false);
+      // Re-fetch threads so that the current thread's title is updated.
+      await getUserThreads(userId);
     }
   }
 
@@ -92,6 +94,7 @@ export default function ContentComposerChatInterface(): React.ReactElement {
     <div className="overflow-hidden w-full flex md:flex-row flex-col">
       <div>
         <ThreadHistory
+          getUserThreads={getUserThreads}
           isEmpty={messages.length === 0}
           switchSelectedThread={switchSelectedThread}
           currentThread={currentThread}

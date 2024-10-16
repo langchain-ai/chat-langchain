@@ -15,6 +15,7 @@ interface ThreadHistoryProps {
   createThread: (id: string) => Promise<any>;
   assistantId: string | undefined;
   switchSelectedThread: (thread: ThreadActual) => void;
+  getUserThreads: (id: string) => Promise<void>;
 }
 
 interface ThreadProps {
@@ -159,6 +160,8 @@ export function ThreadHistory(props: ThreadHistoryProps) {
       return;
     }
     await props.createThread(props.userId);
+    // Re-fetch threads so that the new thread shows up.
+    await props.getUserThreads(props.userId);
   };
 
   return (

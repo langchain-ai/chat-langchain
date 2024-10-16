@@ -53,7 +53,7 @@ export interface GraphInput {
 
 export function useGraph(userId: string | undefined) {
   const { toast } = useToast();
-  const { getThreadById } = useThreads(userId);
+  const { getThreadById, getUserThreads } = useThreads(userId);
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [assistantId, setAssistantId] = useState<string>();
   const [threadId, setThreadId] = useState<string>();
@@ -596,7 +596,7 @@ export function useGraph(userId: string | undefined) {
     }
   };
 
-  const switchSelectedThread = (thread: ThreadActual) => {
+  const switchSelectedThread = async (thread: ThreadActual) => {
     setThreadId(thread.thread_id);
     if (!thread.values) {
       setMessages([]);

@@ -71,11 +71,17 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
             <div className="md:mb-8 mb-4">
               <SuggestedQuestions />
             </div>
-            <MyComposer messages={props.messages} />
+            <MyComposer
+              submitDisabled={props.submitDisabled}
+              messages={props.messages}
+            />
           </div>
         </div>
       ) : (
-        <MyComposer messages={props.messages} />
+        <MyComposer
+          submitDisabled={props.submitDisabled}
+          messages={props.messages}
+        />
       )}
     </ThreadPrimitive.Root>
   );
