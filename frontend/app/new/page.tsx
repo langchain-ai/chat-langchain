@@ -16,9 +16,10 @@ import {
   convertToOpenAIFormat,
 } from "../utils/convert_messages";
 import { useGraph } from "../hooks/useGraph";
+import { ThreadHistory } from "../components/ThreadHistory";
 
 export default function ContentComposerChatInterface(): React.ReactElement {
-  const { messages, setMessages, streamMessage } = useGraph();
+  const { messages, setMessages, streamMessage, assistantId } = useGraph();
   const [isRunning, setIsRunning] = useState(false);
 
   async function onNew(message: AppendMessage): Promise<void> {
@@ -56,10 +57,15 @@ export default function ContentComposerChatInterface(): React.ReactElement {
   });
 
   return (
-    <div className="h-full">
-      <AssistantRuntimeProvider runtime={runtime}>
-        <MyThread messages={messages} />
-      </AssistantRuntimeProvider>
+    <div className="h-full flex flex-row">
+      <div className="mr-auto w-full">
+        <AssistantRuntimeProvider runtime={runtime}>
+          <MyThread messages={messages} />
+        </AssistantRuntimeProvider>
+      </div>
+      <div className="ml-auto">
+        <ThreadHistory assistantId={assistantId} />
+      </div>
       <Toaster />
     </div>
   );

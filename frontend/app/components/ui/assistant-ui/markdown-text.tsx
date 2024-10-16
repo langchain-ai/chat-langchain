@@ -17,12 +17,6 @@ import { cn } from "../../../utils/cn";
 
 import "katex/dist/katex.min.css";
 
-const LinkWithIcon = () => (
-  <span className="flex flex-row gap-1 items-center">
-    <ExternalLink />
-  </span>
-);
-
 const MarkdownTextImpl = () => {
   return (
     <MarkdownTextPrimitive
