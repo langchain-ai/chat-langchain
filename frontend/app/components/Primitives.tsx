@@ -4,15 +4,12 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
-  useComposerStore,
   useMessage,
-  useMessageStore,
   useThreadRuntime,
 } from "@assistant-ui/react";
 import { type FC } from "react";
 import NextImage from "next/image";
 
-import { Button } from "./ui/button";
 import { ArrowDownIcon, SendHorizontalIcon } from "lucide-react";
 import { MarkdownText } from "./ui/assistant-ui/markdown-text";
 import { TooltipIconButton } from "./ui/assistant-ui/tooltip-icon-button";
@@ -47,15 +44,14 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
         <ThreadPrimitive.Messages
           components={{
             UserMessage: MyUserMessage,
-            EditComposer: MyEditComposer,
             AssistantMessage: MyAssistantMessage,
           }}
         />
       </ThreadPrimitive.Viewport>
       <MyThreadScrollToBottom />
       {isEmpty ? (
-        <div className="absolute left-1/2 transform -translate-x-1/2 max-w-2xl top-1/2 -translate-y-1/2">
-          <div className="flex flex-row gap-1 items-center justify-center mb-[50px]">
+        <div className="absolute left-1/2 transform -translate-x-1/2 max-w-2xl top-1/2 -translate-y-[70%]">
+          <div className="flex flex-row gap-1 items-center justify-center mb-[24px]">
             <p className="text-2xl">Chat LangChain</p>
             <NextImage
               src="/images/lc_logo.jpg"
@@ -65,7 +61,7 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
               height={40}
             />
           </div>
-          <div className="mb-[350px] ml-[30px]">
+          <div className="mb-[110px] ml-[30px]">
             <SuggestedQuestions />
           </div>
           <MyComposer messages={props.messages} />
@@ -102,8 +98,8 @@ const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
     <ComposerPrimitive.Root
       className={cn(
         "focus-within:border-aui-ring/20 flex w-full items-center rounded-lg border px-2.5 py-2.5 shadow-sm transition-all duration-300 ease-in-out bg-[#282828] border-gray-600",
-        "absolute left-1/2 transform -translate-x-1/2 max-w-2xl",
-        isEmpty ? "top-1/2 -translate-y-1/2" : "bottom-4",
+        "absolute transform bottom-4",
+        !isEmpty ? "left-[43%] -translate-x-1/2 max-w-3xl" : "",
       )}
     >
       <ComposerPrimitive.Input
@@ -142,50 +138,11 @@ const MyComposer: FC<MyComposerProps> = (props: MyComposerProps) => {
 
 const MyUserMessage: FC = () => {
   return (
-    <MessagePrimitive.Root className="w-full max-w-2xl pt-4 mx-auto">
-      <div className="bg-inherit text-white max-w-xl break-words rounded-3xl px-5 pt-2.5 mb-[-25px] text-4xl font-light">
+    <MessagePrimitive.Root className="w-full max-w-5xl pt-4 mx-auto">
+      <div className="bg-inherit text-white max-w-3xl break-words rounded-3xl px-5 pt-2.5 mb-[-25px] text-4xl font-light">
         <MessagePrimitive.Content />
       </div>
     </MessagePrimitive.Root>
-  );
-};
-
-const MyComposerSend = () => {
-  const messageStore = useMessageStore();
-  const composerStore = useComposerStore();
-  const threadRuntime = useThreadRuntime();
-
-  const handleSend = () => {
-    const composerState = composerStore.getState();
-    const { parentId, message } = messageStore.getState();
-
-    threadRuntime.append({
-      parentId,
-      role: message.role,
-      content: [{ type: "text", text: composerState.text }],
-    });
-    composerState.cancel();
-  };
-
-  return <Button onClick={handleSend}>Save</Button>;
-};
-
-const MyEditComposer: FC = () => {
-  return (
-    <ComposerPrimitive.Root className="bg-muted my-4 flex w-full max-w-2xl flex-col gap-2 rounded-xl">
-      <ComposerPrimitive.Input
-        className="text-foreground flex h-8 w-full resize-none border-none bg-transparent p-4 pb-0 outline-none focus:ring-0"
-        // Don't submit on `Enter`, instead add a newline.
-        submitOnEnter={false}
-      />
-
-      <div className="mx-3 mb-3 flex items-center justify-center gap-2 self-end">
-        <ComposerPrimitive.Cancel asChild>
-          <Button variant="ghost">Cancel</Button>
-        </ComposerPrimitive.Cancel>
-        <MyComposerSend />
-      </div>
-    </ComposerPrimitive.Root>
   );
 };
 
@@ -198,8 +155,8 @@ const MyAssistantMessage: FC = () => {
     !isLast;
 
   return (
-    <MessagePrimitive.Root className="relative flex w-full max-w-2xl py-4 mx-auto">
-      <div className="ml-6 bg-inherit text-white max-w-xl break-words leading-7">
+    <MessagePrimitive.Root className="relative flex w-full max-w-5xl py-4 mx-auto">
+      <div className="ml-6 bg-inherit text-white max-w-3xl break-words leading-7">
         <MessagePrimitive.Content components={{ Text: MarkdownText }} />
         {shouldRenderMessageBreak ? (
           <hr className="relative left-1/2 -translate-x-[37.25%] w-[45vw] mt-6 border-gray-600" />

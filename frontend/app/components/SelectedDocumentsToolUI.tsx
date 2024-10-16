@@ -14,6 +14,7 @@ import {
   TooltipContent,
   Tooltip,
 } from "./ui/tooltip";
+import { useState } from "react";
 
 type Document = {
   page_content: string;
@@ -43,6 +44,8 @@ const DocumentCard = ({ document }: { document: Document }) => {
 };
 
 const DocumentCardTooltip = ({ document }: { document: Document }) => {
+  const [isOpen, setIsOpen] = useState(true);
+
   const description =
     document.metadata.description && document.metadata.description !== ""
       ? document.metadata.description
@@ -50,9 +53,23 @@ const DocumentCardTooltip = ({ document }: { document: Document }) => {
 
   return (
     <TooltipProvider>
-      <Tooltip defaultOpen delayDuration={0}>
+      <Tooltip
+        defaultOpen
+        delayDuration={0}
+        open={isOpen}
+        onOpenChange={setIsOpen}
+      >
         <TooltipTrigger asChild>
-          <div>
+          <div
+            onMouseEnter={() => {
+              console.log("Mouse enter");
+              setIsOpen(true);
+            }}
+            onMouseLeave={() => {
+              console.log("Mouse leave");
+              setIsOpen(false);
+            }}
+          >
             <DocumentCard document={document} />
           </div>
         </TooltipTrigger>
@@ -98,14 +115,14 @@ export const useSelectedDocumentsUI = () =>
             opts={{
               align: "start",
             }}
-            className="relative left-1/2 -translate-x-[39%] w-screen max-w-[43vw] mb-10"
+            className="mb-10 w-fit max-w-3xl"
           >
-            <CarouselContent>
+            <CarouselContent className="-ml-[0px]">
               {(input.args.documents as Document[]).map(
                 (document, docIndex) => (
                   <CarouselItem
                     key={`final-document-${docIndex}`}
-                    className="xl:basis-[38%] 2xl:basis-[27%] md:basis-1/2"
+                    className="pl-[0px] md:basis-[30%] lg:basis-[28%]"
                   >
                     <DocumentCardTooltip document={document} />
                   </CarouselItem>
