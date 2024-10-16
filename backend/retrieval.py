@@ -42,7 +42,8 @@ def make_weaviate_retriever(
             embedding=embedding_model,
             attributes=["source", "title"],
         )
-        yield store.as_retriever(search_kwargs=configuration.search_kwargs)
+        search_kwargs = {**configuration.search_kwargs, "return_uuids": True}
+        yield store.as_retriever(search_kwargs=search_kwargs)
 
 
 @contextmanager

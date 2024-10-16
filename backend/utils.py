@@ -94,25 +94,42 @@ def reduce_docs(
     """Reduce and process documents based on the input type.
 
     This function handles various input types and converts them into a sequence of Document objects.
-    It can delete existing documents, create new ones from strings or dictionaries, or return the existing documents.
+    It also combines existing documents with the new one based on the document ID.
 
     Args:
         existing (Optional[Sequence[Document]]): The existing docs in the state, if any.
         new (Union[Sequence[Document], Sequence[dict[str, Any]], Sequence[str], str, Literal["delete"]]):
             The new input to process. Can be a sequence of Documents, dictionaries, strings, or a single string.
     """
+    existing_list = list(existing) if existing else []
     if isinstance(new, str):
-        return [Document(page_content=new, metadata={"id": str(uuid.uuid4())})]
+        return existing_list + [
+            Document(page_content=new, metadata={"uuid": str(uuid.uuid4())})
+        ]
+
+    new_list = []
     if isinstance(new, list):
-        coerced = []
+        existing_ids = set(doc.metadata.get("uuid") for doc in existing_list)
         for item in new:
             if isinstance(item, str):
-                coerced.append(
-                    Document(page_content=item, metadata={"id": str(uuid.uuid4())})
-                )
+                item_id = str(uuid.uuid4())
+                new_list.append(Document(page_content=item, metadata={"uuid": item_id}))
+                existing_ids.add(item_id)
+
             elif isinstance(item, dict):
-                coerced.append(Document(**item))
-            else:
-                coerced.append(item)
-        return coerced
-    return existing or []
+                metadata = item.get("metadata", {})
+                item_id = metadata.get("uuid", str(uuid.uuid4()))
+
+                if item_id not in existing_ids:
+                    new_list.append(
+                        Document(**item, metadata={**metadata, "uuid": item_id})
+                    )
+                    existing_ids.add(item_id)
+
+            elif isinstance(item, Document):
+                item_id = item.metadata.get("uuid")
+                if item_id not in existing_ids:
+                    new_list.append(item)
+                    existing_ids.add(item_id)
+
+    return existing + new_list
