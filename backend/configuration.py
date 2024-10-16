@@ -19,13 +19,10 @@ def _update_configurable_for_backwards_compatibility(
     if "k" in configurable:
         update["search_kwargs"] = {"k": configurable["k"]}
 
-    if (
-        "model_name" in configurable
-        and configurable["model_name"] in MODEL_NAME_TO_RESPONSE_MODEL
-    ):
-        update["response_model"] = MODEL_NAME_TO_RESPONSE_MODEL[
-            configurable["model_name"]
-        ]
+    if "model_name" in configurable:
+        update["response_model"] = MODEL_NAME_TO_RESPONSE_MODEL.get(
+            configurable["model_name"], configurable["model_name"]
+        )
 
     if update:
         return {**configurable, **update}
