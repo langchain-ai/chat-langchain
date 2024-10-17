@@ -104,7 +104,7 @@ const MyThreadScrollToBottom: FC = () => {
       <TooltipIconButton
         tooltip="Scroll to bottom"
         variant="outline"
-        className="absolute bottom-4 left-1/2 transform -translate-x-1/2 rounded-full disabled:invisible bg-white bg-opacity-75"
+        className="absolute bottom-28 left-1/2 transform -translate-x-1/2 rounded-full disabled:invisible bg-white bg-opacity-75"
       >
         <ArrowDownIcon className="text-gray-600 hover:text-gray-800 transition-colors ease-in-out" />
       </TooltipIconButton>
