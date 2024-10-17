@@ -39,9 +39,23 @@ export const useSelectedDocumentsUI = () =>
         return null;
       }
 
-      const documents = input.args.documents as Document[];
-      const displayedDocuments = documents.slice(0, 3);
-      const remainingDocuments = documents.slice(3);
+      // Filter out duplicate documents
+      const uniqueDocuments = (input.args.documents as Document[]).reduce(
+        (acc, current) => {
+          const x = acc.find(
+            (item) => item.page_content === current.page_content,
+          );
+          if (!x) {
+            return acc.concat([current]);
+          } else {
+            return acc;
+          }
+        },
+        [] as Document[],
+      );
+
+      const displayedDocuments = uniqueDocuments.slice(0, 3);
+      const remainingDocuments = uniqueDocuments.slice(3);
 
       return (
         <div className="flex flex-col mb-4">
@@ -73,7 +87,7 @@ export const useSelectedDocumentsUI = () =>
                       All Selected Documents
                     </h2>
                     <div className="flex flex-wrap gap-2">
-                      {documents.map((document, docIndex) => (
+                      {uniqueDocuments.map((document, docIndex) => (
                         <DocumentDialog
                           key={`all-documents-${docIndex}`}
                           document={document}

@@ -71,7 +71,7 @@ export const useGeneratingQuestionsUI = () =>
             <p className="text-xl">Research Plan & Sources</p>
           </span>
           <div className="mb-10">
-            <div className="flex flex-wrap items-center justify-start gap-2">
+            <div className="flex flex-wrap items-start justify-start gap-2">
               {(input.args.questions as Question[]).map(
                 (question, questionIndex) => (
                   <QuestionCard
