@@ -6,7 +6,7 @@ Functions:
 """
 
 import uuid
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
@@ -89,6 +89,7 @@ def reduce_docs(
         list[dict[str, Any]],
         list[str],
         str,
+        Literal["delete"],
     ],
 ) -> list[Document]:
     """Reduce and process documents based on the input type.
@@ -101,6 +102,9 @@ def reduce_docs(
         new (Union[Sequence[Document], Sequence[dict[str, Any]], Sequence[str], str, Literal["delete"]]):
             The new input to process. Can be a sequence of Documents, dictionaries, strings, or a single string.
     """
+    if new == "delete":
+        return []
+
     existing_list = list(existing) if existing else []
     if isinstance(new, str):
         return existing_list + [
