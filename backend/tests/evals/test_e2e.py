@@ -2,7 +2,7 @@ import asyncio
 from typing import Any
 
 import pandas as pd
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -21,9 +21,9 @@ SCORE_ANSWER_CORRECTNESS = "answer_correctness_score"
 SCORE_ANSWER_VS_CONTEXT_CORRECTNESS = "answer_vs_context_correctness_score"
 
 # claude sonnet / gpt-4o are a bit too expensive
-JUDGE_MODEL_NAME = "claude-3-haiku-20240307"
+JUDGE_MODEL_NAME = "gpt-4o-mini"
 
-judge_llm = ChatAnthropic(model_name=JUDGE_MODEL_NAME)
+judge_llm = ChatOpenAI(model_name=JUDGE_MODEL_NAME)
 
 
 # Evaluate retrieval
@@ -172,7 +172,7 @@ def test_scores_regression():
             evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
             experiment_prefix=EXPERIMENT_PREFIX,
             metadata={"judge_model_name": JUDGE_MODEL_NAME},
-            max_concurrency=0,
+            max_concurrency=4,
         )
     )
     experiment_result_df = pd.DataFrame(

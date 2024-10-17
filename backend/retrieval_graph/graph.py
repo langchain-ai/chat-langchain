@@ -6,7 +6,7 @@ and key functions for processing & routing user queries, generating research pla
 conducting research, and formulating responses.
 """
 
-from typing import Any, Literal, Type, TypedDict, cast
+from typing import Any, Literal, TypedDict, cast
 
 from langchain_core.messages import BaseMessage
 from langchain_core.runnables import RunnableConfig
@@ -209,7 +209,7 @@ async def respond(
     prompt = configuration.response_system_prompt.format(context=context)
     messages = [{"role": "system", "content": prompt}] + state.messages
     response = await model.ainvoke(messages)
-    return {"messages": [response]}
+    return {"messages": [response], "answer": response.content}
 
 
 # Define the graph
