@@ -165,8 +165,8 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
       price: data.currentPrice || data.fiftyDayAverage || 'N/A',
       change:  (data.currentPrice !== null && data.previousClose !== null ) 
   ? `${(((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2)}%` 
-  : (data.fiftyDayAverage !== null && data.previousClose !== null)
-    ? `${(((data.previousClose - data.fiftyDayAverage) / data.fiftyDayAverage) * 100).toFixed(2)}%`
+  : (data.fiftyDayAverage !== null && data.regularMarketPreviousClose !== null)
+    ? `${(((data.regularMarketPreviousClose - data.fiftyDayAverage) / data.fiftyDayAverage) * 100).toFixed(2)}%`
     : 'N/A',
     };
   } catch (error) {
