@@ -71,7 +71,7 @@ interface StockData {
   symbol: string;
   price: string | number;
   change: string | number;
-  mchange: string | number;
+  change: string | number;
 }
 
 type SetStockDataFunction = React.Dispatch<React.SetStateAction<StockData[]>>;
@@ -139,9 +139,9 @@ const VALID_STOCK_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "N
 
 // Initial mock data
 const initialMockStockData: StockData[] = [
-  { name: "Dow Jones", value: "34,721.91", mchange: "+0.50%", symbol: "DJI", price: "N/A" },
-  { name: "NASDAQ-100", value: "15,785.32", mchange: "-0.15%", symbol: "NDX", price: "N/A" },
-  { name: "S&P 500", value: "4,509.23", mchange: "+0.20%", symbol: "SPX", price: "N/A" },
+  { name: "Dow Jones", value: "34,721.91", change: "+0.50%", symbol: "DJI", price: "N/A" },
+  { name: "NASDAQ-100", value: "15,785.32", change: "-0.15%", symbol: "NDX", price: "N/A" },
+  { name: "S&P 500", value: "4,509.23", change: "+0.20%", symbol: "SPX", price: "N/A" },
   { symbol: "AAPL", price: "150.25", change: "+1.25%" },
   { symbol: "MSFT", price: "305.15", change: "+0.75%" },
   { symbol: "GOOGL", price: "2750.80", change: "-0.20%" },
@@ -164,12 +164,17 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
     return {
       symbol: data.symbol,
       price: data.currentPrice || data.fiftyDayAverage || 'N/A',
-      change:  (data.currentPrice !== null && data.previousClose !== null) 
-      ? `${(((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2)}%` 
-      : 'N/A',
-      mchange:  (data.fiftyDayAverage !== null && data.previousClose !== null) 
-      ? `${(((data.previousClose - data.fiftyDayAverage) / data.fiftyDayAverage) * 100).toFixed(2)}%` 
-      : 'N/A',
+      change: (() => {
+  if (data.currentPrice !== null && data.previousClose !== null) {
+    // Calculate daily change
+    return `${(((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2)}%`;
+  } else if (data.fiftyDayAverage !== null && data.previousClose !== null) {
+    // Calculate fifty day change as fallback
+    return `${(((data.previousClose - data.fiftyDayAverage) / data.fiftyDayAverage) * 100).toFixed(2)}%`;
+  } else {
+    return 'N/A';
+  }
+})(),
     };
   } catch (error) {
     console.error('Fetch stock data failed:', error);
