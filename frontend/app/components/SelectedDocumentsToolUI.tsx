@@ -1,13 +1,8 @@
 import { useAssistantToolUI } from "@assistant-ui/react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { BookOpenText, Plus, SquareArrowOutUpRight } from "lucide-react";
-import {
-  TooltipProvider,
-  TooltipTrigger,
-  TooltipContent,
-  Tooltip,
-} from "./ui/tooltip";
+import { BookOpenText, Plus } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
+import { DocumentDialog } from "./DocumentDialog";
 
 type Document = {
   page_content: string;
@@ -36,42 +31,6 @@ const DocumentCard = ({ document }: { document: Document }) => {
   );
 };
 
-const DocumentCardTooltip = ({ document }: { document: Document }) => {
-  const description =
-    document.metadata.description && document.metadata.description !== ""
-      ? document.metadata.description
-      : document.page_content.slice(0, 250);
-
-  return (
-    <TooltipProvider>
-      <Tooltip defaultOpen delayDuration={0}>
-        <TooltipTrigger asChild>
-          <DocumentCard document={document} />
-        </TooltipTrigger>
-        <TooltipContent className="flex flex-col max-w-[600px] whitespace-pre-wrap">
-          <div className="flex flex-col gap-1">
-            <p className="font-medium text-gray-300">
-              {document.metadata.title}
-            </p>
-            <div className="flex flex-wrap justify-start">
-              <a
-                href={document.metadata.source}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center text-blue-400 hover:text-blue-300 transition-colors duration-200 break-all"
-              >
-                Source{" "}
-                <SquareArrowOutUpRight className="ml-1 h-4 w-4 flex-shrink-0" />
-              </a>
-            </div>
-            <p className="text-xs font-light text-gray-400">{description}</p>
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-};
-
 export const useSelectedDocumentsUI = () =>
   useAssistantToolUI({
     toolName: "selected_documents",
@@ -92,9 +51,10 @@ export const useSelectedDocumentsUI = () =>
           </span>
           <div className="flex flex-wrap items-center justify-start gap-2">
             {displayedDocuments.map((document, docIndex) => (
-              <DocumentCardTooltip
-                key={`final-document-${docIndex}`}
+              <DocumentDialog
+                key={`all-documents-${docIndex}`}
                 document={document}
+                trigger={<DocumentCard document={document} />}
               />
             ))}
             {remainingDocuments.length > 0 && (
@@ -114,9 +74,10 @@ export const useSelectedDocumentsUI = () =>
                     </h2>
                     <div className="flex flex-wrap gap-2">
                       {documents.map((document, docIndex) => (
-                        <DocumentCardTooltip
+                        <DocumentDialog
                           key={`all-documents-${docIndex}`}
                           document={document}
+                          trigger={<DocumentCard document={document} />}
                         />
                       ))}
                     </div>

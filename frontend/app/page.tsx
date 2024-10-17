@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   AppendMessage,
   AssistantRuntimeProvider,
@@ -100,7 +100,7 @@ export default function ContentComposerChatInterface(): React.ReactElement {
     isRunning,
     onNew,
   });
-  console.log("messages.length", messages.length);
+
   return (
     <div className="overflow-hidden w-full flex md:flex-row flex-col relative">
       {messages.length > 0 ? (

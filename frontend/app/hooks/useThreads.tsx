@@ -117,7 +117,6 @@ export function useThreads(userId: string | undefined) {
       return newThreads;
     });
     if (id === threadId) {
-      console.log("Deleted current thread. Creating a new one.");
       clearMessages();
       // Create a new thread. Use .then to avoid blocking the UI.
       // Once completed re-fetch threads to update UI.
