@@ -188,7 +188,7 @@ const fetchAndUpdateStockData = async (setStockData: SetStockDataFunction) => {
   );
   
   setStockData(prevData => [
-   ...prevData.slice(0, 3),  // Keep the first 3 items (market indices)
+   // ...prevData.slice(0, 3),  // Keep the first 3 items (market indices)
     ...updates
   ]);
 };
