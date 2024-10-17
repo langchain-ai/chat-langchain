@@ -203,9 +203,8 @@ async def respond(
     """
     configuration = AgentConfiguration.from_runnable_config(config)
     model = load_chat_model(configuration.response_model)
-    # TODO: add a re-ranker here
-    top_k = 20
-    context = format_docs(state.documents[:top_k])
+    last_k = 20
+    context = format_docs(state.documents[-last_k:])
     prompt = configuration.response_system_prompt.format(context=context)
     messages = [{"role": "system", "content": prompt}] + state.messages
     response = await model.ainvoke(messages)
