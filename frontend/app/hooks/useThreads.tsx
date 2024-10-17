@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Client, Thread } from "@langchain/langgraph-sdk";
 import { getCookie, setCookie } from "../utils/cookies";
 import { useToast } from "./use-toast";
+import { THREAD_ID_COOKIE_NAME } from "../utils/constants";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
@@ -34,7 +35,7 @@ export function useThreads(userId: string | undefined) {
   }, [userId]);
 
   const searchOrCreateThread = async (id: string) => {
-    const threadIdCookie = getCookie("clc_py_thread_id");
+    const threadIdCookie = getCookie(THREAD_ID_COOKIE_NAME);
     if (!threadIdCookie) {
       await createThread(id);
       return;
@@ -66,7 +67,7 @@ export function useThreads(userId: string | undefined) {
         throw new Error("Thread creation failed.");
       }
       setThreadId(thread.thread_id);
-      setCookie("clc_py_thread_id", thread.thread_id);
+      setCookie(THREAD_ID_COOKIE_NAME, thread.thread_id);
     } catch (e) {
       console.error("Error creating thread", e);
       toast({

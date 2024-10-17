@@ -9,6 +9,7 @@ import { getCookie, setCookie } from "../utils/cookies";
 import { ThreadActual, useThreads } from "./useThreads";
 import { ModelOptions } from "../types";
 import { useRuns } from "./useRuns";
+import { ASSISTANT_ID_COOKIE_NAME } from "../utils/constants";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
@@ -73,7 +74,7 @@ export function useGraph(inputArgs: UseGraphInput) {
   }, []);
 
   const getOrCreateAssistant = async () => {
-    const assistantIdCookie = getCookie("clc_py_assistant_id");
+    const assistantIdCookie = getCookie(ASSISTANT_ID_COOKIE_NAME);
     if (assistantIdCookie) {
       setAssistantId(assistantIdCookie);
       return;
@@ -83,7 +84,7 @@ export function useGraph(inputArgs: UseGraphInput) {
       graphId: "chat",
     });
     setAssistantId(assistant.assistant_id);
-    setCookie("clc_py_assistant_id", assistant.assistant_id);
+    setCookie(ASSISTANT_ID_COOKIE_NAME, assistant.assistant_id);
   };
 
   const streamMessage = async (params: GraphInput) => {
