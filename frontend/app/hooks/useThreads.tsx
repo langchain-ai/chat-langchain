@@ -16,6 +16,7 @@ export interface ThreadActual extends Thread {
 }
 
 export function useThreads(userId: string | undefined) {
+  const [isUserThreadsLoading, setIsUserThreadsLoading] = useState(false);
   const [userThreads, setUserThreads] = useState<ThreadActual[]>([]);
 
   useEffect(() => {
@@ -24,22 +25,27 @@ export function useThreads(userId: string | undefined) {
   }, [userId]);
 
   const getUserThreads = async (id: string) => {
-    const client = createClient();
+    setIsUserThreadsLoading(true);
+    try {
+      const client = createClient();
 
-    const userThreads = (await client.threads.search({
-      metadata: {
-        user_id: id,
-      },
-      limit: 100,
-    })) as Awaited<ThreadActual[]>;
+      const userThreads = (await client.threads.search({
+        metadata: {
+          user_id: id,
+        },
+        limit: 100,
+      })) as Awaited<ThreadActual[]>;
 
-    if (userThreads.length > 0) {
-      const lastInArray = userThreads[0];
-      const allButLast = userThreads.slice(1, userThreads.length);
-      const filteredThreads = allButLast.filter(
-        (thread) => thread.values && Object.keys(thread.values).length > 0,
-      );
-      setUserThreads([...filteredThreads, lastInArray]);
+      if (userThreads.length > 0) {
+        const lastInArray = userThreads[0];
+        const allButLast = userThreads.slice(1, userThreads.length);
+        const filteredThreads = allButLast.filter(
+          (thread) => thread.values && Object.keys(thread.values).length > 0,
+        );
+        setUserThreads([...filteredThreads, lastInArray]);
+      }
+    } finally {
+      setIsUserThreadsLoading(false);
     }
   };
 
@@ -49,6 +55,7 @@ export function useThreads(userId: string | undefined) {
   };
 
   return {
+    isUserThreadsLoading,
     userThreads,
     getThreadById,
     getUserThreads,

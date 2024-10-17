@@ -6,8 +6,10 @@ import { SquarePen, History } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { ThreadActual } from "../hooks/useThreads";
 import { useToast } from "../hooks/use-toast";
+import { Skeleton } from "./ui/skeleton";
 
 interface ThreadHistoryProps {
+  isUserThreadsLoading: boolean;
   isEmpty: boolean;
   currentThread: string | undefined;
   userThreads: ThreadActual[];
@@ -35,6 +37,8 @@ const Thread = (props: ThreadProps) => (
     <p className="truncate ... text-sm font-light">{props.label}</p>
   </Button>
 );
+
+const LoadingThread = () => <Skeleton className="w-full h-8 bg-[#373737]" />;
 
 const convertThreadActualToThreadProps = (
   thread: ThreadActual,
@@ -183,7 +187,15 @@ export function ThreadHistory(props: ThreadHistoryProps) {
             ) : null}
           </div>
           <div className="overflow-y-auto flex-grow scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
-            <ThreadsList groupedThreads={groupedThreads} />
+            {props.isUserThreadsLoading ? (
+              <div className="flex flex-col gap-1 px-3 pt-3">
+                {Array.from({ length: 25 }).map((_, i) => (
+                  <LoadingThread />
+                ))}
+              </div>
+            ) : (
+              <ThreadsList groupedThreads={groupedThreads} />
+            )}
           </div>
         </div>
       </div>
@@ -200,7 +212,15 @@ export function ThreadHistory(props: ThreadHistoryProps) {
             </TooltipIconButton>
           </SheetTrigger>
           <SheetContent side="left" className="bg-[#282828] border-none">
-            <ThreadsList groupedThreads={groupedThreads} />
+            {props.isUserThreadsLoading ? (
+              <div className="flex flex-col gap-1 px-3 pt-3">
+                {Array.from({ length: 25 }).map((_, i) => (
+                  <LoadingThread />
+                ))}
+              </div>
+            ) : (
+              <ThreadsList groupedThreads={groupedThreads} />
+            )}
           </SheetContent>
         </Sheet>
         {props.userId ? (

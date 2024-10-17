@@ -36,7 +36,8 @@ export default function ContentComposerChatInterface(): React.ReactElement {
     selectedModel,
     setSelectedModel,
   } = useGraph(userId);
-  const { userThreads, getUserThreads } = useThreads(userId);
+  const { userThreads, getUserThreads, isUserThreadsLoading } =
+    useThreads(userId);
   const [isRunning, setIsRunning] = useState(false);
 
   const isSubmitDisabled = !userId || !assistantId || !currentThread;
@@ -105,6 +106,7 @@ export default function ContentComposerChatInterface(): React.ReactElement {
       ) : null}
       <div>
         <ThreadHistory
+          isUserThreadsLoading={isUserThreadsLoading}
           getUserThreads={getUserThreads}
           isEmpty={messages.length === 0}
           switchSelectedThread={switchSelectedThread}
