@@ -168,6 +168,7 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
   : (data.fiftyDayAverage !== null && data.regularMarketPreviousClose !== null)
     ? `${(((data.regularMarketPreviousClose - data.fiftyDayAverage) / data.fiftyDayAverage) * 100).toFixed(2)}%`
     : 'N/A',
+       console.log(price,change);
     };
   } catch (error) {
     console.error('Fetch stock data failed:', error);
