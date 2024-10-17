@@ -6,10 +6,7 @@ export type Document = {
 };
 
 export const DocumentCard = ({ document }: { document: Document }) => {
-  const description =
-    document.metadata.description && document.metadata.description !== ""
-      ? document.metadata.description
-      : document.page_content.slice(0, 250);
+  const description = document.page_content.slice(0, 250);
 
   return (
     <Card className="md:w-[200px] sm:w-[200px] w-full h-[110px] bg-inherit border-gray-500 flex flex-col">
