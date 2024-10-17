@@ -71,7 +71,6 @@ interface StockData {
   symbol: string;
   price: string | number;
   change: string | number;
-  change: string | number;
 }
 
 type SetStockDataFunction = React.Dispatch<React.SetStateAction<StockData[]>>;
