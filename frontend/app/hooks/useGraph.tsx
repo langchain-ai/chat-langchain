@@ -8,6 +8,7 @@ import { Client } from "@langchain/langgraph-sdk";
 import { getCookie, setCookie } from "../utils/cookies";
 import { ThreadActual, useThreads } from "./useThreads";
 import { ModelOptions } from "../types";
+import { useRuns } from "./useRuns";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
@@ -54,7 +55,8 @@ export interface GraphInput {
 
 export function useGraph(userId: string | undefined) {
   const { toast } = useToast();
-  const { getThreadById, getUserThreads } = useThreads(userId);
+  const { getThreadById } = useThreads(userId);
+  const { shareRun } = useRuns();
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [assistantId, setAssistantId] = useState<string>();
   const [threadId, setThreadId] = useState<string>();
@@ -601,6 +603,28 @@ export function useGraph(userId: string | undefined) {
           });
         }
       }
+    }
+
+    if (runId) {
+      // Chain `.then` to not block the stream
+      shareRun(runId).then((sharedRunURL) => {
+        setMessages((prevMessages) => {
+          const langSmithToolCallMessage = new AIMessage({
+            content: "",
+            id: uuidv4(),
+            tool_calls: [
+              {
+                name: "langsmith_tool_ui",
+                args: { sharedRunURL },
+                id: sharedRunURL
+                  ?.split("https://smith.langchain.com/public/")[1]
+                  .split("/")[0],
+              },
+            ],
+          });
+          return [...prevMessages, langSmithToolCallMessage];
+        });
+      });
     }
   };
 
