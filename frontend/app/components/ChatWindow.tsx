@@ -163,11 +163,11 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
     return {
       symbol: data.symbol,
       price: data.currentPrice || data.fiftyDayAverage || 'N/A',
-      change: (data.currentPrice !== null && data.previousClose !== null  )
-                ? ${(((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2)}%
-                : (data.fiftyDayAverage !== null && data.previousClose !== null )
-                ? ${(((parseFloat(data.previousClose) - parseFloat(data.fiftyDayAverage)) / parseFloat(data.fiftyDayAverage)) * 100).toFixed(2)}%
-                  : 'N/A',
+      change:  (data.currentPrice !== null && data.previousClose !== null ) 
+  ? `${(((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2)}%` 
+  : (data.fiftyDayAverage !== null)
+? ${(((parseFloat(data.previousClose) -parseFloat(data.fiftyDayAverage)) / parseFloat(data.fiftyDayAverage)) * 100).toFixed(2)}%
+: 'N/A',
     };
   } catch (error) {
     console.error('Fetch stock data failed:', error);
