@@ -173,12 +173,6 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
     console.error('Fetch stock data failed:', error);
     return null;
   }
-  console.log("Symbol:", data.symbol);
-console.log("Current Price:", data.currentPrice);
-  console.log("50 Price:", data.fiftyDayAverage);
-console.log("Previous Close:", data.previousClose);
-console.log("Computed Change:", change);
-
 };
 
 // Function to update stock data
