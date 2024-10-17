@@ -18,3 +18,9 @@ export type Feedback = {
   score: number;
   comment?: string;
 };
+
+export type ModelOptions =
+  | "openai/gpt-4o-mini"
+  | "anthropic/claude-3-haiku-20240307"
+  | "groq/llama3-70b-8192"
+  | "google_genai/gemini-pro";
