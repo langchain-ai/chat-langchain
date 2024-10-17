@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Client } from "@langchain/langgraph-sdk";
 import { getCookie, setCookie } from "../utils/cookies";
 import { ThreadActual, useThreads } from "./useThreads";
+import { ModelOptions } from "../types";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
@@ -57,6 +58,8 @@ export function useGraph(userId: string | undefined) {
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [assistantId, setAssistantId] = useState<string>();
   const [threadId, setThreadId] = useState<string>();
+  const [selectedModel, setSelectedModel] =
+    useState<ModelOptions>("openai/gpt-4o-mini");
 
   useEffect(() => {
     if (threadId || typeof window === "undefined" || !userId) return;
@@ -164,6 +167,11 @@ export function useGraph(userId: string | undefined) {
     const stream = client.runs.stream(threadId, assistantId, {
       input,
       streamMode: "events",
+      config: {
+        configurable: {
+          model_name: selectedModel,
+        },
+      },
     });
     let runId: string | undefined = undefined;
     let fullRoutingStr = "";
@@ -633,31 +641,35 @@ export function useGraph(userId: string | undefined) {
         const isLastAiMessage =
           index === array.length - 1 || array[index + 1].type === "human";
         if (isLastAiMessage) {
-          const routerMessage = new AIMessage({
-            content: "",
-            id: uuidv4(),
-            tool_calls: [
-              {
-                name: "router_logic",
-                args: thread.values?.router,
-              },
-            ],
-          });
-          const selectedDocumentsAIMessage = new AIMessage({
-            content: "",
-            id: uuidv4(),
-            tool_calls: [
-              {
-                name: "selected_documents",
-                args: {
-                  documents: thread.values?.documents,
-                },
-              },
-            ],
-          });
+          const routerMessage = thread.values?.router
+            ? new AIMessage({
+                content: "",
+                id: uuidv4(),
+                tool_calls: [
+                  {
+                    name: "router_logic",
+                    args: thread.values.router,
+                  },
+                ],
+              })
+            : undefined;
+          const selectedDocumentsAIMessage = thread.values?.documents?.length
+            ? new AIMessage({
+                content: "",
+                id: uuidv4(),
+                tool_calls: [
+                  {
+                    name: "selected_documents",
+                    args: {
+                      documents: thread.values.documents,
+                    },
+                  },
+                ],
+              })
+            : undefined;
           return [
-            routerMessage,
-            selectedDocumentsAIMessage,
+            ...(routerMessage ? [routerMessage] : []),
+            ...(selectedDocumentsAIMessage ? [selectedDocumentsAIMessage] : []),
             new AIMessage({
               ...msg,
               content: msg.content,
@@ -680,6 +692,8 @@ export function useGraph(userId: string | undefined) {
     messages,
     assistantId,
     threadId,
+    selectedModel,
+    setSelectedModel,
     setMessages,
     streamMessage,
     createThread,

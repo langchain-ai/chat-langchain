@@ -20,6 +20,7 @@ import { ThreadHistory } from "../components/ThreadHistory";
 import { useUser } from "../hooks/useUser";
 import { useThreads } from "../hooks/useThreads";
 import { useToast } from "../hooks/use-toast";
+import { SelectModel } from "../components/SelectModel";
 
 export default function ContentComposerChatInterface(): React.ReactElement {
   const { toast } = useToast();
@@ -32,6 +33,8 @@ export default function ContentComposerChatInterface(): React.ReactElement {
     createThread,
     threadId: currentThread,
     switchSelectedThread,
+    selectedModel,
+    setSelectedModel,
   } = useGraph(userId);
   const { userThreads, getUserThreads } = useThreads(userId);
   const [isRunning, setIsRunning] = useState(false);
@@ -91,7 +94,15 @@ export default function ContentComposerChatInterface(): React.ReactElement {
   });
 
   return (
-    <div className="overflow-hidden w-full flex md:flex-row flex-col">
+    <div className="overflow-hidden w-full flex md:flex-row flex-col relative">
+      {messages.length > 0 ? (
+        <div className="absolute top-4 right-4 z-10">
+          <SelectModel
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
+          />
+        </div>
+      ) : null}
       <div>
         <ThreadHistory
           getUserThreads={getUserThreads}
@@ -106,7 +117,12 @@ export default function ContentComposerChatInterface(): React.ReactElement {
       </div>
       <div className="w-full h-full overflow-hidden">
         <AssistantRuntimeProvider runtime={runtime}>
-          <MyThread submitDisabled={isSubmitDisabled} messages={messages} />
+          <MyThread
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
+            submitDisabled={isSubmitDisabled}
+            messages={messages}
+          />
         </AssistantRuntimeProvider>
       </div>
       <Toaster />

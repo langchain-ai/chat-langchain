@@ -21,8 +21,13 @@ import { useProgressToolUI } from "./ProgressToolUI";
 import { useSelectedDocumentsUI } from "./SelectedDocumentsToolUI";
 import { useRouterLogicUI } from "./RouterLogicToolUI";
 import { SuggestedQuestions } from "./SuggestedQuestions";
+import { ModelOptions } from "../types";
+import { SelectModel } from "./SelectModel";
 
-export interface MyThreadProps extends MyComposerProps {}
+export interface MyThreadProps extends MyComposerProps {
+  selectedModel: ModelOptions;
+  setSelectedModel: (model: ModelOptions) => void;
+}
 
 export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
   const isEmpty = props.messages.length === 0;
@@ -57,7 +62,7 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
       {isEmpty ? (
         <div className="flex items-center justify-center flex-grow my-auto">
           <div className="flex flex-col items-center mx-4 md:mt-0 mt-24">
-            <div className="flex flex-row gap-1 items-center justify-center mb-4 sm:mb-[24px]">
+            <div className="flex flex-row gap-1 items-center justify-center">
               <p className="text-xl sm:text-2xl">Chat LangChain</p>
               <NextImage
                 src="/images/lc_logo.jpg"
@@ -66,6 +71,12 @@ export const MyThread: FC<MyThreadProps> = (props: MyThreadProps) => {
                 width={32}
                 height={32}
                 style={{ width: "auto", height: "auto" }}
+              />
+            </div>
+            <div className="mb-4 sm:mb-[24px] mt-1 sm:mt-2">
+              <SelectModel
+                selectedModel={props.selectedModel}
+                setSelectedModel={props.setSelectedModel}
               />
             </div>
             <div className="md:mb-8 mb-4">
