@@ -134,7 +134,7 @@ type SetStockDataFunction = React.Dispatch<React.SetStateAction<StockData[]>>;
 const STOCK_API_URL = 'https://yfinance-fza5dthrg6dxd2c3.southeastasia-01.azurewebsites.net/api';
 const STOCK_API_KEY = 'STOCK_API_KEY';
 
-const VALID_STOCK_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "JNJ"];
+const VALID_STOCK_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "JNJ","NDX"];
 
 // Initial mock data
 const initialMockStockData: StockData[] = [
