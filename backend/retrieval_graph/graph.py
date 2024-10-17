@@ -145,7 +145,7 @@ async def create_research_plan(
         {"role": "system", "content": configuration.research_plan_system_prompt}
     ] + state.messages
     response = cast(Plan, await model.ainvoke(messages))
-    return {"steps": response["steps"]}
+    return {"steps": response["steps"], "documents": "delete"}
 
 
 async def conduct_research(state: AgentState) -> dict[str, Any]:
