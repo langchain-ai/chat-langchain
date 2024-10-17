@@ -1,15 +1,17 @@
+import asyncio
 from typing import Any
 
 import pandas as pd
-from langchain_anthropic import ChatAnthropic
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel, Field
-from langsmith.evaluation import EvaluationResults, evaluate
+from langchain_openai import ChatOpenAI
+from langsmith.evaluation import EvaluationResults, aevaluate
 from langsmith.schemas import Example, Run
 
-from backend.graph import OPENAI_MODEL_KEY, format_docs, graph
+from backend.retrieval_graph.graph import graph
+from backend.utils import format_docs
 
 DATASET_NAME = "chat-langchain-qa"
 EXPERIMENT_PREFIX = "chat-langchain-ci"
@@ -19,9 +21,9 @@ SCORE_ANSWER_CORRECTNESS = "answer_correctness_score"
 SCORE_ANSWER_VS_CONTEXT_CORRECTNESS = "answer_vs_context_correctness_score"
 
 # claude sonnet / gpt-4o are a bit too expensive
-JUDGE_MODEL_NAME = "claude-3-haiku-20240307"
+JUDGE_MODEL_NAME = "gpt-4o-mini"
 
-judge_llm = ChatAnthropic(model_name=JUDGE_MODEL_NAME)
+judge_llm = ChatOpenAI(model_name=JUDGE_MODEL_NAME)
 
 
 # Evaluate retrieval
@@ -141,22 +143,11 @@ def evaluate_qa_context(run: Run, example: Example) -> dict:
 # Run evaluation
 
 
-def run_graph(inputs: dict[str, Any], model_name: str) -> dict[str, Any]:
-    results = graph.invoke(
-        {"messages": [("human", inputs["question"])]},
-        config={"configurable": {"model_name": model_name}},
-    )
-    return results
-
-
-def evaluate_model(*, model_name: str):
-    results = evaluate(
-        lambda inputs: run_graph(inputs, model_name=model_name),
-        data=DATASET_NAME,
-        evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
-        experiment_prefix=EXPERIMENT_PREFIX,
-        metadata={"model_name": model_name, "judge_model_name": JUDGE_MODEL_NAME},
-        max_concurrency=4,
+async def run_graph(inputs: dict[str, Any]) -> dict[str, Any]:
+    results = await graph.ainvoke(
+        {
+            "messages": [("human", inputs["question"])],
+        }
     )
     return results
 
@@ -174,7 +165,16 @@ def convert_single_example_results(evaluation_results: EvaluationResults):
 # NOTE: this is more of a regression test
 def test_scores_regression():
     # test most commonly used model
-    experiment_results = evaluate_model(model_name=OPENAI_MODEL_KEY)
+    experiment_results = asyncio.run(
+        aevaluate(
+            run_graph,
+            data=DATASET_NAME,
+            evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
+            experiment_prefix=EXPERIMENT_PREFIX,
+            metadata={"judge_model_name": JUDGE_MODEL_NAME},
+            max_concurrency=4,
+        )
+    )
     experiment_result_df = pd.DataFrame(
         convert_single_example_results(result["evaluation_results"])
         for result in experiment_results._results

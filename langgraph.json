@@ -1,7 +1,7 @@
 {
-    "dependencies": ["."],
-    "graphs": {
-      "chat": "./backend/graph.py:graph"
-    },
-    "env": ".env"
-  }
+  "dependencies": ["."],
+  "graphs": {
+    "chat": "./backend/retrieval_graph/graph.py:graph"
+  },
+  "env": ".env"
+}
