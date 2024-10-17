@@ -187,7 +187,7 @@ export function ThreadHistory(props: ThreadHistoryProps) {
             ) : null}
           </div>
           <div className="overflow-y-auto flex-grow scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
-            {props.isUserThreadsLoading ? (
+            {props.isUserThreadsLoading && !props.userThreads.length ? (
               <div className="flex flex-col gap-1 px-3 pt-3">
                 {Array.from({ length: 25 }).map((_, i) => (
                   <LoadingThread />
@@ -212,7 +212,7 @@ export function ThreadHistory(props: ThreadHistoryProps) {
             </TooltipIconButton>
           </SheetTrigger>
           <SheetContent side="left" className="bg-[#282828] border-none">
-            {props.isUserThreadsLoading ? (
+            {props.isUserThreadsLoading && !props.userThreads.length ? (
               <div className="flex flex-col gap-1 px-3 pt-3">
                 {Array.from({ length: 25 }).map((_, i) => (
                   <LoadingThread />

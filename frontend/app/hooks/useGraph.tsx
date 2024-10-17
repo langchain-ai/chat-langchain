@@ -667,9 +667,19 @@ export function useGraph(userId: string | undefined) {
                 ],
               })
             : undefined;
+          const answerHeaderToolMsg = new AIMessage({
+            content: "",
+            tool_calls: [
+              {
+                name: "answer_header",
+                args: {},
+              },
+            ],
+          });
           return [
             ...(routerMessage ? [routerMessage] : []),
             ...(selectedDocumentsAIMessage ? [selectedDocumentsAIMessage] : []),
+            answerHeaderToolMsg,
             new AIMessage({
               ...msg,
               content: msg.content,
