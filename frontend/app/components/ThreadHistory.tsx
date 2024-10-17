@@ -190,7 +190,7 @@ export function ThreadHistory(props: ThreadHistoryProps) {
             {props.isUserThreadsLoading && !props.userThreads.length ? (
               <div className="flex flex-col gap-1 px-3 pt-3">
                 {Array.from({ length: 25 }).map((_, i) => (
-                  <LoadingThread />
+                  <LoadingThread key={`loading-thread-${i}`} />
                 ))}
               </div>
             ) : (
@@ -215,7 +215,7 @@ export function ThreadHistory(props: ThreadHistoryProps) {
             {props.isUserThreadsLoading && !props.userThreads.length ? (
               <div className="flex flex-col gap-1 px-3 pt-3">
                 {Array.from({ length: 25 }).map((_, i) => (
-                  <LoadingThread />
+                  <LoadingThread key={`loading-thread-${i}`} />
                 ))}
               </div>
             ) : (
