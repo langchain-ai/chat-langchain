@@ -162,9 +162,12 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
     const data = await response.json();
     return {
       symbol: data.symbol,
-      price: data.currentPrice || 'N/A',
+      price: data.currentPrice || data.fiftyDayAverage || 'N/A',
       change:  (data.currentPrice !== null && data.previousClose !== null) 
       ? `${(((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2)}%` 
+      : 'N/A',
+      mchange:  (data.fiftyDayAverage !== null && data.previousClose !== null) 
+      ? `${(((data.previousClose - data.fiftyDayAverage) / data.fiftyDayAverage) * 100).toFixed(2)}%` 
       : 'N/A',
     };
   } catch (error) {
@@ -253,7 +256,7 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
             <Flex key={index.symbol} justify="space-between" color="white">
               <Text width="40%" textAlign="left">{index.symbol}</Text>
               <Text width="30%" textAlign="center">{index.price}</Text>
-              <Text width="30%" textAlign="right" color={getColorForChange(index.change)}>{formatChange(index.change)}</Text>
+              <Text width="30%" textAlign="right" color={getColorForChange(index.mchange)}>{formatChange(index.mchange)}</Text>
             </Flex>
           ))}
         </Box>
