@@ -255,7 +255,7 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
             <Flex key={index.symbol} justify="space-between" color="white">
               <Text width="40%" textAlign="left">{index.symbol}</Text>
               <Text width="30%" textAlign="center">{index.price}</Text>
-              <Text width="30%" textAlign="right" color={getColorForChange(index.mchange)}>{formatChange(index.mchange)}</Text>
+              <Text width="30%" textAlign="right" color={getColorForChange(index.change)}>{formatChange(index.change)}</Text>
             </Flex>
           ))}
         </Box>
