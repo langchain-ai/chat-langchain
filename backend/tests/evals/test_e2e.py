@@ -172,7 +172,7 @@ def test_scores_regression():
             evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
             experiment_prefix=EXPERIMENT_PREFIX,
             metadata={"judge_model_name": JUDGE_MODEL_NAME},
-            max_concurrency=4,
+            max_concurrency=0,
         )
     )
     experiment_result_df = pd.DataFrame(
