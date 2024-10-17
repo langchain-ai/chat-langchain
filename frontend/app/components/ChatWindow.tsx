@@ -250,10 +250,10 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
         <Box>
           <Heading size="sm" color="white" mb={2}>Market Indices</Heading>
           {stockData.slice(0, 3).map((index) => (
-            <Flex key={index.name} justify="space-between" color="white">
-              <Text width="40%" textAlign="left">{index.name}</Text>
-              <Text width="30%" textAlign="center">{index.value}</Text>
-              <Text width="30%" textAlign="right" color={getColorForChange(index.change)}>{index.change}</Text>
+            <Flex key={index.symbol} justify="space-between" color="white">
+              <Text width="40%" textAlign="left">{index.symbol}</Text>
+              <Text width="30%" textAlign="center">{index.price}</Text>
+              <Text width="30%" textAlign="right" color={getColorForChange(index.change)}>{formatChange(index.change)}</Text>
             </Flex>
           ))}
         </Box>
