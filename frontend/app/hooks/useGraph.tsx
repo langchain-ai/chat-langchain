@@ -53,69 +53,24 @@ export interface GraphInput {
   messages?: Record<string, any>[];
 }
 
-export function useGraph(userId: string | undefined) {
+interface UseGraphInput {
+  userId: string | undefined;
+  threadId: string | undefined;
+}
+
+export function useGraph(inputArgs: UseGraphInput) {
   const { toast } = useToast();
-  const { getThreadById } = useThreads(userId);
+  const { getThreadById, setThreadId } = useThreads(inputArgs.userId);
   const { shareRun } = useRuns();
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [assistantId, setAssistantId] = useState<string>();
-  const [threadId, setThreadId] = useState<string>();
   const [selectedModel, setSelectedModel] =
     useState<ModelOptions>("openai/gpt-4o-mini");
-
-  useEffect(() => {
-    if (threadId || typeof window === "undefined" || !userId) return;
-    searchOrCreateThread(userId);
-  }, [userId]);
 
   useEffect(() => {
     if (assistantId || typeof window === "undefined") return;
     getOrCreateAssistant();
   }, []);
-
-  const searchOrCreateThread = async (id: string) => {
-    const threadIdCookie = getCookie("clc_py_thread_id");
-    if (!threadIdCookie) {
-      await createThread(id);
-      return;
-    }
-    // Thread ID is in cookies.
-
-    const thread = await getThreadById(threadIdCookie);
-    if (!thread.values) {
-      // No values = no activity. Can keep.
-      setThreadId(threadIdCookie);
-      return;
-    } else {
-      // Current thread has activity. Create a new thread.
-      await createThread(id);
-      return;
-    }
-  };
-
-  const createThread = async (id: string) => {
-    setMessages([]);
-    const client = createClient();
-    let thread;
-    try {
-      thread = await client.threads.create({
-        metadata: {
-          user_id: id,
-        },
-      });
-      if (!thread || !thread.thread_id) {
-        throw new Error("Thread creation failed.");
-      }
-      setThreadId(thread.thread_id);
-      setCookie("clc_py_thread_id", thread.thread_id);
-    } catch (e) {
-      console.error("Error creating thread", e);
-      toast({
-        title: "Error creating thread.",
-      });
-    }
-    return thread;
-  };
 
   const getOrCreateAssistant = async () => {
     const assistantIdCookie = getCookie("clc_py_assistant_id");
@@ -132,7 +87,7 @@ export function useGraph(userId: string | undefined) {
   };
 
   const streamMessage = async (params: GraphInput) => {
-    if (!threadId) {
+    if (!inputArgs.threadId) {
       toast({
         title: "Error",
         description: "Thread ID not found",
@@ -166,7 +121,7 @@ export function useGraph(userId: string | undefined) {
       }),
     };
 
-    const stream = client.runs.stream(threadId, assistantId, {
+    const stream = client.runs.stream(inputArgs.threadId, assistantId, {
       input,
       streamMode: "events",
       config: {
@@ -608,22 +563,24 @@ export function useGraph(userId: string | undefined) {
     if (runId) {
       // Chain `.then` to not block the stream
       shareRun(runId).then((sharedRunURL) => {
-        setMessages((prevMessages) => {
-          const langSmithToolCallMessage = new AIMessage({
-            content: "",
-            id: uuidv4(),
-            tool_calls: [
-              {
-                name: "langsmith_tool_ui",
-                args: { sharedRunURL },
-                id: sharedRunURL
-                  ?.split("https://smith.langchain.com/public/")[1]
-                  .split("/")[0],
-              },
-            ],
+        if (sharedRunURL) {
+          setMessages((prevMessages) => {
+            const langSmithToolCallMessage = new AIMessage({
+              content: "",
+              id: uuidv4(),
+              tool_calls: [
+                {
+                  name: "langsmith_tool_ui",
+                  args: { sharedRunURL },
+                  id: sharedRunURL
+                    ?.split("https://smith.langchain.com/public/")[1]
+                    .split("/")[0],
+                },
+              ],
+            });
+            return [...prevMessages, langSmithToolCallMessage];
           });
-          return [...prevMessages, langSmithToolCallMessage];
-        });
+        }
       });
     }
   };
@@ -725,12 +682,10 @@ export function useGraph(userId: string | undefined) {
   return {
     messages,
     assistantId,
-    threadId,
     selectedModel,
     setSelectedModel,
     setMessages,
     streamMessage,
-    createThread,
     switchSelectedThread,
   };
 }

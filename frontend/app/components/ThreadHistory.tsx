@@ -1,12 +1,12 @@
 import { isToday, isYesterday, isWithinInterval, subDays } from "date-fns";
-import { dummyThreads } from "../utils/dummy";
 import { TooltipIconButton } from "./ui/assistant-ui/tooltip-icon-button";
 import { Button } from "./ui/button";
-import { SquarePen, History } from "lucide-react";
+import { SquarePen, History, Trash2 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { ThreadActual } from "../hooks/useThreads";
 import { useToast } from "../hooks/use-toast";
 import { Skeleton } from "./ui/skeleton";
+import { useEffect, useState } from "react";
 
 interface ThreadHistoryProps {
   isUserThreadsLoading: boolean;
@@ -15,34 +15,60 @@ interface ThreadHistoryProps {
   userThreads: ThreadActual[];
   userId: string | undefined;
   createThread: (id: string) => Promise<any>;
+  clearMessages: () => void;
   assistantId: string | undefined;
   switchSelectedThread: (thread: ThreadActual) => void;
   getUserThreads: (id: string) => Promise<void>;
+  deleteThread: (id: string) => Promise<void>;
 }
 
 interface ThreadProps {
   id: string;
   onClick: () => void;
+  onDelete: () => void;
   label: string;
   createdAt: Date;
 }
 
-const Thread = (props: ThreadProps) => (
-  <Button
-    className="px-2 hover:bg-[#393939] hover:text-white justify-start"
-    size="sm"
-    variant="ghost"
-    onClick={props.onClick}
-  >
-    <p className="truncate ... text-sm font-light">{props.label}</p>
-  </Button>
-);
+const Thread = (props: ThreadProps) => {
+  const [isHovering, setIsHovering] = useState(false);
+
+  return (
+    <div
+      className="flex flex-row gap-0 items-center justify-start w-full"
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+    >
+      <Button
+        className="px-2 hover:bg-[#393939] hover:text-white justify-start items-center flex-grow min-w-[191px] pr-0"
+        size="sm"
+        variant="ghost"
+        onClick={props.onClick}
+      >
+        <p className="truncate text-sm font-light w-full text-left">
+          {props.label}
+        </p>
+      </Button>
+      {isHovering && (
+        <TooltipIconButton
+          tooltip="Delete thread"
+          variant="ghost"
+          className="hover:bg-[#373737] flex-shrink-0 p-2"
+          onClick={props.onDelete}
+        >
+          <Trash2 className="w-4 h-4 text-[#575757] hover:text-red-500 transition-colors ease-in" />
+        </TooltipIconButton>
+      )}
+    </div>
+  );
+};
 
 const LoadingThread = () => <Skeleton className="w-full h-8 bg-[#373737]" />;
 
 const convertThreadActualToThreadProps = (
   thread: ThreadActual,
   switchSelectedThread: (thread: ThreadActual) => void,
+  deleteThread: (id: string) => void,
 ): ThreadProps => ({
   id: thread.thread_id,
   label: thread.values?.messages?.[0].content || "Untitled",
@@ -50,11 +76,15 @@ const convertThreadActualToThreadProps = (
   onClick: () => {
     return switchSelectedThread(thread);
   },
+  onDelete: () => {
+    return deleteThread(thread.thread_id);
+  },
 });
 
 const groupThreads = (
   threads: ThreadActual[],
   switchSelectedThread: (thread: ThreadActual) => void,
+  deleteThread: (id: string) => void,
 ) => {
   const today = new Date();
   const yesterday = subDays(today, 1);
@@ -67,14 +97,18 @@ const groupThreads = (
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       )
-      .map((t) => convertThreadActualToThreadProps(t, switchSelectedThread)),
+      .map((t) =>
+        convertThreadActualToThreadProps(t, switchSelectedThread, deleteThread),
+      ),
     yesterday: threads
       .filter((thread) => isYesterday(new Date(thread.created_at)))
       .sort(
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       )
-      .map((t) => convertThreadActualToThreadProps(t, switchSelectedThread)),
+      .map((t) =>
+        convertThreadActualToThreadProps(t, switchSelectedThread, deleteThread),
+      ),
     lastSevenDays: threads
       .filter((thread) =>
         isWithinInterval(new Date(thread.created_at), {
@@ -86,14 +120,18 @@ const groupThreads = (
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       )
-      .map((t) => convertThreadActualToThreadProps(t, switchSelectedThread)),
+      .map((t) =>
+        convertThreadActualToThreadProps(t, switchSelectedThread, deleteThread),
+      ),
     older: threads
       .filter((thread) => new Date(thread.created_at) < sevenDaysAgo)
       .sort(
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       )
-      .map((t) => convertThreadActualToThreadProps(t, switchSelectedThread)),
+      .map((t) =>
+        convertThreadActualToThreadProps(t, switchSelectedThread, deleteThread),
+      ),
   };
 };
 
@@ -147,6 +185,7 @@ export function ThreadHistory(props: ThreadHistoryProps) {
   const groupedThreads = groupThreads(
     props.userThreads,
     props.switchSelectedThread,
+    props.deleteThread,
   );
 
   const createThread = async () => {
@@ -163,6 +202,8 @@ export function ThreadHistory(props: ThreadHistoryProps) {
     if (currentThread && !currentThread.values && props.isEmpty) {
       return;
     }
+
+    props.clearMessages();
     await props.createThread(props.userId);
     // Re-fetch threads so that the new thread shows up.
     await props.getUserThreads(props.userId);

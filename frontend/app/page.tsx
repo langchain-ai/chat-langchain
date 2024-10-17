@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   AppendMessage,
   AssistantRuntimeProvider,
@@ -26,18 +26,25 @@ export default function ContentComposerChatInterface(): React.ReactElement {
   const { toast } = useToast();
   const { userId } = useUser();
   const {
+    userThreads,
+    getUserThreads,
+    isUserThreadsLoading,
+    createThread,
+    threadId: currentThread,
+    deleteThread,
+  } = useThreads(userId);
+  const {
     messages,
     setMessages,
     streamMessage,
     assistantId,
-    createThread,
-    threadId: currentThread,
     switchSelectedThread,
     selectedModel,
     setSelectedModel,
-  } = useGraph(userId);
-  const { userThreads, getUserThreads, isUserThreadsLoading } =
-    useThreads(userId);
+  } = useGraph({
+    userId,
+    threadId: currentThread,
+  });
   const [isRunning, setIsRunning] = useState(false);
 
   const isSubmitDisabled = !userId || !assistantId || !currentThread;
@@ -93,7 +100,7 @@ export default function ContentComposerChatInterface(): React.ReactElement {
     isRunning,
     onNew,
   });
-
+  console.log("messages.length", messages.length);
   return (
     <div className="overflow-hidden w-full flex md:flex-row flex-col relative">
       {messages.length > 0 ? (
@@ -115,6 +122,8 @@ export default function ContentComposerChatInterface(): React.ReactElement {
           userId={userId}
           createThread={createThread}
           assistantId={assistantId}
+          deleteThread={(id) => deleteThread(id, () => setMessages([]))}
+          clearMessages={() => setMessages([])}
         />
       </div>
       <div className="w-full h-full overflow-hidden">
