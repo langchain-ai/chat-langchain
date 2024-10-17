@@ -6,7 +6,7 @@ Functions:
 """
 
 import uuid
-from typing import Any, Optional, Union, Literal
+from typing import Any, Literal, Optional, Union
 
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
