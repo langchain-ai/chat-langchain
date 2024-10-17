@@ -3,11 +3,14 @@ import { BookOpenText, Plus } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { DocumentDialog } from "./DocumentDialog";
 import { DocumentCard, Document } from "./DocumentCard";
+import { useCallback } from "react";
 
 export const useSelectedDocumentsUI = () =>
   useAssistantToolUI({
     toolName: "selected_documents",
-    render: (input) => {
+    // Wrap the component in a useCallback to keep the identity stable.
+    // Allows the component to be interactable and not be re-rendered on every state change.
+    render: useCallback((input) => {
       if (!input.args?.documents || input.args.documents.length === 0) {
         return null;
       }
@@ -75,5 +78,5 @@ export const useSelectedDocumentsUI = () =>
           </div>
         </div>
       );
-    },
+    }, []),
   });

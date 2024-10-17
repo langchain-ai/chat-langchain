@@ -1,6 +1,7 @@
 import { useAssistantToolUI } from "@assistant-ui/react";
 import { Progress } from "./ui/progress";
 import { cn } from "../utils/cn";
+import { useCallback } from "react";
 
 export const stepToProgressFields = (step: number) => {
   switch (step) {
@@ -40,7 +41,9 @@ export const stepToProgressFields = (step: number) => {
 export const useProgressToolUI = () =>
   useAssistantToolUI({
     toolName: "progress",
-    render: (input) => {
+    // Wrap the component in a useCallback to keep the identity stable.
+    // Allows the component to be interactable and not be re-rendered on every state change.
+    render: useCallback((input) => {
       const { text, progress } = stepToProgressFields(input.args.step);
 
       return (
@@ -60,5 +63,5 @@ export const useProgressToolUI = () =>
           </p>
         </div>
       );
-    },
+    }, []),
   });

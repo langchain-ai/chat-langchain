@@ -11,6 +11,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { TooltipIconButton } from "./ui/assistant-ui/tooltip-icon-button";
 import { DocumentCard, Document } from "./DocumentCard";
+import { useCallback } from "react";
 
 type Question = {
   question: string;
@@ -103,7 +104,9 @@ const QuestionCard = ({ question }: { question: Question }) => {
 export const useGeneratingQuestionsUI = () =>
   useAssistantToolUI({
     toolName: "generating_questions",
-    render: (input) => {
+    // Wrap the component in a useCallback to keep the identity stable.
+    // Allows the component to be interactable and not be re-rendered on every state change.
+    render: useCallback((input) => {
       if (!input.args?.questions || input.args.questions.length === 0) {
         return null;
       }
@@ -128,5 +131,5 @@ export const useGeneratingQuestionsUI = () =>
           </div>
         </div>
       );
-    },
+    }, []),
   });
