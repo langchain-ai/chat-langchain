@@ -190,6 +190,10 @@ const fetchAndUpdateStockData = async (setStockData: SetStockDataFunction) => {
   ]);
 };
 
+console.log("Symbol:", data.symbol);
+console.log("Current Price:", data.currentPrice);
+console.log("Previous Close:", data.previousClose);
+console.log("Computed Change:", change);
 
 interface StockPanelProps {
   isVisible: boolean;
@@ -252,9 +256,9 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
         <Box>
           <Heading size="sm" color="white" mb={2}>Market Indices</Heading>
           {stockData.slice(0, 3).map((index) => (
-            <Flex key={index.symbol} justify="space-between" color="white">
-              <Text width="40%" textAlign="left">{index.symbol}</Text>
-              <Text width="30%" textAlign="center">{index.price}</Text>
+            <Flex key={index.name} justify="space-between" color="white">
+              <Text width="30%" textAlign="left">{index.symbol}</Text>
+              <Text width="40%" textAlign="center">{index.price}</Text>
               <Text width="30%" textAlign="right" color={getColorForChange(index.change)}>{formatChange(index.change)}</Text>
             </Flex>
           ))}
