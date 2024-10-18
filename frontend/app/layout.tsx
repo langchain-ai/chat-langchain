@@ -19,7 +19,7 @@ export default function RootLayout({
       <body className={`${inter.className} h-full`}>
         <div
           className="flex flex-col h-full w-full"
-          style={{ background: "rgb(38, 38, 41)" }}
+          style={{ background: "rgb(10, 17, 40)" }}
         >
           {children}
         </div>
