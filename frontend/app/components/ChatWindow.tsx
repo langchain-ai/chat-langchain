@@ -541,7 +541,7 @@ export function ChatWindow() {
           left="0"
           top="0"
           bottom="0"
-          bg="gray.800"
+          bg="blue.800"
           zIndex="5"
           transform={[
             isChatListVisible ? "translateX(0)" : "translateX(-100%)",
