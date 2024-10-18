@@ -11,7 +11,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
         <Card
           onMouseUp={handleClick}
           width={"48%"}
-          //backgroundColor={"rgb(58, 58, 61)"}
+          backgroundColor={"transparent"}
           _hover={{ backgroundColor: "rgb(78,78,81)" }}
           cursor={"pointer"}
           justifyContent={"center"}
@@ -32,7 +32,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
         <Card
           onMouseUp={handleClick}
           width={"48%"}
-          backgroundColor={"rgb(58, 58, 61)"}
+          backgroundColor={"transparent"}
           _hover={{ backgroundColor: "rgb(78,78,81)" }}
           cursor={"pointer"}
           justifyContent={"center"}
@@ -54,7 +54,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
         <Card
           onMouseUp={handleClick}
           width={"48%"}
-          backgroundColor={"rgb(58, 58, 61)"}
+          backgroundColor={"transparent"}
           _hover={{ backgroundColor: "rgb(78,78,81)" }}
           cursor={"pointer"}
           justifyContent={"center"}
@@ -75,7 +75,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
         <Card
           onMouseUp={handleClick}
           width={"48%"}
-          backgroundColor={"rgb(58, 58, 61)"}
+          backgroundColor={"transparent"}
           _hover={{ backgroundColor: "rgb(78,78,81)" }}
           cursor={"pointer"}
           justifyContent={"center"}
