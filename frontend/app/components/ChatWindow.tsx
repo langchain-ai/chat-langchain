@@ -190,7 +190,8 @@ const change = (!isNaN(parseFloat(data.currentPrice)) && !isNaN(parseFloat(data.
   ? `${(((parseFloat(data.currentPrice) - parseFloat(data.previousClose)) / parseFloat(data.previousClose)) * 100).toFixed(2)}%`
   : (!isNaN(parseFloat(data.fiftyDayAverage)) && !isNaN(parseFloat(data.previousClose)))
     ? `${(((parseFloat(data.fiftyDayAverage) - parseFloat(data.previousClose)) / parseFloat(data.previousClose)) * 100).toFixed(2)}%`
-    : 'N/A';
+    : 'N/A',
+    };
   } catch (error) {
     console.error('Fetch stock data failed:', error);
     return null;
