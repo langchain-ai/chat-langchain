@@ -160,6 +160,14 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
     if (!response.ok) throw new Error('Network response was not ok');
 
     const data = await response.json();
+    console.log('API Data:',data);
+
+        const change = (data.currentPrice !== null && data.previousClose !== null)
+      ? `${(((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2)}%`
+      : (parseFloat(data.fiftyDayAverage) !== null && data.previousClose !== null)
+        ? `${(((parseFloat(data.previousClose) - parseFloat(data.fiftyDayAverage)) / parseFloat(data.fiftyDayAverage)) * 100).toFixed(2)}%`
+        : 'N/A';
+    console.log('Change:',change);
     return {
       symbol: data.symbol,
       price: data.currentPrice || data.fiftyDayAverage || 'N/A',
