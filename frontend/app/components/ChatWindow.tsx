@@ -35,6 +35,11 @@ import { useLangGraphClient } from "../hooks/useLangGraphClient";
 import { useStreamState } from "../hooks/useStreamState";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 
+import { RegisterForm } from "./RegisterForm";
+import { AboutUs } from "./AboutUs";
+import { RichMasterFunds } from "./RichMasterFunds";
+import { PricingPlan } from "./PricingPlan";
+
 const MODEL_TYPES = ["openai_gpt_4o_mini", "anthropic_claude_3_haiku"];
 
 const defaultLlmValue =
@@ -445,6 +450,11 @@ export function ChatWindow() {
 
   const selectThread = useCallback(
     async (id: string | null) => {
+      // Reset registration state when selecting a chat thread
+      setIsRegistering(false);  // <-- Add this line to reset the registration state
+      setIsAboutUs(false);
+      setIsRichMasterFunds(false);
+      setIsPricingPlan(false);
       if (!id) {
         const thread = await createThread("New chat");
         insertUrlParam("threadId", thread["thread_id"]);
@@ -468,6 +478,43 @@ export function ChatWindow() {
 
   const toggleChatList = () => setIsChatListVisible(!isChatListVisible);
   const toggleStockPanel = () => setIsStockPanelVisible(!isStockPanelVisible);
+
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isAboutUs, setIsAboutUs] = useState(false);
+  const [isRichMasterFunds, setIsRichMasterFunds] = useState(false);
+  const [isPricingPlan, setIsPricingPlan] = useState(false);
+
+  const enterRegister = useCallback(() => {
+    setIsRegistering(true);
+    setIsRichMasterFunds(false);
+    setIsPricingPlan(false)
+    setIsChatListVisible(false);
+    setIsAboutUs(false);
+  }, []);
+
+  const enterAboutUs = useCallback(() => {
+    setIsRegistering(false);
+    setIsRichMasterFunds(false);
+    setIsPricingPlan(false);
+    setIsAboutUs(true);
+    setIsChatListVisible(false);
+  }, []);
+
+  const enterRichMasterFunds = useCallback(() => {
+    setIsRegistering(false);
+    setIsRichMasterFunds(true);
+    setIsPricingPlan(false);
+    setIsAboutUs(false);
+    setIsChatListVisible(false);
+  }, []);
+
+  const enterPricingPlan = useCallback(() => {
+    setIsRegistering(false);
+    setIsRichMasterFunds(false);
+    setIsPricingPlan(true);
+    setIsAboutUs(false);
+    setIsChatListVisible(false);
+  }, []);
 
   return (
     <Flex direction="column" h="100vh" overflow="hidden" w="full">
@@ -510,6 +557,10 @@ export function ChatWindow() {
             deleteChat={deleteThreadAndReset}
             areThreadsLoading={areThreadsLoading}
             loadMoreThreads={loadMoreThreads}
+            enterRegister={enterRegister}
+            enterAboutUs={enterAboutUs}
+            enterRichMasterFunds={enterRichMasterFunds}
+            enterPricingPlan={enterPricingPlan}
           />
         </Box>
 
@@ -534,7 +585,15 @@ export function ChatWindow() {
             right="4"
             zIndex="10"
           />
-          {areMessagesLoading ? (
+          {isRegistering ? (
+            <RegisterForm />
+          ) : isRichMasterFunds ? (
+            <RichMasterFunds />
+          ) : isPricingPlan ? (
+            <PricingPlan />
+          ): isAboutUs ? (
+            <AboutUs />
+          ): areMessagesLoading ? (
             <Spinner alignSelf="center" my="2" />
           ) : (
             <Flex direction="column" flex="1" overflow="hidden">
