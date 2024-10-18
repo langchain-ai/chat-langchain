@@ -162,6 +162,12 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
     const data = await response.json();
     console.log('API Data:',data);
 
+    const fiftyDayAverage=data.fiftyDayAverage;
+    const previousClose=data.previousClose;
+
+    console.log('fiftyDayAverage:',data.fiftyDayAverage);
+    console.log('previousClose:',data.previousClose);
+
         const change = (data.currentPrice !== null && data.previousClose !== null)
       ? `${(((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2)}%`
       : (parseFloat(data.fiftyDayAverage) !== null && data.previousClose !== null)
