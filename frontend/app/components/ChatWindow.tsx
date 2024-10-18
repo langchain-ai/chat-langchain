@@ -160,37 +160,14 @@ const fetchStockDataFromApi = async (symbol: string): Promise<StockData | null> 
     if (!response.ok) throw new Error('Network response was not ok');
 
     const data = await response.json();
-    console.log('API Data:',data);
-
-    const fiftyDayAverage=data.fiftyDayAverage;
-    const previousClose=data.previousClose;
-
-    console.log('fiftyDayAverage:',data.fiftyDayAverage);
-    console.log('previousClose:',data.previousClose);
-
-const change = (!isNaN(parseFloat(data.currentPrice)) && !isNaN(parseFloat(data.previousClose)))
-  ? `${(((parseFloat(data.currentPrice) - parseFloat(data.previousClose)) / parseFloat(data.previousClose)) * 100).toFixed(2)}%`
-  : (!isNaN(parseFloat(data.fiftyDayAverage)) && !isNaN(parseFloat(data.previousClose)))
-    ? `${(((parseFloat(data.fiftyDayAverage) - parseFloat(data.previousClose)) / parseFloat(data.previousClose)) * 100).toFixed(2)}%`
-    : 'N/A';
-    console.log('Change:',change);
     return {
       symbol: data.symbol,
       price: data.currentPrice || data.fiftyDayAverage || 'N/A',
-  //     change:  (data.currentPrice !== null && data.previousClose !== null ) 
-  // ? `${(((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2)}%` 
-  // : 'N/A',
-  //     change : (data.currentPrice !== null && data.previousClose !== null)
-  // ? `${(((data.currentPrice - data.previousClose) / data.previousClose) * 100).toFixed(2)}%`
-  // : (data.fiftyDayAverage !== null && data.previousClose !== null)
-  //   ? `${((( data.fiftyDayAverage - data.previousClose ) / data.previousClose ) * 100).toFixed(2)}%`
-  //   : 'N/A',
-  //   };
       change : (!isNaN(parseFloat(data.currentPrice)) && !isNaN(parseFloat(data.previousClose)))
-  ? `${(((parseFloat(data.currentPrice) - parseFloat(data.previousClose)) / parseFloat(data.previousClose)) * 100).toFixed(2)}%`
-  : (!isNaN(parseFloat(data.fiftyDayAverage)) && !isNaN(parseFloat(data.previousClose)))
-    ? `${(((parseFloat(data.fiftyDayAverage) - parseFloat(data.previousClose)) / parseFloat(data.previousClose)) * 100).toFixed(2)}%`
-    : 'N/A',
+      ? `${(((parseFloat(data.currentPrice) - parseFloat(data.previousClose)) / parseFloat(data.previousClose)) * 100).toFixed(2)}%`
+      : (!isNaN(parseFloat(data.fiftyDayAverage)) && !isNaN(parseFloat(data.previousClose)))
+      ? `${(((parseFloat(data.fiftyDayAverage) - parseFloat(data.previousClose)) / parseFloat(data.previousClose)) * 100).toFixed(2)}%`
+      : 'N/A',
     };
   } catch (error) {
     console.error('Fetch stock data failed:', error);
