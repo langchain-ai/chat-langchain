@@ -11,7 +11,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
         <Card
           onMouseUp={handleClick}
           width={"48%"}
-          backgroundColor={"rgb(58, 58, 61)"}
+          //backgroundColor={"rgb(58, 58, 61)"}
           _hover={{ backgroundColor: "rgb(78,78,81)" }}
           cursor={"pointer"}
           justifyContent={"center"}
@@ -88,7 +88,7 @@ export function EmptyState(props: { onChoice: (question: string) => any }) {
               color={"gray.200"}
               textAlign={"center"}
             >
-              What are the key factors affecting Tesla (TSLA) stock performance recently?
+              What are the recent trends and developments in the Nasdaq?
             </Heading>
           </CardHeader>
         </Card>
