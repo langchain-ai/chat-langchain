@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { List, ListItem, Spacer, Text, Button } from "@chakra-ui/react";
-import { PlusSquareIcon, DeleteIcon } from "@chakra-ui/icons";
+import { PlusSquareIcon, DeleteIcon, ChatIcon, InfoIcon, SunIcon, LockIcon, CheckIcon } from "@chakra-ui/icons";
 
 import { ThreadListProps } from "../hooks/useThreadList";
 import { useThread } from "../hooks/useThread";
@@ -14,8 +14,16 @@ export function ChatList(props: {
   loadMoreThreads: ThreadListProps["loadMoreThreads"];
   enterChat: (id: string | null) => void;
   deleteChat: (id: string) => void;
+  enterRegister: () => void;
+  enterAboutUs: () => void;
+  enterRichMasterFunds: () => void;
+  enterPricingPlan: () => void;
 }) {
   const { currentThread } = useThread(props.userId);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isAboutUs, setIsAboutUs] = useState(false);
+  const [isRichMasterFunds, setIsRichMasterFunds] = useState(false);
+  const [isPricingPlan, setIsPricingPlan] = useState(false);
 
   const [prevScrollTop, setPrevScrollTop] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
@@ -48,16 +56,34 @@ export function ChatList(props: {
   return (
     <>
       <Button
-        backgroundColor={"rgb(58, 58, 61)"}
-        _hover={{ backgroundColor: "rgb(78,78,81)" }}
-        onClick={() => props.enterChat(null)}
+        backgroundColor={"#2a4365"}
+        _hover={{ backgroundColor: "rgb(68,70,84)" }}
+        onClick={() => {
+          props.enterChat(null);
+          setIsRegistering(false);  // <-- Reset registration state when starting a new chat
+          setIsAboutUs(false)
+          setIsRichMasterFunds(false);
+          setIsPricingPlan(false);
+        }}
       >
         <PlusSquareIcon color={"white"} marginRight={"4px"} />
         <Text color={"white"}>New chat</Text>
       </Button>
-      <Text color={"white"} marginTop={"24px"} fontWeight={"semibold"}>
-        Previous chats
-      </Text>
+  
+      <Button
+        backgroundColor={"#2a4365"}
+        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+        onClick={() => {
+          props.loadMoreThreads();
+          setIsRegistering(false);  // <-- Reset registration state when loading previous chats
+          setIsAboutUs(false)
+          setIsRichMasterFunds(false);
+          setIsPricingPlan(false);
+        }}
+      >
+        <ChatIcon  color={"white"} marginRight={"4px"} />
+        <Text color={"white"}>Previous chats</Text>
+      </Button>
       <List ref={listRef} overflow={"auto"}>
         {props.threads?.map((thread, idx) => (
           <Fragment key={thread.thread_id}>
@@ -104,6 +130,46 @@ export function ChatList(props: {
           </Fragment>
         ))}
       </List>
+
+      <Button
+        backgroundColor={"#2a4365"}
+        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+        onClick={props.enterRichMasterFunds}
+        mt={4}
+      >
+        <SunIcon color={"white"} marginRight={"4px"} />
+        <Text color={"white"}>RichMaster Fund</Text>
+      </Button>
+      <Button
+        backgroundColor={"#2a4365"}
+        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+        onClick={props.enterPricingPlan}
+        mt={4}
+      >
+         <LockIcon color={"white"} marginRight={"4px"} />
+        <Text color={"white"}>Pricing Plan</Text>
+      </Button>
+
+      <Button
+        backgroundColor={"#2a4365"}
+        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+        onClick={props.enterRegister}
+        mt={4}
+      >
+        <CheckIcon color={"white"} marginRight={"4px"} />
+        <Text color={"white"}>Register</Text>
+      </Button>
+
+      <Button
+        backgroundColor={"#2a4365"}
+        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+        onClick={props.enterAboutUs}
+        mt={4}
+      >
+        <InfoIcon color={"white"} marginRight={"4px"} />
+        <Text color={"white"}>About Us</Text>
+      </Button>
+      
     </>
   );
 }
