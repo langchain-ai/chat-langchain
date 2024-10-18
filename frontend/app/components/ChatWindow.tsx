@@ -139,13 +139,13 @@ type SetStockDataFunction = React.Dispatch<React.SetStateAction<StockData[]>>;
 const STOCK_API_URL = 'https://yfinance-fza5dthrg6dxd2c3.southeastasia-01.azurewebsites.net/api';
 const STOCK_API_KEY = 'STOCK_API_KEY';
 
-const VALID_STOCK_SYMBOLS = ["DJIA","NDX","SPX","AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "JNJ"];
+const VALID_STOCK_SYMBOLS = ["DIA","NDX","SPY","AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "JPM", "V", "JNJ"];
 
 // Initial mock data
 const initialMockStockData: StockData[] = [
-  { name: "Dow Jones", value: "34,721.91", change: "+0.50%", symbol: "DJIA", price: "34,721.91" },
+  { name: "Dow Jones", value: "34,721.91", change: "+0.50%", symbol: "DIA", price: "34,721.91" },
   { name: "NASDAQ-100", value: "15,785.32", change: "-0.15%", symbol: "NDX", price: "15,785.32" },
-  { name: "S&P 500", value: "4,509.23", change: "+0.20%", symbol: "SPX", price: "4,509.23" },
+  { name: "S&P 500", value: "4,509.23", change: "+0.20%", symbol: "SPY", price: "4,509.23" },
   { symbol: "AAPL", price: "150.25", change: "+1.25%" },
   { symbol: "MSFT", price: "305.15", change: "+0.75%" },
   { symbol: "GOOGL", price: "2750.80", change: "-0.20%" },
