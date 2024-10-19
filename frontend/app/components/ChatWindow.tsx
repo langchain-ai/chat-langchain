@@ -637,7 +637,7 @@ export function ChatWindow() {
             overflow="hidden" // Hide any overflowing text
             maxWidth="calc(100% - 28px)" // Adjust the maximum width to account for the delete icon
           >
-            {thread.metadata?.name || "Untitled"}
+            {(thread.metadata?.name as string) || "Untitled"}
           </Text>
           <DeleteIcon
             display="none"
