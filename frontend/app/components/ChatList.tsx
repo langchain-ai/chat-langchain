@@ -1,11 +1,12 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { List, ListItem, Spacer, Text, Button } from "@chakra-ui/react";
+import { List, ListItem, Spacer, Text, Button, visuallyHiddenStyle, VStack } from "@chakra-ui/react";
 import { PlusSquareIcon, DeleteIcon, ChatIcon, InfoIcon, SunIcon, LockIcon, CheckIcon } from "@chakra-ui/icons";
 
 import { ThreadListProps } from "../hooks/useThreadList";
 import { useThread } from "../hooks/useThread";
+import { Vast_Shadow } from "next/font/google";
 
 export function ChatList(props: {
   userId: string;
@@ -18,12 +19,15 @@ export function ChatList(props: {
   enterAboutUs: () => void;
   enterRichMasterFunds: () => void;
   enterPricingPlan: () => void;
+  enterPreviousChats: () => void;
 }) {
   const { currentThread } = useThread(props.userId);
   const [isRegistering, setIsRegistering] = useState(false);
   const [isAboutUs, setIsAboutUs] = useState(false);
   const [isRichMasterFunds, setIsRichMasterFunds] = useState(false);
   const [isPricingPlan, setIsPricingPlan] = useState(false);
+  const [isPreviousChats, setIsPreviousChats] = useState(false);
+
 
   const [prevScrollTop, setPrevScrollTop] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
@@ -54,7 +58,7 @@ export function ChatList(props: {
   }, [props.areThreadsLoading]);
 
   return (
-    <>
+    <VStack spacing={4} align="stretch">
       <Button
         backgroundColor={"#2a4365"}
         _hover={{ backgroundColor: "rgb(68,70,84)" }}
@@ -64,6 +68,7 @@ export function ChatList(props: {
           setIsAboutUs(false)
           setIsRichMasterFunds(false);
           setIsPricingPlan(false);
+          setIsPreviousChats(false)
         }}
       >
         <PlusSquareIcon color={"white"} marginRight={"4px"} />
@@ -74,62 +79,17 @@ export function ChatList(props: {
         backgroundColor={"#2a4365"}
         _hover={{ backgroundColor: "rgb(78,78,81)" }}
         onClick={() => {
-          props.loadMoreThreads();
-          setIsRegistering(false);  // <-- Reset registration state when loading previous chats
-          setIsAboutUs(false)
+          props.enterPreviousChats();
+          setIsRegistering(false);
+          setIsAboutUs(false);
           setIsRichMasterFunds(false);
           setIsPricingPlan(false);
+          setIsPreviousChats(false)
         }}
       >
-        <ChatIcon  color={"white"} marginRight={"4px"} />
+        <ChatIcon color={"white"} marginRight={"4px"} />
         <Text color={"white"}>Previous chats</Text>
       </Button>
-      <List ref={listRef} overflow={"auto"}>
-        {props.threads?.map((thread, idx) => (
-          <Fragment key={thread.thread_id}>
-            <ListItem
-              role="group"
-              onClick={() => props.enterChat(thread.thread_id)}
-              style={{ width: "100%" }}
-              backgroundColor={
-                currentThread?.thread_id === thread.thread_id
-                  ? "rgb(78,78,81)"
-                  : "rgb(58, 58, 61)"
-              }
-              _hover={{ backgroundColor: "rgb(78,78,81)" }}
-              borderRadius={"8px"}
-              paddingLeft={"8px"}
-              paddingRight={"8px"}
-              position={"relative"}
-            >
-              <Text color={"white"} style={{ width: "100%" }}>
-                {(thread.metadata?.["name"] as string) ?? "New chat"}
-              </Text>
-              <DeleteIcon
-                display={"none"}
-                _groupHover={{ display: "block" }}
-                position={"absolute"}
-                right={"12px"}
-                bottom={"18px"}
-                cursor={"pointer"}
-                color={"grey"}
-                height={"14px"}
-                width={"14px"}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (confirm("Delete chat?")) {
-                    props.deleteChat(thread.thread_id);
-                  }
-                }}
-              />
-            </ListItem>
-            {idx !== (props.threads?.length ?? 0 - 1) && (
-              <Spacer height={"4px"} />
-            )}
-          </Fragment>
-        ))}
-      </List>
 
       <Button
         backgroundColor={"#2a4365"}
@@ -170,6 +130,6 @@ export function ChatList(props: {
         <Text color={"white"}>About Us</Text>
       </Button>
       
-    </>
+    </VStack>
   );
 }
