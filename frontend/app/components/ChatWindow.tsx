@@ -613,60 +613,60 @@ export function ChatWindow() {
           ): isAboutUs ? (
             <AboutUs />
           ): isPreviousChats ? (
-            <Box flex="1" overflowY="auto" mb="2" maxH={["60vh", "60vh", "calc(100vh - 300px)"]} px={4}>
-  {threads?.length ? (
-    threads.map((thread, idx) => (
-      <Fragment key={thread.thread_id}>
-        <Box
-          role="group"
-          onClick={() => selectThread(thread.thread_id)}
-          cursor="pointer"
-          p={2}
-          borderBottom="1px solid"
-          borderColor="gray.700"
-          backgroundColor={currentThread?.thread_id === thread.thread_id ? "gray.700" : "gray.800"}
-          _hover={{ backgroundColor: "gray.700" }}
-          position="relative"
-          maxWidth="100%" // Add a maximum width to prevent overflow
-          overflow="hidden" // Hide any overflowing content
-        >
-          <Text
-            color="white"
-            whiteSpace="nowrap" // Prevent text from wrapping to the next line
-            textOverflow="ellipsis" // Truncate text with an ellipsis if it exceeds the width
-            overflow="hidden" // Hide any overflowing text
-            maxWidth="calc(100% - 28px)" // Adjust the maximum width to account for the delete icon
-          >
-            {(thread.metadata?.name as string) || "Untitled"}
-          </Text>
-          <DeleteIcon
-            display="none"
-            _groupHover={{ display: "block" }}
-            position="absolute"
-            right="12px"
-            top="50%"
-            transform="translateY(-50%)"
-            cursor="pointer"
-            color="gray.400"
-            height="14px"
-            width="14px"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (confirm("Delete chat?")) {
-                props.deleteChat(thread.thread_id);
-              }
-            }}
-          />
-        </Box>
-        {idx !== threads.length - 1 && <Box height="4px" />}
-      </Fragment>
-    ))
-  ) : (
-    <Text color="gray.400" textAlign="center" mt={4}>
-      No previous chats found.
-    </Text>
-  )}
-</Box>
+                        <Box flex="1" overflowY="auto" mb="2" maxH={["60vh", "60vh", "calc(100vh - 300px)"]} px={4}>
+              {threads?.length ? (
+                threads.map((thread, idx) => (
+                  <Fragment key={thread.thread_id}>
+                    <Box
+                      role="group"
+                      onClick={() => selectThread(thread.thread_id)}
+                      cursor="pointer"
+                      p={2}
+                      borderBottom="1px solid"
+                      borderColor="gray.700"
+                      backgroundColor={currentThread?.thread_id === thread.thread_id ? "gray.700" : "gray.800"}
+                      _hover={{ backgroundColor: "gray.700" }}
+                      position="relative"
+                      maxWidth="100%"
+                      overflow="hidden"
+                    >
+                      <Text
+                        color="white"
+                        whiteSpace="nowrap"
+                        textOverflow="ellipsis"
+                        overflow="hidden"
+                        maxWidth="calc(100% - 28px)"
+                      >
+                        {thread.metadata?.name || "Untitled"}
+                      </Text>
+                      <DeleteIcon
+                        display="none"
+                        _groupHover={{ display: "block" }}
+                        position="absolute"
+                        right="12px"
+                        top="50%"
+                        transform="translateY(-50%)"
+                        cursor="pointer"
+                        color="gray.400"
+                        height="14px"
+                        width="14px"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm("Delete chat?")) {
+                            deleteThreadAndReset(thread.thread_id);
+                          }
+                        }}
+                      />
+                    </Box>
+                    {idx !== threads.length - 1 && <Box height="4px" />}
+                  </Fragment>
+                ))
+              ) : (
+                <Text color="gray.400" textAlign="center" mt={4}>
+                  No previous chats found.
+                </Text>
+              )}
+            </Box>
           
           ): areMessagesLoading ? (
             <Spinner alignSelf="center" my="2" />
