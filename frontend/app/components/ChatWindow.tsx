@@ -637,7 +637,7 @@ export function ChatWindow() {
                         overflow="hidden"
                         maxWidth="calc(100% - 28px)"
                       >
-                        {thread.metadata?.name || "Untitled"}
+                       {thread.metadata && thread.metadata.name ? thread.metadata.name : "Untitled"}
                       </Text>
                       <DeleteIcon
                         display="none"
