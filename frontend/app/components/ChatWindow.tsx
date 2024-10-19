@@ -631,14 +631,14 @@ export function ChatWindow() {
                       overflow="hidden"
                     >
                       <Text
-                        color="white"
-                        whiteSpace="nowrap"
-                        textOverflow="ellipsis"
-                        overflow="hidden"
-                        maxWidth="calc(100% - 28px)"
-                      >
-                       {thread.metadata && thread.metadata.name ? thread.metadata.name : "Untitled"}
-                      </Text>
+  color="white"
+  whiteSpace="nowrap"
+  textOverflow="ellipsis"
+  overflow="hidden"
+  maxWidth="calc(100% - 28px)"
+>
+  {thread.metadata && typeof thread.metadata.name === 'string' ? thread.metadata.name : "Untitled"}
+</Text>
                       <DeleteIcon
                         display="none"
                         _groupHover={{ display: "block" }}
