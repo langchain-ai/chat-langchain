@@ -81,3 +81,4 @@ class AgentState(InputState):
     """Populated by the retriever. This is a list of documents that the agent can reference."""
     answer: str = field(default="")
     """Final answer. Useful for evaluations"""
+    query: str = field(default="")
