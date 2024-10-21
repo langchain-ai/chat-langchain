@@ -14,8 +14,7 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
 const apiKey = process.env.NEXT_PUBLIC_LANGCHAIN_API_KEY;
 const apiKeywithnext = process.env.LANGCHAIN_API_KEY;
-console.log("LANGCHAIN_API_KEY:", apiKey);
-console.log("apiKeywithnext:", apiKeywithnext);
+
 export default function Home() {
   const queryClient = new QueryClient();
   
