@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { List, ListItem, Spacer, Text, Button, visuallyHiddenStyle, VStack,Box, Select } from "@chakra-ui/react";
+import { List, ListItem, Spacer, Text, Button, visuallyHiddenStyle, VStack,Box, Select,Flex } from "@chakra-ui/react";
 import { PlusSquareIcon, DeleteIcon, ChatIcon, InfoIcon, SunIcon, LockIcon, CheckIcon } from "@chakra-ui/icons";
 
 import { ThreadListProps } from "../hooks/useThreadList";
