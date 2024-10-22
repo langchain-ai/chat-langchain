@@ -5,8 +5,9 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { Client } from "@langchain/langgraph-sdk";
 
-import { ChatWindow } from "./components/ChatWindow";
-import { LangGraphClientContext } from "./hooks/useLangGraphClient";
+import { ChatWindow } from "../components/ChatWindow";
+import { LangGraphClientContext } from "../hooks/useLangGraphClient";
+import {useTranslations} from 'next-intl';
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL
   ? process.env.NEXT_PUBLIC_API_URL
@@ -17,6 +18,7 @@ const apiKeywithnext = process.env.LANGCHAIN_API_KEY;
 
 export default function Home() {
   const queryClient = new QueryClient();
+  const t = useTranslations('HomePage'); 
   
   const langGraphClient = new Client({
   apiUrl,

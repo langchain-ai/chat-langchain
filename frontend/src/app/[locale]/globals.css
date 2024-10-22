@@ -31,3 +31,13 @@ code {
 li {
   padding: 4px;
 }
+
+.next-intl-provider {
+  margin: 50;
+  padding: 0;
+  display: flex; /* 或者 grid，视具体情况而定 */
+  flex-direction: column; /* 如果是 flex 布局 */
+  align-items: center; /* 水平居中 */
+  justify-content: center; /* 如果需要垂直居中 */
+  /* 其他需要的样式 */
+}

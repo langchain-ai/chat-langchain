@@ -38,8 +38,11 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 
 import { RegisterForm } from "./RegisterForm";
 import { AboutUs } from "./AboutUs";
+import {News} from "./News"
 import { RichMasterFunds } from "./RichMasterFunds";
 import { PricingPlan } from "./PricingPlan";
+import { useTranslations, useLocale } from 'next-intl';
+
 
 const MODEL_TYPES = ["openai_gpt_4o_mini", "anthropic_claude_3_haiku"];
 
@@ -80,61 +83,7 @@ interface StockData {
 }
 
 type SetStockDataFunction = React.Dispatch<React.SetStateAction<StockData[]>>;
-// // Add StockPanel component
-// interface StockPanelProps {
-//   isVisible: boolean;
-//   onClose: () => void;
-// }
 
-// const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => (
-//   <Box
-//     position="fixed"
-//     right="0"
-//     top="0"
-//     bottom="0"
-//     width="300px"
-//     bg="#2D3748"
-//     p={4}
-//     overflowY="auto"
-//     transform={isVisible ? "translateX(0)" : "translateX(100%)"}
-//     transition="transform 0.3s"
-//     zIndex="5"
-//   >
-//     <Flex justify="space-between" align="center" mb={4}>
-//       <Heading size="md" color="white">Stock Info</Heading>
-//       <IconButton
-//         icon={<CloseIcon />}
-//         onClick={onClose}
-//         aria-label="Close stock panel"
-//         size="sm"
-//         variant="ghost"
-//         color="white"
-//       />
-//     </Flex>
-//     <VStack align="stretch" spacing={4}>
-//       <Box>
-//         <Heading size="sm" color="white" mb={2}>Market Indices</Heading>
-//         {mockStockData.slice(0, 3).map((index) => (
-//           <Flex key={index.name} justify="space-between" color="white">
-//             <Text>{index.name}</Text>
-//             <Text>{index.value}</Text>
-//             <Text color={index.change.startsWith('+') ? "green.300" : "red.300"}>{index.change}</Text>
-//           </Flex>
-//         ))}
-//       </Box>
-//       <Box>
-//         <Heading size="sm" color="white" mb={2}>Popular Stocks</Heading>
-//         {mockStockData.slice(3).map((stock) => (
-//           <Flex key={stock.symbol} justify="space-between" color="white">
-//             <Text>{stock.symbol}</Text>
-//             <Text>{stock.price}</Text>
-//             <Text color={stock.change.startsWith('+') ? "green.300" : "red.300"}>{stock.change}</Text>
-//           </Flex>
-//         ))}
-//       </Box>
-//     </VStack>
-//   </Box>
-// );
 
 // Replace with your actual stock API URL and key
 const STOCK_API_URL = 'https://yfinance-fza5dthrg6dxd2c3.southeastasia-01.azurewebsites.net/api';
@@ -228,7 +177,8 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
     }
     return change;
   };
-  
+  const t = useTranslations('HomePage');
+  const locale = useLocale();
   return (
     <Box
       position="fixed"
@@ -244,7 +194,7 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
       zIndex="5"
     >
       <Flex justify="space-between" align="center" mb={4}>
-        <Heading size="md" color="white">Stock Info</Heading>
+        <Heading size="md" color="white">{t('Stock Info')}</Heading>
         <IconButton
           icon={<CloseIcon />}
           onClick={onClose}
@@ -256,7 +206,7 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
       </Flex>
       <VStack align="stretch" spacing={4}>
         <Box>
-          <Heading size="sm" color="white" mb={2}>Market Indices</Heading>
+          <Heading size="sm" color="white" mb={2}>{t('Market Indices')}</Heading>
           {stockData.slice(0, 3).map((index) => (
             <Flex key={index.name} justify="space-between" color="white">
               <Text width="30%" textAlign="left">{index.symbol}</Text>
@@ -266,7 +216,7 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
           ))}
         </Box>
         <Box>
-          <Heading size="sm" color="white" mb={2}>Popular Stocks</Heading>
+          <Heading size="sm" color="white" mb={2}>{t('Popular Stocks')}</Heading>
           {stockData.slice(3).map((stock) => (
             <Flex key={stock.symbol} justify="space-between" color="white">
               <Text width="30%" textAlign="left">{stock.symbol}</Text>
@@ -284,6 +234,8 @@ const StockPanel: React.FC<StockPanelProps> = ({ isVisible, onClose }) => {
 export function ChatWindow() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const locale = useLocale();
+  const t = useTranslations('HomePage');
 
   const messageContainerRef = useRef<HTMLDivElement | null>(null);
   const newestMessageRef = useRef<HTMLDivElement>(null);
@@ -487,6 +439,7 @@ export function ChatWindow() {
   const [isRichMasterFunds, setIsRichMasterFunds] = useState(false);
   const [isPricingPlan, setIsPricingPlan] = useState(false);
   const [isPreviousChats, setIsPreviousChats] = useState(false);
+  const [isNews, setIsNews] = useState(false);
 
   const enterRegister = useCallback(() => {
     setIsRegistering(true);
@@ -534,6 +487,18 @@ export function ChatWindow() {
     setIsPreviousChats(true);
   }, []);
 
+  
+  const enterNews = useCallback(() => {
+    setIsRegistering(false);
+    setIsRichMasterFunds(false);
+    setIsPricingPlan(false);
+    setIsAboutUs(false);
+    setIsPreviousChats(false);
+    setIsNews(true);
+    setIsChatListVisible(false);
+    setIsPreviousChats(false);
+  }, []);
+
   return (
     <Flex direction="column" h="100vh" overflow="hidden" w="full">
       {isMobile && (
@@ -577,6 +542,7 @@ export function ChatWindow() {
             loadMoreThreads={loadMoreThreads}
             enterRegister={enterRegister}
             enterAboutUs={enterAboutUs}
+            enterNews={enterNews}
             enterRichMasterFunds={enterRichMasterFunds}
             enterPricingPlan={enterPricingPlan}
             enterPreviousChats={enterPreviousChats}
@@ -592,7 +558,7 @@ export function ChatWindow() {
               color="white"
               textAlign="center"
             >
-              RichMaster StockGPT 🪙
+              {t('RichMaster StockGPT')} 🪙  
             </Heading>
           </Flex>
           <IconButton
@@ -612,6 +578,8 @@ export function ChatWindow() {
             <PricingPlan />
           ): isAboutUs ? (
             <AboutUs />
+          ): isNews ? (
+            <News />
           ): isPreviousChats ? (
                         <Box flex="1" overflowY="auto" mb="2" maxH={["60vh", "60vh", "calc(100vh - 300px)"]} px={4}>
               {threads?.length ? (
@@ -663,7 +631,7 @@ export function ChatWindow() {
                 ))
               ) : (
                 <Text color="gray.400" textAlign="center" mt={4}>
-                  No previous chats found.
+                  {t('No previous chats found')} 
                 </Text>
               )}
             </Box>
@@ -727,7 +695,7 @@ export function ChatWindow() {
                     value={input}
                     maxRows={5}
                     mr="56px"
-                    placeholder="Discover stocks now"
+                    placeholder={t('Discover stocks now')}
                     textColor="white"
                     borderColor="rgb(58, 58, 61)"
                     onChange={(e) => setInput(e.target.value)}
@@ -761,7 +729,7 @@ export function ChatWindow() {
                 </InputGroup>
                 {messages.length === 0 && (
                   <Text as="footer" textAlign="center" mt={2} color="white">
-                    Start trading today!
+                    {t('Start trading today')}
                   </Text>
                 )}
               </Flex>

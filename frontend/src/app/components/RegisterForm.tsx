@@ -10,26 +10,37 @@ import {
   Heading,
   Text,
 } from "@chakra-ui/react";
+import { useTranslations, useLocale } from 'next-intl';
+import { useRouter, usePathname, Link } from '@/src/i18n/routing';
 
 export function RegisterForm() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const locale = useLocale();  // 获取当前语言
+
+  const handleLocaleChange = (newLocale: string) => {
+      // router.replace(`/${newLocale}${pathname}`); // 确保切换时 URL 正确
+      window.location.href =  `/${newLocale}${pathname}`;
+    };
+ const t = useTranslations('HomePage'); 
   return (
     <Box p={8} bg="#1A202C" color="white" height="100%">
       <VStack spacing={6} align="center" justify="center" height="100%">
         <Heading as="h1" size="2xl" textAlign="center" mb={8}>
-          Register
+        {t('Register')}      
         </Heading>
         <Box width="100%" maxWidth="400px">
           <FormControl id="email" mb={4}>
-            <FormLabel>Email address</FormLabel>
-            <Input type="email" placeholder="Enter your email" />
+            <FormLabel>{t('Email address')} </FormLabel>
+            <Input type="email" placeholder={t('Enter your email')} />
           </FormControl>
           <FormControl id="password" mb={4}>
-            <FormLabel>Password</FormLabel>
-            <Input type="password" placeholder="Enter your password" />
+            <FormLabel>{t('Password')}</FormLabel>
+            <Input type="password" placeholder={t('Enter your password')} />
           </FormControl>
           <FormControl id="confirmPassword" mb={8}>
-            <FormLabel>Confirm Password</FormLabel>
-            <Input type="password" placeholder="Confirm your password" />
+            <FormLabel>{t('Confirm Password')}</FormLabel>
+            <Input type="password" placeholder={t('Confirm your password')} />
           </FormControl>
           <Button
             colorScheme="blue"
@@ -39,12 +50,12 @@ export function RegisterForm() {
             bg="#3182CE"
             _hover={{ bg: "#2B6CB0" }}
           >
-            Register
+            {t('Register')} 
           </Button>
           <Text fontSize="sm" textAlign="center">
-            Already have an account?{" "}
+          {t('Already have an account?')} {" "}
             <Text as="a" color="blue.400" href="/login">
-              Login
+            {t('Login')}
             </Text>
           </Text>
         </Box>
