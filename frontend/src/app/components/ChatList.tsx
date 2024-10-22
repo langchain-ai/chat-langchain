@@ -74,6 +74,7 @@ export function ChatList(props: {
 
   const t = useTranslations('HomePage'); 
   return (
+    <Flex direction="column" height="100vh" alignItems="stretch">
     <VStack spacing={4} align="stretch">
       <Button
         backgroundColor={"#2a4365"}
@@ -157,9 +158,10 @@ export function ChatList(props: {
         <InfoIcon color={"white"} marginRight={"4px"} />
         <Text color={"white"}>{t('News')}</Text>
       </Button>
-
+  </VStack>
+      
        {/* Language Selector */}
-           <Box mt={300} width="100%">
+           <Box p={4} mb={8} width="100%">
         <Select
           value={locale}
           onChange={(e) => handleLocaleChange(e.target.value)}
@@ -175,6 +177,7 @@ export function ChatList(props: {
         </Select>
       </Box>
       
-    </VStack>
+  
+      </Flex>
   );
 }
