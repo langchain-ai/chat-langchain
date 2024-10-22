@@ -40,6 +40,7 @@ export function ChatList(props: {
   const [isRichMasterFunds, setIsRichMasterFunds] = useState(false);
   const [isPricingPlan, setIsPricingPlan] = useState(false);
   const [isPreviousChats, setIsPreviousChats] = useState(false);
+  const [isNews, setIsNews] = useState(false);
 
   
 
@@ -83,6 +84,7 @@ export function ChatList(props: {
           setIsAboutUs(false)
           setIsRichMasterFunds(false);
           setIsPricingPlan(false);
+          setIsNews(false);
           setIsPreviousChats(false)
         }}
       >
@@ -99,6 +101,7 @@ export function ChatList(props: {
           setIsAboutUs(false);
           setIsRichMasterFunds(false);
           setIsPricingPlan(false);
+          setIsNews(false);
           setIsPreviousChats(false)
         }}
       >
