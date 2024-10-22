@@ -408,6 +408,7 @@ export function ChatWindow() {
       setIsAboutUs(false);
       setIsRichMasterFunds(false);
       setIsPricingPlan(false);
+      setIsNews(false);
       setIsPreviousChats(false)
 
       if (!id) {
@@ -446,6 +447,7 @@ export function ChatWindow() {
     setIsRichMasterFunds(false);
     setIsPricingPlan(false)
     setIsChatListVisible(false);
+    setIsNews(false);
     setIsAboutUs(false);
     setIsPreviousChats(false);
   }, []);
@@ -456,6 +458,7 @@ export function ChatWindow() {
     setIsPricingPlan(false);
     setIsAboutUs(true);
     setIsChatListVisible(false);
+    setIsNews(false);
     setIsPreviousChats(false);
   }, []);
 
@@ -465,6 +468,7 @@ export function ChatWindow() {
     setIsPricingPlan(false);
     setIsAboutUs(false);
     setIsChatListVisible(false);
+    setIsNews(false);
     setIsPreviousChats(false);
   }, []);
 
@@ -474,6 +478,7 @@ export function ChatWindow() {
     setIsPricingPlan(true);
     setIsAboutUs(false);
     setIsChatListVisible(false);
+    setIsNews(false);
     setIsPreviousChats(false);
   }, []);
 
@@ -484,6 +489,7 @@ export function ChatWindow() {
     setIsAboutUs(false);
     setIsPreviousChats(true);
     setIsChatListVisible(false);
+    setIsNews(false);
     setIsPreviousChats(true);
   }, []);
 
@@ -493,7 +499,6 @@ export function ChatWindow() {
     setIsRichMasterFunds(false);
     setIsPricingPlan(false);
     setIsAboutUs(false);
-    setIsPreviousChats(false);
     setIsNews(true);
     setIsChatListVisible(false);
     setIsPreviousChats(false);
