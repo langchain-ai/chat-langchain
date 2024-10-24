@@ -1,15 +1,13 @@
 import { parsePartialJson } from "@langchain/core/output_parsers";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { useToast } from "./use-toast";
 import { v4 as uuidv4 } from "uuid";
 
 import { Client } from "@langchain/langgraph-sdk";
-import { getCookie, setCookie } from "../utils/cookies";
 import { ThreadActual, useThreads } from "./useThreads";
 import { ModelOptions } from "../types";
 import { useRuns } from "./useRuns";
-import { ASSISTANT_ID_COOKIE_NAME } from "../utils/constants";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
@@ -61,44 +59,17 @@ interface UseGraphInput {
 
 export function useGraph(inputArgs: UseGraphInput) {
   const { toast } = useToast();
-  const { getThreadById, setThreadId } = useThreads(inputArgs.userId);
+  const { setThreadId } = useThreads(inputArgs.userId);
   const { shareRun } = useRuns();
   const [messages, setMessages] = useState<BaseMessage[]>([]);
-  const [assistantId, setAssistantId] = useState<string>();
   const [selectedModel, setSelectedModel] =
     useState<ModelOptions>("openai/gpt-4o-mini");
-
-  useEffect(() => {
-    if (assistantId || typeof window === "undefined") return;
-    getOrCreateAssistant();
-  }, []);
-
-  const getOrCreateAssistant = async () => {
-    const assistantIdCookie = getCookie(ASSISTANT_ID_COOKIE_NAME);
-    if (assistantIdCookie) {
-      setAssistantId(assistantIdCookie);
-      return;
-    }
-    const client = createClient();
-    const assistant = await client.assistants.create({
-      graphId: "chat",
-    });
-    setAssistantId(assistant.assistant_id);
-    setCookie(ASSISTANT_ID_COOKIE_NAME, assistant.assistant_id);
-  };
 
   const streamMessage = async (params: GraphInput) => {
     if (!inputArgs.threadId) {
       toast({
         title: "Error",
         description: "Thread ID not found",
-      });
-      return undefined;
-    }
-    if (!assistantId) {
-      toast({
-        title: "Error",
-        description: "Assistant ID not found",
       });
       return undefined;
     }
@@ -122,7 +93,7 @@ export function useGraph(inputArgs: UseGraphInput) {
       }),
     };
 
-    const stream = client.runs.stream(inputArgs.threadId, assistantId, {
+    const stream = client.runs.stream(inputArgs.threadId, "chat", {
       input,
       streamMode: "events",
       config: {
@@ -682,7 +653,6 @@ export function useGraph(inputArgs: UseGraphInput) {
 
   return {
     messages,
-    assistantId,
     selectedModel,
     setSelectedModel,
     setMessages,
