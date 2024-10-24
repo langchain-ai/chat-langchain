@@ -38,8 +38,9 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 
 import { RegisterForm } from "./RegisterForm";
 import { AboutUs } from "./AboutUs";
-import {News} from "./News"
+import { News } from "./News"
 import { RichMasterFunds } from "./RichMasterFunds";
+import { RichMasterAI } from "./RichMatserAI";
 import { PricingPlan } from "./PricingPlan";
 import { useTranslations, useLocale } from 'next-intl';
 
@@ -64,16 +65,7 @@ const getAssistantId = async (client: Client) => {
   return response[0]["assistant_id"];
 };
 
-// // Add mock stock data
-// const mockStockData = [
-//   { name: "Dow Jones", value: "34,721.91", change: "+0.30%" },
-//   { name: "NASDAQ", value: "15,785.32", change: "-0.15%" },
-//   { name: "S&P 500", value: "4,509.23", change: "+0.20%" },
-//   { symbol: "AAPL", price: "150.25", change: "+1.25%" },
-//   { symbol: "MSFT", price: "305.15", change: "+0.75%" },
-//   { symbol: "GOOGL", price: "2750.80", change: "-0.20%" },
-//   { symbol: "AMZN", price: "3380.45", change: "+1.50%" },
-// ];
+
 interface StockData {
   name?: string;
   value?: string | number;
@@ -407,6 +399,7 @@ export function ChatWindow() {
       setIsRegistering(false);  // <-- Add this line to reset the registration state
       setIsAboutUs(false);
       setIsRichMasterFunds(false);
+      setIsRichMasterAI(false);
       setIsPricingPlan(false);
       setIsNews(false);
       setIsPreviousChats(false)
@@ -438,6 +431,7 @@ export function ChatWindow() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [isAboutUs, setIsAboutUs] = useState(false);
   const [isRichMasterFunds, setIsRichMasterFunds] = useState(false);
+  const [isRichMasterAI, setIsRichMasterAI] = useState(false);
   const [isPricingPlan, setIsPricingPlan] = useState(false);
   const [isPreviousChats, setIsPreviousChats] = useState(false);
   const [isNews, setIsNews] = useState(false);
@@ -445,6 +439,7 @@ export function ChatWindow() {
   const enterRegister = useCallback(() => {
     setIsRegistering(true);
     setIsRichMasterFunds(false);
+    setIsRichMasterAI(false);
     setIsPricingPlan(false)
     setIsChatListVisible(false);
     setIsNews(false);
@@ -455,6 +450,7 @@ export function ChatWindow() {
   const enterAboutUs = useCallback(() => {
     setIsRegistering(false);
     setIsRichMasterFunds(false);
+    setIsRichMasterAI(false);
     setIsPricingPlan(false);
     setIsAboutUs(true);
     setIsChatListVisible(false);
@@ -465,6 +461,18 @@ export function ChatWindow() {
   const enterRichMasterFunds = useCallback(() => {
     setIsRegistering(false);
     setIsRichMasterFunds(true);
+    setIsRichMasterAI(false);
+    setIsPricingPlan(false);
+    setIsAboutUs(false);
+    setIsChatListVisible(false);
+    setIsNews(false);
+    setIsPreviousChats(false);
+  }, []);
+
+  const enterRichMasterAI = useCallback(() => {
+    setIsRegistering(false);
+    setIsRichMasterFunds(false);
+    setIsRichMasterAI(true);
     setIsPricingPlan(false);
     setIsAboutUs(false);
     setIsChatListVisible(false);
@@ -476,6 +484,7 @@ export function ChatWindow() {
     setIsRegistering(false);
     setIsRichMasterFunds(false);
     setIsPricingPlan(true);
+    setIsRichMasterAI(false);
     setIsAboutUs(false);
     setIsChatListVisible(false);
     setIsNews(false);
@@ -486,6 +495,7 @@ export function ChatWindow() {
     setIsRegistering(false);
     setIsRichMasterFunds(false);
     setIsPricingPlan(false);
+    setIsRichMasterAI(false);
     setIsAboutUs(false);
     setIsPreviousChats(true);
     setIsChatListVisible(false);
@@ -497,6 +507,7 @@ export function ChatWindow() {
   const enterNews = useCallback(() => {
     setIsRegistering(false);
     setIsRichMasterFunds(false);
+    setIsRichMasterAI(false);
     setIsPricingPlan(false);
     setIsAboutUs(false);
     setIsNews(true);
@@ -549,6 +560,7 @@ export function ChatWindow() {
             enterAboutUs={enterAboutUs}
             enterNews={enterNews}
             enterRichMasterFunds={enterRichMasterFunds}
+            enterRichMasterAI={enterRichMasterAI}
             enterPricingPlan={enterPricingPlan}
             enterPreviousChats={enterPreviousChats}
           />
@@ -579,6 +591,8 @@ export function ChatWindow() {
             <RegisterForm />
           ) : isRichMasterFunds ? (
             <RichMasterFunds />
+          ) : isRichMasterAI ? (
+            <RichMasterAI />
           ) : isPricingPlan ? (
             <PricingPlan />
           ): isAboutUs ? (

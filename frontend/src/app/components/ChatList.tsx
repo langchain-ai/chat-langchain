@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { List, ListItem, Spacer, Text, Button, visuallyHiddenStyle, VStack,Box, Select,Flex } from "@chakra-ui/react";
+import { GiArtificialIntelligence } from "react-icons/gi";
 import { PlusSquareIcon, DeleteIcon, ChatIcon, InfoIcon, SunIcon, LockIcon, CheckIcon } from "@chakra-ui/icons";
 
 import { ThreadListProps } from "../hooks/useThreadList";
@@ -23,6 +24,7 @@ export function ChatList(props: {
   enterPricingPlan: () => void;
   enterPreviousChats: () => void;
   enterNews: () => void;
+  enterRichMasterAI:()=> void;
 }) {
 
     const router = useRouter();
@@ -41,6 +43,7 @@ export function ChatList(props: {
   const [isPricingPlan, setIsPricingPlan] = useState(false);
   const [isPreviousChats, setIsPreviousChats] = useState(false);
   const [isNews, setIsNews] = useState(false);
+  const [isRichMasterAI, setIsRichMasterAI] = useState(false);
 
   
 
@@ -86,7 +89,8 @@ export function ChatList(props: {
           setIsRichMasterFunds(false);
           setIsPricingPlan(false);
           setIsNews(false);
-          setIsPreviousChats(false)
+          setIsPreviousChats(false);
+          setIsRichMasterAI(false)
         }}
       >
         <PlusSquareIcon color={"white"} marginRight={"4px"} />
@@ -119,6 +123,17 @@ export function ChatList(props: {
         <SunIcon color={"white"} marginRight={"4px"} />
         <Text color={"white"}>{t('RichMaster Fund')}</Text>
       </Button>
+
+      <Button
+        backgroundColor={"#2a4365"}
+        _hover={{ backgroundColor: "rgb(78,78,81)" }}
+        onClick={props.enterRichMasterAI}
+        mt={4}
+      >
+        <GiArtificialIntelligence color={"white"} style={{marginRight:'4px'}} />
+        <Text color={"white"}>{t('RichMasterAI')}</Text>
+      </Button>
+
       <Button
         backgroundColor={"#2a4365"}
         _hover={{ backgroundColor: "rgb(78,78,81)" }}
@@ -175,8 +190,7 @@ export function ChatList(props: {
           <option style={{ backgroundColor: "#2a4365", color: "white",textAlign:"center" }} value="zh">中文</option>
           {/* Add more languages as needed */}
         </Select>
-      </Box>
-      
+      </Box>  
   
       </Flex>
   );

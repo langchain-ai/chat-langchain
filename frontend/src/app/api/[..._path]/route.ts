@@ -10,7 +10,46 @@ function getCorsHeaders() {
   };
 }
 
+
 async function handleRequest(req: NextRequest, method: string) {
+
+  const path = req.nextUrl.pathname.replace(/^\/?api\//, "");
+  
+  // 处理登录请求
+  if (path === 'auth/login' && method === 'POST') {
+    try {
+      const body = await req.json();
+      const { email, password } = body;
+
+      // 示例认证逻辑
+      if (email === 'test@example.com' && password === 'password123') {
+        return NextResponse.json({ 
+          success: true, 
+          token: 'secure-auth-token' 
+        }, {
+          headers: getCorsHeaders()
+        });
+      }
+
+      return NextResponse.json({ 
+        success: false, 
+        message: '邮箱或密码错误' 
+      }, { 
+        status: 401,
+        headers: getCorsHeaders()
+      });
+    } catch (error) {
+      return NextResponse.json({ 
+        success: false, 
+        message: '服务器错误' 
+      }, { 
+        status: 500,
+        headers: getCorsHeaders()
+      });
+    }
+  }
+
+
   try {
     const path = req.nextUrl.pathname.replace(/^\/?api\//, "");
     const url = new URL(req.url);
@@ -49,6 +88,7 @@ async function handleRequest(req: NextRequest, method: string) {
     return NextResponse.json({ error: e.message }, { status: e.status ?? 500 });
   }
 }
+
 
 export const GET = (req: NextRequest) => handleRequest(req, "GET");
 export const POST = (req: NextRequest) => handleRequest(req, "POST");
