@@ -52,7 +52,7 @@ export function RichMasterAI() {
           size="sm"
           onClick={handleLogout}
         >
-          退出登录
+          {t('Log out')}
         </Button>
       </Flex>
 
