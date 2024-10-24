@@ -1,15 +1,13 @@
 import { parsePartialJson } from "@langchain/core/output_parsers";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { useToast } from "./use-toast";
 import { v4 as uuidv4 } from "uuid";
 
 import { Client } from "@langchain/langgraph-sdk";
-import { getCookie, setCookie } from "../utils/cookies";
 import { ThreadActual, useThreads } from "./useThreads";
 import { ModelOptions } from "../types";
 import { useRuns } from "./useRuns";
-import { USER_ID_COOKIE_NAME } from "../utils/constants";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
