@@ -37,7 +37,6 @@ export default function ContentComposerChatInterface(): React.ReactElement {
     messages,
     setMessages,
     streamMessage,
-    assistantId,
     switchSelectedThread,
     selectedModel,
     setSelectedModel,
@@ -47,15 +46,13 @@ export default function ContentComposerChatInterface(): React.ReactElement {
   });
   const [isRunning, setIsRunning] = useState(false);
 
-  const isSubmitDisabled = !userId || !assistantId || !currentThread;
+  const isSubmitDisabled = !userId || !currentThread;
 
   async function onNew(message: AppendMessage): Promise<void> {
     if (isSubmitDisabled) {
       let description = "";
       if (!userId) {
         description = "Unable to find user ID. Please try again later.";
-      } else if (!assistantId) {
-        description = "Unable to find assistant ID. Please try again later.";
       } else if (!currentThread) {
         description =
           "Unable to find current thread ID. Please try again later.";
@@ -121,7 +118,6 @@ export default function ContentComposerChatInterface(): React.ReactElement {
           userThreads={userThreads}
           userId={userId}
           createThread={createThread}
-          assistantId={assistantId}
           deleteThread={(id) => deleteThread(id, () => setMessages([]))}
           clearMessages={() => setMessages([])}
         />

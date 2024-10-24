@@ -16,7 +16,6 @@ interface ThreadHistoryProps {
   userId: string | undefined;
   createThread: (id: string) => Promise<any>;
   clearMessages: () => void;
-  assistantId: string | undefined;
   switchSelectedThread: (thread: ThreadActual) => void;
   getUserThreads: (id: string) => Promise<void>;
   deleteThread: (id: string) => Promise<void>;
