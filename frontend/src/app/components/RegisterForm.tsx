@@ -54,7 +54,7 @@ export function RegisterForm() {
           </Button>
           <Text fontSize="sm" textAlign="center">
           {t('Already have an account?')} {" "}
-            <Text as="a" color="blue.400" href="/login">
+            <Text as="a" color="blue.400" href="/Login">
             {t('Login')}
             </Text>
           </Text>

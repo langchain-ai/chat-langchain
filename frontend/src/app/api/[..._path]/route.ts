@@ -22,7 +22,7 @@ async function handleRequest(req: NextRequest, method: string) {
       const { email, password } = body;
 
       // 示例认证逻辑
-      if (email === 'test@example.com' && password === 'password123') {
+      if (email === 'test@example.com' && password === '123456') {
         return NextResponse.json({ 
           success: true, 
           token: 'secure-auth-token' 

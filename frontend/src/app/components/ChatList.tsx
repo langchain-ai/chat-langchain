@@ -78,7 +78,7 @@ export function ChatList(props: {
   const t = useTranslations('HomePage'); 
   return (
     <Flex direction="column" height="100vh" alignItems="stretch">
-    <VStack spacing={4} align="stretch">
+    <VStack spacing={4} align="stretch" >
       <Button
         backgroundColor={"#2a4365"}
         _hover={{ backgroundColor: "rgb(68,70,84)" }}
@@ -176,7 +176,7 @@ export function ChatList(props: {
   </VStack>
       
        {/* Language Selector */}
-           <Box p={4} mb={8} width="100%">
+          <Box p={4} mt="auto" mb={16} width="100%">
         <Select
           value={locale}
           onChange={(e) => handleLocaleChange(e.target.value)}

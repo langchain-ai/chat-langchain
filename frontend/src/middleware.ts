@@ -9,7 +9,7 @@ function checkAuth(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
 
   // 检查访问 rich-master-ai 路径的请求
-  if (request.nextUrl.pathname.includes('/rich-master-ai')) {
+  if (request.nextUrl.pathname.includes('/components/RichMasterAI')) {
     if (!token) {
       // 获取当前语言
       const locale = request.nextUrl.pathname.split('/')[1] || 'zh';
@@ -41,7 +41,7 @@ export const config = {
     '/',
     '/(zh|en)/:path*',
     // 需要保护的路径
-    '/rich-master-ai/:path*',
-    '/(zh|en)/rich-master-ai/:path*'
+    '/components/RichMasterAI/:path*',
+    '/(zh|en)/components/RichMasterAI/:path*'
   ]
 };
