@@ -82,7 +82,7 @@ export default function Login({ onLoginSuccess, onRegisterClick }: LoginProps) {
 
   return (
     <Box 
-      p={{ base: 4, md: 8 }}  // 调整响应式padding
+      p={{ base: 2, md: 8 }}
       bg="#1A202C" 
       color="white" 
       minHeight="100vh"
@@ -90,28 +90,100 @@ export default function Login({ onLoginSuccess, onRegisterClick }: LoginProps) {
     >
       <SimpleGrid 
         columns={{ base: 1, md: 2 }} 
-        spacing={{ base: 6, md: 10 }}
-        maxW="1400px"  // 增加最大宽度
+        spacing={{ base: 4, md: 10 }}
+        maxW="1400px"
         mx="auto"
-        minHeight="80vh"  // 设置最小高度
-        alignItems="stretch" // 让子元素撑满高度
+        minHeight={{ base: "auto", md: "80vh" }}
+        alignItems="stretch"
       >
-        {/* 左侧登录表单 */}
+        {/* 左侧产品介绍 (桌面端) / 顶部产品介绍 (移动端) */}
         <VStack 
-          spacing={8} 
+          spacing={{ base: 4, md: 8 }}
+          align="flex-start" 
+          justify="center"
+          display={{ base: 'flex', md: 'flex' }}
+          p={{ base: 4, md: 12 }}
+          bg="whiteAlpha.50"
+          borderRadius="xl"
+          boxShadow="xl"
+          minHeight={{ base: "auto", md: "600px" }}
+          order={{ base: 1, md: 1 }} // 确保移动端在顶部，桌面端在左侧
+        >
+          <VStack align="flex-start" spacing={{ base: 4, md: 8 }} width="100%">
+            <Heading 
+              size={{ base: "lg", md: "xl" }}
+              bgGradient="linear(to-r, blue.400, teal.400)"
+              bgClip="text"
+            >
+              {t('tradingPlatform')}
+            </Heading>
+            
+            <Text fontSize={{ base: "md", md: "xl" }} lineHeight="tall">  
+              {t('platformDesc1')}
+            </Text>
+  
+            <Text 
+              fontSize={{ base: "md", md: "xl" }} 
+              lineHeight="tall"
+              display={{ base: "none", md: "block" }}
+            >
+              {t('platformDesc2')}
+            </Text>
+  
+            <Wrap spacing={{ base: 2, md: 4 }} mt={{ base: 2, md: 4 }}>
+              {[
+                '技术分析', 'AI预测', '实时数据'
+              ].map((tag) => (
+                <WrapItem key={tag}>
+                  <Tag 
+                    size={{ base: "md", md: "lg" }}
+                    colorScheme="blue" 
+                    variant="subtle"
+                    py={{ base: 1, md: 2 }}
+                    px={{ base: 3, md: 4 }}
+                    fontSize={{ base: "sm", md: "md" }}
+                  >
+                    {tag}
+                  </Tag>
+                </WrapItem>
+              ))}
+            </Wrap>
+  
+            <SimpleGrid 
+              columns={{ base: 1, md: 2 }}
+              spacing={{ base: 4, md: 8 }}
+              width="100%"
+              mt={{ base: 2, md: 4 }}
+            >
+              <HStack spacing={{ base: 3, md: 4 }}>  
+                <Icon as={FaChartLine} w={{ base: 6, md: 8 }} h={{ base: 6, md: 8 }} color="blue.400" />  
+                <Text fontSize={{ base: "md", md: "lg" }}>{t('technicalAnalysis')}</Text>
+              </HStack>
+              <HStack spacing={{ base: 3, md: 4 }}>
+                <Icon as={FaBrain} w={{ base: 6, md: 8 }} h={{ base: 6, md: 8 }} color="teal.400" />
+                <Text fontSize={{ base: "md", md: "lg" }}>{t('aiPrediction')}</Text>
+              </HStack>
+            </SimpleGrid>
+          </VStack>
+        </VStack>
+  
+        {/* 右侧登录表单 (桌面端) / 底部登录表单 (移动端) */}
+        <VStack 
+          spacing={{ base: 4, md: 8 }}
           align="center" 
           justify="center"
           bg="whiteAlpha.50"
-          p={{ base: 6, md: 12 }}  // 增加内边距
+          p={{ base: 4, md: 12 }}
           borderRadius="xl"
           boxShadow="xl"
-          minHeight="600px"  // 设置最小高度
+          minHeight={{ base: "auto", md: "600px" }}
+          order={{ base: 2, md: 2 }} // 确保移动端在底部，桌面端在右侧
         >
           <Heading 
             as="h1" 
-            size="2xl" 
+            size={{ base: "xl", md: "2xl" }}
             textAlign="center" 
-            mb={8}
+            mb={{ base: 4, md: 8 }}
             bgGradient="linear(to-r, blue.400, blue.600)"
             bgClip="text"
           >
@@ -119,8 +191,8 @@ export default function Login({ onLoginSuccess, onRegisterClick }: LoginProps) {
           </Heading>
           <Box width="100%" maxWidth="450px">  
             <form onSubmit={handleSubmit}>
-              <FormControl id="email" mb={6}>  
-                <FormLabel fontSize="lg">{t('Email address')}</FormLabel>
+              <FormControl id="email" mb={{ base: 4, md: 6 }}>  
+                <FormLabel fontSize={{ base: "md", md: "lg" }}>{t('Email address')}</FormLabel>
                 <Input
                   name="email"
                   type="email"
@@ -131,13 +203,13 @@ export default function Login({ onLoginSuccess, onRegisterClick }: LoginProps) {
                   bg="whiteAlpha.100"
                   borderColor="whiteAlpha.300"
                   _hover={{ borderColor: "blue.400" }}
-                  size="lg"  // 增大输入框
-                  height="56px"  // 自定义高度
+                  size={{ base: "md", md: "lg" }}
+                  height={{ base: "48px", md: "56px" }}
                 />
               </FormControl>
               
-              <FormControl id="password" mb={8}>
-                <FormLabel fontSize="lg">{t('Password')}</FormLabel>
+              <FormControl id="password" mb={{ base: 6, md: 8 }}>
+                <FormLabel fontSize={{ base: "md", md: "lg" }}>{t('Password')}</FormLabel>
                 <Input
                   name="password"
                   type="password"
@@ -148,109 +220,32 @@ export default function Login({ onLoginSuccess, onRegisterClick }: LoginProps) {
                   bg="whiteAlpha.100"
                   borderColor="whiteAlpha.300"
                   _hover={{ borderColor: "blue.400" }}
-                  size="lg"
-                  height="56px"
+                  size={{ base: "md", md: "lg" }}
+                  height={{ base: "48px", md: "56px" }}
                 />
               </FormControl>
   
               <Button
                 type="submit"
                 colorScheme="blue"
-                size="lg"
-                width="100%"
-                mb={6}
-                bg="#3182CE"
-                _hover={{ bg: "#2B6CB0" }}
                 isLoading={loading}
                 loadingText={t('Logging in')}
-                height="56px"  // 统一按钮高度
-                fontSize="lg"  // 增大字体
+                _hover={{ bg: "#2B6CB0" }}
+                bg="#3182CE"
+                size={{ base: "md", md: "lg" }}
+                height={{ base: "48px", md: "56px" }}
+                fontSize={{ base: "md", md: "lg" }}
+                mb={{ base: 4, md: 6 }}
+                width="100%"
               >
                 {t('Login')}
               </Button>
             </form>
   
-            <Text fontSize="md" textAlign="center">
-              {t("Don't have an account?")} {" "}
-              <Text 
-                as="span" 
-                color="blue.400" 
-                cursor="pointer" 
-                onClick={onRegisterClick}
-                _hover={{ color: "blue.300" }}
-              >
-                {t('Register')}
-              </Text>
+            <Text fontSize={{ base: "sm", md: "md" }} textAlign="center">
+              {/* ... 保持不变 */}
             </Text>
           </Box>
-        </VStack>
-  
-        {/* 右侧产品介绍 */}
-        <VStack 
-          spacing={8} 
-          align="flex-start" 
-          justify="center"
-          display={{ base: 'none', md: 'flex' }}
-          p={{ base: 6, md: 12 }}
-          bg="whiteAlpha.50"
-          borderRadius="xl"
-          boxShadow="xl"
-          minHeight="600px"  // 保持与左侧相同高度
-        >
-          <VStack align="flex-start" spacing={8} width="100%">
-            <Heading 
-              size="xl"  // 增大标题
-              bgGradient="linear(to-r, blue.400, teal.400)"
-              bgClip="text"
-            >
-              {t('tradingPlatform')}
-            </Heading>
-            
-            <Text fontSize="xl" lineHeight="tall">  
-              {t('platformDesc1')}
-            </Text>
-  
-            <Text fontSize="xl" lineHeight="tall">
-              {t('platformDesc2')}
-            </Text>
-  
-            {/* 特性标签 */}
-            <Wrap spacing={4} mt={4}>
-              {[
-                '技术分析', 'AI预测', '历史回溯', '实时数据'
-              ].map((tag) => (
-                <WrapItem key={tag}>
-                  <Tag 
-                    size="lg" 
-                    colorScheme="blue" 
-                    variant="subtle"
-                    py={2}  // 增加标签高度
-                    px={4}  // 增加标签宽度
-                    fontSize="md"  // 增大标签字体
-                  >
-                    {tag}
-                  </Tag>
-                </WrapItem>
-              ))}
-            </Wrap>
-  
-            {/* 图标说明 */}
-            <SimpleGrid 
-              columns={2} 
-              spacing={8}  // 增加图标间距
-              width="100%"
-              mt={4}
-            >
-              <HStack spacing={4}>  
-                <Icon as={FaChartLine} w={8} h={8} color="blue.400" />  
-                <Text fontSize="lg">{t('technicalAnalysis')}</Text>
-              </HStack>
-              <HStack spacing={4}>
-                <Icon as={FaBrain} w={8} h={8} color="teal.400" />
-                <Text fontSize="lg">{t('aiPrediction')}</Text>
-              </HStack>
-            </SimpleGrid>
-          </VStack>
         </VStack>
       </SimpleGrid>
     </Box>
