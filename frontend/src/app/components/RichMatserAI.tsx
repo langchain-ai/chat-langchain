@@ -92,257 +92,267 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
   };
 
   const renderDashboard = () => (
-    <VStack spacing={8} align="stretch" >
-        {/* AI预测核心指标 */}
-        <SimpleGrid columns={[1, 2, 4]} spacing={6}>
-          <Stat
-            bg="whiteAlpha.100"
-            p={4}
-            borderRadius="lg"
-            boxShadow="xl"
-          >
-            <StatLabel>{t('Market Sentiment')}</StatLabel>
-            <StatNumber color="green.400">
-              <StatArrow type="increase" />
-              72%
-            </StatNumber>
-            <Text fontSize="sm">{t('Bullish Trend')}</Text>
-          </Stat>
-
-          <Stat
-            bg="whiteAlpha.100"
-            p={4}
-            borderRadius="lg"
-            boxShadow="xl"
-          >
-            <StatLabel>{t('AI Confidence')}</StatLabel>
-            <StatNumber color="blue.400">89%</StatNumber>
-            <Text fontSize="sm">{t('Prediction Accuracy')}</Text>
-          </Stat>
-
-          <Stat
-            bg="whiteAlpha.100"
-            p={4}
-            borderRadius="lg"
-            boxShadow="xl"
-          >
-            <StatLabel>{t('Risk Level')}</StatLabel>
-            <StatNumber color="yellow.400">Medium</StatNumber>
-            <Text fontSize="sm">{t('Market Volatility')}</Text>
-          </Stat>
-
-          <Stat
-            bg="whiteAlpha.100"
-            p={4}
-            borderRadius="lg"
-            boxShadow="xl"
-          >
-            <StatLabel>{t('Portfolio Health')}</StatLabel>
-            <StatNumber color="green.400">
-              <StatArrow type="increase" />
-              94%
-            </StatNumber>
-            <Text fontSize="sm">{t('Optimization Score')}</Text>
-          </Stat>
-        </SimpleGrid>
-
-        {/* 核心功能区 */}
-        <Grid templateColumns={["1fr", "1fr", "repeat(2, 1fr)"]} gap={6} mt={8}>
-          <Card bg="whiteAlpha.100" boxShadow="xl">
-            <CardBody>
-              <Flex align="center" mb={4}>
-                <Icon as={FaRobot} w={6} h={6} color="blue.400" mr={3} />
-                <Heading size="md" color={"white"}>{t('AI Prediction Center')}</Heading>
-              </Flex>
-              <Text mb={4} color={"white"}>
-                {t('Real-time market predictions with 89% accuracy using advanced ML models')}
-              </Text>
-              <Button colorScheme="blue" variant="outline" size="sm" onClick={handleViewPredictions}>
-                {t('View Predictions')}
-              </Button>
-            </CardBody>
-          </Card>
-
-          <Card bg="whiteAlpha.100" boxShadow="xl">
-            <CardBody>
-              <Flex align="center" mb={4}>
-                <Icon as={FaChartLine} w={6} h={6} color="green.400" mr={3} />
-                <Heading size="md" color={"white"}>{t('Smart Portfolio Analysis')}</Heading>
-              </Flex>
-              <Text mb={4} color={"white"}>
-                {t('Personalized portfolio optimization with real-time rebalancing suggestions')}
-              </Text>
-              <Button colorScheme="green" variant="outline" size="sm" onClick={() => setTabIndex(3)} >
-                {t('Analyze Portfolio')}
-              </Button>
-            </CardBody>
-          </Card>
-
-          <Card bg="whiteAlpha.100" boxShadow="xl">
-            <CardBody>
-              <Flex align="center" mb={4}>
-                <Icon as={FaShieldAlt} w={6} h={6} color="purple.400" mr={3} />
-                <Heading size="md" color={"white"}>{t('Risk Management')}</Heading>
-              </Flex>
-              <Text mb={4} color={"white"}>
-                {t('Advanced risk analysis and automated hedging suggestions')}
-              </Text>
-              <Button colorScheme="purple" variant="outline" size="sm" onClick={() => setTabIndex(4)}>
-                {t('View Risk Analysis')}
-              </Button>
-            </CardBody>
-          </Card>
-
-          <Card bg="whiteAlpha.100" boxShadow="xl">
-            <CardBody>
-              <Flex align="center" mb={4}>
-                <Icon as={FaLightbulb} w={6} h={6} color="yellow.400" mr={3} />
-                <Heading size="md" color={"white"}>{t('Smart Alerts')}</Heading>
-              </Flex>
-              <Text mb={4} color={"white"}>
-                {t('AI-powered market opportunity and risk alerts')}
-              </Text>
-              <Button colorScheme="yellow" variant="outline" size="sm" onClick={()=> setTabIndex(5)}>
-                {t('Configure Alerts')}
-              </Button>
-            </CardBody>
-          </Card>
-        </Grid>
-
-        <Divider my={4} borderColor="whiteAlpha.300" />
-
-        <Box width="100%" pb={6}> {/* 添加 padding-bottom */}
-          <Text 
-            fontSize="lg" 
-            textAlign="center" 
-            maxW="800px" 
-            mx="auto"
-            color="whiteAlpha.900" // 确保文字颜色可见
-            className="bottom-description" // 添加类名便于调试
-          >
-            {t('RichMasterAIIntro')}
-          </Text>
-        </Box>
-      </VStack>
+    <VStack 
+      spacing={8} 
+      align="stretch"
+      px={{ base: 2, md: 0 }}  // 移动端添加横向内边距
+      overflowY="auto"
+      maxHeight={{ base: "calc(100vh - 150px)", md: "auto" }}  // 移动端可滚动
+    >
+      {/* AI预测核心指标 */}
+      <SimpleGrid columns={[1, 2, 4]} spacing={{ base: 4, md: 6 }}>
+        <Stat
+          bg="whiteAlpha.100"
+          p={{ base: 3, md: 4 }}  // 移动端减小内边距
+          borderRadius="lg"
+          boxShadow="xl"
+        >
+          <StatLabel>{t('Market Sentiment')}</StatLabel>
+          <StatNumber color="green.400">
+            <StatArrow type="increase" />
+            72%
+          </StatNumber>
+          <Text fontSize="sm">{t('Bullish Trend')}</Text>
+        </Stat>
+  
+        <Stat
+          bg="whiteAlpha.100"
+          p={{ base: 3, md: 4 }}
+          borderRadius="lg"
+          boxShadow="xl"
+        >
+          <StatLabel>{t('AI Confidence')}</StatLabel>
+          <StatNumber color="blue.400">89%</StatNumber>
+          <Text fontSize="sm">{t('Prediction Accuracy')}</Text>
+        </Stat>
+  
+        <Stat
+          bg="whiteAlpha.100"
+          p={{ base: 3, md: 4 }}
+          borderRadius="lg"
+          boxShadow="xl"
+        >
+          <StatLabel>{t('Risk Level')}</StatLabel>
+          <StatNumber color="yellow.400">Medium</StatNumber>
+          <Text fontSize="sm">{t('Market Volatility')}</Text>
+        </Stat>
+  
+        <Stat
+          bg="whiteAlpha.100"
+          p={{ base: 3, md: 4 }}
+          borderRadius="lg"
+          boxShadow="xl"
+        >
+          <StatLabel>{t('Portfolio Health')}</StatLabel>
+          <StatNumber color="green.400">
+            <StatArrow type="increase" />
+            94%
+          </StatNumber>
+          <Text fontSize="sm">{t('Optimization Score')}</Text>
+        </Stat>
+      </SimpleGrid>
+  
+      {/* 核心功能区 */}
+      <Grid 
+        templateColumns={["1fr", "1fr", "repeat(2, 1fr)"]} 
+        gap={{ base: 4, md: 6 }} 
+        mt={8}
+      >
+        <Card bg="whiteAlpha.100" boxShadow="xl">
+          <CardBody p={{ base: 4, md: 6 }}>  {/* 移动端减小内边距 */}
+            <Flex align="center" mb={4}>
+              <Icon as={FaRobot} w={6} h={6} color="blue.400" mr={3} />
+              <Heading size="md" color={"white"}>{t('AI Prediction Center')}</Heading>
+            </Flex>
+            <Text mb={4} color={"white"}>
+              {t('Real-time market predictions with 89% accuracy using advanced ML models')}
+            </Text>
+            <Button colorScheme="blue" variant="outline" size="sm" onClick={handleViewPredictions}>
+              {t('View Predictions')}
+            </Button>
+          </CardBody>
+        </Card>
+  
+        <Card bg="whiteAlpha.100" boxShadow="xl">
+          <CardBody p={{ base: 4, md: 6 }}>
+            <Flex align="center" mb={4}>
+              <Icon as={FaChartLine} w={6} h={6} color="green.400" mr={3} />
+              <Heading size="md" color={"white"}>{t('Smart Portfolio Analysis')}</Heading>
+            </Flex>
+            <Text mb={4} color={"white"}>
+              {t('Personalized portfolio optimization with real-time rebalancing suggestions')}
+            </Text>
+            <Button colorScheme="green" variant="outline" size="sm" onClick={() => setTabIndex(3)} >
+              {t('Analyze Portfolio')}
+            </Button>
+          </CardBody>
+        </Card>
+  
+        <Card bg="whiteAlpha.100" boxShadow="xl">
+          <CardBody p={{ base: 4, md: 6 }}>
+            <Flex align="center" mb={4}>
+              <Icon as={FaShieldAlt} w={6} h={6} color="purple.400" mr={3} />
+              <Heading size="md" color={"white"}>{t('Risk Management')}</Heading>
+            </Flex>
+            <Text mb={4} color={"white"}>
+              {t('Advanced risk analysis and automated hedging suggestions')}
+            </Text>
+            <Button colorScheme="purple" variant="outline" size="sm" onClick={() => setTabIndex(4)}>
+              {t('View Risk Analysis')}
+            </Button>
+          </CardBody>
+        </Card>
+  
+        <Card bg="whiteAlpha.100" boxShadow="xl">
+          <CardBody p={{ base: 4, md: 6 }}>
+            <Flex align="center" mb={4}>
+              <Icon as={FaLightbulb} w={6} h={6} color="yellow.400" mr={3} />
+              <Heading size="md" color={"white"}>{t('Smart Alerts')}</Heading>
+            </Flex>
+            <Text mb={4} color={"white"}>
+              {t('AI-powered market opportunity and risk alerts')}
+            </Text>
+            <Button colorScheme="yellow" variant="outline" size="sm" onClick={()=> setTabIndex(5)}>
+              {t('Configure Alerts')}
+            </Button>
+          </CardBody>
+        </Card>
+      </Grid>
+  
+      <Divider my={4} borderColor="whiteAlpha.300" />
+  
+      <Box width="100%" pb={6}>
+        <Text 
+          fontSize={{ base: "md", md: "lg" }}  // 移动端减小字体
+          textAlign="center" 
+          maxW="800px" 
+          mx="auto"
+          px={{ base: 4, md: 0 }}  // 移动端添加横向内边距
+          color="whiteAlpha.900"
+          className="bottom-description"
+        >
+          {t('RichMasterAIIntro')}
+        </Text>
+      </Box>
+    </VStack>
   );
 
   const renderSettings = () => (
-    <Box height="calc(100vh - 150px)" overflowY="auto" pr={2}>
-      <VStack spacing={6} align="stretch">
-        {/* 设置部分 - 使用更紧凑的布局 */}
-        <Box borderWidth="1px" borderRadius="lg" p={4} bg="whiteAlpha.50">
-          <Heading size="md" mb={4}>{t('Trading Settings')}</Heading>
-          <SimpleGrid columns={[1, 2, 4]} spacing={4} mb={4}>
-            {/* 基础设置更紧凑地排列 */}
+    <Box 
+      height={{ base: "calc(100vh - 120px)", md: "calc(100vh - 150px)" }} 
+      overflowY="auto" 
+      px={{ base: 2, md: 2 }}
+    >
+      <VStack spacing={{ base: 4, md: 6 }} align="stretch">
+        {/* 设置部分 - 保留所有原有元素 */}
+        <Box borderWidth="1px" borderRadius="lg" p={{ base: 3, md: 4 }} bg="whiteAlpha.50">
+          <Heading size={{ base: "sm", md: "md" }} mb={{ base: 3, md: 4 }}>{t('Trading Settings')}</Heading>
+          
+          <SimpleGrid columns={[1, 2, 4]} spacing={{ base: 3, md: 4 }} mb={{ base: 3, md: 4 }}>
             <FormControl size="sm">
-              <FormLabel>{t('Exchange')}</FormLabel>
+              <FormLabel fontSize={{ base: "sm", md: "md" }}>{t('Exchange')}</FormLabel>
               <Select 
                   bg="whiteAlpha.100" 
                   size="sm"
                   sx={{
                   option: {
-                    background: "#2D3748 !important", // 深色背景
-                    color: "white !important",        // 白色文字
+                    background: "#2D3748 !important",
+                    color: "white !important",
                   },
-                  // 确保所有选项都可见
                   "&:not([multiple]) option, &:not([multiple]) optgroup": {
                     backgroundColor: "#2D3748",
                     color: "white"
                   }
-        }}
-          >
-    <option>Binance</option>
-    <option>Huobi</option>
-    <option>OKX</option>
-  </Select>
+                }}
+              >
+                <option>Binance</option>
+                <option>Huobi</option>
+                <option>OKX</option>
+              </Select>
             </FormControl>
   
             <FormControl size="sm">
-              <FormLabel>{t('Market')}</FormLabel>
+              <FormLabel fontSize={{ base: "sm", md: "md" }}>{t('Market')}</FormLabel>
               <Select 
                   bg="whiteAlpha.100" 
                   size="sm"
                   sx={{
                   option: {
-                    background: "#2D3748 !important", // 深色背景
-                    color: "white !important",        // 白色文字
+                    background: "#2D3748 !important",
+                    color: "white !important",
                   },
-                  // 确保所有选项都可见
                   "&:not([multiple]) option, &:not([multiple]) optgroup": {
                     backgroundColor: "#2D3748",
                     color: "white"
                   }
-                    }}
-                    >
+                }}
+              >
                 <option>Spot</option>
                 <option>Futures</option>
               </Select>
             </FormControl>
   
             <FormControl size="sm">
-              <FormLabel>{t('Total Capital')}</FormLabel>
+              <FormLabel fontSize={{ base: "sm", md: "md" }}>{t('Total Capital')}</FormLabel>
               <NumberInput size="sm" bg="whiteAlpha.100">
                 <NumberInputField />
               </NumberInput>
             </FormControl>
   
             <FormControl size="sm">
-              <FormLabel>{t('Operation Capital')}</FormLabel>
+              <FormLabel fontSize={{ base: "sm", md: "md" }}>{t('Operation Capital')}</FormLabel>
               <NumberInput size="sm" bg="whiteAlpha.100">
                 <NumberInputField />
               </NumberInput>
             </FormControl>
           </SimpleGrid>
   
-          {/* 风险管理设置 */}
-          <SimpleGrid columns={[2, 3]} spacing={4} mb={4}>
+          <SimpleGrid columns={[2, 2, 3]} spacing={{ base: 3, md: 4 }} mb={{ base: 3, md: 4 }}>
             <FormControl size="sm">
-              <FormLabel>{t('Stop Loss')}</FormLabel>
+              <FormLabel fontSize={{ base: "sm", md: "md" }}>{t('Stop Loss')}</FormLabel>
               <NumberInput size="sm" bg="whiteAlpha.100">
                 <NumberInputField />
               </NumberInput>
             </FormControl>
   
             <FormControl size="sm">
-              <FormLabel>{t('Take Profit')}</FormLabel>
+              <FormLabel fontSize={{ base: "sm", md: "md" }}>{t('Take Profit')}</FormLabel>
               <NumberInput size="sm" bg="whiteAlpha.100">
                 <NumberInputField />
               </NumberInput>
             </FormControl>
   
             <FormControl size="sm">
-              <FormLabel>{t('Fee (%)')}</FormLabel>
+              <FormLabel fontSize={{ base: "sm", md: "md" }}>{t('Fee (%)')}</FormLabel>
               <NumberInput size="sm" bg="whiteAlpha.100">
                 <NumberInputField />
               </NumberInput>
             </FormControl>
           </SimpleGrid>
   
-          {/* 指标设置 */}
-          <FormControl size="sm">
-            <FormLabel>{t('Timeframe')}</FormLabel>
+          <FormControl size="sm" mb={{ base: 3, md: 4 }}>
+            <FormLabel fontSize={{ base: "sm", md: "md" }}>{t('Timeframe')}</FormLabel>
             <Select 
-                  bg="whiteAlpha.100" 
-                  size="sm"
-                  sx={{
-                  option: {
-                    background: "#2D3748 !important", // 深色背景
-                    color: "white !important",        // 白色文字
-                  },
-                  // 确保所有选项都可见
-                  "&:not([multiple]) option, &:not([multiple]) optgroup": {
-                    backgroundColor: "#2D3748",
-                    color: "white"
-                  }
-                  }}
-              >
+              bg="whiteAlpha.100" 
+              size="sm"
+              sx={{
+                option: {
+                  background: "#2D3748 !important",
+                  color: "white !important",
+                },
+                "&:not([multiple]) option, &:not([multiple]) optgroup": {
+                  backgroundColor: "#2D3748",
+                  color: "white"
+                }
+              }}
+            >
               {['5m', '15m', '30m', '1h', '2h', '4h', '8h', '12h', '1d', '3d', '1w'].map(tf => (
                 <option key={tf}>{tf}</option>
               ))}
             </Select>
           </FormControl>
   
-          <Wrap spacing={2} mt={4}>
+          <Wrap spacing={{ base: 1, md: 2 }} mt={{ base: 2, md: 4 }}>
             {['RSI', 'MACD', 'KDJ', 'BB', 'MA'].map(indicator => (
               <WrapItem key={indicator}>
                 <Button size="sm" variant="outline" colorScheme="blue">
@@ -353,26 +363,22 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
           </Wrap>
         </Box>
   
-        {/* 分析结果部分 - 占据更多空间 */}
         <Box 
           borderWidth="1px" 
           borderRadius="lg" 
-          p={4} 
+          p={{ base: 3, md: 4 }} 
           flex="1"
-          minH="calc(100vh - 500px)"
+          minH={{ base: "calc(100vh - 600px)", md: "calc(100vh - 500px)" }}
           bg="whiteAlpha.50"
         >
-          <Heading size="md" mb={4}>{t('Analysis Results')}</Heading>
+          <Heading size={{ base: "sm", md: "md" }} mb={{ base: 3, md: 4 }}>{t('Analysis Results')}</Heading>
           
-          {/* 图表区域 */}
-          <Box height="400px" bg="whiteAlpha.100" borderRadius="lg" mb={6}>
-            <Heading size="sm" p={4}>{t('Performance Chart')}</Heading>
-            {/* 图表组件将在这里 */}
+          <Box height={{ base: "300px", md: "400px" }} bg="whiteAlpha.100" borderRadius="lg" mb={{ base: 4, md: 6 }}>
+            <Heading size="sm" p={{ base: 3, md: 4 }}>{t('Performance Chart')}</Heading>
           </Box>
   
-          {/* 主要指标 */}
-          <SimpleGrid columns={[2, 4]} spacing={6} mb={6}>
-            <Stat bg="whiteAlpha.100" p={4} borderRadius="lg">
+          <SimpleGrid columns={[2, 2, 4]} spacing={{ base: 3, md: 6 }} mb={{ base: 4, md: 6 }}>
+            <Stat bg="whiteAlpha.100" p={{ base: 3, md: 4 }} borderRadius="lg">
               <StatLabel>{t('Win Rate')}</StatLabel>
               <StatNumber color="green.400">68.5%</StatNumber>
               <StatHelpText>
@@ -381,7 +387,7 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
               </StatHelpText>
             </Stat>
   
-            <Stat bg="whiteAlpha.100" p={4} borderRadius="lg">
+            <Stat bg="whiteAlpha.100" p={{ base: 3, md: 4 }} borderRadius="lg">
               <StatLabel>{t('Profit Factor')}</StatLabel>
               <StatNumber color="blue.400">2.31</StatNumber>
               <StatHelpText>
@@ -390,7 +396,7 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
               </StatHelpText>
             </Stat>
   
-            <Stat bg="whiteAlpha.100" p={4} borderRadius="lg">
+            <Stat bg="whiteAlpha.100" p={{ base: 3, md: 4 }} borderRadius="lg">
               <StatLabel>{t('Sharpe Ratio')}</StatLabel>
               <StatNumber color="purple.400">2.1</StatNumber>
               <StatHelpText>
@@ -399,7 +405,7 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
               </StatHelpText>
             </Stat>
   
-            <Stat bg="whiteAlpha.100" p={4} borderRadius="lg">
+            <Stat bg="whiteAlpha.100" p={{ base: 3, md: 4 }} borderRadius="lg">
               <StatLabel>{t('Max Drawdown')}</StatLabel>
               <StatNumber color="red.400">12.4%</StatNumber>
               <StatHelpText>
@@ -409,8 +415,7 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
             </Stat>
           </SimpleGrid>
   
-          {/* 当前信号 */}
-          <SimpleGrid columns={[1, 2]} spacing={6} mb={6}>
+          <SimpleGrid columns={[1, 1, 2]} spacing={{ base: 4, md: 6 }} mb={{ base: 4, md: 6 }}>
             <Box>
               <Heading size="sm" mb={3}>{t('Current Signals')}</Heading>
               <Stack spacing={3}>
@@ -444,9 +449,8 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
             </Box>
           </SimpleGrid>
   
-          {/* 详细统计数据表格 */}
-          <Box bg="whiteAlpha.100" borderRadius="lg" p={4}>
-            <Heading size="sm" mb={4}>{t('Detailed Statistics')}</Heading>
+          <Box bg="whiteAlpha.100" borderRadius="lg" p={{ base: 2, md: 4 }}>
+            <Heading size="sm" mb={{ base: 2, md: 4 }}>{t('Detailed Statistics')}</Heading>
             <Table variant="simple" size="sm">
               <Tbody>
                 <Tr>
@@ -472,12 +476,24 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
           </Box>
         </Box>
   
-        {/* 操作按钮 */}
-        <Flex justify="space-between" pt={4}>
-          <Button colorScheme="blue" size="lg">
+        <Flex 
+          justify="space-between" 
+          pt={{ base: 3, md: 4 }}
+          flexDir={{ base: "column", md: "row" }}
+          gap={{ base: 2, md: 0 }}
+        >
+          <Button 
+            colorScheme="blue" 
+            size={{ base: "md", md: "lg" }}
+            width={{ base: "100%", md: "auto" }}
+          >
             {t('Save Settings')}
           </Button>
-          <Button colorScheme="green" size="lg">
+          <Button 
+            colorScheme="green" 
+            size={{ base: "md", md: "lg" }}
+            width={{ base: "100%", md: "auto" }}
+          >
             {t('Start Trading')}
           </Button>
         </Flex>
@@ -490,14 +506,19 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
     const [loading, setLoading] = useState(false);
     
     return (
-      <Box>
-        <VStack spacing={6} align="stretch">
+      <Box px={{ base: 2, md: 0 }}>  {/* 移动端添加边距 */}
+        <VStack spacing={{ base: 4, md: 6 }} align="stretch">
           {/* 搜索区域 */}
-          <Card bg="whiteAlpha.100" p={6}>
-            <VStack spacing={4}>
+          <Card bg="whiteAlpha.100" p={{ base: 4, md: 6 }}>
+            <VStack spacing={{ base: 3, md: 4 }}>
               <FormControl>
-                <FormLabel color="gray.300">{t('enterSymbol')}</FormLabel>
-                <InputGroup>
+                <FormLabel 
+                  color="gray.300" 
+                  fontSize={{ base: "sm", md: "md" }}
+                >
+                  {t('enterSymbol')}
+                </FormLabel>
+                <InputGroup size={{ base: "md", md: "lg" }}>
                   <Input
                     placeholder={t('enterSymbolPlaceholder')}
                     value={symbol}
@@ -508,8 +529,9 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
                     borderColor="whiteAlpha.200"
                     _hover={{ borderColor: "blue.400" }}
                     _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px #4299E1" }}
+                    fontSize={{ base: "sm", md: "md" }}
                   />
-                  <InputRightElement width="4.5rem">
+                  <InputRightElement width={{ base: "4rem", md: "4.5rem" }}>
                     <Button 
                       size="sm" 
                       colorScheme="blue" 
@@ -525,34 +547,61 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
           </Card>
   
           {/* 预测结果区域 */}
-          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-            <Card bg="whiteAlpha.100" p={6}>
-              <VStack align="stretch" spacing={4}>
-                <Heading size="md" color="gray.100">{t('shortTermPrediction')}</Heading>
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 4, md: 6 }}>
+            <Card bg="whiteAlpha.100" p={{ base: 4, md: 6 }}>
+              <VStack align="stretch" spacing={{ base: 3, md: 4 }}>
+                <Heading 
+                  size={{ base: "sm", md: "md" }} 
+                  color="gray.100"
+                >
+                  {t('shortTermPrediction')}
+                </Heading>
                 <Box>
-                  <Text fontWeight="bold" color="gray.300">{t('predictionDirection')}</Text>
-                  <HStack spacing={4} mt={2}>
+                  <Text 
+                    fontWeight="bold" 
+                    color="gray.300"
+                    fontSize={{ base: "sm", md: "md" }}
+                  >
+                    {t('predictionDirection')}
+                  </Text>
+                  <HStack spacing={{ base: 3, md: 4 }} mt={2}>
                     <Icon 
                       as={FaArrowUp} 
                       color="green.400" 
-                      w={6} 
-                      h={6}
+                      w={{ base: 5, md: 6 }} 
+                      h={{ base: 5, md: 6 }}
                     />
-                    <Text color="green.400" fontSize="xl" fontWeight="bold">
+                    <Text 
+                      color="green.400" 
+                      fontSize={{ base: "lg", md: "xl" }} 
+                      fontWeight="bold"
+                    >
                       +2.3%
                     </Text>
                   </HStack>
                 </Box>
-                <Text fontSize="sm" color="gray.500">
+                <Text 
+                  fontSize={{ base: "xs", md: "sm" }} 
+                  color="gray.500"
+                >
                   {t('nextHours')}
                 </Text>
               </VStack>
             </Card>
   
-            <Card bg="whiteAlpha.100" p={6}>
-              <VStack align="stretch" spacing={4}>
-                <Heading size="md" color="gray.100">{t('technicalIndicators')}</Heading>
-                <SimpleGrid columns={2} spacing={4}>
+            <Card bg="whiteAlpha.100" p={{ base: 4, md: 6 }}>
+              <VStack align="stretch" spacing={{ base: 3, md: 4 }}>
+                <Heading 
+                  size={{ base: "sm", md: "md" }} 
+                  color="gray.100"
+                >
+                  {t('technicalIndicators')}
+                </Heading>
+                <SimpleGrid 
+                  columns={2} 
+                  spacing={{ base: 3, md: 4 }}
+                  fontSize={{ base: "sm", md: "md" }}
+                >
                   <Box>
                     <Text fontWeight="bold" color="gray.300">RSI</Text>
                     <Text color="white">63.5</Text>
@@ -574,11 +623,11 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
             </Card>
           </SimpleGrid>
   
-          {/* 添加渐变分割线 */}
+          {/* 渐变分割线 */}
           <Box
             h="1px"
             bg="linear-gradient(90deg, transparent, whiteAlpha.300, transparent)"
-            my={4}
+            my={{ base: 3, md: 4 }}
           />
         </VStack>
       </Box>
@@ -672,60 +721,144 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
 
   const RiskAnalysisTab = () => {
     return (
-      <Box>
-        <VStack spacing={6} align="stretch">
+      <Box px={{ base: 2, md: 0 }}>  {/* 移动端添加边距 */}
+        <VStack spacing={{ base: 4, md: 6 }} align="stretch">
           {/* 风险概览 */}
-          <Card bg="whiteAlpha.100" p={6}>
-            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
+          <Card bg="whiteAlpha.100" p={{ base: 4, md: 6 }}>
+            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={{ base: 4, md: 6 }}>
               <Stat>
-                <StatLabel color="gray.300">{t('overallRisk')}</StatLabel>
-                <StatNumber color="purple.400" fontSize="2xl">6.8/10</StatNumber>
-                <StatHelpText color="gray.400">
+                <StatLabel 
+                  color="gray.300" 
+                  fontSize={{ base: "sm", md: "md" }}
+                >
+                  {t('overallRisk')}
+                </StatLabel>
+                <StatNumber 
+                  color="purple.400" 
+                  fontSize={{ base: "xl", md: "2xl" }}
+                >
+                  6.8/10
+                </StatNumber>
+                <StatHelpText 
+                  color="gray.400"
+                  fontSize={{ base: "xs", md: "sm" }}
+                >
                   {t('moderateRisk')}
                 </StatHelpText>
               </Stat>
               <Stat>
-                <StatLabel color="gray.300">{t('riskTrend')}</StatLabel>
-                <StatNumber color="green.400" fontSize="2xl">
+                <StatLabel 
+                  color="gray.300"
+                  fontSize={{ base: "sm", md: "md" }}
+                >
+                  {t('riskTrend')}
+                </StatLabel>
+                <StatNumber 
+                  color="green.400" 
+                  fontSize={{ base: "xl", md: "2xl" }}
+                >
                   <StatArrow type="decrease" />
                   12%
                 </StatNumber>
-                <StatHelpText color="green.400">{t('decreasing')}</StatHelpText>
+                <StatHelpText 
+                  color="green.400"
+                  fontSize={{ base: "xs", md: "sm" }}
+                >
+                  {t('decreasing')}
+                </StatHelpText>
               </Stat>
               <Stat>
-                <StatLabel color="gray.300">{t('alertLevel')}</StatLabel>
-                <StatNumber color="yellow.400" fontSize="2xl">{t('moderate')}</StatNumber>
-                <StatHelpText color="yellow.400">{t('needsAttention')}</StatHelpText>
+                <StatLabel 
+                  color="gray.300"
+                  fontSize={{ base: "sm", md: "md" }}
+                >
+                  {t('alertLevel')}
+                </StatLabel>
+                <StatNumber 
+                  color="yellow.400" 
+                  fontSize={{ base: "xl", md: "2xl" }}
+                >
+                  {t('moderate')}
+                </StatNumber>
+                <StatHelpText 
+                  color="yellow.400"
+                  fontSize={{ base: "xs", md: "sm" }}
+                >
+                  {t('needsAttention')}
+                </StatHelpText>
               </Stat>
             </SimpleGrid>
           </Card>
   
           {/* 风险指标详情 */}
-          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-            <Card bg="whiteAlpha.100" p={6}>
-              <VStack align="stretch" spacing={4}>
-                <Heading size="md" color="gray.100">{t('keyRiskMetrics')}</Heading>
-                <VStack align="stretch" spacing={3}>
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 4, md: 6 }}>
+            <Card bg="whiteAlpha.100" p={{ base: 4, md: 6 }}>
+              <VStack align="stretch" spacing={{ base: 3, md: 4 }}>
+                <Heading 
+                  size={{ base: "sm", md: "md" }} 
+                  color="gray.100"
+                >
+                  {t('keyRiskMetrics')}
+                </Heading>
+                <VStack align="stretch" spacing={{ base: 2, md: 3 }}>
                   <Box>
-                    <Text color="gray.300" mb={2}>{t('volatilityIndex')}</Text>
-                    <Progress value={68} colorScheme="purple" borderRadius="full" />
+                    <Text 
+                      color="gray.300" 
+                      mb={2}
+                      fontSize={{ base: "sm", md: "md" }}
+                    >
+                      {t('volatilityIndex')}
+                    </Text>
+                    <Progress 
+                      value={68} 
+                      colorScheme="purple" 
+                      borderRadius="full" 
+                      size={{ base: "sm", md: "md" }}
+                    />
                   </Box>
                   <Box>
-                    <Text color="gray.300" mb={2}>{t('betaValue')}</Text>
-                    <Progress value={75} colorScheme="blue" borderRadius="full" />
+                    <Text 
+                      color="gray.300" 
+                      mb={2}
+                      fontSize={{ base: "sm", md: "md" }}
+                    >
+                      {t('betaValue')}
+                    </Text>
+                    <Progress 
+                      value={75} 
+                      colorScheme="blue" 
+                      borderRadius="full"
+                      size={{ base: "sm", md: "md" }}
+                    />
                   </Box>
                   <Box>
-                    <Text color="gray.300" mb={2}>{t('drawdownRisk')}</Text>
-                    <Progress value={45} colorScheme="orange" borderRadius="full" />
+                    <Text 
+                      color="gray.300" 
+                      mb={2}
+                      fontSize={{ base: "sm", md: "md" }}
+                    >
+                      {t('drawdownRisk')}
+                    </Text>
+                    <Progress 
+                      value={45} 
+                      colorScheme="orange" 
+                      borderRadius="full"
+                      size={{ base: "sm", md: "md" }}
+                    />
                   </Box>
                 </VStack>
               </VStack>
             </Card>
   
-            <Card bg="whiteAlpha.100" p={6}>
-              <VStack align="stretch" spacing={4}>
-                <Heading size="md" color="gray.100">{t('riskDistribution')}</Heading>
-                <Box h="200px" position="relative">
+            <Card bg="whiteAlpha.100" p={{ base: 4, md: 6 }}>
+              <VStack align="stretch" spacing={{ base: 3, md: 4 }}>
+                <Heading 
+                  size={{ base: "sm", md: "md" }} 
+                  color="gray.100"
+                >
+                  {t('riskDistribution')}
+                </Heading>
+                <Box h={{ base: "150px", md: "200px" }} position="relative">
                   {/* 这里可以添加风险分布图表 */}
                 </Box>
               </VStack>
@@ -733,19 +866,28 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
           </SimpleGrid>
   
           {/* 风险管理建议 */}
-          <Card bg="whiteAlpha.100" p={6}>
-            <VStack align="stretch" spacing={4}>
-              <Heading size="md" color="gray.100">{t('riskManagementSuggestions')}</Heading>
-              <List spacing={3}>
+          <Card bg="whiteAlpha.100" p={{ base: 4, md: 6 }}>
+            <VStack align="stretch" spacing={{ base: 3, md: 4 }}>
+              <Heading 
+                size={{ base: "sm", md: "md" }} 
+                color="gray.100"
+              >
+                {t('riskManagementSuggestions')}
+              </Heading>
+              <List spacing={{ base: 2, md: 3 }}>
                 {[
                   { priority: 'High', message: t('reduceExposure'), impact: 'Critical' },
                   { priority: 'Medium', message: t('diversifyPortfolio'), impact: 'Moderate' },
                   { priority: 'Low', message: t('hedgePositions'), impact: 'Low' }
                 ].map((item, index) => (
                   <ListItem key={index}>
-                    <HStack spacing={4}>
+                    <HStack 
+                      spacing={{ base: 2, md: 4 }}
+                      fontSize={{ base: "sm", md: "md" }}
+                      flexWrap={{ base: "wrap", md: "nowrap" }}
+                    >
                       <Tag 
-                        size="sm" 
+                        size={{ base: "sm", md: "md" }}
                         colorScheme={
                           item.priority === 'High' ? 'red' : 
                           item.priority === 'Medium' ? 'yellow' : 'green'
@@ -754,7 +896,12 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
                         {item.priority}
                       </Tag>
                       <Text color="white">{item.message}</Text>
-                      <Tag size="sm" variant="subtle">{item.impact}</Tag>
+                      <Tag 
+                        size={{ base: "sm", md: "md" }} 
+                        variant="subtle"
+                      >
+                        {item.impact}
+                      </Tag>
                     </HStack>
                   </ListItem>
                 ))}
