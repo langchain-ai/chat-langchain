@@ -602,10 +602,30 @@ export function ChatWindow() {
           ) : isRichMasterFunds ? (
             <RichMasterFunds />
           ) : isRichMasterAI ? (
+            <Box 
+            flex="1" 
+            overflowY="auto" 
+            px={4}
+            // 确保内容区域可以滚动
+            maxH="calc(100vh - 100px)" // 减去顶部导航和边距的高度
+            css={{
+              '&::-webkit-scrollbar': {
+                width: '4px',
+              },
+              '&::-webkit-scrollbar-track': {
+                width: '6px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: 'gray.500',
+                borderRadius: '24px',
+              },
+            }}
+          >
             <RichMasterAI
             onRegister={handleRegisterClick}
           isAuthenticated={isAuthenticated}
           setIsAuthenticated={setIsAuthenticated} />
+          </Box>
           ) : isPricingPlan ? (
             <PricingPlan />
           ): isAboutUs ? (
