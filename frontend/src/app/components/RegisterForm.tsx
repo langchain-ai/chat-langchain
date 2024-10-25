@@ -13,7 +13,11 @@ import {
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter, usePathname, Link } from '@/src/i18n/routing';
 
-export function RegisterForm() {
+interface RegisterFormProps {
+  onBackToLogin: () => void;  // 添加这个属性
+}
+
+export function RegisterForm({ onBackToLogin }: RegisterFormProps) {
   const router = useRouter();
   const pathname = usePathname();
   const locale = useLocale();  // 获取当前语言
@@ -54,7 +58,7 @@ export function RegisterForm() {
           </Button>
           <Text fontSize="sm" textAlign="center">
           {t('Already have an account?')} {" "}
-            <Text as="a" color="blue.400" href="/Login">
+            <Text as="a" color="blue.400" onClick={onBackToLogin} cursor="pointer">
             {t('Login')}
             </Text>
           </Text>

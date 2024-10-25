@@ -14,10 +14,10 @@ import {
 
 interface LoginProps {
   onLoginSuccess: () => void;
-  
+  onRegisterClick: () => void;
 }
 
-export default function Login({ onLoginSuccess }: LoginProps) {
+export default function Login({ onLoginSuccess, onRegisterClick }: LoginProps) {
     
   const t = useTranslations('HomePage'); 
   const [loading, setLoading] = useState(false);
@@ -128,7 +128,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
           <Text fontSize="sm" textAlign="center">
             {t("Don't have an account?")} {" "}
-            <Text as="span" color="blue.400" cursor="pointer">
+            <Text as="span" color="blue.400" cursor="pointer"  onClick={onRegisterClick}>
               {t('Register')}
             </Text>
           </Text>

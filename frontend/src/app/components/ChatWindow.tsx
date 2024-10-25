@@ -434,13 +434,14 @@ export function ChatWindow() {
   const [isRichMasterAI, setIsRichMasterAI] = useState(false);
   const [isPricingPlan, setIsPricingPlan] = useState(false);
   const [isPreviousChats, setIsPreviousChats] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isNews, setIsNews] = useState(false);
 
   const enterRegister = useCallback(() => {
     setIsRegistering(true);
     setIsRichMasterFunds(false);
     setIsRichMasterAI(false);
-    setIsPricingPlan(false)
+    setIsPricingPlan(false);
     setIsChatListVisible(false);
     setIsNews(false);
     setIsAboutUs(false);
@@ -513,6 +514,15 @@ export function ChatWindow() {
     setIsNews(true);
     setIsChatListVisible(false);
     setIsPreviousChats(false);
+  }, []);
+
+  const handleBackToLogin = useCallback(() => {
+    setIsRegistering(false);
+    setIsRichMasterAI(true); // 确保切换到 RichMasterAI 组件
+  }, []);
+
+  const handleRegisterClick = useCallback(() => {
+    setIsRegistering(true);
   }, []);
 
   return (
@@ -588,11 +598,14 @@ export function ChatWindow() {
             zIndex="10"
           />
           {isRegistering ? (
-            <RegisterForm />
+            <RegisterForm  onBackToLogin={handleBackToLogin} />
           ) : isRichMasterFunds ? (
             <RichMasterFunds />
           ) : isRichMasterAI ? (
-            <RichMasterAI />
+            <RichMasterAI
+            onRegister={handleRegisterClick}
+          isAuthenticated={isAuthenticated}
+          setIsAuthenticated={setIsAuthenticated} />
           ) : isPricingPlan ? (
             <PricingPlan />
           ): isAboutUs ? (
