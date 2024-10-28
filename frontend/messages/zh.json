@@ -171,6 +171,9 @@
      "volumeAlert": "交易量预警",
      "patternAlert": "形态预警",
      "successful": "成功",
-     "missed": "未命中"
+     "missed": "未命中",
+     "Technical Analysis":"技术分析",
+     "AI Prediction":"AI预测",
+     "Realtime Data":"实时数据"
     }
   }
