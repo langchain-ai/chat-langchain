@@ -172,6 +172,9 @@
     "volumeAlert": "Volume Alert",
     "patternAlert": "Pattern Alert",
     "successful": "Successful",
-    "missed": "Missed"
+    "missed": "Missed",
+    "Technical Analysis":"Technical Analysis",
+    "AI Prediction":"AI Prediction",
+    "Realtime Data":"Real-time Data"
     }
   }
