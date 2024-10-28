@@ -132,7 +132,7 @@ export default function Login({ onLoginSuccess, onRegisterClick }: LoginProps) {
   
             <Wrap spacing={{ base: 2, md: 4 }} mt={{ base: 2, md: 4 }}>
               {[
-                '技术分析', 'AI预测', '实时数据'
+                 t('Technical Analysis'), t('AI Prediction'), t('Realtime Data')
               ].map((tag) => (
                 <WrapItem key={tag}>
                   <Tag 
