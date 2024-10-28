@@ -966,9 +966,9 @@ export function RichMasterAI({ onRegister, isAuthenticated, setIsAuthenticated }
                   <FormLabel color="gray.300">{t('notificationChannels')}</FormLabel>
                   <CheckboxGroup colorScheme="yellow" defaultValue={['email', 'push']}>
                     <VStack align="start">
-                      <Checkbox value="email">{t('email')}</Checkbox>
-                      <Checkbox value="push">{t('push')}</Checkbox>
-                      <Checkbox value="sms">{t('sms')}</Checkbox>
+                      <Checkbox value="email" color="gray.300">{t('email')}</Checkbox>
+                      <Checkbox value="push" color="gray.300">{t('push')}</Checkbox>
+                      <Checkbox value="sms" color="gray.300">{t('sms')}</Checkbox>
                     </VStack>
                   </CheckboxGroup>
                 </FormControl>
