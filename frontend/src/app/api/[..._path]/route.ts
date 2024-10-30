@@ -9,7 +9,7 @@ function getCorsHeaders() {
     'Access-Control-Allow-Headers': '*',
   };
 }
-
+ 
 
 async function handleRequest(req: NextRequest, method: string) {
 
