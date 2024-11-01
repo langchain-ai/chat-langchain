@@ -5,7 +5,7 @@ import { type FC } from "react";
 import NextImage from "next/image";
 
 import { ArrowDownIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "../../../lib/utils";
 import { useAnswerHeaderToolUI } from "../AnswerHeaderToolUI";
 import { useGeneratingQuestionsUI } from "../GeneratingQuestionsToolUI";
 import { useProgressToolUI } from "../ProgressToolUI";
