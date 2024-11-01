@@ -1,3 +1,5 @@
+import React from "react";
+import { useGraphContext } from "../contexts/GraphContext";
 import { ModelOptions } from "../types";
 import {
   Select,
@@ -7,11 +9,6 @@ import {
   SelectValue,
 } from "./ui/select";
 
-interface SelectModelProps {
-  selectedModel: ModelOptions;
-  setSelectedModel: (model: ModelOptions) => void;
-}
-
 const modelOptionsAndLabels: Partial<Record<ModelOptions, string>> = {
   "openai/gpt-4o-mini": "GPT 4o Mini",
   "anthropic/claude-3-haiku-20240307": "Claude 3 Haiku",
@@ -19,10 +16,14 @@ const modelOptionsAndLabels: Partial<Record<ModelOptions, string>> = {
   "google_genai/gemini-pro": "Gemini Pro",
 };
 
-export function SelectModel(props: SelectModelProps) {
+export function SelectModelComponent() {
+  const {
+    graphData: { selectedModel, setSelectedModel },
+  } = useGraphContext();
   return (
     <Select
-      onValueChange={props.setSelectedModel}
+      onValueChange={(v) => setSelectedModel(v as ModelOptions)}
+      value={selectedModel}
       defaultValue="openai/gpt-4o-mini"
     >
       <SelectTrigger className="w-[180px] border-gray-600 text-gray-200">
@@ -38,3 +39,5 @@ export function SelectModel(props: SelectModelProps) {
     </Select>
   );
 }
+
+export const SelectModel = React.memo(SelectModelComponent);

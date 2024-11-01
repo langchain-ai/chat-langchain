@@ -12,16 +12,10 @@ export const createClient = () => {
   });
 };
 
-export interface ThreadActual extends Thread {
-  values: Record<string, any> | undefined;
-  config: Record<string, any>;
-  status: string;
-}
-
 export function useThreads(userId: string | undefined) {
   const { toast } = useToast();
   const [isUserThreadsLoading, setIsUserThreadsLoading] = useState(false);
-  const [userThreads, setUserThreads] = useState<ThreadActual[]>([]);
+  const [userThreads, setUserThreads] = useState<Thread[]>([]);
   const [threadId, setThreadId] = useState<string>();
 
   useEffect(() => {
@@ -87,7 +81,7 @@ export function useThreads(userId: string | undefined) {
           user_id: id,
         },
         limit: 100,
-      })) as Awaited<ThreadActual[]>;
+      })) as Awaited<Thread[]>;
 
       if (userThreads.length > 0) {
         const lastInArray = userThreads[0];
@@ -104,7 +98,7 @@ export function useThreads(userId: string | undefined) {
 
   const getThreadById = async (id: string) => {
     const client = createClient();
-    return (await client.threads.get(id)) as Awaited<ThreadActual>;
+    return (await client.threads.get(id)) as Awaited<Thread>;
   };
 
   const deleteThread = async (id: string, clearMessages: () => void) => {

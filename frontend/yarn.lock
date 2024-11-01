@@ -1191,13 +1191,12 @@
     zod "^3.22.4"
     zod-to-json-schema "^3.22.3"
 
-"@langchain/langgraph-sdk@^0.0.4":
-  version "0.0.4"
-  resolved "https://registry.yarnpkg.com/@langchain/langgraph-sdk/-/langgraph-sdk-0.0.4.tgz#26dd13d275335f7e7d7e2fd1f6c47e47b82c9ba7"
-  integrity sha512-r1B7sZVBVVTEgXXCQWmFXxjnqXcw3BZX+ZESVy/ymrkrA7HPs/xH8Ib6GBXdKk08Qce/QyPO4dNhQEGrstQgJw==
+"@langchain/langgraph-sdk@^0.0.20":
+  version "0.0.20"
+  resolved "https://registry.yarnpkg.com/@langchain/langgraph-sdk/-/langgraph-sdk-0.0.20.tgz#5cb75d83408a8dd3aab0d8923956672746d1b499"
+  integrity sha512-58iGYL0PppSiIHtIUNAN+x6TCl+Vb0dAmlToSMJHUng8W53ffXHQTNqVNxJlPsHO6zdgPJm4DRl53z6vkSUZpw==
   dependencies:
     "@types/json-schema" "^7.0.15"
-    eventsource-parser "^1.1.2"
     p-queue "^6.6.2"
     p-retry "4"
     uuid "^9.0.0"
@@ -3076,11 +3075,6 @@ eventemitter3@^4.0.4:
   version "4.0.7"
   resolved "https://registry.yarnpkg.com/eventemitter3/-/eventemitter3-4.0.7.tgz#2de9b68f6528d5644ef5c59526a1b4a07306169f"
   integrity sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==
-
-eventsource-parser@^1.1.2:
-  version "1.1.2"
-  resolved "https://registry.yarnpkg.com/eventsource-parser/-/eventsource-parser-1.1.2.tgz#ed6154a4e3dbe7cda9278e5e35d2ffc58b309f89"
-  integrity sha512-v0eOBUbiaFojBu2s2NPBfYUoRR9GjcDNvCXVaqEf5vVfpIAh9f8RCo4vXTP8c63QRKCFwoLpMpTdPwwhEKVgzA==
 
 extend@^3.0.0:
   version "3.0.2"
