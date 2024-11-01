@@ -5,7 +5,6 @@ import { type FC } from "react";
 import NextImage from "next/image";
 
 import { ArrowDownIcon } from "lucide-react";
-import { cn } from "../../../lib/utils";
 import { useAnswerHeaderToolUI } from "../AnswerHeaderToolUI";
 import { useGeneratingQuestionsUI } from "../GeneratingQuestionsToolUI";
 import { useProgressToolUI } from "../ProgressToolUI";
@@ -16,6 +15,7 @@ import { SuggestedQuestions } from "../SuggestedQuestions";
 import { TooltipIconButton } from "../ui/assistant-ui/tooltip-icon-button";
 import { AssistantMessage, UserMessage } from "./messages";
 import { ChatComposer, ChatComposerProps } from "./chat-composer";
+import { cn } from "@/app/utils/cn";
 
 export interface ThreadChatProps extends ChatComposerProps {}
 
