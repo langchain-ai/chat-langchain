@@ -5,10 +5,10 @@ import pandas as pd
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langsmith.evaluation import EvaluationResults, aevaluate
 from langsmith.schemas import Example, Run
+from pydantic import BaseModel, Field
 
 from backend.retrieval_graph.graph import graph
 from backend.utils import format_docs

@@ -1,77 +1,76 @@
 import { parsePartialJson } from "@langchain/core/output_parsers";
-import { useState } from "react";
+import {
+  createContext,
+  Dispatch,
+  ReactNode,
+  SetStateAction,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
-import { useToast } from "./use-toast";
+import { useToast } from "../hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
 
-import { Client } from "@langchain/langgraph-sdk";
-import { ThreadActual, useThreads } from "./useThreads";
+import { useThreads } from "../hooks/useThreads";
 import { ModelOptions } from "../types";
-import { useRuns } from "./useRuns";
+import { useRuns } from "../hooks/useRuns";
+import { useUser } from "../hooks/useUser";
+import { addDocumentLinks, createClient, nodeToStep } from "./utils";
+import { Thread } from "@langchain/langgraph-sdk";
 
-export const createClient = () => {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
-  return new Client({
-    apiUrl,
-  });
-};
-
-const nodeToStep = (node: string) => {
-  switch (node) {
-    case "analyze_and_route_query":
-      return 0;
-    case "create_research_plan":
-      return 1;
-    case "conduct_research":
-      return 2;
-    case "respond":
-      return 3;
-    default:
-      return 0;
-  }
-};
-
-function addDocumentLinks(
-  text: string,
-  inputDocuments: Record<string, any>[],
-): string {
-  return text.replace(/\[(\d+)\]/g, (match, number) => {
-    const index = parseInt(number, 10);
-    if (index >= 0 && index < inputDocuments.length) {
-      const document = inputDocuments[index];
-      if (document && document.metadata && document.metadata.source) {
-        return `[[${number}]](${document.metadata.source})`;
-      }
-    }
-    // Return the original match if no corresponding document is found
-    return match;
-  });
+interface GraphData {
+  messages: BaseMessage[];
+  selectedModel: ModelOptions;
+  setSelectedModel: Dispatch<SetStateAction<ModelOptions>>;
+  setMessages: Dispatch<SetStateAction<BaseMessage[]>>;
+  streamMessage: (params: GraphInput) => Promise<void>;
+  switchSelectedThread: (thread: Thread) => Promise<void>;
 }
+
+type UserDataContextType = ReturnType<typeof useUser>;
+
+type ThreadsDataContextType = ReturnType<typeof useThreads>;
+
+type GraphContentType = {
+  graphData: GraphData;
+  userData: UserDataContextType;
+  threadsData: ThreadsDataContextType;
+};
+
+const GraphContext = createContext<GraphContentType | undefined>(undefined);
 
 export interface GraphInput {
   messages?: Record<string, any>[];
 }
 
-interface UseGraphInput {
-  userId: string | undefined;
-  threadId: string | undefined;
-}
-
-export function useGraph(inputArgs: UseGraphInput) {
+export function GraphProvider({ children }: { children: ReactNode }) {
+  const { userId } = useUser();
+  const {
+    isUserThreadsLoading,
+    userThreads,
+    setUserThreads,
+    getThreadById,
+    getUserThreads,
+    createThread,
+    searchOrCreateThread,
+    threadId,
+    setThreadId,
+    deleteThread,
+  } = useThreads(userId);
   const { toast } = useToast();
-  const { setThreadId } = useThreads(inputArgs.userId);
   const { shareRun } = useRuns();
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [selectedModel, setSelectedModel] =
     useState<ModelOptions>("openai/gpt-4o-mini");
 
-  const streamMessage = async (params: GraphInput) => {
-    if (!inputArgs.threadId) {
+  const streamMessage = async (params: GraphInput): Promise<void> => {
+    if (!threadId) {
       toast({
         title: "Error",
         description: "Thread ID not found",
       });
-      return undefined;
+      return;
     }
 
     const client = createClient();
@@ -93,7 +92,7 @@ export function useGraph(inputArgs: UseGraphInput) {
       }),
     };
 
-    const stream = client.runs.stream(inputArgs.threadId, "chat", {
+    const stream = client.runs.stream(threadId, "chat", {
       input,
       streamMode: "events",
       config: {
@@ -557,15 +556,16 @@ export function useGraph(inputArgs: UseGraphInput) {
     }
   };
 
-  const switchSelectedThread = async (thread: ThreadActual) => {
+  const switchSelectedThread = async (thread: Thread) => {
     setThreadId(thread.thread_id);
     if (!thread.values) {
       setMessages([]);
       return;
     }
+    const threadValues = thread.values as Record<string, any>;
 
     const actualMessages = (
-      thread.values.messages as Record<string, any>[]
+      threadValues.messages as Record<string, any>[]
     ).flatMap((msg, index, array) => {
       if (msg.type === "human") {
         // insert progress bar afterwards
@@ -594,19 +594,19 @@ export function useGraph(inputArgs: UseGraphInput) {
         const isLastAiMessage =
           index === array.length - 1 || array[index + 1].type === "human";
         if (isLastAiMessage) {
-          const routerMessage = thread.values?.router
+          const routerMessage = threadValues.router
             ? new AIMessage({
                 content: "",
                 id: uuidv4(),
                 tool_calls: [
                   {
                     name: "router_logic",
-                    args: thread.values.router,
+                    args: threadValues.router,
                   },
                 ],
               })
             : undefined;
-          const selectedDocumentsAIMessage = thread.values?.documents?.length
+          const selectedDocumentsAIMessage = threadValues.documents?.length
             ? new AIMessage({
                 content: "",
                 id: uuidv4(),
@@ -614,7 +614,7 @@ export function useGraph(inputArgs: UseGraphInput) {
                   {
                     name: "selected_documents",
                     args: {
-                      documents: thread.values.documents,
+                      documents: threadValues.documents,
                     },
                   },
                 ],
@@ -651,12 +651,43 @@ export function useGraph(inputArgs: UseGraphInput) {
     setMessages(actualMessages);
   };
 
-  return {
-    messages,
-    selectedModel,
-    setSelectedModel,
-    setMessages,
-    streamMessage,
-    switchSelectedThread,
+  const contextValue: GraphContentType = {
+    userData: {
+      userId,
+    },
+    threadsData: {
+      isUserThreadsLoading,
+      userThreads,
+      setUserThreads,
+      getThreadById,
+      getUserThreads,
+      createThread,
+      searchOrCreateThread,
+      threadId,
+      setThreadId,
+      deleteThread,
+    },
+    graphData: {
+      messages,
+      selectedModel,
+      setSelectedModel,
+      setMessages,
+      streamMessage,
+      switchSelectedThread,
+    },
   };
+
+  return (
+    <GraphContext.Provider value={contextValue}>
+      {children}
+    </GraphContext.Provider>
+  );
+}
+
+export function useGraphContext() {
+  const context = useContext(GraphContext);
+  if (context === undefined) {
+    throw new Error("useGraphContext must be used within a GraphProvider");
+  }
+  return context;
 }
