@@ -160,7 +160,7 @@ if __name__ == "__main__":
     # Check dataset exists
     ds = client.read_dataset(dataset_name=args.dataset_name)
 
-    llm = ChatOpenAI(model="gpt-3.5-turbo-1106", streaming=True, temperature=0)
+    llm = ChatOpenAI(model="gpt-4o-mini", streaming=True, temperature=0)
 
     eval_config = RunEvalConfig(evaluators=["qa"], prediction_key="output")
     results = run_on_dataset(

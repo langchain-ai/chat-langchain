@@ -221,8 +221,8 @@ def create_chain(llm: LanguageModelLike, retriever: BaseRetriever) -> Runnable:
     response_synthesizer = (
         default_response_synthesizer.configurable_alternatives(
             ConfigurableField("llm"),
-            default_key="openai_gpt_3_5_turbo",
-            anthropic_claude_3_haiku=default_response_synthesizer,
+            default_key="openai_gpt_4o_mini",
+            anthropic_claude_3_sonnet=default_response_synthesizer,
             fireworks_mixtral=default_response_synthesizer,
             google_gemini_pro=default_response_synthesizer,
             cohere_command=cohere_response_synthesizer,
@@ -236,9 +236,9 @@ def create_chain(llm: LanguageModelLike, retriever: BaseRetriever) -> Runnable:
     )
 
 
-gpt_3_5 = ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0, streaming=True)
-claude_3_haiku = ChatAnthropic(
-    model="claude-3-haiku-20240307",
+gpt_4o_mini = ChatOpenAI(model="gpt-4o-mini", temperature=0, streaming=True)
+claude_3_sonnet = ChatAnthropic(
+    model="claude-3-5-sonnet-20241022",
     temperature=0,
     max_tokens=4096,
     anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", "not_provided"),
@@ -261,17 +261,17 @@ cohere_command = ChatCohere(
     temperature=0,
     cohere_api_key=os.environ.get("COHERE_API_KEY", "not_provided"),
 )
-llm = gpt_3_5.configurable_alternatives(
+llm = gpt_4o_mini.configurable_alternatives(
     # This gives this field an id
     # When configuring the end runnable, we can then use this id to configure this field
     ConfigurableField(id="llm"),
-    default_key="openai_gpt_3_5_turbo",
-    anthropic_claude_3_haiku=claude_3_haiku,
+    default_key="openai_gpt_4o_mini",
+    anthropic_claude_3_sonnet=claude_3_sonnet,
     fireworks_mixtral=fireworks_mixtral,
     google_gemini_pro=gemini_pro,
     cohere_command=cohere_command,
 ).with_fallbacks(
-    [gpt_3_5, claude_3_haiku, fireworks_mixtral, gemini_pro, cohere_command]
+    [gpt_4o_mini, claude_3_sonnet, fireworks_mixtral, gemini_pro, cohere_command]
 )
 
 retriever = get_retriever()
