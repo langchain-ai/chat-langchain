@@ -6,6 +6,8 @@ and key functions for processing & routing user queries, generating research pla
 conducting research, and formulating responses.
 """
 
+import os
+import logging
 from typing import Any, Literal, TypedDict, cast
 
 from langchain_core.messages import BaseMessage
@@ -17,7 +19,15 @@ from backend.retrieval_graph.configuration import AgentConfiguration
 from backend.retrieval_graph.researcher_graph.graph import graph as researcher_graph
 from backend.retrieval_graph.state import AgentState, InputState, Router
 from backend.utils import format_docs, load_chat_model
+logger = logging.getLogger(__name__)
 
+
+if os.getenv("ENABLE_OTEL") == "true":
+    from traceloop.sdk import Traceloop
+    Traceloop.init(app_name="chatlangchain")
+    logger.info("ENABLING OTEL")
+else:
+    logger.info("OTEL NOT ENABLED")
 
 async def analyze_and_route_query(
     state: AgentState, *, config: RunnableConfig
