@@ -80,5 +80,8 @@ class AgentState(InputState):
     documents: Annotated[list[Document], reduce_docs] = field(default_factory=list)
     """Populated by the retriever. This is a list of documents that the agent can reference."""
     answer: str = field(default="")
-    """Final answer. Useful for evaluations"""
+    """Final answer. Useful for evaluations."""
     query: str = field(default="")
+    """The user's query."""
+    num_response_attempts: int = field(default=0)
+    """The number of times the agent has tried to respond."""
