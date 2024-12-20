@@ -25,6 +25,8 @@ weaviate-client = "^4.0.0"
 lxml = "^4.9.3"
 voyageai = "^0.1.4"
 pillow = "^10.2.0"
+# do not remove this, it's used for indexing
+psycopg2-binary = "^2.9.9"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.0"
