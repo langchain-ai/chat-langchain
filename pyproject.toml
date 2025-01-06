@@ -9,7 +9,7 @@ packages = [{ include = "backend" }]
 [tool.poetry.dependencies]
 python = "^3.11"
 langchain = ">=0.3.0,<0.4.0"
-langsmith = { version = "0.2.7", extras = ["langsmith-pyo3", "compression"] }
+langsmith = { version = "0.2.10", extras = ["langsmith-pyo3", "compression"] }
 langchain-cohere = ">=0.3.0,<0.4.0"
 langchain-google-genai = ">=2.0.0,<3.0.0"
 langchain-core = ">=0.3.10,<0.4.0"
