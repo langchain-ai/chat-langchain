@@ -5,13 +5,12 @@ import pandas as pd
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from langsmith.evaluation import EvaluationResults, aevaluate
 from langsmith.schemas import Example, Run
 from pydantic import BaseModel, Field
 
 from backend.retrieval_graph.graph import graph
-from backend.utils import format_docs
+from backend.utils import format_docs, load_chat_model
 
 DATASET_NAME = "chat-langchain-qa"
 EXPERIMENT_PREFIX = "chat-langchain-ci"
@@ -20,10 +19,9 @@ SCORE_RETRIEVAL_RECALL = "retrieval_recall"
 SCORE_ANSWER_CORRECTNESS = "answer_correctness_score"
 SCORE_ANSWER_VS_CONTEXT_CORRECTNESS = "answer_vs_context_correctness_score"
 
-# claude sonnet / gpt-4o are a bit too expensive
-JUDGE_MODEL_NAME = "gpt-4o-mini"
+JUDGE_MODEL_NAME = "anthropic/claude-3-5-haiku-20241022"
 
-judge_llm = ChatOpenAI(model_name=JUDGE_MODEL_NAME)
+judge_llm = load_chat_model(JUDGE_MODEL_NAME)
 
 
 # Evaluate retrieval
