@@ -15,7 +15,7 @@ class AgentConfiguration(BaseConfiguration):
     # models
 
     query_model: str = field(
-        default="openai/claude-3-5-haiku-20241022",
+        default="anthropic/claude-3-5-haiku-20241022",
         metadata={
             "description": "The language model used for processing and refining queries. Should be in the form: provider/model-name."
         },
