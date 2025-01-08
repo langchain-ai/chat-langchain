@@ -20,8 +20,7 @@ SCORE_RETRIEVAL_RECALL = "retrieval_recall"
 SCORE_ANSWER_CORRECTNESS = "answer_correctness_score"
 SCORE_ANSWER_VS_CONTEXT_CORRECTNESS = "answer_vs_context_correctness_score"
 
-# claude sonnet / gpt-4o are a bit too expensive
-JUDGE_MODEL_NAME = "gpt-4o-mini"
+JUDGE_MODEL_NAME = "claude-3-5-haiku-20241022"
 
 judge_llm = ChatOpenAI(model_name=JUDGE_MODEL_NAME)
 
