@@ -60,9 +60,21 @@ async def retrieve_documents(
     Returns:
         dict[str, list[Document]]: A dictionary with a 'documents' key containing the list of retrieved documents.
     """
-    with retrieval.make_retriever(config) as retriever:
-        response = await retriever.ainvoke(state.query, config)
-        return {"documents": response}
+    # with retrieval.make_retriever(config) as retriever:
+    #     response = await retriever.ainvoke(state.query, config)
+    #     return {"documents": response}
+
+    documents = [
+        Document(
+                page_content="Hello, world!",
+                metadata={"source": "https://example.com"}
+            ),
+        Document(
+                page_content="Goodbye, world!",
+                metadata={"source": "https://example.com"}
+            ),
+    ]
+    return {"documents": documents}
 
 
 def retrieve_in_parallel(state: ResearcherState) -> list[Send]:

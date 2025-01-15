@@ -152,6 +152,11 @@ async def run_graph(inputs: dict[str, Any]) -> dict[str, Any]:
 
 # Check results
 
+def test_run_graph():
+    inputs = {"question": "What is Langchain?"}
+    results = asyncio.run(run_graph(inputs))
+    assert results["messages"]
+
 
 def convert_single_example_results(evaluation_results: EvaluationResults):
     converted = {}
