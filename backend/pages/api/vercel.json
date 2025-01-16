@@ -1,0 +1,27 @@
+{
+    "version": 2,
+    "builds": [
+      {
+        "src": "next.config.js",
+        "use": "@vercel/next"
+      },
+      {
+        "src": "pages/api/**/*.js",
+        "use": "@vercel/node"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/api/(.*)",
+        "dest": "/api/$1"
+      }
+    ],
+    "env": {
+      "WEAVIATE_URL": "@weaviate_url",
+      "WEAVIATE_API_KEY": "@weaviate_api_key",
+      "RECORD_MANAGER_DB_URL": "@record_manager_db_url",
+      "MY_HTML_FILES_DIRECTORY": "@my_html_files_directory",
+      "WEAVIATE_DOCS_INDEX_NAME": "@weaviate_docs_index_name"
+    }
+  }
+  
