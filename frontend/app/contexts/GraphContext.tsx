@@ -62,7 +62,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   const { shareRun } = useRuns();
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [selectedModel, setSelectedModel] =
-    useState<ModelOptions>("openai/gpt-4o-mini");
+    useState<ModelOptions>("anthropic/claude-3-5-haiku-20241022");
 
   const streamMessage = async (params: GraphInput): Promise<void> => {
     if (!threadId) {
