@@ -2,7 +2,7 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { emojisplosion } from "emojisplosion";
 import { useState, useRef } from "react";
-import * as DOMPurify from "dompurify";
+import DOMPurify from "isomorphic-dompurify";
 import { SourceBubble, Source } from "./SourceBubble";
 import {
   VStack,
