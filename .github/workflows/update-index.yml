@@ -16,6 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: Indexing
     steps:
+      - name: Set up proxy
+        run: |
+          echo "HTTP_PROXY=http://127.0.0.1:7897" >> $GITHUB_ENV
+          echo "HTTPS_PROXY=http://127.0.0.1:7897" >> $GITHUB_ENV
+          echo "NO_PROXY=localhost,127.0.0.1" >> $GITHUB_ENV
+
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
