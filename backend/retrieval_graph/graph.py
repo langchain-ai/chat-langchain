@@ -144,7 +144,7 @@ async def create_research_plan(
     messages = [
         {"role": "system", "content": configuration.research_plan_system_prompt}
     ] + state.messages
-    response = cast(Plan, await model.ainvoke(messages))
+    response = cast(Plan, await model.ainvoke(messages, {"tags": ["langsmith:nostream"]}))
     return {
         "steps": response["steps"],
         "documents": "delete",
