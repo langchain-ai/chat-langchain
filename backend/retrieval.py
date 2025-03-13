@@ -2,14 +2,20 @@ import os
 from contextlib import contextmanager
 from typing import Iterator
 
-import weaviate
+#import weaviate
+import chromadb
 from langchain_core.embeddings import Embeddings
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import RunnableConfig
-from langchain_weaviate import WeaviateVectorStore
+#from langchain_weaviate import WeaviateVectorStore
+from langchain_community.vectorstores import Chroma
+from chromadb.config import Settings
 
 from backend.configuration import BaseConfiguration
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
+
+DATABASE_HOST = os.environ["DATABASE_HOST"]
+COLLECTION_NAME = os.environ["COLLECTION_NAME"]
 
 
 def make_text_encoder(model: str) -> Embeddings:
@@ -28,22 +34,34 @@ def make_text_encoder(model: str) -> Embeddings:
 def make_weaviate_retriever(
     configuration: BaseConfiguration, embedding_model: Embeddings
 ) -> Iterator[BaseRetriever]:
-    with weaviate.connect_to_weaviate_cloud(
-        cluster_url=os.environ["WEAVIATE_URL"],
-        auth_credentials=weaviate.classes.init.Auth.api_key(
-            os.environ.get("WEAVIATE_API_KEY", "not_provided")
-        ),
-        skip_init_checks=True,
-    ) as weaviate_client:
-        store = WeaviateVectorStore(
-            client=weaviate_client,
-            index_name=WEAVIATE_DOCS_INDEX_NAME,
-            text_key="text",
-            embedding=embedding_model,
-            attributes=["source", "title"],
-        )
-        search_kwargs = {**configuration.search_kwargs, "return_uuids": True}
-        yield store.as_retriever(search_kwargs=search_kwargs)
+    #with weaviate.connect_to_weaviate_cloud(
+    #    cluster_url=os.environ["WEAVIATE_URL"],
+    #    auth_credentials=weaviate.classes.init.Auth.api_key(
+    #        os.environ.get("WEAVIATE_API_KEY", "not_provided")
+    #    ),
+    #    skip_init_checks=True,
+    #) as weaviate_client:
+    #    store = WeaviateVectorStore(
+    #        client=weaviate_client,
+    #        index_name=WEAVIATE_DOCS_INDEX_NAME,
+    #        text_key="text",
+    #        embedding=embedding_model,
+    #        attributes=["source", "title"],
+    #    )
+    #    search_kwargs = {**configuration.search_kwargs, "return_uuids": True}
+    #    yield store.as_retriever(search_kwargs=search_kwargs)
+    chroma_client = chromadb.HttpClient(
+        host=DATABASE_HOST,
+        port="8000"
+    )
+    vectorstore = Chroma(
+        client=chroma_client,
+        collection_name=COLLECTION_NAME,
+        embedding_function=embedding_model,
+        #persist_directory="./chroma_chat_langchain_test_db",
+    )
+
+    yield vectorstore.as_retriever(search_kwargs=dict(k=4))
 
 
 @contextmanager
