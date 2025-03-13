@@ -7,9 +7,11 @@ import { ChatLangChain } from "./components/ChatLangChain";
 export default function Page(): React.ReactElement {
   return (
     <main className="w-full h-full">
-      <GraphProvider>
-        <ChatLangChain />
-      </GraphProvider>
+      <React.Suspense fallback={null}>
+        <GraphProvider>
+          <ChatLangChain />
+        </GraphProvider>
+      </React.Suspense>
     </main>
   );
 }

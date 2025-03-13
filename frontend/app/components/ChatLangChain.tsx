@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   AppendMessage,
   AssistantRuntimeProvider,
@@ -19,36 +19,73 @@ import { SelectModel } from "./SelectModel";
 import { ThreadHistory } from "./thread-history";
 import { Toaster } from "./ui/toaster";
 import { useGraphContext } from "../contexts/GraphContext";
+import { useQueryState } from "nuqs";
 
 function ChatLangChainComponent(): React.ReactElement {
   const { toast } = useToast();
   const { threadsData, userData, graphData } = useGraphContext();
   const { userId } = userData;
-  const { getUserThreads, threadId: currentThread } = threadsData;
-  const { messages, setMessages, streamMessage } = graphData;
+  const { getUserThreads, createThread, getThreadById } = threadsData;
+  const { messages, setMessages, streamMessage, switchSelectedThread } =
+    graphData;
   const [isRunning, setIsRunning] = useState(false);
+  const [threadId, setThreadId] = useQueryState("threadId");
 
-  const isSubmitDisabled = !userId || !currentThread;
+  const hasCheckedThreadIdParam = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || hasCheckedThreadIdParam.current)
+      return;
+    if (!threadId) {
+      hasCheckedThreadIdParam.current = true;
+      return;
+    }
+
+    hasCheckedThreadIdParam.current = true;
+
+    try {
+      getThreadById(threadId).then((thread) => {
+        if (!thread) {
+          setThreadId(null);
+          return;
+        }
+
+        switchSelectedThread(thread);
+      });
+    } catch (e) {
+      console.error("Failed to fetch thread in query param", e);
+      setThreadId(null);
+    }
+  }, [threadId]);
+
+  const isSubmitDisabled = !userId;
 
   async function onNew(message: AppendMessage): Promise<void> {
     if (isSubmitDisabled) {
-      let description = "";
-      if (!userId) {
-        description = "Unable to find user ID. Please try again later.";
-      } else if (!currentThread) {
-        description =
-          "Unable to find current thread ID. Please try again later.";
-      }
       toast({
         title: "Failed to send message",
-        description,
+        description: "Unable to find user ID. Please try again later.",
       });
       return;
     }
     if (message.content[0]?.type !== "text") {
       throw new Error("Only text messages are supported");
     }
+
     setIsRunning(true);
+
+    let currentThreadId = threadId;
+    if (!currentThreadId) {
+      const thread = await createThread(userId);
+      if (!thread) {
+        toast({
+          title: "Error",
+          description: "Thread creation failed.",
+        });
+        return;
+      }
+      setThreadId(thread.thread_id);
+      currentThreadId = thread.thread_id;
+    }
 
     try {
       const humanMessage = new HumanMessage({
@@ -58,7 +95,7 @@ function ChatLangChainComponent(): React.ReactElement {
 
       setMessages((prevMessages) => [...prevMessages, humanMessage]);
 
-      await streamMessage({
+      await streamMessage(currentThreadId, {
         messages: [convertToOpenAIFormat(humanMessage)],
       });
     } finally {
