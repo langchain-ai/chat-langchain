@@ -1,3 +1,5 @@
+"use client";
+
 import { parsePartialJson } from "@langchain/core/output_parsers";
 import {
   createContext,
@@ -5,7 +7,6 @@ import {
   ReactNode,
   SetStateAction,
   useContext,
-  useEffect,
   useState,
 } from "react";
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
@@ -18,14 +19,15 @@ import { useRuns } from "../hooks/useRuns";
 import { useUser } from "../hooks/useUser";
 import { addDocumentLinks, createClient, nodeToStep } from "./utils";
 import { Thread } from "@langchain/langgraph-sdk";
+import { useQueryState } from "nuqs";
 
 interface GraphData {
   messages: BaseMessage[];
   selectedModel: ModelOptions;
   setSelectedModel: Dispatch<SetStateAction<ModelOptions>>;
   setMessages: Dispatch<SetStateAction<BaseMessage[]>>;
-  streamMessage: (params: GraphInput) => Promise<void>;
-  switchSelectedThread: (thread: Thread) => Promise<void>;
+  streamMessage: (currentThreadId: string, params: GraphInput) => Promise<void>;
+  switchSelectedThread: (thread: Thread) => void;
 }
 
 type UserDataContextType = ReturnType<typeof useUser>;
@@ -49,30 +51,31 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   const {
     isUserThreadsLoading,
     userThreads,
-    setUserThreads,
     getThreadById,
+    setUserThreads,
     getUserThreads,
     createThread,
-    searchOrCreateThread,
-    threadId,
-    setThreadId,
     deleteThread,
   } = useThreads(userId);
   const { toast } = useToast();
   const { shareRun } = useRuns();
   const [messages, setMessages] = useState<BaseMessage[]>([]);
-  const [selectedModel, setSelectedModel] =
-    useState<ModelOptions>("anthropic/claude-3-5-haiku-20241022");
+  const [selectedModel, setSelectedModel] = useState<ModelOptions>(
+    "anthropic/claude-3-5-haiku-20241022",
+  );
+  const [_threadId, setThreadId] = useQueryState("threadId");
 
-  const streamMessage = async (params: GraphInput): Promise<void> => {
-    if (!threadId) {
+  const streamMessage = async (
+    currentThreadId: string,
+    params: GraphInput,
+  ): Promise<void> => {
+    if (!userId) {
       toast({
         title: "Error",
-        description: "Thread ID not found",
+        description: "User ID not found",
       });
       return;
     }
-
     const client = createClient();
 
     const input = {
@@ -92,7 +95,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       }),
     };
 
-    const stream = client.runs.stream(threadId, "chat", {
+    const stream = client.runs.stream(currentThreadId, "chat", {
       input,
       streamMode: "events",
       config: {
@@ -556,7 +559,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const switchSelectedThread = async (thread: Thread) => {
+  const switchSelectedThread = (thread: Thread) => {
     setThreadId(thread.thread_id);
     if (!thread.values) {
       setMessages([]);
@@ -658,13 +661,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     threadsData: {
       isUserThreadsLoading,
       userThreads,
-      setUserThreads,
       getThreadById,
+      setUserThreads,
       getUserThreads,
       createThread,
-      searchOrCreateThread,
-      threadId,
-      setThreadId,
       deleteThread,
     },
     graphData: {

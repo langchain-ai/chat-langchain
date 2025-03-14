@@ -42,7 +42,9 @@ async def generate_queries(
         {"role": "system", "content": configuration.generate_queries_system_prompt},
         {"role": "human", "content": state.question},
     ]
-    response = cast(Response, await model.ainvoke(messages))
+    response = cast(
+        Response, await model.ainvoke(messages, {"tags": ["langsmith:nostream"]})
+    )
     return {"queries": response["queries"]}
 
 
