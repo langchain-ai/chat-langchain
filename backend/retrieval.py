@@ -3,7 +3,9 @@ from contextlib import contextmanager
 from typing import Iterator
 
 #import weaviate
-import chromadb
+#import chromadb
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
 from langchain_core.embeddings import Embeddings
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import RunnableConfig
@@ -52,7 +54,7 @@ def make_weaviate_retriever(
     #    yield store.as_retriever(search_kwargs=search_kwargs)
     chroma_client = chromadb.HttpClient(
         host=DATABASE_HOST,
-        port="8000"
+        port="9010"
     )
     vectorstore = Chroma(
         client=chroma_client,

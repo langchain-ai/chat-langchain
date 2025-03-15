@@ -5,7 +5,9 @@ import re
 from typing import Optional
 
 #import weaviate
-import chromadb
+#import chromadb
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
 from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain_community.document_loaders import JSONLoader
@@ -173,7 +175,7 @@ def ingest_docs():
     COLLECTION_NAME = os.environ["COLLECTION_NAME"]
     chroma_client = chromadb.HttpClient(
         host=DATABASE_HOST,
-        port="8000"
+        port="9010"
     )
     vectorstore = Chroma(
         client=chroma_client,
@@ -186,10 +188,10 @@ def ingest_docs():
 #        record_manager = SQLRecordManager(
 #            f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
 #        )
-        record_manager = SQLRecordManager(
-            f"weaviate/{COLLECTION_NAME}", db_url=RECORD_MANAGER_DB_URL
-        )
-        record_manager.create_schema()
+    record_manager = SQLRecordManager(
+        f"weaviate/{COLLECTION_NAME}", db_url=RECORD_MANAGER_DB_URL
+    )
+    record_manager.create_schema()
 
         #docs_from_documentation = load_langchain_docs()
         #logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
@@ -199,44 +201,44 @@ def ingest_docs():
         #logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
         #docs_from_langgraph = load_langgraph_docs()
         #logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
-        docs_from_vf = load_vf_docs()
-        logger.info(f"Loaded {len(docs_from_vf)} docs from VF")
+    docs_from_vf = load_vf_docs()
+    logger.info(f"Loaded {len(docs_from_vf)} docs from VF")
 
-        docs_transformed = text_splitter.split_documents(
-            docs_from_vf
+    docs_transformed = text_splitter.split_documents(
+        docs_from_vf
 
-        )
-        docs_transformed = [
-            doc for doc in docs_transformed if len(doc.page_content) > 10
-        ]
+    )
+    docs_transformed = [
+        doc for doc in docs_transformed if len(doc.page_content) > 10
+    ]
 
         # We try to return 'source' and 'title' metadata when querying vector store and
         # Weaviate will error at query time if one of the attributes is missing from a
         # retrieved document.
-        for doc in docs_transformed:
-            if "source" not in doc.metadata:
-                doc.metadata["source"] = ""
-            if "title" not in doc.metadata:
-                doc.metadata["title"] = ""
+    for doc in docs_transformed:
+        if "source" not in doc.metadata:
+            doc.metadata["source"] = ""
+        if "title" not in doc.metadata:
+            doc.metadata["title"] = ""
 
-        indexing_stats = index(
-            docs_transformed,
-            record_manager,
-            vectorstore,
-            cleanup="full",
-            source_id_key="source",
-            force_update=(os.environ.get("FORCE_UPDATE") or "false").lower() == "true",
-        )
+    indexing_stats = index(
+        docs_transformed,
+        record_manager,
+        vectorstore,
+        cleanup="full",
+        source_id_key="source",
+        force_update=(os.environ.get("FORCE_UPDATE") or "false").lower() == "true",
+    )
 
-        logger.info(f"Indexing stats: {indexing_stats}")
+    logger.info(f"Indexing stats: {indexing_stats}")
         #num_vecs = (
         #    weaviate_client.collections.get(WEAVIATE_DOCS_INDEX_NAME)
         #    .aggregate.over_all()
         #    .total_count
         #)
-        logger.info(
-            f"NUMBER OF DOCUMENTS: {len(vectorstore.get()['documents'])}"
-        )
+    logger.info(
+        f"NUMBER OF DOCUMENTS: {len(vectorstore.get()['documents'])}"
+    )
 
 
 if __name__ == "__main__":
