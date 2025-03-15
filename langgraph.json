@@ -1,6 +1,6 @@
 {
     "cloud": {
-        "api_key": "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",
+        "api_key": "LANGCHAIN_API_KEY",
         "endpoint": "https://smith.langchain.com/api/v1"
     },
     "development": {
