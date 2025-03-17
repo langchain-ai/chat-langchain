@@ -228,11 +228,11 @@ def ingest_docs():
     )
 
     logger.info(f"Indexing stats: {indexing_stats}")
-        num_vecs = (
-            weaviate_client.collections.get(WEAVIATE_DOCS_INDEX_NAME)
-            .aggregate.over_all()
-            .total_count
-        )
+    num_vecs = (
+        weaviate_client.collections.get(WEAVIATE_DOCS_INDEX_NAME)
+        .aggregate.over_all()
+        .total_count
+    )
     #logger.info(
     #    f"NUMBER OF DOCUMENTS: {len(vectorstore.get()['documents'])}"
     #)
