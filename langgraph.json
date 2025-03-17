@@ -1,12 +1,4 @@
 {
-    "cloud": {
-        "api_key": "LANGCHAIN_API_KEY",
-        "endpoint": "https://smith.langchain.com/api/v1"
-    },
-    "development": {
-        "tracing": true,
-        "auth_type": "langsmith"
-    },
   "dependencies": ["."],
   "graphs": {
     "chat": "./backend/retrieval_graph/graph.py:graph"

@@ -4,19 +4,15 @@ import os
 import re
 from typing import Optional
 
-#import weaviate
-#import chromadb
-from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
+import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain_community.document_loaders import JSONLoader
 from langchain.indexes import SQLRecordManager, index
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-#from langchain_weaviate import WeaviateVectorStore
-from langchain_community.vectorstores import Chroma
-from chromadb.config import Settings
+from langchain_weaviate import WeaviateVectorStore
+#from langchain_community.vectorstores import Chroma
 
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 from backend.embeddings import get_embeddings_model
@@ -138,7 +134,8 @@ def metadata_func(record: dict, metadata: dict) -> dict:
 
 def load_vf_docs():
     return JSONLoader(
-        file_path='./backend/vf_data_cleaned.json',
+        SEEK_DATASET = os.environ["SEEK_DATASET"]
+        file_path=SEEK_DATASET,
         jq_schema='.[].data[]',
         content_key="post_content",
         metadata_func=metadata_func
@@ -146,8 +143,8 @@ def load_vf_docs():
 
 
 def ingest_docs():
-#    WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-#    WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
+    WEAVIATE_URL = os.environ["WEAVIATE_URL"]
+    WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 #    RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
     DATABASE_HOST = os.environ["DATABASE_HOST"]
@@ -160,37 +157,37 @@ def ingest_docs():
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     embedding = get_embeddings_model()
 
-#    with weaviate.connect_to_weaviate_cloud(
-#        cluster_url=WEAVIATE_URL,
-#        auth_credentials=weaviate.classes.init.Auth.api_key(WEAVIATE_API_KEY),
-#        skip_init_checks=True,
-#    ) as weaviate_client:
-#        vectorstore = WeaviateVectorStore(
-#            client=weaviate_client,
-#            index_name=WEAVIATE_DOCS_INDEX_NAME,
-#            text_key="text",
-#            embedding=embedding,
-#            attributes=["source", "title"],
-#        )
-    COLLECTION_NAME = os.environ["COLLECTION_NAME"]
-    chroma_client = chromadb.HttpClient(
-        host=DATABASE_HOST,
-        port="9010"
-    )
-    vectorstore = Chroma(
-        client=chroma_client,
-        collection_name=COLLECTION_NAME,
-        embedding_function=embedding,
+    with weaviate.connect_to_weaviate_cloud(
+        cluster_url=WEAVIATE_URL,
+        auth_credentials=weaviate.classes.init.Auth.api_key(WEAVIATE_API_KEY),
+        skip_init_checks=True,
+    ) as weaviate_client:
+        vectorstore = WeaviateVectorStore(
+            client=weaviate_client,
+            index_name=WEAVIATE_DOCS_INDEX_NAME,
+            text_key="text",
+            embedding=embedding,
+            attributes=["source", "title"],
+        )
+    #COLLECTION_NAME = os.environ["COLLECTION_NAME"]
+    #chroma_client = chromadb.HttpClient(
+    #    host=DATABASE_HOST,
+    #    port="9010"
+    #)
+    #vectorstore = Chroma(
+    #    client=chroma_client,
+    #    collection_name=COLLECTION_NAME,
+    #    embedding_function=embedding,
         #persist_directory="./chroma_chat_langchain_test_db",
-    )
-    vectorstore.persist()
+    #)
+    #vectorstore.persist()
 
-#        record_manager = SQLRecordManager(
-#            f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
-#        )
     record_manager = SQLRecordManager(
-        f"weaviate/{COLLECTION_NAME}", db_url=RECORD_MANAGER_DB_URL
+        f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
     )
+    #record_manager = SQLRecordManager(
+    #    f"weaviate/{COLLECTION_NAME}", db_url=RECORD_MANAGER_DB_URL
+    #)
     record_manager.create_schema()
 
         #docs_from_documentation = load_langchain_docs()
@@ -231,14 +228,14 @@ def ingest_docs():
     )
 
     logger.info(f"Indexing stats: {indexing_stats}")
-        #num_vecs = (
-        #    weaviate_client.collections.get(WEAVIATE_DOCS_INDEX_NAME)
-        #    .aggregate.over_all()
-        #    .total_count
-        #)
-    logger.info(
-        f"NUMBER OF DOCUMENTS: {len(vectorstore.get()['documents'])}"
-    )
+        num_vecs = (
+            weaviate_client.collections.get(WEAVIATE_DOCS_INDEX_NAME)
+            .aggregate.over_all()
+            .total_count
+        )
+    #logger.info(
+    #    f"NUMBER OF DOCUMENTS: {len(vectorstore.get()['documents'])}"
+    #)
 
 
 if __name__ == "__main__":
