@@ -133,8 +133,8 @@ def metadata_func(record: dict, metadata: dict) -> dict:
 
 
 def load_vf_docs():
+    SEEK_DATASET = os.environ["SEEK_DATASET"]
     return JSONLoader(
-        SEEK_DATASET = os.environ["SEEK_DATASET"]
         file_path=SEEK_DATASET,
         jq_schema='.[].data[]',
         content_key="post_content",
