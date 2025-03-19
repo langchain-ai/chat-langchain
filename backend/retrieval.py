@@ -13,6 +13,7 @@ from backend.configuration import BaseConfiguration
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 
 DATABASE_HOST = os.environ["DATABASE_HOST"]
+OPENAI_KEY = os.environ["OPENAI_API_KEY"]
 #COLLECTION_NAME = os.environ["COLLECTION_NAME"]
 
 
@@ -37,6 +38,9 @@ def make_weaviate_retriever(
         auth_credentials=weaviate.classes.init.Auth.api_key(
             os.environ.get("WEAVIATE_API_KEY", "not_provided")
         ),
+        headers={
+            "X-OpenAI-Api-Key": OPENAI_KEY
+        },
         skip_init_checks=True,
     ) as weaviate_client:
         store = WeaviateVectorStore(
