@@ -12,6 +12,7 @@ export const createClient = () => {
   return new Client({
     apiUrl,
     apiKey,
+    defaultHeaders: { "x-api-key": apiKey, },
   });
 };
 
