@@ -11,7 +11,10 @@ export const createClient = () => {
   const apiKey = process.env.LANGCHAIN_API_KEY;
   return new Client({
     apiUrl,
-    apiKey,
+    headers: {
+      "x-api-key": process.env.LANGCHAIN_API_KEY || "",
+    },
+
   });
 };
 
