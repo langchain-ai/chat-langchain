@@ -10,11 +10,8 @@ export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
   const apiKey = process.env.LANGCHAIN_API_KEY;
   return new Client({
-    apiUrl,
-    headers: {
-      "x-api-key": process.env.LANGCHAIN_API_KEY || "",
-    },
-
+    apiUrl: process.env.NEXT_PUBLIC_API_URL,
+    apiKey: process.env.LANGSMITH_API_KEY
   });
 };
 
