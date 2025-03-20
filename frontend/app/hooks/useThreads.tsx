@@ -10,15 +10,8 @@ export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
   const apiKey = process.env.LANGCHAIN_API_KEY;
   return new Client({
-    apiUrl: process.env.NEXT_PUBLIC_API_URL,
-    headers: {
-      // Authentication
-      'X-Api-Key': process.env.LANGSMITH_API_KEY,
-      // Optional additional headers
-      'User-Agent': 'chat-langchain-sktst/1.0',
-      // Content type
-      'Content-Type': 'application/json'
-    }
+    apiUrl,
+    apiKey,
   });
 };
 
