@@ -44,7 +44,7 @@ def make_weaviate_retriever(
             index_name=WEAVIATE_DOCS_INDEX_NAME,
             text_key="text",
             embedding=embedding_model,
-            attributes=["source", "title"],
+            attributes=["source", "title", "publish_date"],
         )
         search_kwargs = {**configuration.search_kwargs, "return_uuids": True}
         yield store.as_retriever(search_kwargs=search_kwargs)
