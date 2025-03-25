@@ -13,7 +13,7 @@ from langchain.indexes import SQLRecordManager, index
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_weaviate import WeaviateVectorStore
-#from langchain_community.vectorstores import Chroma
+# from langchain_community.vectorstores import Chroma
 
 from constants import WEAVIATE_DOCS_INDEX_NAME
 from embeddings import get_embeddings_model
@@ -168,22 +168,22 @@ def ingest_docs():
             index_name=WEAVIATE_DOCS_INDEX_NAME,
             text_key="text",
             embedding=embedding,
-            attributes=["source", "title"],
+            attributes=["source", "title", "publish_date"],
         )
 
         COLLECTION_NAME = os.environ["COLLECTION_NAME"]
         
-        #chroma_client = chromadb.HttpClient(
+        # chroma_client = chromadb.HttpClient(
         #    host=DATABASE_HOST,
         #    port="9010"
-        #)
-        #vectorstore = Chroma(
+        # )
+        # vectorstore = Chroma(
         #    client=chroma_client,
         #    collection_name=COLLECTION_NAME,
         #    embedding_function=embedding,
-            #persist_directory="./chroma_chat_langchain_test_db",
-        #)
-        #vectorstore.persist()
+        #     persist_directory="./chroma_chat_langchain_test_db",
+        # )
+        # vectorstore.persist()
 
         # record_manager = SQLRecordManager(
         #     f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
@@ -194,28 +194,27 @@ def ingest_docs():
         )
         record_manager.create_schema()
 
-            #docs_from_documentation = load_langchain_docs()
-            #logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
-            #docs_from_api = load_api_docs()
-            #logger.info(f"Loaded {len(docs_from_api)} docs from API")
-            #docs_from_langsmith = load_langsmith_docs()
-            #logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
-            #docs_from_langgraph = load_langgraph_docs()
-            #logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
+        # docs_from_documentation = load_langchain_docs()
+        # logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
+        # docs_from_api = load_api_docs()
+        # logger.info(f"Loaded {len(docs_from_api)} docs from API")
+        # docs_from_langsmith = load_langsmith_docs()
+        # logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
+        # docs_from_langgraph = load_langgraph_docs()
+        # logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
         docs_from_vf = load_vf_docs()
         logger.info(f"Loaded {len(docs_from_vf)} docs from VF")
 
         docs_transformed = text_splitter.split_documents(
             docs_from_vf
-
         )
         docs_transformed = [
             doc for doc in docs_transformed if len(doc.page_content) > 10
         ]
 
-            # We try to return 'source' and 'title' metadata when querying vector store and
-            # Weaviate will error at query time if one of the attributes is missing from a
-            # retrieved document.
+        # We try to return 'source' and 'title' metadata when querying vector store and
+        # Weaviate will error at query time if one of the attributes is missing from a
+        # retrieved document.
         for doc in docs_transformed:
             if "source" not in doc.metadata:
                 doc.metadata["source"] = ""
@@ -237,9 +236,9 @@ def ingest_docs():
             .aggregate.over_all()
             .total_count
         )
-        #logger.info(
+        # logger.info(
         #    f"NUMBER OF DOCUMENTS: {len(vectorstore.get()['documents'])}"
-        #)
+        # )
 
 
 if __name__ == "__main__":
