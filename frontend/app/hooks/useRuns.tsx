@@ -32,7 +32,7 @@ export function useRuns() {
       runId: string,
       feedbackKey: string,
       score: number,
-      comment?: string
+      comment?: string,
     ): Promise<FeedbackResponse | undefined> => {
       try {
         const res = await fetch("/api/runs/feedback", {
@@ -53,7 +53,7 @@ export function useRuns() {
         return;
       }
     },
-    []
+    [],
   );
 
   return {

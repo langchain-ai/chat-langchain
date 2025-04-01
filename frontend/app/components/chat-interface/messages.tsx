@@ -24,7 +24,9 @@ export const UserMessage: FC = () => {
 };
 
 function FeedbackButtons() {
-  const { graphData: { runId, isStreaming } } = useGraphContext();
+  const {
+    graphData: { runId, isStreaming },
+  } = useGraphContext();
   const { sendFeedback } = useRuns();
   const [feedback, setFeedback] = useState<"good" | "bad">();
 
@@ -37,21 +39,39 @@ function FeedbackButtons() {
   if (feedback) {
     return (
       <div className="flex gap-2 items-center mt-4">
-        {feedback === "good" ? <ThumbsUpIcon className="w-4 h-4 text-green-500" /> : <ThumbsDownIcon className="w-4 h-4 text-red-500" />}
+        {feedback === "good" ? (
+          <ThumbsUpIcon className="w-4 h-4 text-green-500" />
+        ) : (
+          <ThumbsDownIcon className="w-4 h-4 text-red-500" />
+        )}
       </div>
-    )
+    );
   }
 
   return (
     <div className="flex gap-2 items-center mt-4">
-      <TooltipIconButton delayDuration={200} variant="ghost" tooltip="Good response" onClick={() => {
-        sendFeedback(runId, feedbackKey, goodScore);
-        setFeedback("good");
-      }}><ThumbsUpIcon className="w-4 h-4" /></TooltipIconButton>
-      <TooltipIconButton delayDuration={200} variant="ghost" tooltip="Bad response" onClick={() => {
-        sendFeedback(runId, feedbackKey, badScore);
-        setFeedback("bad");
-      }}><ThumbsDownIcon className="w-4 h-4" /></TooltipIconButton>
+      <TooltipIconButton
+        delayDuration={200}
+        variant="ghost"
+        tooltip="Good response"
+        onClick={() => {
+          sendFeedback(runId, feedbackKey, goodScore);
+          setFeedback("good");
+        }}
+      >
+        <ThumbsUpIcon className="w-4 h-4" />
+      </TooltipIconButton>
+      <TooltipIconButton
+        delayDuration={200}
+        variant="ghost"
+        tooltip="Bad response"
+        onClick={() => {
+          sendFeedback(runId, feedbackKey, badScore);
+          setFeedback("bad");
+        }}
+      >
+        <ThumbsDownIcon className="w-4 h-4" />
+      </TooltipIconButton>
     </div>
   );
 }
@@ -71,7 +91,7 @@ export const AssistantMessage: FC = () => {
         {shouldRenderMessageBreak ? (
           <hr className="relative left-1/2 -translate-x-1/2 w-[90vw] sm:w-[45vw] mt-4 sm:mt-6 border-gray-600" />
         ) : null}
-        <FeedbackButtons />
+        {isLast && <FeedbackButtons />}
       </div>
     </MessagePrimitive.Root>
   );

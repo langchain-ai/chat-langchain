@@ -121,7 +121,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       let fullGeneratingQuestionsStr = "";
       const progressAIMessageId = uuidv4();
       let hasProgressBeenSet = false;
-  
+
       for await (const chunk of stream) {
         if (!runId && chunk.data?.metadata?.run_id) {
           _runId = chunk.data.metadata.run_id;
@@ -132,7 +132,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             const existingMessageIndex = prevMessages.findIndex(
               (msg) => msg.id === progressAIMessageId,
             );
-  
+
             if (existingMessageIndex !== -1) {
               return [
                 ...prevMessages.slice(0, existingMessageIndex),
@@ -171,7 +171,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           });
           hasProgressBeenSet = true;
         }
-  
+
         if (chunk.data.event === "on_chain_start") {
           const node = chunk?.data?.metadata?.langgraph_node;
           if (
@@ -186,7 +186,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               const existingMessageIndex = prevMessages.findIndex(
                 (msg) => msg.id === progressAIMessageId,
               );
-  
+
               if (existingMessageIndex !== -1) {
                 return [
                   ...prevMessages.slice(0, existingMessageIndex),
@@ -212,7 +212,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               }
             });
           }
-  
+
           if (node === "respond") {
             setMessages((prevMessages) => {
               const selectedDocumentsAIMessage = new AIMessage({
@@ -230,9 +230,11 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             });
           }
         }
-  
+
         if (chunk.data.event === "on_chat_model_stream") {
-          if (chunk.data.metadata.langgraph_node === "analyze_and_route_query") {
+          if (
+            chunk.data.metadata.langgraph_node === "analyze_and_route_query"
+          ) {
             const message = chunk.data.data.chunk;
             const toolCallChunk = message.tool_call_chunks?.[0];
             fullRoutingStr += toolCallChunk?.args || "";
@@ -244,7 +246,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   const existingMessageIndex = prevMessages.findIndex(
                     (msg) => msg.id === message.id,
                   );
-  
+
                   if (existingMessageIndex !== -1) {
                     const newMessage = new AIMessage({
                       ...prevMessages[existingMessageIndex],
@@ -255,7 +257,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                         },
                       ],
                     });
-  
+
                     return [
                       ...prevMessages.slice(0, existingMessageIndex),
                       newMessage,
@@ -279,8 +281,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               console.error("Error parsing router logic data:", error);
             }
           }
-  
-          if (chunk.data.metadata.langgraph_node === "respond_to_general_query") {
+
+          if (
+            chunk.data.metadata.langgraph_node === "respond_to_general_query"
+          ) {
             const message = chunk.data.data.chunk;
             setMessages((prevMessages) => {
               const existingMessageIndex = prevMessages.findIndex(
@@ -306,7 +310,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               }
             });
           }
-  
+
           if (chunk.data.metadata.langgraph_node === "create_research_plan") {
             const message = chunk.data.data.chunk;
             generatingQuestionsMessageId = message.id;
@@ -321,20 +325,20 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   const existingMessageIndex = prevMessages.findIndex(
                     (msg) => msg.id === message.id,
                   );
-  
+
                   const questions = parsedData.steps
                     .map((step, index) => ({
                       step: index + 1,
                       question: step.trim(),
                     }))
                     .filter((q) => q.question !== "");
-  
+
                   if (existingMessageIndex !== -1) {
                     const existingMessage = prevMessages[
                       existingMessageIndex
                     ] as AIMessage;
                     const existingToolCalls = existingMessage.tool_calls || [];
-  
+
                     let updatedToolCall;
                     if (existingToolCalls[0].name === "generating_questions") {
                       // Update existing tool call
@@ -351,7 +355,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                         args: { questions },
                       };
                     }
-  
+
                     return [
                       ...prevMessages.slice(0, existingMessageIndex),
                       new AIMessage({
@@ -367,7 +371,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       name: "generating_questions",
                       args: { questions },
                     };
-  
+
                     const newMessage = new AIMessage({
                       ...message,
                       content: "",
@@ -382,7 +386,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               console.error("Error parsing generating questions data:", error);
             }
           }
-  
+
           if (chunk.data.metadata.langgraph_node === "respond") {
             const message = chunk.data.data.chunk;
             setMessages((prevMessages) => {
@@ -419,7 +423,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             });
           }
         }
-  
+
         if (chunk.data.event === "on_chain_end") {
           if (
             chunk.data.metadata.langgraph_node === "conduct_research" &&
@@ -436,7 +440,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   msg.tool_calls[0].name === "generating_questions" &&
                   msg.id === generatingQuestionsMessageId,
               );
-  
+
               if (foundIndex !== -1) {
                 const messageToUpdate = prevMessages[foundIndex] as AIMessage;
                 const updatedToolCalls = messageToUpdate.tool_calls?.map(
@@ -454,7 +458,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                           return q;
                         },
                       );
-  
+
                       return {
                         ...toolCall,
                         args: {
@@ -466,28 +470,30 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                     return toolCall;
                   },
                 );
-  
+
                 const updatedMessage = new AIMessage({
                   ...messageToUpdate,
                   tool_calls: updatedToolCalls,
                 });
-  
+
                 return [
                   ...prevMessages.slice(0, foundIndex),
                   updatedMessage,
                   ...prevMessages.slice(foundIndex + 1),
                 ];
               }
-  
+
               // Return the previous messages unchanged if no matching message found
               return prevMessages;
             });
           }
-  
+
           if (
-            ["respond", "respond_to_general_query", "ask_for_more_info"].includes(
-              chunk?.data?.metadata?.langgraph_node,
-            )
+            [
+              "respond",
+              "respond_to_general_query",
+              "ask_for_more_info",
+            ].includes(chunk?.data?.metadata?.langgraph_node)
           ) {
             setMessages((prevMessages) => {
               const existingMessageIndex = prevMessages.findIndex(
@@ -519,7 +525,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               }
             });
           }
-  
+
           if (chunk.data.metadata.langgraph_node === "respond") {
             const inputDocuments = chunk.data.data.input.documents;
             const message = chunk.data.data.output.messages[0];
@@ -532,7 +538,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   ...message,
                   content: addDocumentLinks(message.content, inputDocuments),
                 });
-  
+
                 return [
                   ...prevMessages.slice(0, existingMessageIndex),
                   newMessageWithLinks,

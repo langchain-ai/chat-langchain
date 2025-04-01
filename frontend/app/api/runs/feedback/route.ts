@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     if (!runId || !feedbackKey) {
       return NextResponse.json(
         { error: "`runId` and `feedbackKey` are required." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -24,14 +24,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       { success: true, feedback: feedback },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Failed to process feedback request:", error);
 
     return NextResponse.json(
       { error: "Failed to submit feedback." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         {
           status: 400,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -76,13 +76,13 @@ export async function GET(req: NextRequest) {
       {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (error) {
     console.error("Failed to fetch feedback:", error);
     return NextResponse.json(
       { error: "Failed to fetch feedback." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
