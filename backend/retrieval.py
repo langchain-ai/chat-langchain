@@ -24,6 +24,10 @@ def make_text_encoder(model: str) -> Embeddings:
             from langchain_openai import OpenAIEmbeddings
 
             return OpenAIEmbeddings(model=model)
+        case "voyageai":
+            from langchain_voyageai import VoyageAIEmbeddings
+
+            return VoyageAIEmbeddings(model=model)
         case _:
             raise ValueError(f"Unsupported embedding provider: {provider}")
 
