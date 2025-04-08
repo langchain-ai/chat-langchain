@@ -43,7 +43,8 @@ class BaseConfiguration:
         {"__template_metadata__": {"kind": "embeddings"}},
     ] = field(
         # default="openai/text-embedding-3-small",
-        default="voyageai/voyage-3-lite",
+        # default="voyageai/voyage-3-lite",
+        default="voyageai/voyage-law-2",
         metadata={
             "description": "Name of the embedding model to use. Must be a valid embedding model name."
         },
