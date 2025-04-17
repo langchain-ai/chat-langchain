@@ -65,7 +65,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   const { shareRun } = useRuns();
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [selectedModel, setSelectedModel] = useState<ModelOptions>(
-    "anthropic/claude-3-5-haiku-20241022",
+    "openai/gpt-4.1-mini",
   );
   const [_threadId, setThreadId] = useQueryState("threadId");
 
@@ -107,7 +107,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       streamMode: "events",
       config: {
         configurable: {
-          model_name: selectedModel,
+          query_model: selectedModel,
+          response_model: selectedModel,
         },
       },
     });
