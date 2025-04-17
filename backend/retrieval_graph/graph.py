@@ -38,13 +38,16 @@ async def analyze_and_route_query(
         return {"router": state.router}
 
     configuration = AgentConfiguration.from_runnable_config(config)
-    model = load_chat_model(configuration.query_model)
+    structured_output_kwargs = (
+        {"method": "function_calling"} if "openai" in configuration.query_model else {}
+    )
+    model = load_chat_model(configuration.query_model).with_structured_output(
+        Router, **structured_output_kwargs
+    )
     messages = [
         {"role": "system", "content": configuration.router_system_prompt}
     ] + state.messages
-    response = cast(
-        Router, await model.with_structured_output(Router).ainvoke(messages)
-    )
+    response = cast(Router, await model.ainvoke(messages))
     return {"router": response}
 
 
@@ -140,7 +143,12 @@ async def create_research_plan(
         steps: list[str]
 
     configuration = AgentConfiguration.from_runnable_config(config)
-    model = load_chat_model(configuration.query_model).with_structured_output(Plan)
+    structured_output_kwargs = (
+        {"method": "function_calling"} if "openai" in configuration.query_model else {}
+    )
+    model = load_chat_model(configuration.query_model).with_structured_output(
+        Plan, **structured_output_kwargs
+    )
     messages = [
         {"role": "system", "content": configuration.research_plan_system_prompt}
     ] + state.messages
