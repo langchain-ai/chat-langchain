@@ -71,6 +71,14 @@ class BaseConfiguration:
         },
     )
 
+    # Tilføj denne nye parameter for fagspecifik søgning
+    fag: Optional[str] = field(
+        default=None,
+        metadata={
+            "description": "Fagområde for søgning (fx 'jura', 'matematik'). Bestemmer hvilken kollektion der søges i."
+        },
+    )
+
     @classmethod
     def from_runnable_config(
         cls: Type[T], config: Optional[RunnableConfig] = None
