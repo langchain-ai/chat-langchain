@@ -37,12 +37,19 @@ async def generate_queries(
         queries: list[str]
 
     configuration = AgentConfiguration.from_runnable_config(config)
-    model = load_chat_model(configuration.query_model).with_structured_output(Response)
+    structured_output_kwargs = (
+        {"method": "function_calling"} if "openai" in configuration.query_model else {}
+    )
+    model = load_chat_model(configuration.query_model).with_structured_output(
+        Response, **structured_output_kwargs
+    )
     messages = [
         {"role": "system", "content": configuration.generate_queries_system_prompt},
         {"role": "human", "content": state.question},
     ]
-    response = cast(Response, await model.ainvoke(messages))
+    response = cast(
+        Response, await model.ainvoke(messages, {"tags": ["langsmith:nostream"]})
+    )
     return {"queries": response["queries"]}
 
 

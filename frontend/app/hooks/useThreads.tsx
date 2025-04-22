@@ -1,9 +1,10 @@
+"use client";
+
 import { useEffect, useState } from "react";
 
 import { Client, Thread } from "@langchain/langgraph-sdk";
-import { getCookie, setCookie } from "../utils/cookies";
 import { useToast } from "./use-toast";
-import { THREAD_ID_COOKIE_NAME } from "../utils/constants";
+import { useQueryState } from "nuqs";
 
 export const createClient = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
@@ -16,37 +17,12 @@ export function useThreads(userId: string | undefined) {
   const { toast } = useToast();
   const [isUserThreadsLoading, setIsUserThreadsLoading] = useState(false);
   const [userThreads, setUserThreads] = useState<Thread[]>([]);
-  const [threadId, setThreadId] = useState<string>();
+  const [threadId, setThreadId] = useQueryState("threadId");
 
   useEffect(() => {
     if (typeof window == "undefined" || !userId) return;
     getUserThreads(userId);
   }, [userId]);
-
-  useEffect(() => {
-    if (threadId || typeof window === "undefined" || !userId) return;
-    searchOrCreateThread(userId);
-  }, [userId]);
-
-  const searchOrCreateThread = async (id: string) => {
-    const threadIdCookie = getCookie(THREAD_ID_COOKIE_NAME);
-    if (!threadIdCookie) {
-      await createThread(id);
-      return;
-    }
-    // Thread ID is in cookies.
-
-    const thread = await getThreadById(threadIdCookie);
-    if (!thread.values) {
-      // No values = no activity. Can keep.
-      setThreadId(threadIdCookie);
-      return;
-    } else {
-      // Current thread has activity. Create a new thread.
-      await createThread(id);
-      return;
-    }
-  };
 
   const createThread = async (id: string) => {
     const client = createClient();
@@ -61,7 +37,6 @@ export function useThreads(userId: string | undefined) {
         throw new Error("Thread creation failed.");
       }
       setThreadId(thread.thread_id);
-      setCookie(THREAD_ID_COOKIE_NAME, thread.thread_id);
     } catch (e) {
       console.error("Error creating thread", e);
       toast({
@@ -111,28 +86,24 @@ export function useThreads(userId: string | undefined) {
       );
       return newThreads;
     });
-    if (id === threadId) {
-      clearMessages();
-      // Create a new thread. Use .then to avoid blocking the UI.
-      // Once completed re-fetch threads to update UI.
-      createThread(userId).then(async () => {
-        await getUserThreads(userId);
-      });
-    }
     const client = createClient();
     await client.threads.delete(id);
+    if (id === threadId) {
+      // Remove the threadID from query params, and refetch threads to
+      // update the sidebar UI.
+      clearMessages();
+      getUserThreads(userId);
+      setThreadId(null);
+    }
   };
 
   return {
     isUserThreadsLoading,
     userThreads,
-    setUserThreads,
     getThreadById,
+    setUserThreads,
     getUserThreads,
     createThread,
-    searchOrCreateThread,
-    threadId,
-    setThreadId,
     deleteThread,
   };
 }

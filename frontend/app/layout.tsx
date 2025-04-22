@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,7 +22,7 @@ export default function RootLayout({
           className="flex flex-col h-full w-full"
           style={{ background: "rgb(38, 38, 41)" }}
         >
-          {children}
+          <NuqsAdapter>{children}</NuqsAdapter>
         </div>
       </body>
     </html>
