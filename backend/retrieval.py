@@ -53,7 +53,7 @@ def make_weaviate_retriever(
         search_kwargs = {**configuration.search_kwargs, "return_uuids": True}
         yield store.as_retriever(
             search_type="similarity_score_threshold",
-            search_kwargs={'score_threshold': 0.8},
+            search_kwargs={'score_threshold': 0.5},
             # search_kwargs=search_kwargs
         )
 
