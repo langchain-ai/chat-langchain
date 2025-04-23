@@ -51,7 +51,11 @@ def make_weaviate_retriever(
             attributes=["source", "title"],
         )
         search_kwargs = {**configuration.search_kwargs, "return_uuids": True}
-        yield store.as_retriever(search_kwargs=search_kwargs)
+        yield store.as_retriever(
+            search_type="similarity_score_threshold",
+            search_kwargs={'score_threshold': 0.8},
+            # search_kwargs=search_kwargs
+        )
 
     # chroma_client = chromadb.HttpClient(
     #    host=DATABASE_HOST,
