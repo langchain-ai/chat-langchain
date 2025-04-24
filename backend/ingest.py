@@ -155,7 +155,7 @@ def ingest_docs():
     DATABASE_NAME = os.environ["DATABASE_NAME"]
     RECORD_MANAGER_DB_URL = f"postgresql://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=6000, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     embedding = get_embeddings_model()
 
     with weaviate.connect_to_weaviate_cloud(
