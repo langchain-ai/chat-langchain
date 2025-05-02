@@ -16,6 +16,7 @@ import { TooltipIconButton } from "../ui/assistant-ui/tooltip-icon-button";
 import { AssistantMessage, UserMessage } from "./messages";
 import { ChatComposer, ChatComposerProps } from "./chat-composer";
 import { cn } from "@/app/utils/cn";
+import SignOut from "@/app/signout/SignOut";
 
 export interface ThreadChatProps extends ChatComposerProps {}
 
@@ -29,7 +30,7 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
   useRouterLogicUI();
 
   return (
-    <ThreadPrimitive.Root className="flex flex-col h-screen overflow-hidden w-full">
+    <ThreadPrimitive.Root className="flex flex-col items-center justify-center bg-white mx-28">
       {!isEmpty ? (
         <ThreadPrimitive.Viewport
           className={cn(
@@ -51,28 +52,47 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
       <ThreadChatScrollToBottom />
       {isEmpty ? (
         <div className="flex items-center justify-center flex-grow my-auto">
-          <div className="flex flex-col items-center mx-4 md:mt-0 mt-24">
-            <div className="flex flex-row gap-1 items-center justify-center">
-              <p className="text-xl sm:text-2xl">Chat LangChain</p>
+          <div className="flex flex-col items-center mt-4">
+            <div className="flex flex-row justify-center lg:self-start gap-4 my-4">
               <NextImage
-                src="/images/lc_logo.jpg"
-                className="rounded-3xl"
-                alt="LangChain Logo"
-                width={32}
-                height={32}
-                style={{ width: "auto", height: "auto" }}
+                  src="/images/verafiles_banner.png"
+                  className=""
+                  alt="Verafiles Logo"
+                  width={192}
+                  height={192}
               />
+              <div className="flex items-center text-[10px] md:text-xs text-black border border-gray rounded-lg px-2">
+                Claude 3.5 Haiku
+              </div>
+                {/* <form action={SignOut}>
+                  <button>Sign Out</button>
+                </form> */}
             </div>
-            <div className="mb-4 sm:mb-[24px] mt-1 sm:mt-2">
+            <div className="flex flex-col items-center justify-center">
+              <p className="text-center text-black font-medium text-sm sm:text-lg m-1">SEEK helps you verify if something is true or not</p>
+              <p className="text-center text-black font-bold text-3xl sm:text-4xl m-1">What would you like to know?</p>
+            </div>
+            {/* <div className="mb-4 sm:mb-[24px] mt-1 sm:mt-2">
               <SelectModel />
+            </div> */}
+            <div className="my-4 sm:my-8">
+              <ChatComposer
+                submitDisabled={props.submitDisabled}
+                messages={props.messages}
+              />
+              <p className="text-black text-justify font-light text-xs md:text-sm mt-6">This tool answers your questions based on fact checks, 
+              fact sheets and limited articles that VERA Files staff have written and edited. 
+              This may not yet reflect our most recently published articles, 
+              and may include responses based on the original time an article was published. 
+              We strive to update our dataset with the most recent articles at the end of each day. 
+              Read more about our tool here (insert link)</p>
             </div>
-            <div className="md:mb-8 mb-4">
+            <div className="w-full mt-2 md:mt-4">
+              <h1 className="text-4xl text-black">
+                Other Questions...
+              </h1>
               <SuggestedQuestions />
             </div>
-            <ChatComposer
-              submitDisabled={props.submitDisabled}
-              messages={props.messages}
-            />
           </div>
         </div>
       ) : (

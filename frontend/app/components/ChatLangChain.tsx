@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useEffect, useRef, useState } from "react";
 import {
   AppendMessage,
@@ -20,8 +19,10 @@ import { ThreadHistory } from "./thread-history";
 import { Toaster } from "./ui/toaster";
 import { useGraphContext } from "../contexts/GraphContext";
 import { useQueryState } from "nuqs";
+import NextImage from "next/image";
+import SignOut from "../signout/SignOut";
 
-function ChatLangChainComponent(): React.ReactElement {
+function ChatLangChainComponent({test} : {test:any}): React.ReactElement {
   const { toast } = useToast();
   const { threadsData, userData, graphData } = useGraphContext();
   const { userId } = userData;
@@ -117,8 +118,25 @@ function ChatLangChainComponent(): React.ReactElement {
     onNew,
   });
 
+  const test1 = test;
+
   return (
-    <div className="overflow-hidden w-full flex md:flex-row flex-col relative">
+    <div className="w-full flex lg:flex-row flex-col relative bg-white">
+      <div className="flex absolute top-2 right-2 lg:top-5 lg:right-5 z-10 m-4">
+        <NextImage
+          src="/images/solar_user_bold.svg"
+          className=""
+          alt="User Logo"
+          width={20}
+          height={20}
+        />
+        <div className="px-2">
+          {test}
+        </div>
+        <form action={SignOut}>
+            <button>Sign Out</button>
+        </form>
+      </div>
       {messages.length > 0 ? (
         <div className="absolute top-4 right-4 z-10">
           <SelectModel />
@@ -127,7 +145,7 @@ function ChatLangChainComponent(): React.ReactElement {
       <div>
         <ThreadHistory />
       </div>
-      <div className="w-full h-full overflow-hidden">
+      <div className="w-full h-full">
         <AssistantRuntimeProvider runtime={runtime}>
           <ThreadChat submitDisabled={isSubmitDisabled} messages={messages} />
         </AssistantRuntimeProvider>

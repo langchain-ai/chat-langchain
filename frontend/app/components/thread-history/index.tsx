@@ -40,10 +40,10 @@ function ThreadHistoryComponent() {
   return (
     <span>
       {/* Tablet & up */}
-      <div className="hidden md:flex flex-col w-[260px] h-full">
+      <div className="hidden lg:flex flex-col w-[260px] h-full bg-[#F9F9F9]">
         <div className="flex-grow border-r-[1px] border-[#393939] my-6 flex flex-col overflow-hidden">
           <div className="flex flex-row items-center justify-between border-b-[1px] border-[#393939] pt-3 px-2 mx-4 -mt-4 text-gray-200">
-            <p className="text-lg font-medium">Chat History</p>
+            <p className="text-lg text-black font-bold">Chat History</p>
             {userId ? (
               <TooltipIconButton
                 tooltip="New chat"
@@ -51,7 +51,7 @@ function ThreadHistoryComponent() {
                 className="w-fit p-2"
                 onClick={createNewSession}
               >
-                <SquarePen className="w-5 h-5" />
+                <SquarePen className="w-5 h-5 text-black" />
               </TooltipIconButton>
             ) : null}
           </div>
@@ -69,7 +69,7 @@ function ThreadHistoryComponent() {
         </div>
       </div>
       {/* Mobile */}
-      <span className="md:hidden flex flex-row gap-2 mt-2 ml-2">
+      <span className="lg:hidden flex flex-row m-4">
         <Sheet>
           <SheetTrigger asChild>
             <TooltipIconButton

@@ -18,10 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className={`${inter.className} h-full`}>
-        <div
-          className="flex flex-col h-full w-full"
-          style={{ background: "rgb(38, 38, 41)" }}
-        >
+        <div className="flex flex-col h-full w-full text-black bg-[#F9F9F9]">
           <NuqsAdapter>{children}</NuqsAdapter>
         </div>
       </body>

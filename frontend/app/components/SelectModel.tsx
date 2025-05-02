@@ -26,7 +26,7 @@ export function SelectModelComponent() {
       value={selectedModel}
       defaultValue="anthropic/claude-3-5-haiku-20241022"
     >
-      <SelectTrigger className="w-[180px] border-gray-600 text-gray-200">
+      <SelectTrigger className="w-[180px] border-gray-600 text-gray-200 bg-yellow-500">
         <SelectValue placeholder="Model" />
       </SelectTrigger>
       <SelectContent className="bg-[#282828] text-gray-200 border-gray-600">
