@@ -38,7 +38,7 @@ export const ChatComposer: FC<ChatComposerProps> = (
         // "bg-[#282828] focus-within:border-aui-ring/20 flex w-full items-center md:justify-left justify-center rounded-lg border px-2.5 py-2.5 shadow-sm transition-all duration-300 ease-in-out border-gray-600"
         "focus-within:border-aui-ring/20 flex w-full items-center md:justify-left justify-center rounded-lg border px-2.5 py-2.5 shadow-sm transition-all duration-300 ease-in-out border-gray-600",
         isEmpty ? "" : "md:ml-24 ml-3 mb-6",
-        isEmpty ? "w-full" : "md:max-w-[832px]",
+        isEmpty ? "w-full" : "md:w-[70%] w-[95%] md:max-w-[832px]",
       )}
     >
       <ComposerPrimitive.Input

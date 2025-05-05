@@ -137,11 +137,11 @@ function ChatLangChainComponent({test} : {test:any}): React.ReactElement {
             <button>Sign Out</button>
         </form>
       </div>
-      {messages.length > 0 ? (
+      {/* {messages.length > 0 ? (
         <div className="absolute top-4 right-4 z-10">
           <SelectModel />
         </div>
-      ) : null}
+      ) : null} */}
       <div>
         <ThreadHistory />
       </div>
