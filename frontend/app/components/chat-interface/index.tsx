@@ -30,7 +30,7 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
   useRouterLogicUI();
 
   return (
-    <ThreadPrimitive.Root className="flex flex-col bg-white mx-28">
+    <ThreadPrimitive.Root className="flex flex-col bg-white">
       {!isEmpty ? (
         <ThreadPrimitive.Viewport
           className={cn(
@@ -51,7 +51,7 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
       ) : null}
       <ThreadChatScrollToBottom />
       {isEmpty ? (
-        <div className="flex items-center justify-center flex-grow my-auto">
+        <div className="flex items-center justify-center flex-grow my-auto mx-28">
           <div className="flex flex-col items-center mt-4">
             <div className="flex flex-row justify-center lg:self-start gap-4 my-4">
               <NextImage
