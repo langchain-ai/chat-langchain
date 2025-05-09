@@ -1,4 +1,5 @@
 # WEAVIATE_DOCS_INDEX_NAME = "wy_test_OpenAI_text_embedding_3_small"
-WEAVIATE_DOCS_INDEX_NAME = "wy_test_OpenAI_text_embedding_3_small_4000"
+# WEAVIATE_DOCS_INDEX_NAME = "wy_test_OpenAI_text_embedding_3_small_4000"
 # WEAVIATE_DOCS_INDEX_NAME = "wy_test_VoyageAI_voyage_3_lite"
 # WEAVIATE_DOCS_INDEX_NAME = "wy_test_VoyageAI_voyage_law_2"
+WEAVIATE_DOCS_INDEX_NAME = "vfseek_openai_6k_embedding"
