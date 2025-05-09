@@ -18,7 +18,7 @@ export function SuggestedQuestions() {
   };
 
   return (
-    <div className="w-full grid grid-cols-1 border border-[#A5A5A5] rounded-2xl mt-4 mb-16 p-4">
+    <div className="w-full grid grid-cols-1 border border-gray-600 rounded-2xl mt-4 mb-16 p-4">
       {suggestedQuestions.map((question, idx) => (
         <div
           onClick={() => handleSend(question)}

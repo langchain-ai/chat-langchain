@@ -11,7 +11,7 @@ export const DocumentCard = ({ document }: { document: Document }) => {
   return (
     <Card className="md:w-[200px] sm:w-[200px] w-full h-[110px] bg-inherit border-gray-500 flex flex-col">
       <CardHeader className="flex-shrink-0 px-3 pt-2 pb-0">
-        <CardTitle className="text-sm font-bold text-gray-300 line-clamp-1 overflow-hidden p-[-24px]">
+        <CardTitle className="text-sm font-bold text-black-300 line-clamp-1 overflow-hidden p-[-24px]">
           {document.metadata.title}
         </CardTitle>
       </CardHeader>

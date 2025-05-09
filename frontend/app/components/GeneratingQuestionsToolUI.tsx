@@ -31,7 +31,7 @@ const QuestionCard = ({ question }: { question: Question }) => {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <CardTitle className="text-sm font-light text-gray-300 line-clamp-4 overflow-hidden">
+              <CardTitle className="text-sm font-light text-black-300 line-clamp-4 overflow-hidden">
                 {question.question}
               </CardTitle>
             </TooltipTrigger>
@@ -113,7 +113,7 @@ export const useGeneratingQuestionsUI = () =>
 
       return (
         <div className="flex flex-col mb-4">
-          <span className="flex flex-row gap-2 items-center justify-start pb-4 text-gray-300">
+          <span className="flex flex-row gap-2 items-center justify-start pb-4 text-black-300">
             <Globe className="w-5 h-5" />
             <p className="text-xl">Research Plan & Sources</p>
           </span>

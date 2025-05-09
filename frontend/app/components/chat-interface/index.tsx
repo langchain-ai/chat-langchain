@@ -61,7 +61,7 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
                   width={192}
                   height={192}
               />
-              <div className="flex items-center text-[10px] md:text-xs text-black border border-gray rounded-lg px-2">
+              <div className="flex items-center text-[10px] md:text-xs text-black border border-gray-600 rounded-lg px-2">
                 Claude 3.5 Haiku
               </div>
                 {/* <form action={SignOut}>

@@ -51,7 +51,7 @@ export const useProgressToolUI = () =>
           <Progress
             value={progress}
             indicatorClassName="bg-gray-700"
-            className="w-[375px]"
+            className="w-full"
           />
           <p
             className={cn(
