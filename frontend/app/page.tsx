@@ -3,7 +3,7 @@ import { GraphProvider } from "./contexts/GraphContext";
 import { ChatLangChain } from "./components/ChatLangChain";
 import { Card } from "./components/ui/card";
 import NextImage from "next/image";
-import { auth, signIn, signOut } from "@/auth"
+import { auth, signIn, signOut } from "@/auth";
 
 export default async function SignIn() {
   const session = await auth();

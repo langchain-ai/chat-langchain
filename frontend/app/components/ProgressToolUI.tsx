@@ -55,7 +55,7 @@ export const useProgressToolUI = () =>
           />
           <p
             className={cn(
-              "text-gray-500 text-sm font-light",
+              "text-black-500 text-sm font-light",
               progress !== 100 ? "animate-pulse" : "",
             )}
           >

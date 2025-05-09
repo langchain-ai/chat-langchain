@@ -16,7 +16,7 @@ export function ThreadsList(props: ThreadsListProps) {
       {Object.entries(props.groupedThreads).map(([group, threads]) =>
         threads.length > 0 ? (
           <div key={group}>
-            <h3 className="text-sm font-medium text-gray-400 mb-1 pl-2">
+            <h3 className="text-sm font-medium text-black-400 mb-1 pl-2">
               {prettifyDateLabel(group)}
             </h3>
             <div className="flex flex-col gap-1">

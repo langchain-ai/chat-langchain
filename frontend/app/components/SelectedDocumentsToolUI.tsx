@@ -50,7 +50,7 @@ export const useSelectedDocumentsUI = () =>
             {remainingDocuments.length > 0 && (
               <Sheet>
                 <SheetTrigger>
-                  <div className="flex items-center border-[1px] border-gray-500 justify-center w-[40px] h-[110px] bg-[#282828] hover:bg-[#2b2b2b] rounded-md cursor-pointer transition-colors duration-200">
+                  <div className="flex items-center border-[1px] border-gray-500 justify-center w-[40px] h-[110px] bg-white hover:bg-[#F9F9F9] rounded-md cursor-pointer transition-colors duration-200">
                     <Plus className="w-6 h-6 text-gray-300" />
                   </div>
                 </SheetTrigger>
