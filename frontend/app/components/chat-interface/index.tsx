@@ -30,7 +30,7 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
   useRouterLogicUI();
 
   return (
-    <ThreadPrimitive.Root className="flex flex-col bg-white h-screen w-full overflow-hidden">
+    <ThreadPrimitive.Root className="flex flex-col lg:h-screen w-full overflow-hidden">
       {!isEmpty ? (
         <ThreadPrimitive.Viewport
           className={cn(
