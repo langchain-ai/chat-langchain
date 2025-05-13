@@ -89,7 +89,7 @@ const QuestionCard = ({ question }: { question: Question }) => {
                 )}
               </>
             ) : (
-              <span className="flex items-center justify-start gap-2 text-gray-400">
+              <span className="flex items-center justify-start gap-2 text-black-400">
                 <p className="text-sm">Finding documents</p>
                 <LoaderCircle className="animate-spin w-4 h-4" />
               </span>
