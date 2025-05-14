@@ -8,11 +8,11 @@ export const useAnswerHeaderToolUI = () =>
       return (
         <div className="flex flex-row gap-2 items-center justify-start pb-4 text-black-300">
           <NextImage
-              src="public/images/answer_logo.svg"
+              src="/images/speech-bubble-icon.svg"
               className=""
               alt="Answer Logo"
-              width={10}
-              height={10}
+              width={20}
+              height={20}
           />
           <p className="text-2xl font-bold">Answer</p>
         </div>
