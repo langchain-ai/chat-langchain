@@ -21,7 +21,7 @@ export function Thread(props: ThreadProps) {
       onMouseLeave={() => setIsHovering(false)}
     >
       <Button
-        className="px-2 hover:bg-[#393939] hover:text-white justify-start items-center flex-grow min-w-[191px] pr-0"
+        className="px-2 text-[#0F5579] hover:bg-[#393939] hover:text-white justify-start items-center flex-grow min-w-[191px] pr-0"
         size="sm"
         variant="ghost"
         onClick={props.onClick}
