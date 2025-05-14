@@ -17,7 +17,7 @@ export const UserMessage: FC = () => {
   return (
     <MessagePrimitive.Root className="pt-2 sm:pt-4 flex flex-col w-full md:max-w-4xl md:mx-0 mx-auto max-w-[95%] md:py-4 py-2">
       <h1 className="uppercase">You Asked</h1>
-      <div className="bg-inherit text-[#0F579] break-words rounded-2xl sm:rounded-3xl pt-4 md:pt-2.5 mb-[-15px] sm:mb-[-25px] text-2xl sm:text-4xl font-light">
+      <div className="bg-inherit text-[#0F5579] break-words rounded-2xl sm:rounded-3xl pt-4 md:pt-2.5 mb-[-15px] sm:mb-[-25px] text-2xl sm:text-4xl font-light">
         <MessagePrimitive.Content />
       </div>
     </MessagePrimitive.Root>
