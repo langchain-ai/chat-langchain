@@ -7,8 +7,8 @@ import { Hotjar_GoogleAnalytics_Snippet } from "./hotjar_googleanalytics";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "VF SEEK",
-  description: "Chatbot for Vera Files",
+  title: "VERA Files SEEK Chatbot | Alpha version",
+  description: "Search Experience Elevated to Knockout Disinformation: A VERA Files Fact Checking assistant AI chatbot",
 };
 
 export default function RootLayout({
