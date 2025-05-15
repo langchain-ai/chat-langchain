@@ -9,7 +9,7 @@ packages = [{ include = "backend" }]
 [tool.poetry.dependencies]
 python = "^3.11"
 langchain = ">=0.3.0,<0.4.0"
-langsmith = { version = "0.3.3rc0", extras = ["langsmith-pyo3"] }
+langsmith = ">=0.3.42" 
 langchain-google-genai = ">=2.1.2,<3.0.0"
 langchain-core = ">=0.3.10,<0.4.0"
 langchain-community = ">=0.3.0,<0.4.0"
@@ -17,7 +17,7 @@ langchain-openai = ">=0.3.12,<0.4.0"
 langchain-anthropic = ">=0.3.10,<0.4.0"
 langchain-weaviate = ">=0.0.3,<0.1.0"
 # TODO: fix rendering in langgraph and update constraint
-langgraph = ">=0.3.21,<0.3.32"
+langgraph = ">=0.4"
 beautifulsoup4 = "^4.12.2"
 weaviate-client = "^4.0.0"
 lxml = "^4.9.3"
