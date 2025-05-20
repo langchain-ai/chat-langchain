@@ -121,7 +121,7 @@ function ChatLangChainComponent({test} : {test:any}): React.ReactElement {
   const test1 = test;
 
   return (
-    <div className="overflow-hidden lg:h-full w-full flex lg:flex-row flex-col relative bg-white">
+    <div className="h-full w-full flex lg:flex-row flex-col relative bg-green-500">
       <div className="flex absolute top-2 right-2 lg:top-5 lg:right-5 z-10 m-4">
         <NextImage
           src="/images/solar_user_bold.svg"
@@ -137,12 +137,7 @@ function ChatLangChainComponent({test} : {test:any}): React.ReactElement {
             <button>Sign Out</button>
         </form>
       </div>
-      {/* {messages.length > 0 ? (
-        <div className="absolute top-4 right-4 z-10">
-          <SelectModel />
-        </div>
-      ) : null} */}
-      <div>
+      <div className="grow">
         <ThreadHistory />
       </div>
       <div className="w-full h-full">
