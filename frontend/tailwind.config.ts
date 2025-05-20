@@ -9,6 +9,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+				helveticaneue: ['"Helvetica Neue"', 'sans-serif'],
+				source: ['"Source Serif 4"', 'serif'],
+			},
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
         "gradient-conic":
