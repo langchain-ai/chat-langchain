@@ -40,7 +40,7 @@ function ThreadHistoryComponent() {
   return (
     <div className="h-full">
       {/* Tablet & up */}
-      <div className="hidden lg:flex flex-col w-[260px] h-full bg-[#F9F9F9] bg-indigo-500">
+      <div className="hidden lg:flex flex-col w-[260px] h-full bg-[#F9F9F9]">
         <div className="flex-grow my-6 flex flex-col overflow-hidden">
           <div className="flex flex-row items-center justify-between border-b-[1px] pt-3 px-2 mx-4 -mt-4 text-gray-200">
             <p className="text-lg text-black font-bold">Chat History</p>

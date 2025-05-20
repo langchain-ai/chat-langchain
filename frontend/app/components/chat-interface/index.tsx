@@ -30,11 +30,11 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
   useRouterLogicUI();
 
   return (
-    <ThreadPrimitive.Root className={cn("flex flex-col w-full bg-red-500", isEmpty ? "h-full" : "h-screen",)}>
+    <ThreadPrimitive.Root className={cn("flex flex-col w-full bg-white overflow-hidden", isEmpty ? "h-full" : "h-screen",)}>
       {!isEmpty ? (
         <ThreadPrimitive.Viewport
           className={cn(
-            "overflow-hidden flex-1 overflow-y-auto scroll-smooth bg-inherit transition-all duration-300 ease-in-out w-full",
+            "flex-1 overflow-y-auto scroll-smooth bg-inherit transition-all duration-300 ease-in-out w-full",
             isEmpty ? "pb-[30vh] sm:pb-[50vh]" : "pb-32 sm:pb-24",
             "scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent",
           )}
@@ -52,7 +52,7 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
       <ThreadChatScrollToBottom />
       {isEmpty ? (
         <div className="flex items-center justify-center flex-grow my-auto">
-          <div className="flex flex-col items-center bg-orange-500 mx-4 p-36 relative">
+          <div className="flex flex-col items-center bg-white p-12 md:p-24 relative">
             <div className="absolute top-4 left-1/2 max-lg:-translate-x-1/2 lg:left-5 flex flex-row gap-4 m-4">
               <NextImage
                   src="/images/verafiles_banner.png"
