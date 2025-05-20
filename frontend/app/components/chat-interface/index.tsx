@@ -30,7 +30,7 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
   useRouterLogicUI();
 
   return (
-    <ThreadPrimitive.Root className="flex flex-col lg:h-screen w-full overflow-hidden">
+    <ThreadPrimitive.Root className={cn("flex flex-col w-full bg-red-500", isEmpty ? "h-full" : "h-screen",)}>
       {!isEmpty ? (
         <ThreadPrimitive.Viewport
           className={cn(
@@ -51,9 +51,9 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
       ) : null}
       <ThreadChatScrollToBottom />
       {isEmpty ? (
-        <div className="flex items-center justify-center flex-grow my-auto mx-28">
-          <div className="flex flex-col items-center mt-4">
-            <div className="flex flex-row justify-center lg:self-start gap-4 my-4">
+        <div className="flex items-center justify-center flex-grow my-auto">
+          <div className="flex flex-col items-center bg-orange-500 mx-4 p-36 relative">
+            <div className="absolute top-4 left-1/2 max-lg:-translate-x-1/2 lg:left-5 flex flex-row gap-4 m-4">
               <NextImage
                   src="/images/verafiles_banner.png"
                   className=""
@@ -61,21 +61,15 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
                   width={192}
                   height={192}
               />
-              <div className="flex items-center text-[10px] md:text-xs text-black border border-gray-600 rounded-lg px-2">
+              <div className="flex items-center text-[10px] md:text-xs text-black border border-[#D7D7D7] rounded-lg px-2">
                 Claude 3.5 Haiku
               </div>
-                {/* <form action={SignOut}>
-                  <button>Sign Out</button>
-                </form> */}
             </div>
             <div className="flex flex-col items-center justify-center">
               <p className="text-center text-black font-medium text-sm sm:text-lg m-1">SEEK helps you verify if something is true or not</p>
               <p className="text-center text-black font-bold text-3xl sm:text-4xl m-1">What would you like to know?</p>
             </div>
-            {/* <div className="mb-4 sm:mb-[24px] mt-1 sm:mt-2">
-              <SelectModel />
-            </div> */}
-            <div className="my-4 sm:my-8">
+            <div className="my-4 sm:mt-8">
               <ChatComposer
                 submitDisabled={props.submitDisabled}
                 messages={props.messages}
@@ -88,7 +82,7 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
               Read more about our tool here (insert link)</p>
             </div>
             <div className="w-full mt-2 md:mt-4">
-              <h1 className="text-4xl text-black">
+              <h1 className="text-3xl text-black font-bold">
                 Other Questions...
               </h1>
               <SuggestedQuestions />
