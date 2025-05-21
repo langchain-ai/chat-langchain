@@ -1,6 +1,6 @@
 "use client";
 
-import { ThreadPrimitive } from "@assistant-ui/react";
+import { ThreadPrimitive, ActionBarPrimitive } from "@assistant-ui/react";
 import { type FC } from "react";
 import NextImage from "next/image";
 
@@ -30,11 +30,11 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
   useRouterLogicUI();
 
   return (
-    <ThreadPrimitive.Root className={cn("flex flex-col w-full bg-white overflow-hidden", isEmpty ? "h-full" : "h-screen",)}>
+    <ThreadPrimitive.Root className={cn("flex flex-col w-full bg-red-500 overflow-hidden", isEmpty ? "h-full" : "h-screen",)}>
       {!isEmpty ? (
         <ThreadPrimitive.Viewport
           className={cn(
-            "flex-1 overflow-y-auto scroll-smooth bg-inherit transition-all duration-300 ease-in-out w-full",
+            "overflow-hidden flex-1 overflow-y-auto scroll-smooth bg-inherit transition-all duration-300 ease-in-out w-full",
             isEmpty ? "pb-[30vh] sm:pb-[50vh]" : "pb-32 sm:pb-24",
             "scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent",
           )}
@@ -46,13 +46,14 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
                 AssistantMessage: AssistantMessage,
               }}
             />
+            <ActionBarPrimitive.Copy/>
           </div>
         </ThreadPrimitive.Viewport>
       ) : null}
       <ThreadChatScrollToBottom />
       {isEmpty ? (
         <div className="flex items-center justify-center flex-grow my-auto">
-          <div className="flex flex-col items-center bg-white p-12 md:p-24 relative">
+          <div className="flex flex-col items-center bg-orange-500 p-12 md:p-24 relative">
             <div className="absolute top-4 left-1/2 max-lg:-translate-x-1/2 lg:left-5 flex flex-row gap-4 m-4">
               <NextImage
                   src="/images/verafiles_banner.png"
@@ -68,6 +69,11 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
             <div className="flex flex-col items-center justify-center">
               <p className="text-center text-black font-medium text-sm sm:text-lg m-1">SEEK helps you verify if something is true or not</p>
               <p className="text-center text-black font-bold text-3xl sm:text-4xl m-1">What would you like to know?</p>
+              {/* <button className=""
+              onClick={async()=> {
+                await navigator.clipboard.writeText()
+                
+              }}>Copy</button> */}
             </div>
             <div className="my-4 sm:mt-8">
               <ChatComposer
