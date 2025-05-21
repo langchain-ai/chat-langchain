@@ -12,7 +12,7 @@ import { MarkdownText } from "../ui/assistant-ui/markdown-text";
 import { useGraphContext } from "@/app/contexts/GraphContext";
 import { useRuns } from "@/app/hooks/useRuns";
 import { TooltipIconButton } from "../ui/assistant-ui/tooltip-icon-button";
-import { ThumbsDownIcon, ThumbsUpIcon } from "lucide-react";
+import { CopyIcon, ThumbsDownIcon, ThumbsUpIcon } from "lucide-react";
 
 export const UserMessage: FC = () => {
   return (
@@ -114,6 +114,7 @@ export const AssistantMessage: FC = () => {
       <div className="bg-inherit text-black max-w-full sm:max-w-3xl break-words leading-6 sm:leading-7">
         <ActionBarPrimitive.Root>
           <ActionBarPrimitive.Copy/>
+          <CopyIcon/>
         </ActionBarPrimitive.Root>
         <MessagePrimitive.Content components={{ Text: MarkdownText }} />
         {shouldRenderMessageBreak ? (
