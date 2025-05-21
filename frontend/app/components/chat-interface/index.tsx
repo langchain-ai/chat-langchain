@@ -1,6 +1,6 @@
 "use client";
 
-import { ThreadPrimitive, ActionBarPrimitive } from "@assistant-ui/react";
+import { ThreadPrimitive } from "@assistant-ui/react";
 import { type FC } from "react";
 import NextImage from "next/image";
 
@@ -46,9 +46,6 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
                 AssistantMessage: AssistantMessage,
               }}
             />
-            <ActionBarPrimitive.Root>
-              <ActionBarPrimitive.Copy/>
-            </ActionBarPrimitive.Root>
           </div>
         </ThreadPrimitive.Viewport>
       ) : null}

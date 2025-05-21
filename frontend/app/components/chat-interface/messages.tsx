@@ -4,6 +4,7 @@ import {
   MessagePrimitive,
   useMessage,
   useThreadRuntime,
+  ActionBarPrimitive,
 } from "@assistant-ui/react";
 import { useState, type FC } from "react";
 
@@ -111,6 +112,9 @@ export const AssistantMessage: FC = () => {
   return (
     <MessagePrimitive.Root className="flex w-full md:max-w-4xl md:mx-0 mx-auto max-w-[95%] md:py-4 py-2">
       <div className="bg-inherit text-black max-w-full sm:max-w-3xl break-words leading-6 sm:leading-7">
+        <ActionBarPrimitive.Root>
+          <ActionBarPrimitive.Copy/>
+        </ActionBarPrimitive.Root>
         <MessagePrimitive.Content components={{ Text: MarkdownText }} />
         {shouldRenderMessageBreak ? (
           <hr className="relative left-1/2 -translate-x-1/2 w-[90vw] sm:w-[45vw] mt-4 sm:mt-6 border-gray-600" />
