@@ -12,7 +12,7 @@ import { MarkdownText } from "../ui/assistant-ui/markdown-text";
 import { useGraphContext } from "@/app/contexts/GraphContext";
 import { useRuns } from "@/app/hooks/useRuns";
 import { TooltipIconButton } from "../ui/assistant-ui/tooltip-icon-button";
-import { CopyIcon, ThumbsDownIcon, ThumbsUpIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, ThumbsDownIcon, ThumbsUpIcon } from "lucide-react";
 
 export const UserMessage: FC = () => {
   return (
@@ -117,10 +117,14 @@ export const AssistantMessage: FC = () => {
           <hr className="relative left-1/2 -translate-x-1/2 w-[90vw] sm:w-[45vw] mt-4 sm:mt-6 border-gray-600" />
         ) : null}
         {isLast && <FeedbackButtons />}
-        <ActionBarPrimitive.Root>
-          <ActionBarPrimitive.Copy/>
-          <CopyIcon/>
-        </ActionBarPrimitive.Root>
+        <ActionBarPrimitive.Copy>
+          <MessagePrimitive.If copied={false}>
+            <CopyIcon />
+          </MessagePrimitive.If>
+          <MessagePrimitive.If copied>
+            <CheckIcon />
+          </MessagePrimitive.If>
+        </ActionBarPrimitive.Copy>
       </div>
     </MessagePrimitive.Root>
   );
