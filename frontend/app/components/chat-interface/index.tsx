@@ -46,7 +46,9 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
                 AssistantMessage: AssistantMessage,
               }}
             />
-            <ActionBarPrimitive.Copy/>
+            <ActionBarPrimitive.Root>
+              <ActionBarPrimitive.Copy/>
+            </ActionBarPrimitive.Root>
           </div>
         </ThreadPrimitive.Viewport>
       ) : null}
