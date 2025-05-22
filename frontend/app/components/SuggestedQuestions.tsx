@@ -2,10 +2,10 @@ import { useThreadRuntime } from "@assistant-ui/react";
 import { Card, CardTitle } from "./ui/card";
 
 const suggestedQuestions = [
-  "How do I use a RecursiveUrlLoader to load content from a page?",
-  "How can I define the state schema for my LangGraph graph?",
-  "How can I run a model locally on my laptop with Ollama?",
-  "Explain RAG techniques and how LangGraph can implement them.",
+  "What geospatial data is included in the NatureSense module?",
+  "How are unmanaged risk variables aggregated to form a single policy score?",
+  "How is quality and reliability ensured in the creation of the materiality matrix?",
+  "How does the TNFD framework help manage biodiversity risks?", 
 ];
 
 export function SuggestedQuestions() {

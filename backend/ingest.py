@@ -3,6 +3,8 @@ import logging
 import os
 import re
 from typing import Optional
+from pathlib import Path
+from typing import List
 
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
@@ -15,6 +17,14 @@ from langchain_weaviate import WeaviateVectorStore
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 from backend.embeddings import get_embeddings_model
 from backend.parser import langchain_docs_extractor
+
+
+from langchain.schema import Document
+from langchain_community.document_loaders import (
+    DirectoryLoader,
+    UnstructuredWordDocumentLoader,
+)
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -85,6 +95,68 @@ def load_langsmith_docs():
     ).load()
 
 
+# --------------------------------------------------------------------------- #
+#  Helper – trim repeated blank lines and normalise whitespace
+# --------------------------------------------------------------------------- #
+def _clean(text: str) -> str:
+    text = re.sub(r"\r\n|\r", "\n", text)          # normalise line endings
+    text = re.sub(r"\n[ \t]*\n+", "\n\n", text)    # collapse multiple blank lines
+    return text.strip()
+
+
+# --------------------------------------------------------------------------- #
+#  Main loader
+# --------------------------------------------------------------------------- #
+def load_methodology_docs(
+    root: str = "/Users/jasper.hajonides/Downloads/Full Methodology 2025",
+) -> List[Document]:
+    """
+    Recursively scans *root* for .docx files, extracts text, and returns a list
+    of LangChain `Document` objects with metadata fields that mirror the ones
+    you already use for web-sourced content.
+
+    Returns
+    -------
+    List[Document]
+        Each document’s `page_content` is the full cleaned text of the .docx
+        file.  Metadata keys:
+
+        * source      – absolute file path
+        * loc         – same as source (keeps interface parity with sitemap loader)
+        * title       – filename stem
+        * description – first 200 characters of text (empty if none)
+        * language    – "en"  (change if you detect others)
+    """
+    # 1) Load every .docx under *root* (UnstructuredWordDocumentLoader handles DOC/DOCX)
+    dir_loader = DirectoryLoader(
+        root,
+        glob="**/*.docx",                          # recurse
+        loader_cls=UnstructuredWordDocumentLoader,
+        loader_kwargs={"mode": "single"},          # one Document per file
+    )
+    docs = dir_loader.load()                       # synchronous
+
+    # 2) Post-process: clean text & add the extra metadata keys you expect
+    for doc in docs:
+        raw_path = doc.metadata.get("source", "")
+        doc.page_content = _clean(doc.page_content)
+
+        title = Path(raw_path).stem
+        snippet = doc.page_content[:200].replace("\n", " ").strip()
+
+        doc.metadata.update(
+            {
+                "loc": raw_path,
+                "title": title,
+                "description": snippet,
+                "language": "en",
+            }
+        )
+
+    return docs
+
+
+
 def simple_extractor(html: str | BeautifulSoup) -> str:
     if isinstance(html, str):
         soup = BeautifulSoup(html, "lxml")
@@ -123,7 +195,7 @@ def ingest_docs():
     WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
     RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1540, chunk_overlap=128)
     embedding = get_embeddings_model()
 
     with weaviate.connect_to_weaviate_cloud(
@@ -144,20 +216,23 @@ def ingest_docs():
         )
         record_manager.create_schema()
 
-        docs_from_documentation = load_langchain_docs()
-        logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
-        docs_from_api = load_api_docs()
-        logger.info(f"Loaded {len(docs_from_api)} docs from API")
-        docs_from_langsmith = load_langsmith_docs()
-        logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
-        docs_from_langgraph = load_langgraph_docs()
-        logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
+        # docs_from_documentation = load_langchain_docs()
+        # logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
+        # docs_from_api = load_api_docs()
+        # logger.info(f"Loaded {len(docs_from_api)} docs from API")
+        # docs_from_langsmith = load_langsmith_docs()
+        # logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
+        # docs_from_langgraph = load_langgraph_docs()
+        # logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
+        docs_from_methodology = load_methodology_docs()
+        logger.info(f"Loaded {len(docs_from_methodology)} docs from Methodology")
 
         docs_transformed = text_splitter.split_documents(
-            docs_from_documentation
-            + docs_from_api
-            + docs_from_langsmith
-            + docs_from_langgraph
+            # docs_from_documentation
+            # + docs_from_api
+            # + docs_from_langsmith
+            # + docs_from_langgraph
+            docs_from_methodology
         )
         docs_transformed = [
             doc for doc in docs_transformed if len(doc.page_content) > 10

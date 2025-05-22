@@ -24,6 +24,9 @@ voyageai = "^0.1.4"
 pillow = "^10.2.0"
 # do not remove this, it's used for indexing
 psycopg2-binary = "^2.9.9"
+langgraph-cli = {extras = ["inmem"], version = "^0.2.10"}
+unstructured = {extras = ["docx"], version = "^0.17.2"}
+python-docx = "^1.1.2"
 
 [tool.poetry.group.dev.dependencies]
 langgraph-sdk = ">=0.1.61,<0.2.0"

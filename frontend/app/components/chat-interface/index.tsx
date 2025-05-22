@@ -53,13 +53,13 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
         <div className="flex items-center justify-center flex-grow my-auto">
           <div className="flex flex-col items-center mx-4 md:mt-0 mt-24">
             <div className="flex flex-row gap-1 items-center justify-center">
-              <p className="text-xl sm:text-2xl">Chat LangChain</p>
+              <p className="text-xl sm:text-2xl">NatureAlpha Chat</p>
               <NextImage
-                src="/images/lc_logo.jpg"
+                src="/images/naturealpha_logo.png"
                 className="rounded-3xl"
-                alt="LangChain Logo"
-                width={32}
-                height={32}
+                alt="NatureAlpha Logo"
+                width={40}
+                height={40}
                 style={{ width: "auto", height: "auto" }}
               />
             </div>

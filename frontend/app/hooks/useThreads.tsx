@@ -7,7 +7,8 @@ import { useToast } from "./use-toast";
 import { useQueryState } from "nuqs";
 
 export const createClient = () => {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:2024';
+  console.log('Using API URL:', apiUrl);
   return new Client({
     apiUrl,
   });
