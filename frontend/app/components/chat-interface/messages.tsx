@@ -58,6 +58,7 @@ function FeedbackButtons() {
 
   return (
     <div>
+      <CopyToClipboard />
       <div className="flex gap-2 items-center mt-4">
         <p>Was this answer helpful?</p>
         <TooltipIconButton
@@ -83,7 +84,7 @@ function FeedbackButtons() {
           <ThumbsDownIcon className="w-4 h-4" />
         </TooltipIconButton>
       </div>
-      <ReportIssue /> 
+      <ReportIssue />
     </div>
   );
 }
@@ -99,6 +100,21 @@ function ReportIssue () {
       </div>
     </div>
   );
+}
+
+function CopyToClipboard () {
+  return (
+    <div>
+      <ActionBarPrimitive.Copy>
+        <MessagePrimitive.If copied={false}>
+          <CopyIcon />
+        </MessagePrimitive.If>
+        <MessagePrimitive.If copied>
+          <CheckIcon />
+        </MessagePrimitive.If>
+      </ActionBarPrimitive.Copy>
+    </div>
+  )
 }
 
 export const AssistantMessage: FC = () => {
@@ -117,14 +133,6 @@ export const AssistantMessage: FC = () => {
           <hr className="relative left-1/2 -translate-x-1/2 w-[90vw] sm:w-[45vw] mt-4 sm:mt-6 border-gray-600" />
         ) : null}
         {isLast && <FeedbackButtons />}
-        <ActionBarPrimitive.Copy>
-          <MessagePrimitive.If copied={false}>
-            <CopyIcon />
-          </MessagePrimitive.If>
-          <MessagePrimitive.If copied>
-            <CheckIcon />
-          </MessagePrimitive.If>
-        </ActionBarPrimitive.Copy>
       </div>
     </MessagePrimitive.Root>
   );
