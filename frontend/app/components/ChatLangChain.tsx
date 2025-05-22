@@ -121,7 +121,7 @@ function ChatLangChainComponent({test} : {test:any}): React.ReactElement {
   const test1 = test;
 
   return (
-    <div className="block lg:overflow-hidden h-full w-full flex lg:flex-row flex-col relative bg-green-500">
+    <div className="overflow-hidden h-full w-full flex lg:flex-row flex-col relative bg-green-500">
       <div className="flex absolute top-2 right-2 lg:top-5 lg:right-5 z-10 m-4">
         <NextImage
           src="/images/solar_user_bold.svg"
@@ -140,7 +140,7 @@ function ChatLangChainComponent({test} : {test:any}): React.ReactElement {
       <div className="grow">
         <ThreadHistory />
       </div>
-      <div className="w-full h-full">
+      <div className="w-full h-full overflow-hidden">
         <AssistantRuntimeProvider runtime={runtime}>
           <ThreadChat submitDisabled={isSubmitDisabled} messages={messages} />
         </AssistantRuntimeProvider>
