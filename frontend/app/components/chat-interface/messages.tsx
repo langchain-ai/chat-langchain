@@ -57,9 +57,9 @@ function FeedbackButtons() {
   }
 
   return (
-    <div>
+    <div className="mt-4">
       <CopyToClipboard />
-      <div className="flex gap-2 items-center mt-4">
+      <div className="flex gap-2 items-center">
         <p>Was this answer helpful?</p>
         <TooltipIconButton
           delayDuration={200}
@@ -107,10 +107,10 @@ function CopyToClipboard () {
     <div>
       <ActionBarPrimitive.Copy>
         <MessagePrimitive.If copied={false}>
-          Copy Answer
+          <CopyIcon/> Copy Answer
         </MessagePrimitive.If>
         <MessagePrimitive.If copied>
-          Copied!
+          <CheckIcon/> Copied!
         </MessagePrimitive.If>
       </ActionBarPrimitive.Copy>
     </div>
