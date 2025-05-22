@@ -105,12 +105,18 @@ function ReportIssue () {
 function CopyToClipboard () {
   return (
     <div>
-      <ActionBarPrimitive.Copy>
+      <ActionBarPrimitive.Copy className="flex">
         <MessagePrimitive.If copied={false}>
-          <CopyIcon/> Copy Answer
+          <CopyIcon/>
+          <div className="ml-2">
+            Copy Answer
+          </div>
         </MessagePrimitive.If>
         <MessagePrimitive.If copied>
-          <CheckIcon/> Copied!
+          <CheckIcon/>
+          <div className="ml-2">
+            Copied!
+          </div>
         </MessagePrimitive.If>
       </ActionBarPrimitive.Copy>
     </div>
