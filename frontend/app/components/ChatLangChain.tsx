@@ -137,7 +137,7 @@ function ChatLangChainComponent({test} : {test:any}): React.ReactElement {
             <button>Sign Out</button>
         </form>
       </div>
-      <div className="grow">
+      <div>
         <ThreadHistory />
       </div>
       <div className="w-full h-full overflow-hidden">
