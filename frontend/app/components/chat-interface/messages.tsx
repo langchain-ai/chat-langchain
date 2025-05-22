@@ -107,10 +107,10 @@ function CopyToClipboard () {
     <div>
       <ActionBarPrimitive.Copy>
         <MessagePrimitive.If copied={false}>
-          <CopyIcon />
+          Copy Answer
         </MessagePrimitive.If>
         <MessagePrimitive.If copied>
-          <CheckIcon />
+          Copied!
         </MessagePrimitive.If>
       </ActionBarPrimitive.Copy>
     </div>
