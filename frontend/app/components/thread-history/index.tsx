@@ -38,7 +38,7 @@ function ThreadHistoryComponent() {
   };
 
   return (
-    <span>
+    <div className="h-full">
       {/* Tablet & up */}
       <div className="hidden lg:flex flex-col w-[260px] h-full bg-[#F9F9F9] bg-indigo-500">
         <div className="flex-grow my-6 flex flex-col overflow-hidden">
@@ -103,7 +103,7 @@ function ThreadHistoryComponent() {
           </TooltipIconButton>
         ) : null}
       </span>
-    </span>
+    </div>
   );
 }
 
