@@ -1,7 +1,6 @@
 import os
 from typing import Annotated, Literal, Sequence, TypedDict
 
-import weaviate
 from langchain_anthropic import ChatAnthropic
 from langchain_cohere import ChatCohere
 from langchain_core.documents import Document
@@ -23,10 +22,12 @@ from langchain_fireworks import ChatFireworks
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
-from langchain_weaviate import WeaviateVectorStore
+from langchain_milvus import Milvus
+from langchain_ollama import ChatOllama
+from pymilvus import connections
 from langgraph.graph import END, StateGraph, add_messages
 
-from backend.constants import WEAVIATE_DOCS_INDEX_NAME
+# from backend.constants import WEAVIATE_DOCS_INDEX_NAME # No longer used
 from backend.ingest import get_embeddings_model
 
 RESPONSE_TEMPLATE = """\
@@ -104,6 +105,17 @@ FIREWORKS_MIXTRAL_MODEL_KEY = "fireworks_mixtral"
 GOOGLE_MODEL_KEY = "google_gemini_pro"
 COHERE_MODEL_KEY = "cohere_command"
 GROQ_LLAMA_3_MODEL_KEY = "groq_llama_3"
+OLLAMA_MODEL_KEY = "ollama_chat" # New key for Ollama
+
+# Determine default LLM based on environment variable
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
+if LLM_PROVIDER == "ollama":
+    DEFAULT_MODEL_PROVIDER_KEY = OLLAMA_MODEL_KEY
+elif LLM_PROVIDER == "openai": # Default to OpenAI if not ollama or if var is something else
+    DEFAULT_MODEL_PROVIDER_KEY = OPENAI_MODEL_KEY
+else: # Fallback for any other unexpected LLM_PROVIDER value
+    DEFAULT_MODEL_PROVIDER_KEY = OPENAI_MODEL_KEY
+    print(f"Warning: Invalid LLM_PROVIDER '{LLM_PROVIDER}'. Defaulting to OpenAI.")
 
 
 def update_documents(
@@ -159,46 +171,63 @@ groq_llama3 = ChatGroq(
     temperature=0,
     groq_api_key=os.environ.get("GROQ_API_KEY", "not_provided"),
 )
+ollama_llm = ChatOllama(
+    base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+    model=os.getenv("OLLAMA_LLM_MODEL", "llama2"), # Default model for Ollama LLM
+    temperature=0,
+)
 llm = gpt_3_5.configurable_alternatives(
     # This gives this field an id
     # When configuring the end runnable, we can then use this id to configure this field
     ConfigurableField(id="model_name"),
-    default_key=OPENAI_MODEL_KEY,
+    default_key=DEFAULT_MODEL_PROVIDER_KEY, # Using the env-driven default
     **{
+        OPENAI_MODEL_KEY: gpt_3_5, # Ensure OpenAI is explicitly in the map if it can be a default
         ANTHROPIC_MODEL_KEY: claude_3_haiku,
         FIREWORKS_MIXTRAL_MODEL_KEY: fireworks_mixtral,
         GOOGLE_MODEL_KEY: gemini_pro,
         COHERE_MODEL_KEY: cohere_command,
         GROQ_LLAMA_3_MODEL_KEY: groq_llama3,
+        OLLAMA_MODEL_KEY: ollama_llm, # Added Ollama
     },
 ).with_fallbacks(
     [
-        gpt_3_5,
+        gpt_3_5, # Ensure all models in the map are also in fallbacks if desired
         claude_3_haiku,
         fireworks_mixtral,
         gemini_pro,
         cohere_command,
         groq_llama3,
+        ollama_llm, # Added Ollama to fallbacks
     ]
 )
 
 
 def get_retriever() -> BaseRetriever:
-    weaviate_client = weaviate.connect_to_wcs(
-        cluster_url=os.environ["WEAVIATE_URL"],
-        auth_credentials=weaviate.classes.init.Auth.api_key(
-            os.environ.get("WEAVIATE_API_KEY", "not_provided")
-        ),
-        skip_init_checks=True,
+    MILVUS_HOST = os.getenv("MILVUS_HOST", "localhost")
+    MILVUS_PORT = os.getenv("MILVUS_PORT", "19530")
+    MILVUS_COLLECTION_NAME = os.getenv("MILVUS_COLLECTION_NAME", "knowledge_base")
+
+    # Ensure Milvus connection is established
+    # The alias "default" is used by Langchain Milvus client by default.
+    connections.connect(host=MILVUS_HOST, port=MILVUS_PORT, alias="default")
+
+    vector_store = Milvus(
+        embedding_function=get_embeddings_model(),
+        collection_name=MILVUS_COLLECTION_NAME,
+        connection_args={"host": MILVUS_HOST, "port": MILVUS_PORT, "alias": "default"},
+        # Ensure these field names match what ingest.py is using/setting up
+        # primary_field="id", # auto_id=True in ingest.py handles primary key, so not needed here.
+    # For Milvus, text_field and vector_field are often set during collection creation or by default.
+    # If your Milvus collection uses specific names, ensure they are reflected here or in the client.
+    # The Milvus client for Langchain typically expects 'text' and 'vector' or similar defaults.
+    # If auto_id=True was used in ingest, Milvus manages primary keys.
+    # If a specific text field name was used (e.g., 'page_content'), it should be consistent.
+    # Default behavior of Milvus client in Langchain is usually sufficient if collection schema is standard.
+    text_field="text", # As per previous setup in ingest.py
+    vector_field="embedding" # As per previous setup in ingest.py
     )
-    weaviate_client = WeaviateVectorStore(
-        client=weaviate_client,
-        index_name=WEAVIATE_DOCS_INDEX_NAME,
-        text_key="text",
-        embedding=get_embeddings_model(),
-        attributes=["source", "title"],
-    )
-    return weaviate_client.as_retriever(search_kwargs=dict(k=6))
+    return vector_store.as_retriever(search_kwargs=dict(k=6))
 
 
 def format_docs(docs: Sequence[Document]) -> str:
@@ -297,7 +326,7 @@ def synthesize_response_cohere(state: AgentState) -> AgentState:
 def route_to_response_synthesizer(
     state: AgentState, config: RunnableConfig
 ) -> Literal["response_synthesizer", "response_synthesizer_cohere"]:
-    model_name = config.get("configurable", {}).get("model_name", OPENAI_MODEL_KEY)
+    model_name = config.get("configurable", {}).get("model_name", DEFAULT_MODEL_PROVIDER_KEY)
     if model_name == COHERE_MODEL_KEY:
         return "response_synthesizer_cohere"
     else:

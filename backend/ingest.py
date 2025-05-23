@@ -4,7 +4,6 @@ import os
 import re
 from typing import Optional
 
-import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain.indexes import SQLRecordManager, index
@@ -12,9 +11,13 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
-from langchain_weaviate import WeaviateVectorStore
+from langchain_milvus import Milvus
+from langchain_ollama import OllamaEmbeddings
+from pymilvus import connections, utility
 
-from backend.constants import WEAVIATE_DOCS_INDEX_NAME
+from pathlib import Path
+from langchain_community.document_loaders import PyPDFLoader
+# from backend.constants import WEAVIATE_DOCS_INDEX_NAME # No longer used
 from backend.parser import langchain_docs_extractor
 
 logging.basicConfig(level=logging.INFO)
@@ -22,7 +25,23 @@ logger = logging.getLogger(__name__)
 
 
 def get_embeddings_model() -> Embeddings:
-    return OpenAIEmbeddings(model="text-embedding-3-small", chunk_size=200)
+    embedding_provider = os.getenv("EMBEDDING_PROVIDER", "openai").lower()
+    if embedding_provider == "ollama":
+        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_embedding_model = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
+        logger.info(
+            f"Using Ollama Embeddings with base_url='{ollama_base_url}' and model='{ollama_embedding_model}'"
+        )
+        return OllamaEmbeddings(
+            base_url=ollama_base_url, model=ollama_embedding_model
+        )
+    elif embedding_provider == "openai":
+        logger.info("Using OpenAI Embeddings model='text-embedding-3-small'")
+        return OpenAIEmbeddings(model="text-embedding-3-small", chunk_size=200)
+    else:
+        raise ValueError(
+            f"Unsupported EMBEDDING_PROVIDER: {embedding_provider}. Must be 'openai' or 'ollama'."
+        )
 
 
 def metadata_extractor(
@@ -123,52 +142,117 @@ def load_api_docs():
     ).load()
 
 
+def load_knowledge_base_pdfs(docs_path_str: str = "knowledge_docs") -> list:
+    """
+    Loads PDF documents from a specified directory.
+
+    Args:
+        docs_path_str: The path to the folder containing PDF files.
+
+    Returns:
+        A list of Langchain Document objects, where each Document represents a page.
+    """
+    docs_path = Path(docs_path_str)
+    if not docs_path.is_dir():
+        logger.warning(
+            f"Knowledge base PDF directory '{docs_path}' not found. Skipping PDF loading."
+        )
+        return []
+
+    loaded_documents = []
+    for pdf_file_path in docs_path.glob("*.pdf"):
+        logger.info(f"Processing PDF file: {pdf_file_path.name}")
+        try:
+            loader = PyPDFLoader(str(pdf_file_path))
+            pages = loader.load()
+
+            # TODO: User needs to implement logic to extract the source URL from the PDF content/structure.
+            # This could involve parsing the PDF for a URL, using a sidecar file, or a naming convention.
+            extracted_url = "placeholder_url_needs_implementation"
+            logger.warning(
+                f"Using placeholder URL ('{extracted_url}') for {pdf_file_path.name}. "
+                "Implement robust URL extraction logic for production use."
+            )
+
+            for page in pages:
+                page.metadata['source'] = extracted_url
+                page.metadata['title'] = pdf_file_path.stem # Use stem for filename without extension
+                loaded_documents.append(page)
+            logger.info(f"Loaded {len(pages)} pages from {pdf_file_path.name}")
+        except Exception as e:
+            logger.error(f"Error loading or processing PDF file {pdf_file_path.name}: {e}")
+            # Optionally, re-raise or handle more gracefully
+            # raise e 
+
+    return loaded_documents
+
+
 def ingest_docs():
-    WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-    WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
     RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+    MILVUS_HOST = os.getenv("MILVUS_HOST", "localhost")
+    MILVUS_PORT = os.getenv("MILVUS_PORT", "19530")
+    MILVUS_COLLECTION_NAME = os.getenv("MILVUS_COLLECTION_NAME", "knowledge_base")
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     embedding = get_embeddings_model()
 
-    client = weaviate.connect_to_wcs(
-        cluster_url=WEAVIATE_URL,
-        auth_credentials=weaviate.classes.init.Auth.api_key(WEAVIATE_API_KEY),
-        skip_init_checks=True,
-    )
-    vectorstore = WeaviateVectorStore(
-        client=client,
-        index_name=WEAVIATE_DOCS_INDEX_NAME,
-        text_key="text",
-        embedding=embedding,
-        attributes=["source", "title"],
+    logger.info(f"Attempting to connect to Milvus: host={MILVUS_HOST}, port={MILVUS_PORT}")
+    connections.connect(host=MILVUS_HOST, port=MILVUS_PORT)
+    logger.info(f"Successfully connected to Milvus.")
+
+    vectorstore = Milvus(
+        embedding_function=embedding,
+        collection_name=MILVUS_COLLECTION_NAME,
+        connection_args={"host": MILVUS_HOST, "port": MILVUS_PORT},
+        auto_id=True,
+        primary_field="id", 
+        text_field="text", 
+        vector_field="embedding",
     )
 
+    # Construct the record manager namespace using the Milvus collection name
+    # to keep it distinct from potential Weaviate namespaces if DB is reused.
+    record_manager_namespace = f"milvus/{MILVUS_COLLECTION_NAME}"
     record_manager = SQLRecordManager(
-        f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
+        record_manager_namespace, db_url=RECORD_MANAGER_DB_URL
     )
     record_manager.create_schema()
 
-    docs_from_documentation = load_langchain_docs()
-    logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
-    docs_from_api = load_api_docs()
-    logger.info(f"Loaded {len(docs_from_api)} docs from API")
-    docs_from_langsmith = load_langsmith_docs()
-    logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
-    docs_from_langgraph = load_langgraph_docs()
-    logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
+    knowledge_base_docs = load_knowledge_base_pdfs()
+    logger.info(f"Loaded {len(knowledge_base_docs)} pages from PDF documents.")
 
-    docs_transformed = text_splitter.split_documents(
-        docs_from_documentation
-        + docs_from_api
-        + docs_from_langsmith
-        + docs_from_langgraph
-    )
+    # Comment out existing data loading (Web Loaders)
+    # docs_from_documentation = load_langchain_docs()
+    # logger.info(f"Loaded {len(docs_from_documentation)} docs from documentation")
+    # docs_from_api = load_api_docs()
+    # logger.info(f"Loaded {len(docs_from_api)} docs from API")
+    # docs_from_langsmith = load_langsmith_docs()
+    # logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
+    # docs_from_langgraph = load_langgraph_docs()
+    # logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
+
+    # docs_transformed = text_splitter.split_documents(
+    #     docs_from_documentation
+    #     + docs_from_api
+    #     + docs_from_langsmith
+    #     + docs_from_langgraph
+    # )
+    # docs_transformed = [doc for doc in docs_transformed if len(doc.page_content) > 10]
+
+    # Initialize all_docs with PDF documents.
+    # If other loaders (e.g., web loaders) are re-enabled, concatenate their results here.
+    all_docs = knowledge_base_docs
+    # For example, if web loaders were active:
+    # all_docs = knowledge_base_docs + docs_from_documentation + docs_from_api + ...
+
+    logger.info(f"Total documents loaded for processing: {len(all_docs)}")
+    
+    docs_transformed = text_splitter.split_documents(all_docs)
     docs_transformed = [doc for doc in docs_transformed if len(doc.page_content) > 10]
 
-    # We try to return 'source' and 'title' metadata when querying vector store and
-    # Weaviate will error at query time if one of the attributes is missing from a
-    # retrieved document.
+    # We try to return 'source' and 'title' metadata when querying vector store.
+    # Ensure these fields are present in document metadata.
+    # Milvus client for Langchain should handle mapping these to its schema if possible.
     for doc in docs_transformed:
         if "source" not in doc.metadata:
             doc.metadata["source"] = ""
@@ -185,14 +269,20 @@ def ingest_docs():
     )
 
     logger.info(f"Indexing stats: {indexing_stats}")
-    num_vecs = (
-        client.collections.get(WEAVIATE_DOCS_INDEX_NAME)
-        .aggregate.over_all()
-        .total_count
-    )
-    logger.info(
-        f"LangChain now has this many vectors: {num_vecs}",
-    )
+    
+    # Check Milvus collection stats
+    if utility.has_collection(MILVUS_COLLECTION_NAME):
+        stats = utility.get_collection_stats(MILVUS_COLLECTION_NAME)
+        logger.info(f"Milvus collection '{MILVUS_COLLECTION_NAME}' has {stats['row_count']} vectors.")
+    else:
+        logger.info(f"Milvus collection '{MILVUS_COLLECTION_NAME}' does not exist or is empty.")
+    
+    # Remove the constant WEAVIATE_DOCS_INDEX_NAME as it's no longer used
+    # This should be done carefully if it's used elsewhere, but based on the
+    # current context, it seems specific to Weaviate.
+    # For now, we will assume it's not used elsewhere and can be removed from constants.py later.
+    # Also, the import of WEAVIATE_DOCS_INDEX_NAME from backend.constants can be removed.
+    # The line referring to WEAVIATE_DOCS_INDEX_NAME in imports has been commented out.
 
 
 if __name__ == "__main__":
