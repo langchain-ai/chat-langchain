@@ -1,4 +1,5 @@
 """Clear Weaviate index."""
+
 import logging
 import os
 

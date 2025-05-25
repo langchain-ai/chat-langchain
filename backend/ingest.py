@@ -1,4 +1,5 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
+
 import logging
 import os
 import re
@@ -99,8 +100,8 @@ def load_langsmith_docs():
 #  Helper – trim repeated blank lines and normalise whitespace
 # --------------------------------------------------------------------------- #
 def _clean(text: str) -> str:
-    text = re.sub(r"\r\n|\r", "\n", text)          # normalise line endings
-    text = re.sub(r"\n[ \t]*\n+", "\n\n", text)    # collapse multiple blank lines
+    text = re.sub(r"\r\n|\r", "\n", text)  # normalise line endings
+    text = re.sub(r"\n[ \t]*\n+", "\n\n", text)  # collapse multiple blank lines
     return text.strip()
 
 
@@ -130,11 +131,11 @@ def load_methodology_docs(
     # 1) Load every .docx under *root* (UnstructuredWordDocumentLoader handles DOC/DOCX)
     dir_loader = DirectoryLoader(
         root,
-        glob="**/*.docx",                          # recurse
+        glob="**/*.docx",  # recurse
         loader_cls=UnstructuredWordDocumentLoader,
-        loader_kwargs={"mode": "single"},          # one Document per file
+        loader_kwargs={"mode": "single"},  # one Document per file
     )
-    docs = dir_loader.load()                       # synchronous
+    docs = dir_loader.load()  # synchronous
 
     # 2) Post-process: clean text & add the extra metadata keys you expect
     for doc in docs:
@@ -154,7 +155,6 @@ def load_methodology_docs(
         )
 
     return docs
-
 
 
 def simple_extractor(html: str | BeautifulSoup) -> str:
