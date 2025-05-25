@@ -56,6 +56,7 @@ gcloud builds submit --tag gcr.io/<PROJECT_ID>/chat-langchain-frontend \
   --build-arg NEXT_PUBLIC_API_URL=<backend-url> \
   --build-arg API_BASE_URL=<backend-url> \
   --build-arg LANGCHAIN_API_KEY=<langsmith-key>
+
 gcloud run deploy chat-langchain-frontend \
   --image gcr.io/<PROJECT_ID>/chat-langchain-frontend \
   --region <REGION> --platform managed --allow-unauthenticated \
@@ -77,3 +78,4 @@ Deployment sometimes fails due to missing permissions or disabled services. Veri
 3. Organization policies do not block Cloud Build or Cloud Storage access.
 4. The Cloud Build service account has permission to write to the build bucket (e.g. `Storage Admin`).
 5. Re-authenticate with `gcloud auth login` if credentials are stale.
+

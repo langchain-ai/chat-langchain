@@ -19,6 +19,7 @@ ENV NODE_ENV=production \
     API_BASE_URL=${API_BASE_URL} \
     LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
 
+
 # Copy the rest of the application code
 COPY . .
 
