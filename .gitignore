@@ -142,6 +142,7 @@ langchain.readthedocs.io/
 bin/
 pyvenv.cfg
 node_modules/
+.next/
 .envrc
 
 .yarn/*
