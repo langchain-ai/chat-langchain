@@ -5,12 +5,15 @@ import { useEffect, useState } from "react";
 import { Client, Thread } from "@langchain/langgraph-sdk";
 import { useToast } from "./use-toast";
 import { useQueryState } from "nuqs";
+import { ENV } from "../config";
 
 export const createClient = () => {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:2024';
-  console.log('Using API URL:', apiUrl);
+  // Extract values from centralized config - NO localhost fallback
+  const apiUrl = ENV.API_URL;
+  
   return new Client({
     apiUrl,
+    apiKey: ENV.LANGCHAIN_API_KEY,
   });
 };
 

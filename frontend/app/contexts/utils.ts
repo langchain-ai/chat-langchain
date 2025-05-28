@@ -1,9 +1,15 @@
+"use client";
+
 import { Client } from "@langchain/langgraph-sdk";
+import { ENV } from "../config";
 
 export function createClient() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
+  // NO localhost fallback
+  const apiUrl = ENV.API_URL;
+  
   return new Client({
     apiUrl,
+    apiKey: ENV.LANGCHAIN_API_KEY,
   });
 }
 

@@ -1,0 +1,36 @@
+# cloudbuild.yaml
+steps:
+  # 1) Build the Docker image with your NEXT_PUBLIC_API_URL,
+  #    API_BASE_URL and LANGCHAIN_API_KEY build-args
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--tag'
+      - 'gcr.io/$PROJECT_ID/chat-langchain-frontend'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_API_URL=https://chat.langchain.com/api'
+      - '--build-arg'
+      - 'API_BASE_URL=https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app'
+      - '--build-arg'
+      - 'LANGCHAIN_API_KEY=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'
+      - '.'
+
+  # 2) Deploy that image to Cloud Run (replace <REGION> with your region)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'chat-langchain-frontend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/chat-langchain-frontend'
+      - '--region'
+      - 'europe-west1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'NEXT_PUBLIC_API_URL=https://chat.langchain.com/api,API_BASE_URL=https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app,LANGCHAIN_API_KEY=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'
+
+# Tell Cloud Build which images to push up
+images:
+  - 'gcr.io/$PROJECT_ID/chat-langchain-frontend'
