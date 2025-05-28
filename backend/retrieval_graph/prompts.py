@@ -3,7 +3,13 @@ from langsmith import Client
 """Default prompts."""
 
 client = Client()
-# fetch from langsmith
+# # fetch from langsmith
+# INPUT_GUARDRAIL_SYSTEM_PROMPT = (
+#     client.pull_prompt("input_guardrail")
+#     .messages[0]
+#     .prompt.template
+# )
+
 ROUTER_SYSTEM_PROMPT = (
     client.pull_prompt("router")
     .messages[0]
