@@ -29,11 +29,30 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
   useRouterLogicUI();
 
   return (
-    <ThreadPrimitive.Root className="flex flex-col h-screen overflow-hidden w-full">
+    <ThreadPrimitive.Root className="flex flex-col h-screen overflow-hidden w-full relative">
+      {/* NatureAlpha logo watermark */}
+      <div 
+        className="absolute inset-0 w-full h-full z-0 pointer-events-none flex items-center justify-center"
+        style={{
+          opacity: 0.2,
+        }}
+      >
+        <NextImage
+          src="/images/naturealpha_logo_cropped.png"
+          alt="NatureAlpha Logo Watermark"
+          width={600}
+          height={600}
+          className="object-contain"
+          style={{
+            filter: 'grayscale(100%)', // Convert to black and white
+          }}
+        />
+      </div>
+
       {!isEmpty ? (
         <ThreadPrimitive.Viewport
           className={cn(
-            "flex-1 overflow-y-auto scroll-smooth bg-inherit transition-all duration-300 ease-in-out w-full",
+            "flex-1 overflow-y-auto scroll-smooth bg-inherit transition-all duration-300 ease-in-out w-full z-10 relative",
             isEmpty ? "pb-[30vh] sm:pb-[50vh]" : "pb-32 sm:pb-24",
             "scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent",
           )}
@@ -50,7 +69,7 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
       ) : null}
       <ThreadChatScrollToBottom />
       {isEmpty ? (
-        <div className="flex items-center justify-center flex-grow my-auto">
+        <div className="flex items-center justify-center flex-grow my-auto z-10 relative">
           <div className="flex flex-col items-center mx-4 md:mt-0 mt-24">
             <div className="flex flex-row gap-1 items-center justify-center">
               <p className="text-xl sm:text-2xl">NatureAlpha Chat</p>
@@ -76,10 +95,12 @@ export const ThreadChat: FC<ThreadChatProps> = (props: ThreadChatProps) => {
           </div>
         </div>
       ) : (
-        <ChatComposer
-          submitDisabled={props.submitDisabled}
-          messages={props.messages}
-        />
+        <div className="z-10 relative">
+          <ChatComposer
+            submitDisabled={props.submitDisabled}
+            messages={props.messages}
+          />
+        </div>
       )}
     </ThreadPrimitive.Root>
   );
@@ -91,7 +112,7 @@ const ThreadChatScrollToBottom: FC = () => {
       <TooltipIconButton
         tooltip="Scroll to bottom"
         variant="outline"
-        className="absolute bottom-28 left-1/2 transform -translate-x-1/2 rounded-full disabled:invisible bg-white bg-opacity-75"
+        className="absolute bottom-28 left-1/2 transform -translate-x-1/2 rounded-full disabled:invisible bg-white bg-opacity-75 z-20"
       >
         <ArrowDownIcon className="text-gray-600 hover:text-gray-800 transition-colors ease-in-out" />
       </TooltipIconButton>

@@ -43,3 +43,51 @@ Looking to use or modify this Use Case Accelerant for your own needs? We've adde
 - **[LangSmith](./LANGSMITH.md)**: A guide on adding robustness to your application using LangSmith. Covers observability, evaluations, and feedback.
 - **[Production](./PRODUCTION.md)**: Documentation on preparing your application for production usage. Explains different security considerations, and more.
 - **[Deployment](./DEPLOYMENT.md)**: How to deploy your application to production. Covers setting up production databases, deploying the frontend, and more.
+
+## Deploying the frontend to GCP
+
+You can build & deploy in one step via Cloud Build, passing your backend URL and API key as substitutions.
+
+1. In `frontend/`, create or overwrite `cloudbuild.yaml` with the contents above.
+
+2. From the `frontend/` directory, run:
+
+```bash
+cd frontend
+gcloud builds submit \
+  --config=cloudbuild.yaml \
+  --substitutions=_API_BASE_URL="<YOUR_BACKEND_URL>",_LANGCHAIN_API_KEY="<YOUR_LANGCHAIN_KEY>"
+```
+
+Alternatively, you can build with `gcloud` commands:
+
+```bash
+cd frontend
+gcloud builds submit --tag gcr.io/<PROJECT_ID>/chat-langchain-frontend \
+  --build-arg NEXT_PUBLIC_API_URL=<backend-url> \
+  --build-arg API_BASE_URL=<backend-url> \
+  --build-arg LANGCHAIN_API_KEY=<langsmith-key>
+
+# and deploy
+gcloud run deploy chat-langchain-frontend \
+  --image gcr.io/<PROJECT_ID>/chat-langchain-frontend \
+  --region <REGION> --platform managed --allow-unauthenticated \
+  --set-env-vars NEXT_PUBLIC_API_URL=<backend-url>,API_BASE_URL=<backend-url>,LANGCHAIN_API_KEY=<langsmith-key>
+```
+
+Replace the placeholders with your own project information and environment
+variables. After deployment completes, Cloud Run will provide a public URL for
+your app.
+
+If deployment fails with permission errors, see the [GCP Troubleshooting](#gcp-troubleshooting) section below.
+
+## GCP Troubleshooting
+
+Deployment sometimes fails due to missing permissions or disabled services. Verify the following if you encounter `Forbidden` or `access` errors:
+
+1. Your account has the **Service Usage Consumer** role (`roles/serviceusage.serviceUsageConsumer`).
+2. The **Cloud Build API** is enabled in your project.
+3. Organization policies do not block Cloud Build or Cloud Storage access.
+4. The Cloud Build service account has permission to write to the build bucket (e.g. `Storage Admin`).
+5. Re-authenticate with `gcloud auth login` if credentials are stale.
+

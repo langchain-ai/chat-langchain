@@ -1,0 +1,45 @@
+# cloudbuild.yaml
+
+# Declare substitution variables for your secrets
+substitutions:
+  # Must be passed in at build time
+  _API_BASE_URL: ""
+  _LANGCHAIN_API_KEY: ""
+  
+steps:
+  # 1) Build the Docker image with NEXT_PUBLIC_API_URL (constant) and the two build-args
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--tag'
+      - 'gcr.io/$PROJECT_ID/chat-langchain-frontend'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_API_URL=https://chat.langchain.com/api'
+      - '--build-arg'
+      - 'API_BASE_URL=$_API_BASE_URL'
+      - '--build-arg'
+      - 'LANGCHAIN_API_KEY=$_LANGCHAIN_API_KEY'
+      - '.'
+
+  # 2) Deploy that image to Cloud Run, injecting the same values as runtime env-vars
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'chat-langchain-frontend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/chat-langchain-frontend'
+      - '--region'
+      - 'europe-west1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - |
+        NEXT_PUBLIC_API_URL=https://chat.langchain.com/api,
+        API_BASE_URL=$_API_BASE_URL,
+        LANGCHAIN_API_KEY=$_LANGCHAIN_API_KEY
+
+# This tells Cloud Build which images to tag & push
+images:
+  - 'gcr.io/$PROJECT_ID/chat-langchain-frontend'
