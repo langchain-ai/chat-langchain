@@ -52,14 +52,14 @@ You can build & deploy in one step via Cloud Build, passing your backend URL and
 
 2. From the `frontend/` directory, run:
 
-   ```bash
-   cd frontend
-   gcloud builds submit \
-     --config=cloudbuild.yaml \
-     --substitutions=_API_BASE_URL="<YOUR_BACKEND_URL>",_LANGCHAIN_API_KEY="<YOUR_LANGCHAIN_KEY>"
+```bash
+cd frontend
+gcloud builds submit \
+  --config=cloudbuild.yaml \
+  --substitutions=_API_BASE_URL="<YOUR_BACKEND_URL>",_LANGCHAIN_API_KEY="<YOUR_LANGCHAIN_KEY>"
 ```
 
-alternatively you can build with `gcloud` commands:
+Alternatively, you can build with `gcloud` commands:
 
 ```bash
 cd frontend
@@ -68,8 +68,7 @@ gcloud builds submit --tag gcr.io/<PROJECT_ID>/chat-langchain-frontend \
   --build-arg API_BASE_URL=<backend-url> \
   --build-arg LANGCHAIN_API_KEY=<langsmith-key>
 
-  
-
+# and deploy
 gcloud run deploy chat-langchain-frontend \
   --image gcr.io/<PROJECT_ID>/chat-langchain-frontend \
   --region <REGION> --platform managed --allow-unauthenticated \
