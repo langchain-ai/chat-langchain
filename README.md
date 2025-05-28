@@ -46,9 +46,20 @@ Looking to use or modify this Use Case Accelerant for your own needs? We've adde
 
 ## Deploying the frontend to GCP
 
-While the recommended hosting provider is Vercel, you can also run the Next.js
-frontend on Google Cloud Run. A `Dockerfile` is available in
-`./frontend` for this purpose. Because the frontend reads environment variables at build time, you must provide them when building the Docker image. To deploy:
+You can build & deploy in one step via Cloud Build, passing your backend URL and API key as substitutions.
+
+1. In `frontend/`, create or overwrite `cloudbuild.yaml` with the contents above.
+
+2. From the `frontend/` directory, run:
+
+   ```bash
+   cd frontend
+   gcloud builds submit \
+     --config=cloudbuild.yaml \
+     --substitutions=_API_BASE_URL="<YOUR_BACKEND_URL>",_LANGCHAIN_API_KEY="<YOUR_LANGCHAIN_KEY>"
+```
+
+alternatively you can build with `gcloud` commands:
 
 ```bash
 cd frontend
@@ -56,6 +67,8 @@ gcloud builds submit --tag gcr.io/<PROJECT_ID>/chat-langchain-frontend \
   --build-arg NEXT_PUBLIC_API_URL=<backend-url> \
   --build-arg API_BASE_URL=<backend-url> \
   --build-arg LANGCHAIN_API_KEY=<langsmith-key>
+
+  
 
 gcloud run deploy chat-langchain-frontend \
   --image gcr.io/<PROJECT_ID>/chat-langchain-frontend \
