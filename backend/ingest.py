@@ -26,9 +26,27 @@ from langchain_community.document_loaders import (
     UnstructuredWordDocumentLoader,
 )
 
+import nltk
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Choose a directory that is in the search path, or add your own
+nltk_data_dir = os.path.expanduser('~/nltk_data')
+if nltk_data_dir not in nltk.data.path:
+    nltk.data.path.append(nltk_data_dir)
+
+# Download to that directory
+nltk.download('averaged_perceptron_tagger_eng', download_dir=nltk_data_dir)
+nltk.download('punkt', download_dir=nltk_data_dir)
+
+print("NLTK data path:", nltk.data.path)
+
+try:
+    nltk.data.find('taggers/averaged_perceptron_tagger_eng')
+    print("averaged_perceptron_tagger_eng found!")
+except LookupError:
+    print("averaged_perceptron_tagger_eng NOT found!")
 
 
 def metadata_extractor(
@@ -109,7 +127,7 @@ def _clean(text: str) -> str:
 #  Main loader
 # --------------------------------------------------------------------------- #
 def load_methodology_docs(
-    root: str = "/Users/jasper.hajonides/Downloads/Full Methodology 2025",
+    root: str = "/Users/margot.vanlaar/Documents/Full Methodology 2025",
 ) -> List[Document]:
     """
     Recursively scans *root* for .docx files, extracts text, and returns a list
@@ -119,7 +137,7 @@ def load_methodology_docs(
     Returns
     -------
     List[Document]
-        Each document’s `page_content` is the full cleaned text of the .docx
+        Each document's `page_content` is the full cleaned text of the .docx
         file.  Metadata keys:
 
         * source      – absolute file path
@@ -131,9 +149,9 @@ def load_methodology_docs(
     # 1) Load every .docx under *root* (UnstructuredWordDocumentLoader handles DOC/DOCX)
     dir_loader = DirectoryLoader(
         root,
-        glob="**/*.docx",  # recurse
+        glob="**/*[!~$]*.docx",  # exclude files starting with ~$
         loader_cls=UnstructuredWordDocumentLoader,
-        loader_kwargs={"mode": "single"},  # one Document per file
+        loader_kwargs={"mode": "single"}
     )
     docs = dir_loader.load()  # synchronous
 
