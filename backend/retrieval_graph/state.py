@@ -82,3 +82,9 @@ class AgentState(InputState):
     answer: str = field(default="")
     """Final answer. Useful for evaluations"""
     query: str = field(default="")
+    """Query to the LLM."""
+    # state fields for hallucination check / reflection step
+    # detected_hallucination: bool = field(default=False)
+    # """Whether a hallucination was detected."""
+    # retried_answer: int = field(default=0)
+    # """Number of times the answer has been retried."""
