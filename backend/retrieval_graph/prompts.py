@@ -24,7 +24,7 @@ def _fetch_prompt(prompt_id: str) -> Optional[str]:
 INPUT_GUARDRAIL_SYSTEM_PROMPT = _fetch_prompt("margot-na/input_guardrail")
 ROUTER_SYSTEM_PROMPT = _fetch_prompt("margot-na/router")
 GENERATE_QUERIES_SYSTEM_PROMPT = _fetch_prompt(
-    "margot-na/chat-langchain-generate-queries-prompt"
+    "margot-na/generate-queries"
 )
 MORE_INFO_SYSTEM_PROMPT = _fetch_prompt("margot-na/more_info")
 RESEARCH_PLAN_SYSTEM_PROMPT = _fetch_prompt("margot-na/researcher")
