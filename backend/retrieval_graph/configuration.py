@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Optional
 
 from backend.configuration import BaseConfiguration
 from backend.retrieval_graph import prompts
@@ -32,42 +33,42 @@ class AgentConfiguration(BaseConfiguration):
 
     # prompts
 
-    router_system_prompt: str = field(
+    router_system_prompt: Optional[str] = field(
         default=prompts.ROUTER_SYSTEM_PROMPT,
         metadata={
             "description": "The system prompt used for classifying user questions to route them to the correct node."
         },
     )
 
-    more_info_system_prompt: str = field(
+    more_info_system_prompt: Optional[str] = field(
         default=prompts.MORE_INFO_SYSTEM_PROMPT,
         metadata={
             "description": "The system prompt used for asking for more information from the user."
         },
     )
 
-    general_system_prompt: str = field(
+    general_system_prompt: Optional[str] = field(
         default=prompts.GENERAL_SYSTEM_PROMPT,
         metadata={
             "description": "The system prompt used for responding to general questions."
         },
     )
 
-    research_plan_system_prompt: str = field(
+    research_plan_system_prompt: Optional[str] = field(
         default=prompts.RESEARCH_PLAN_SYSTEM_PROMPT,
         metadata={
             "description": "The system prompt used for generating a research plan based on the user's question."
         },
     )
 
-    generate_queries_system_prompt: str = field(
+    generate_queries_system_prompt: Optional[str] = field(
         default=prompts.GENERATE_QUERIES_SYSTEM_PROMPT,
         metadata={
             "description": "The system prompt used by the researcher to generate queries based on a step in the research plan."
         },
     )
 
-    response_system_prompt: str = field(
+    response_system_prompt: Optional[str] = field(
         default=prompts.RESPONSE_SYSTEM_PROMPT,
         metadata={"description": "The system prompt used for generating responses."},
     )
