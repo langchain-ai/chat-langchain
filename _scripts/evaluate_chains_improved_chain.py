@@ -6,6 +6,8 @@ import os
 from typing import Literal, Optional, Union
 
 import weaviate
+
+from backend.utils import sanitize_weaviate_url
 from langchain import load as langchain_load
 from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
@@ -143,7 +145,7 @@ def create_chain(
 
 
 def _get_retriever():
-    WEAVIATE_URL = os.environ["WEAVIATE_URL"]
+    WEAVIATE_URL = sanitize_weaviate_url(os.environ["WEAVIATE_URL"])
     WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 
     client = weaviate.Client(

@@ -144,3 +144,12 @@ def reduce_docs(
                     existing_ids.add(item_id)
 
     return existing_list + new_list
+
+
+def sanitize_weaviate_url(url: str) -> str:
+    """Remove trailing paths like '/v1' from a Weaviate cluster URL."""
+
+    cleaned = url.rstrip("/")
+    if cleaned.endswith("/v1"):
+        cleaned = cleaned[: -len("/v1")]
+    return cleaned
