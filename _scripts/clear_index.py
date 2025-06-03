@@ -4,13 +4,15 @@ import logging
 import os
 
 import weaviate
+
+from backend.utils import sanitize_weaviate_url
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.indexes import SQLRecordManager, index
 from langchain.vectorstores import Weaviate
 
 logger = logging.getLogger(__name__)
 
-WEAVIATE_URL = os.environ["WEAVIATE_URL"]
+WEAVIATE_URL = sanitize_weaviate_url(os.environ["WEAVIATE_URL"])
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"

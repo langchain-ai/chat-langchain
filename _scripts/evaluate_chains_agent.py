@@ -4,6 +4,8 @@ import os
 from typing import Optional
 
 import weaviate
+
+from backend.utils import sanitize_weaviate_url
 from langchain import load as langchain_load
 from langchain.agents import AgentExecutor, Tool
 from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
@@ -20,7 +22,7 @@ from langsmith import Client, RunEvaluator
 from langsmith.evaluation.evaluator import EvaluationResult
 from langsmith.schemas import Example, Run
 
-WEAVIATE_URL = os.environ["WEAVIATE_URL"]
+WEAVIATE_URL = sanitize_weaviate_url(os.environ["WEAVIATE_URL"])
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
 
