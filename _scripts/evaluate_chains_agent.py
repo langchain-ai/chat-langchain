@@ -24,7 +24,9 @@ from langsmith.schemas import Example, Run
 
 WEAVIATE_URL = sanitize_weaviate_url(os.environ["WEAVIATE_URL"])
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
-WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
+WEAVIATE_DOCS_INDEX_NAME = os.environ.get(
+    "WEAVIATE_INDEX_NAME", "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
+)
 
 
 def search(inp: str, callbacks=None) -> list:

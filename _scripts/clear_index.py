@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 WEAVIATE_URL = sanitize_weaviate_url(os.environ["WEAVIATE_URL"])
 WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
-WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
+WEAVIATE_DOCS_INDEX_NAME = os.environ.get(
+    "WEAVIATE_INDEX_NAME", "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
+)
 
 
 def clear():

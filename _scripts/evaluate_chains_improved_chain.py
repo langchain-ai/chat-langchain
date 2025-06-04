@@ -31,7 +31,9 @@ _MODEL_MAP = {
     "openai": "gpt-3.5-turbo-1106",
     "anthropic": "claude-2",
 }
-WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
+WEAVIATE_DOCS_INDEX_NAME = os.environ.get(
+    "WEAVIATE_INDEX_NAME", "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
+)
 
 
 def search(search_queries, retriever: BaseRetriever):
