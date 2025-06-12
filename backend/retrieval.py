@@ -38,6 +38,10 @@ def make_weaviate_retriever(
         ),
         skip_init_checks=True,
     ) as weaviate_client:
+        print(
+            f"Using Weaviate index '{WEAVIATE_DOCS_INDEX_NAME}' at {cluster_url}",
+            flush=True,
+        )
         store = WeaviateVectorStore(
             client=weaviate_client,
             index_name=WEAVIATE_DOCS_INDEX_NAME,

@@ -18,7 +18,7 @@ Next, click "API Keys" and save the API key in the environment variable `WEAVIAT
 
 The final Weaviate environment variable is ``WEAVIATE_INDEX_NAME``. This is the
 name of the index you want to use. You can name it whatever you want, but for
-the NatureAlpha deployment we will use ``naturealpha-methdology``.
+the NatureAlpha deployment we will use ``naturealpha-methodology``.
 
 After this your vector store will be setup. We can now move onto the record manager.
 
@@ -68,7 +68,7 @@ When configuring, click "Add secret" and add the following secrets:
 OPENAI_API_KEY=
 RECORD_MANAGER_DB_URL=
 WEAVIATE_API_KEY=
-WEAVIATE_INDEX_NAME=naturealpha-methdology
+WEAVIATE_INDEX_NAME=naturealpha-methodology
 WEAVIATE_URL=
 ```
 
