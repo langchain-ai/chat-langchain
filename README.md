@@ -17,7 +17,10 @@ This project is now deployed using [LangGraph Cloud](https://langchain-ai.github
 > This [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve) **does not** have the same set of features.
 
 If you run the backend yourself (for example with `docker run -p 3001:8080`),
-set the frontend to use that URL by creating `frontend/.env.local`:
+set the frontend to use that URL by creating `frontend/.env.local`.
+At runtime the value of `API_BASE_URL` takes precedence over any
+`NEXT_PUBLIC_API_URL` baked into the build, so setting `API_BASE_URL` is
+sufficient:
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:3001
@@ -84,6 +87,9 @@ gcloud run deploy chat-langchain-frontend \
   --region <REGION> --platform managed --allow-unauthenticated \
   --set-env-vars NEXT_PUBLIC_API_URL=<backend-url>,API_BASE_URL=<backend-url>,LANGCHAIN_API_KEY=<langsmith-key>
 ```
+
+`API_BASE_URL` will override any baked-in `NEXT_PUBLIC_API_URL` at runtime,
+so ensure it points to your custom backend.
 
 Replace the placeholders with your own project information and environment
 variables. After deployment completes, Cloud Run will provide a public URL for

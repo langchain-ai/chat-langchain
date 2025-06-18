@@ -14,7 +14,7 @@ if (isBrowser) {
     // Check if this is a localhost:2024 URL
     if (typeof input === 'string' && input.includes('localhost:2024')) {
       // Replace with the correct API URL
-      const correctApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app';
+      const correctApiUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app';
       
       // Replace the URL
       const newUrl = input.replace(/http:\/\/localhost:2024/g, correctApiUrl);
@@ -31,8 +31,8 @@ if (isBrowser) {
 export const ENV = {
   // Public API URL (accessible in client components)
   API_URL: (() => {
-    // Prioritize NEXT_PUBLIC_API_URL, then API_BASE_URL, no localhost fallback
-    const url = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app';
+    // Prioritize API_BASE_URL, then NEXT_PUBLIC_API_URL, no localhost fallback
+    const url = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app';
     return url;
   })(),
 
