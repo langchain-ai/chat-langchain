@@ -36,7 +36,7 @@ export default function RootLayout({
                         arguments[1].includes('localhost:2024')) {
                       
                       // Redirect to the correct URL
-                      const correctUrl = "${process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL || 'https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app'}";
+                      const correctUrl = "${process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app'}";
                       
                       // Silently override without logging sensitive keys
                       document.dispatchEvent(new CustomEvent('override-api-url', { 
