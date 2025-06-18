@@ -16,6 +16,16 @@ This project is now deployed using [LangGraph Cloud](https://langchain-ai.github
 > [!NOTE]
 > This [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve) **does not** have the same set of features.
 
+If you run the backend yourself (for example with `docker run -p 3001:8080`),
+set the frontend to use that URL by creating `frontend/.env.local`:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:3001
+API_BASE_URL=http://localhost:3001
+```
+
+Then start the frontend with `yarn build` followed by `yarn dev`.
+
 ## 📚 Technical description
 
 There are two components: ingestion and question-answering.
