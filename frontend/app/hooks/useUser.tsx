@@ -17,7 +17,7 @@ export function useUser() {
       setUserId(newUserId);
       setCookie(USER_ID_COOKIE_NAME, newUserId);
     }
-  }, []);
+  }, [userId]);
 
   return {
     userId,

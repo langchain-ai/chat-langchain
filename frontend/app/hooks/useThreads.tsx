@@ -1,29 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 import { Client, Thread } from "@langchain/langgraph-sdk";
 import { useToast } from "./use-toast";
 import { useQueryState } from "nuqs";
 import { ENV } from "../config";
 
-export const createClient = () => {
-  // Extract values from centralized config - NO localhost fallback
-  const apiUrl = ENV.API_URL;
-  console.log("[createClient] API URL:", apiUrl);
-  if (ENV.LANGCHAIN_API_KEY) {
-    console.log(
-      "[createClient] API Key:",
-      `${ENV.LANGCHAIN_API_KEY.slice(0, 4)}…${ENV.LANGCHAIN_API_KEY.slice(-4)}`,
-    );
-  } else {
-    console.warn("[createClient] No API key provided");
-  }
+// Direct API calls using the correct LangGraph Cloud format
 
-  return new Client({
-    apiUrl,
-    apiKey: ENV.LANGCHAIN_API_KEY,
+// Direct API calls using the correct format discovered in testing
+const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
+  const apiUrl = ENV.API_URL;
+  const apiKey = ENV.LANGCHAIN_API_KEY;
+  
+  const response = await fetch(`${apiUrl}${endpoint}`, {
+    ...options,
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
   });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
+  
+  return response.json();
 };
 
 export function useThreads(userId: string | undefined) {
@@ -35,18 +40,23 @@ export function useThreads(userId: string | undefined) {
   useEffect(() => {
     if (typeof window == "undefined" || !userId) return;
     getUserThreads(userId);
-  }, [userId]);
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const createThread = async (id: string) => {
-    const client = createClient();
     let thread;
     try {
       console.log(`[threads] createThread for user ${id}`);
-      thread = await client.threads.create({
-        metadata: {
-          user_id: id,
-        },
+      
+      // Use direct API call with correct format (POST /threads)
+      thread = await apiRequest('/threads', {
+        method: 'POST',
+        body: JSON.stringify({
+          metadata: {
+            user_id: id,
+          },
+        }),
       });
+      
       if (!thread || !thread.thread_id) {
         throw new Error("Thread creation failed.");
       }
@@ -64,23 +74,45 @@ export function useThreads(userId: string | undefined) {
   const getUserThreads = async (id: string) => {
     setIsUserThreadsLoading(true);
     try {
-      const client = createClient();
       console.log(`[threads] getUserThreads for user ${id}`);
 
-      const userThreads = (await client.threads.search({
-        metadata: {
-          user_id: id,
-        },
-        limit: 100,
-      })) as Awaited<Thread[]>;
+      // Use direct API call with correct format (POST /threads/search)
+      const userThreads = await apiRequest('/threads/search', {
+        method: 'POST',
+        body: JSON.stringify({
+          metadata: {
+            user_id: id,
+          },
+          limit: 100,
+          offset: 0,
+        }),
+      }) as Thread[];
 
-      if (userThreads.length > 0) {
+      if (userThreads && userThreads.length > 0) {
         const lastInArray = userThreads[0];
         const allButLast = userThreads.slice(1, userThreads.length);
         const filteredThreads = allButLast.filter(
           (thread) => thread.values && Object.keys(thread.values).length > 0,
         );
         setUserThreads([...filteredThreads, lastInArray]);
+      } else {
+        setUserThreads([]);
+      }
+    } catch (error) {
+      console.error('[threads] Error fetching user threads:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('403') || error.message.includes('Forbidden')) {
+          toast({
+            title: "Access Denied", 
+            description: "Unable to access threads. Please check your API configuration.",
+          });
+        } else {
+          toast({
+            title: "Error fetching threads",
+            description: "Unable to load conversation history.",
+          });
+        }
       }
     } finally {
       setIsUserThreadsLoading(false);
@@ -88,8 +120,10 @@ export function useThreads(userId: string | undefined) {
   };
 
   const getThreadById = async (id: string) => {
-    const client = createClient();
-    return (await client.threads.get(id)) as Awaited<Thread>;
+    // Use direct API call with correct format (GET /threads/{id})
+    return await apiRequest(`/threads/${id}`, {
+      method: 'GET',
+    }) as Thread;
   };
 
   const deleteThread = async (id: string, clearMessages: () => void) => {
@@ -102,8 +136,12 @@ export function useThreads(userId: string | undefined) {
       );
       return newThreads;
     });
-    const client = createClient();
-    await client.threads.delete(id);
+    
+    // Use direct API call with correct format (DELETE /threads/{id})
+    await apiRequest(`/threads/${id}`, {
+      method: 'DELETE',
+    });
+    
     if (id === threadId) {
       // Remove the threadID from query params, and refetch threads to
       // update the sidebar UI.

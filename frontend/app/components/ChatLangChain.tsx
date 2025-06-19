@@ -55,7 +55,7 @@ function ChatLangChainComponent(): React.ReactElement {
       console.error("Failed to fetch thread in query param", e);
       setThreadId(null);
     }
-  }, [threadId]);
+  }, [threadId, getThreadById, setThreadId, switchSelectedThread]);
 
   const isSubmitDisabled = !userId;
 
@@ -85,6 +85,15 @@ function ChatLangChainComponent(): React.ReactElement {
       }
       setThreadId(thread.thread_id);
       currentThreadId = thread.thread_id;
+    }
+
+    // Additional null check to satisfy TypeScript
+    if (!currentThreadId) {
+      toast({
+        title: "Error",
+        description: "Unable to determine thread ID.",
+      });
+      return;
     }
 
     try {

@@ -24,12 +24,13 @@ if (isBrowser) {
 
     if (url.includes("localhost:2024")) {
       // Replace with the correct API URL
-      const correctApiUrl =
-        process.env.API_BASE_URL ||
-        process.env.NEXT_PUBLIC_API_URL ||
-        "https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app";
-
-      url = url.replace(/http:\/\/localhost:2024/g, correctApiUrl);
+      const correctApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL;
+      
+      if (correctApiUrl) {
+        url = url.replace(/http:\/\/localhost:2024/g, correctApiUrl);
+      } else {
+        console.error('[FETCH] No API URL available for localhost replacement');
+      }
     }
 
     const response = await originalFetch(url, init);
@@ -47,14 +48,22 @@ if (isBrowser) {
 export const ENV = {
   // Public API URL (accessible in client components)
   API_URL: (() => {
-    // Prioritize API_BASE_URL, then NEXT_PUBLIC_API_URL, no localhost fallback
-    const url = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app';
+    // Prioritize NEXT_PUBLIC_API_URL since it's available in browser
+    const url = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL;
+    if (!url) {
+      console.error('[CONFIG] No API URL found in environment variables');
+      throw new Error('API URL is required');
+    }
     return url;
   })(),
 
   // API Base URL (accessible in client components via NEXT_PUBLIC prefix)
   API_BASE_URL: (() => {
-    const url = process.env.API_BASE_URL || 'https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app';
+    const url = process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL;
+    if (!url) {
+      console.error('[CONFIG] No API Base URL found in environment variables');
+      throw new Error('API Base URL is required');
+    }
     return url;
   })(),
 
@@ -64,14 +73,15 @@ export const ENV = {
     return key;
   })(),
 
-  // Debug function to print all environment variables
+    // Debug function to print environment variables
   debug: () => {
     console.log('[CONFIG] Environment Variables:');
     console.log('  NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
     console.log('  API_BASE_URL:', process.env.API_BASE_URL);
     console.log('  LANGCHAIN_API_KEY available:', !!process.env.LANGCHAIN_API_KEY);
     console.log('  NODE_ENV:', process.env.NODE_ENV);
-    
+    console.log('  CURSOR new attempt:');
+
     if (isBrowser) {
       console.log('  Running in browser at:', window.location.href);
     }
