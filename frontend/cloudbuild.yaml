@@ -12,9 +12,9 @@ steps:
     args:
       - 'build'
       - '--tag'
-      - 'gcr.io/$PROJECT_ID/chat-langchain-frontend'
+      - 'gcr.io/$PROJECT_ID/naturealpha-methodology-frontend'
       - '--build-arg'
-      - 'NEXT_PUBLIC_API_URL=https://chat.langchain.com/api'
+      - 'NEXT_PUBLIC_API_URL=$_API_BASE_URL'
       - '--build-arg'
       - 'API_BASE_URL=$_API_BASE_URL'
       - '--build-arg'
@@ -28,7 +28,7 @@ steps:
       - 'deploy'
       - 'chat-langchain-frontend'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/chat-langchain-frontend'
+      - 'gcr.io/$PROJECT_ID/naturealpha-methodology-frontend'
       - '--region'
       - 'europe-west1'
       - '--platform'
@@ -36,10 +36,10 @@ steps:
       - '--allow-unauthenticated'
       - '--set-env-vars'
       - |
-        NEXT_PUBLIC_API_URL=https://chat.langchain.com/api,
+        NEXT_PUBLIC_API_URL=$_API_BASE_URL,
         API_BASE_URL=$_API_BASE_URL,
         LANGCHAIN_API_KEY=$_LANGCHAIN_API_KEY
 
 # This tells Cloud Build which images to tag & push
 images:
-  - 'gcr.io/$PROJECT_ID/chat-langchain-frontend'
+  - 'gcr.io/$PROJECT_ID/naturealpha-methodology-frontend'
