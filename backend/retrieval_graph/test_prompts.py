@@ -1,5 +1,4 @@
 from langsmith import Client
-from langchain.prompts import load_prompt
 
 client = Client()
 

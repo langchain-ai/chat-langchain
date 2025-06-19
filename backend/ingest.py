@@ -9,6 +9,7 @@ from typing import List
 
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
+
 # from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
 from langchain.indexes import SQLRecordManager, index
 from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
@@ -18,7 +19,6 @@ from langchain_weaviate import WeaviateVectorStore
 from backend.constants import WEAVIATE_DOCS_INDEX_NAME
 from backend.embeddings import get_embeddings_model
 from backend.parser import langchain_docs_extractor
-from backend.utils import sanitize_weaviate_url
 
 
 from langchain.schema import Document
@@ -212,24 +212,24 @@ def load_api_docs():
 
 
 def ingest_docs():
-    WEAVIATE_URL = os.environ["WEAVIATE_URL"] #sanitize_weaviate_url(os.environ["WEAVIATE_URL"])
+    WEAVIATE_URL = os.environ[
+        "WEAVIATE_URL"
+    ]  # sanitize_weaviate_url(os.environ["WEAVIATE_URL"])
 
     # 1. Read & strip any trailing slash
     WEAVIATE_URL = os.getenv("WEAVIATE_URL", "").rstrip("/").removesuffix("/v1")
     # 2. (Optional) also strip "/v1" if someone accidentally included it
     print(f"📡  Connecting to Weaviate at: {WEAVIATE_URL}")
 
-
-
     WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
     RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
     WEAVIATE_INDEX_NAME = os.getenv("WEAVIATE_INDEX_NAME", "")
 
-
     print(f"📡  Connecting to Weaviate at: {WEAVIATE_URL}")
-    print(f"🔑  Using API Key: {WEAVIATE_API_KEY[:4]}…{WEAVIATE_API_KEY[-4:]}")  # mask middle
+    print(
+        f"🔑  Using API Key: {WEAVIATE_API_KEY[:4]}…{WEAVIATE_API_KEY[-4:]}"
+    )  # mask middle
     print(f"📂  Index name: {WEAVIATE_INDEX_NAME}")
-
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1540, chunk_overlap=128)
     embedding = get_embeddings_model()
