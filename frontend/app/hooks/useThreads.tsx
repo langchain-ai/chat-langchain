@@ -10,7 +10,16 @@ import { ENV } from "../config";
 export const createClient = () => {
   // Extract values from centralized config - NO localhost fallback
   const apiUrl = ENV.API_URL;
-  
+  console.log("[createClient] API URL:", apiUrl);
+  if (ENV.LANGCHAIN_API_KEY) {
+    console.log(
+      "[createClient] API Key:",
+      `${ENV.LANGCHAIN_API_KEY.slice(0, 4)}…${ENV.LANGCHAIN_API_KEY.slice(-4)}`,
+    );
+  } else {
+    console.warn("[createClient] No API key provided");
+  }
+
   return new Client({
     apiUrl,
     apiKey: ENV.LANGCHAIN_API_KEY,
@@ -32,6 +41,7 @@ export function useThreads(userId: string | undefined) {
     const client = createClient();
     let thread;
     try {
+      console.log(`[threads] createThread for user ${id}`);
       thread = await client.threads.create({
         metadata: {
           user_id: id,
@@ -41,6 +51,7 @@ export function useThreads(userId: string | undefined) {
         throw new Error("Thread creation failed.");
       }
       setThreadId(thread.thread_id);
+      console.log("[threads] created thread", thread.thread_id);
     } catch (e) {
       console.error("Error creating thread", e);
       toast({
@@ -54,6 +65,7 @@ export function useThreads(userId: string | undefined) {
     setIsUserThreadsLoading(true);
     try {
       const client = createClient();
+      console.log(`[threads] getUserThreads for user ${id}`);
 
       const userThreads = (await client.threads.search({
         metadata: {

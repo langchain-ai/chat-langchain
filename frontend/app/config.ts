@@ -10,21 +10,28 @@ const isBrowser = typeof window !== 'undefined';
 if (isBrowser) {
   // This will run in the browser and patch any hard-coded URL references
   const originalFetch = window.fetch;
-  window.fetch = function(input, init) {
-    // Check if this is a localhost:2024 URL
-    if (typeof input === 'string' && input.includes('localhost:2024')) {
+  window.fetch = async function (input, init) {
+    let url = typeof input === "string" ? input : input.url;
+
+    if (url.includes("localhost:2024")) {
       // Replace with the correct API URL
-      const correctApiUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app';
-      
-      // Replace the URL
-      const newUrl = input.replace(/http:\/\/localhost:2024/g, correctApiUrl);
-      
-      // Call the original fetch with the corrected URL
-      return originalFetch(newUrl, init);
+      const correctApiUrl =
+        process.env.API_BASE_URL ||
+        process.env.NEXT_PUBLIC_API_URL ||
+        "https://naturealpha-docs-6f63c1e32335558f86984cf800d1f815.us.langgraph.app";
+
+      url = url.replace(/http:\/\/localhost:2024/g, correctApiUrl);
     }
-    
-    // Otherwise, proceed normally
-    return originalFetch(input, init);
+
+    const response = await originalFetch(url, init);
+    if (!response.ok) {
+      const snippet = await response.clone().text();
+      console.error(
+        `[FETCH] ${init?.method ?? "GET"} ${url} -> ${response.status}`,
+        snippet.slice(0, 200)
+      );
+    }
+    return response;
   };
 }
 
@@ -64,3 +71,4 @@ export const ENV = {
 
 // Print debug info on load
 ENV.debug(); 
+
