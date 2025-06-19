@@ -6,7 +6,17 @@ import { ENV } from "../config";
 export function createClient() {
   // NO localhost fallback
   const apiUrl = ENV.API_URL;
-  
+
+  console.log("[createClient] API URL:", apiUrl);
+  if (ENV.LANGCHAIN_API_KEY) {
+    console.log(
+      "[createClient] API Key:",
+      `${ENV.LANGCHAIN_API_KEY.slice(0, 4)}…${ENV.LANGCHAIN_API_KEY.slice(-4)}`,
+    );
+  } else {
+    console.warn("[createClient] No API key provided");
+  }
+
   return new Client({
     apiUrl,
     apiKey: ENV.LANGCHAIN_API_KEY,
@@ -44,3 +54,4 @@ export function addDocumentLinks(
     return match;
   });
 }
+
