@@ -10,8 +10,17 @@ const isBrowser = typeof window !== 'undefined';
 if (isBrowser) {
   // This will run in the browser and patch any hard-coded URL references
   const originalFetch = window.fetch;
-  window.fetch = async function (input, init) {
-    let url = typeof input === "string" ? input : input.url;
+  window.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
+    let url: string;
+    if (typeof input === "string") {
+      url = input;
+    } else if (input instanceof Request) {
+      url = input.url;
+    } else if (input instanceof URL) {
+      url = input.toString();
+    } else {
+      url = String(input);
+    }
 
     if (url.includes("localhost:2024")) {
       // Replace with the correct API URL
