@@ -1,7 +1,6 @@
 from langsmith import Client
 from typing import Optional
 
-from langsmith.utils import LangSmithNotFoundError
 
 """Default prompts."""
 
@@ -25,7 +24,6 @@ INPUT_GUARDRAIL_SYSTEM_PROMPT = _fetch_prompt("margot-na/input_guardrail")
 ROUTER_SYSTEM_PROMPT = _fetch_prompt("margot-na/router")
 GENERATE_QUERIES_SYSTEM_PROMPT = _fetch_prompt(
     "langchain-ai/chat-langchain-generate-queries-prompt"
-
 )
 MORE_INFO_SYSTEM_PROMPT = _fetch_prompt("margot-na/more_info")
 RESEARCH_PLAN_SYSTEM_PROMPT = _fetch_prompt("margot-na/researcher")

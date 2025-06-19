@@ -106,4 +106,8 @@ Deployment sometimes fails due to missing permissions or disabled services. Veri
 3. Organization policies do not block Cloud Build or Cloud Storage access.
 4. The Cloud Build service account has permission to write to the build bucket (e.g. `Storage Admin`).
 5. Re-authenticate with `gcloud auth login` if credentials are stale.
+6. If the frontend loads but API calls return `Invalid tenant ID`, ensure you
+   provided a valid **LangSmith** API key when deploying. Pass the key via
+   `--substitutions=_LANGCHAIN_API_KEY=<YOUR_KEY>` during `gcloud builds submit`
+   and verify `LANGCHAIN_API_KEY` is set in Cloud Run.
 
