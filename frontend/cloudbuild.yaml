@@ -21,7 +21,13 @@ steps:
       - 'LANGCHAIN_API_KEY=$_LANGCHAIN_API_KEY'
       - '.'
 
-  # 2) Deploy that image to Cloud Run, injecting the same values as runtime env-vars
+  # 2) Push the built image so Cloud Run can access it
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/naturealpha-methodology-frontend'
+
+  # 3) Deploy that image to Cloud Run, injecting the same values as runtime env-vars
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
       - 'run'
