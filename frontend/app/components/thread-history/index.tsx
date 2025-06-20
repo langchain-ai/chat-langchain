@@ -48,7 +48,7 @@ function ThreadHistoryComponent() {
               <TooltipIconButton
                 tooltip="New chat"
                 variant="ghost"
-                className="w-fit p-2"
+                className="w-fit p-2 bg-gray-700 hover:bg-gray-600"
                 onClick={createNewSession}
               >
                 <SquarePen className="w-5 h-5" />
@@ -96,7 +96,7 @@ function ThreadHistoryComponent() {
           <TooltipIconButton
             tooltip="New chat"
             variant="ghost"
-            className="w-fit h-fit p-2"
+            className="w-fit h-fit p-2 bg-gray-700 hover:bg-gray-600"
             onClick={createNewSession}
           >
             <SquarePen className="w-6 h-6" />

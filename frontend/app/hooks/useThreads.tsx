@@ -8,8 +8,6 @@ import { useQueryState } from "nuqs";
 import { ENV } from "../config";
 
 // Direct API calls using the correct LangGraph Cloud format
-
-// Direct API calls using the correct format discovered in testing
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   const apiUrl = ENV.API_URL;
   const apiKey = ENV.LANGCHAIN_API_KEY;
@@ -45,9 +43,6 @@ export function useThreads(userId: string | undefined) {
   const createThread = async (id: string) => {
     let thread;
     try {
-      console.log(`[threads] createThread for user ${id}`);
-      
-      // Use direct API call with correct format (POST /threads)
       thread = await apiRequest('/threads', {
         method: 'POST',
         body: JSON.stringify({
@@ -61,7 +56,6 @@ export function useThreads(userId: string | undefined) {
         throw new Error("Thread creation failed.");
       }
       setThreadId(thread.thread_id);
-      console.log("[threads] created thread", thread.thread_id);
     } catch (e) {
       console.error("Error creating thread", e);
       toast({
@@ -74,9 +68,6 @@ export function useThreads(userId: string | undefined) {
   const getUserThreads = async (id: string) => {
     setIsUserThreadsLoading(true);
     try {
-      console.log(`[threads] getUserThreads for user ${id}`);
-
-      // Use direct API call with correct format (POST /threads/search)
       const userThreads = await apiRequest('/threads/search', {
         method: 'POST',
         body: JSON.stringify({
@@ -99,8 +90,6 @@ export function useThreads(userId: string | undefined) {
         setUserThreads([]);
       }
     } catch (error) {
-      console.error('[threads] Error fetching user threads:', error);
-      
       if (error instanceof Error) {
         if (error.message.includes('403') || error.message.includes('Forbidden')) {
           toast({
@@ -120,7 +109,6 @@ export function useThreads(userId: string | undefined) {
   };
 
   const getThreadById = async (id: string) => {
-    // Use direct API call with correct format (GET /threads/{id})
     return await apiRequest(`/threads/${id}`, {
       method: 'GET',
     }) as Thread;
@@ -137,14 +125,11 @@ export function useThreads(userId: string | undefined) {
       return newThreads;
     });
     
-    // Use direct API call with correct format (DELETE /threads/{id})
     await apiRequest(`/threads/${id}`, {
       method: 'DELETE',
     });
     
     if (id === threadId) {
-      // Remove the threadID from query params, and refetch threads to
-      // update the sidebar UI.
       clearMessages();
       getUserThreads(userId);
       setThreadId(null);
