@@ -55,7 +55,7 @@ const QuestionCard = ({ question }: { question: Question }) => {
                 ))}
                 {remainingDocuments.length > 0 && (
                   <Sheet>
-                    <SheetTrigger>
+                    <SheetTrigger asChild>
                       <TooltipIconButton
                         tooltip={`See ${remainingDocuments.length} more documents`}
                         variant="outline"
