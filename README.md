@@ -9,6 +9,9 @@ Deployed version: [chat.langchain.com](https://chat.langchain.com)
 
 The app leverages LangChain and LangGraph's streaming support and async API to update the page in real time for multiple users.
 
+> [!TIP]
+> Welcome to Open SWE!
+
 ## Running locally
 
 This project is now deployed using [LangGraph Cloud](https://langchain-ai.github.io/langgraph/cloud/), which means you won't be able to run it locally (or without a LangGraph Cloud account). If you want to run it WITHOUT LangGraph Cloud, please use the code and documentation from this [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve).
@@ -43,3 +46,4 @@ Looking to use or modify this Use Case Accelerant for your own needs? We've adde
 - **[LangSmith](./LANGSMITH.md)**: A guide on adding robustness to your application using LangSmith. Covers observability, evaluations, and feedback.
 - **[Production](./PRODUCTION.md)**: Documentation on preparing your application for production usage. Explains different security considerations, and more.
 - **[Deployment](./DEPLOYMENT.md)**: How to deploy your application to production. Covers setting up production databases, deploying the frontend, and more.
+
