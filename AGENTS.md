@@ -65,3 +65,11 @@ Backend testing uses pytest framework with LangSmith evaluations:
 - Tests require environment variables: LANGSMITH_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, WEAVIATE_URL, WEAVIATE_API_KEY
 
 CI/CD testing is automated through GitHub Actions:
+- .github/workflows/lint.yml: Runs linting checks on Python 3.11 with Poetry 1.7.1
+- .github/workflows/eval.yml: Runs evaluation tests with LangSmith integration and required API keys
+
+Frontend currently has no test suite implemented. When adding frontend tests, follow Next.js testing conventions and ensure proper setup for React component testing.
+
+The evaluation system uses LangSmith for tracking model performance and includes regression tests to ensure quality thresholds are maintained (retrieval recall ≥ 0.65, answer correctness ≥ 0.9).
+</testing_instructions>
+
