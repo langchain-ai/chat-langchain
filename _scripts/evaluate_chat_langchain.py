@@ -2,7 +2,8 @@
 # This is ugly
 import argparse
 
-from langchain.chat_models import ChatAnthropic, ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain.smith import RunEvalConfig
 from langsmith import Client
 

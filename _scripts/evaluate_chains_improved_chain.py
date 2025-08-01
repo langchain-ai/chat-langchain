@@ -7,7 +7,8 @@ from typing import Literal, Optional, Union
 
 import weaviate
 from langchain import load as langchain_load
-from langchain.chat_models import ChatAnthropic, ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.output_parsers import CommaSeparatedListOutputParser
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
