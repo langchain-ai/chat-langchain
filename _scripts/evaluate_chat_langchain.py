@@ -2,8 +2,9 @@
 # This is ugly
 import argparse
 
-from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.smith import RunEvalConfig
+from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langsmith import Client
 
 # Ugly. Requires PYTHONATH=$(PWD) to run
