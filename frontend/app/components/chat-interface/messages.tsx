@@ -13,28 +13,32 @@ import { useGraphContext } from "@/app/contexts/GraphContext";
 import { useRuns } from "@/app/hooks/useRuns";
 import { TooltipIconButton } from "../ui/assistant-ui/tooltip-icon-button";
 import { ThumbsDownIcon, ThumbsUpIcon } from "lucide-react";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "../ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "../ui/collapsible";
 
 // Helper function to generate a brief headline from long text
 function generateHeadline(text: string, maxLength: number = 60): string {
   if (text.length <= maxLength) return text;
-  
+
   // Try to find the first sentence or logical break
   const firstSentence = text.match(/^[^.!?]*[.!?]/);
   if (firstSentence && firstSentence[0].length <= maxLength) {
     return firstSentence[0].trim();
   }
-  
+
   // Try to find subject line if it looks like an email
   const subjectMatch = text.match(/^Subject:\s*([^\n\r]+)/i);
   if (subjectMatch && subjectMatch[1].length <= maxLength) {
     return subjectMatch[1].trim();
   }
-  
+
   // Fallback to truncated text at word boundary
   const truncated = text.substring(0, maxLength);
-  const lastSpace = truncated.lastIndexOf(' ');
-  return lastSpace > maxLength * 0.7 
+  const lastSpace = truncated.lastIndexOf(" ");
+  return lastSpace > maxLength * 0.7
     ? truncated.substring(0, lastSpace) + "..."
     : truncated + "...";
 }
@@ -42,11 +46,12 @@ function generateHeadline(text: string, maxLength: number = 60): string {
 export const UserMessage: FC = () => {
   const message = useMessage();
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   // Get the text content from the message
-  const textContent = message.content?.[0]?.type === "text" ? message.content[0].text : "";
+  const textContent =
+    message.content?.[0]?.type === "text" ? message.content[0].text : "";
   const isLongText = textContent.length > 150; // Threshold for collapsible behavior
-  
+
   if (!isLongText) {
     // For short text, use the original styling
     return (
@@ -62,8 +67,8 @@ export const UserMessage: FC = () => {
 
   return (
     <MessagePrimitive.Root className="pt-2 sm:pt-4 flex w-full md:max-w-4xl md:mx-0 mx-auto max-w-[95%] md:py-4 py-2">
-      <Collapsible 
-        open={isExpanded} 
+      <Collapsible
+        open={isExpanded}
         onOpenChange={setIsExpanded}
         className="w-full"
       >
@@ -81,7 +86,7 @@ export const UserMessage: FC = () => {
             </div>
           </div>
         </CollapsibleTrigger>
-        
+
         <CollapsibleContent className="overflow-hidden">
           <div className="pt-4 pb-2">
             <div className="bg-gray-800/50 text-gray-200 text-sm sm:text-base rounded-lg p-3 sm:p-4 border border-gray-700/50">
