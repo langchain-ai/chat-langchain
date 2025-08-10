@@ -1,6 +1,6 @@
 import os
 from contextlib import contextmanager
-from typing import Iterator
+from typing import Iterator, Optional
 
 import weaviate
 from langchain_core.embeddings import Embeddings
@@ -35,9 +35,23 @@ def make_weaviate_retriever(
         ),
         skip_init_checks=True,
     ) as weaviate_client:
+        # Få fag fra konfigurationen, hvis det findes
+        fag = getattr(configuration, 'fag', None)
+        
+        # Bestem collection navnet baseret på fag eller brug fallback
+        if fag:
+            # Brug fagspecifik collection
+            collection_name = f"{fag}_Pensum"
+        else:
+            # Fallback: Brug miljøvariabel eller konstant
+            collection_name = os.environ.get("WEAVIATE_INDEX_NAME", WEAVIATE_DOCS_INDEX_NAME)
+            
+        # Brug den bestemte collection
+        print(f"Søger i collection: {collection_name}")
+        
         store = WeaviateVectorStore(
             client=weaviate_client,
-            index_name=WEAVIATE_DOCS_INDEX_NAME,
+            index_name=collection_name,  # Nu bruger vi det dynamiske collection navn
             text_key="text",
             embedding=embedding_model,
             attributes=["source", "title"],
