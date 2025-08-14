@@ -3,6 +3,9 @@
 This repo is an implementation of a chatbot specifically focused on question answering over the [LangChain documentation](https://python.langchain.com/).
 Built with [LangChain](https://github.com/langchain-ai/langchain/), [LangGraph](https://github.com/langchain-ai/langgraph/), and [Next.js](https://nextjs.org).
 
+> [!TIP]
+> Welcome to Open SWE!
+
 Deployed version: [chat.langchain.com](https://chat.langchain.com)
 
 > Looking for the JS version? Click [here](https://github.com/langchain-ai/chat-langchainjs).
@@ -43,3 +46,4 @@ Looking to use or modify this Use Case Accelerant for your own needs? We've adde
 - **[LangSmith](./LANGSMITH.md)**: A guide on adding robustness to your application using LangSmith. Covers observability, evaluations, and feedback.
 - **[Production](./PRODUCTION.md)**: Documentation on preparing your application for production usage. Explains different security considerations, and more.
 - **[Deployment](./DEPLOYMENT.md)**: How to deploy your application to production. Covers setting up production databases, deploying the frontend, and more.
+
