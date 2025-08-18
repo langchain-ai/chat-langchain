@@ -131,9 +131,6 @@ def load_api_docs():
     ).load()
 
 
-
-
-
 def ingest_docs():
     WEAVIATE_URL = os.environ["WEAVIATE_URL"]
     WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
