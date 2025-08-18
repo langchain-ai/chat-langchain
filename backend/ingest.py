@@ -57,18 +57,6 @@ def load_langchain_docs():
     ).load()
 
 
-def load_langgraph_docs():
-    return SitemapLoader(
-        "https://langchain-ai.github.io/langgraph/sitemap.xml",
-        parsing_function=simple_extractor,
-        default_parser="lxml",
-        bs_kwargs={"parse_only": SoupStrainer(name=("article", "title"))},
-        meta_function=lambda meta, soup: metadata_extractor(
-            meta, soup, title_suffix=" | 🦜🕸️LangGraph"
-        ),
-    ).load()
-
-
 def load_langsmith_docs():
     return RecursiveUrlLoader(
         url="https://docs.smith.langchain.com/",
@@ -83,6 +71,30 @@ def load_langsmith_docs():
             r"(?:[\#'\"]|\/[\#'\"])"
         ),
         check_response_status=True,
+    ).load()
+
+
+def load_langgraph_docs():
+    return SitemapLoader(
+        "https://langchain-ai.github.io/langgraph/sitemap.xml",
+        parsing_function=simple_extractor,
+        default_parser="lxml",
+        bs_kwargs={"parse_only": SoupStrainer(name=("article", "title"))},
+        meta_function=lambda meta, soup: metadata_extractor(
+            meta, soup, title_suffix=" | 🦜🕸️LangGraph"
+        ),
+    ).load()
+
+
+def load_langgraph_platform_docs():
+    return SitemapLoader(
+        "https://docs.langchain.com/sitemap.xml",
+        filter_urls=["https://docs.langchain.com/langgraph-platform/"],
+        parsing_function=simple_extractor,
+        default_parser="lxml",
+        meta_function=lambda meta, soup: metadata_extractor(
+            meta, soup, title_suffix=" | LangGraph Platform"
+        ),
     ).load()
 
 
@@ -119,6 +131,9 @@ def load_api_docs():
     ).load()
 
 
+
+
+
 def ingest_docs():
     WEAVIATE_URL = os.environ["WEAVIATE_URL"]
     WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
@@ -153,12 +168,15 @@ def ingest_docs():
         logger.info(f"Loaded {len(docs_from_langsmith)} docs from LangSmith")
         docs_from_langgraph = load_langgraph_docs()
         logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
+        docs_from_langgraph_platform = load_langgraph_platform_docs()
+        logger.info(f"Loaded {len(docs_from_langgraph_platform)} docs from LangGraph Platform")
 
         docs_transformed = text_splitter.split_documents(
             docs_from_documentation
             + docs_from_api
             + docs_from_langsmith
             + docs_from_langgraph
+            + docs_from_langgraph_platform
         )
         docs_transformed = [
             doc for doc in docs_transformed if len(doc.page_content) > 10
