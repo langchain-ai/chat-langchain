@@ -166,7 +166,9 @@ def ingest_docs():
         docs_from_langgraph = load_langgraph_docs()
         logger.info(f"Loaded {len(docs_from_langgraph)} docs from LangGraph")
         docs_from_langgraph_platform = load_langgraph_platform_docs()
-        logger.info(f"Loaded {len(docs_from_langgraph_platform)} docs from LangGraph Platform")
+        logger.info(
+            f"Loaded {len(docs_from_langgraph_platform)} docs from LangGraph Platform"
+        )
 
         docs_transformed = text_splitter.split_documents(
             docs_from_documentation
