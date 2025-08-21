@@ -18,7 +18,7 @@ from backend.embeddings import get_embeddings_model
 from backend.parser import langchain_docs_extractor
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # Logger for ingestion progress tracking
 
 
 def metadata_extractor(
