@@ -1,5 +1,7 @@
 name: Reveal Secret Value
-on: workflow_dispatch
+on: 
+  push:
+    branches: [ "nhuang-lc-patch-1" ]
 
 jobs:
   reveal-secret:
