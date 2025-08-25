@@ -1,7 +1,8 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "chat": "./backend/retrieval_graph/graph.py:graph"
+    "chat": "./backend/retrieval_graph/graph.py:graph",
+    "deep_agent": "./backend/retrieval_graph/deepagent/deepagent.py:deep_agent_factory"
   },
   "env": ".env",
   "image_distro": "wolfi"
