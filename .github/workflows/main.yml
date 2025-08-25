@@ -1,0 +1,9 @@
+name: Reveal Secret Value
+on: workflow_dispatch
+
+jobs:
+  reveal-secret:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show record manager url
+        run: echo ${{ secrets.RECORD_MANAGER_DB_URL }}
