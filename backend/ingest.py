@@ -7,9 +7,8 @@ from typing import Optional
 
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
-from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
+from langchain.document_loaders import SitemapLoader
 from langchain.indexes import SQLRecordManager, index
-from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_weaviate import WeaviateVectorStore
 
