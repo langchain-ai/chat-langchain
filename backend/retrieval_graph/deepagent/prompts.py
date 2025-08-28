@@ -144,3 +144,14 @@ Get Tracing Project Prebuilt Dashboard (POST /api/v1/sessions/{{session_id}}/das
 
 The input to this tool is a string, and the tool will return the full documentation for an endpoint.
 """
+
+LANGGRAPH_PLATFORM_API_TOOL_DESCRIPTION = """ This tool allows you to do a string-matching search against the LangGraph Platform API documentation.
+
+Use this tool to find information about specific endpoints, parameters, and responses in the LangGraph Platform API.
+
+In order to get information, you'll need to know the path of the endpoint that you're looking for. For example
+
+Search Assistants (POST /assistants/search)
+
+The input to this tool is a string, and the tool will return the full documentation for an endpoint.
+"""

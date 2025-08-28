@@ -6,6 +6,7 @@ import re
 import sqlite3
 from typing import Optional
 import requests
+import json
 
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
@@ -15,7 +16,7 @@ from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_RE
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_weaviate import WeaviateVectorStore
 
-from backend.constants import WEAVIATE_DOCS_INDEX_NAME, WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
+from backend.constants import WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
 from backend.embeddings import get_embeddings_model
 from backend.parser import langchain_docs_extractor
 
@@ -177,35 +178,52 @@ def create_sqlite_db():
     conn.commit()
     return conn
 
-
-def load_langchain_js_api_docs():
-    return RecursiveUrlLoader(
-        url="https://v03.api.js.langchain.com/",
-        max_depth=8,
-        extractor=simple_extractor,
-        prevent_outside=True,
-        use_async=True,
-        timeout=600,
-        link_regex=(
-            f"href=[\"']{PREFIXES_TO_IGNORE_REGEX}((?:{SUFFIXES_TO_IGNORE_REGEX}.)*?)"
-            r"(?:[\#'\"]|\/[\#'\"])"
-        ),
-        check_response_status=True,
-    ).load()
-
-def load_langsmith_python_sdk_docs():
-    pass
-
-def load_langsmith_js_sdk_docs():
-    pass
-
 def load_langsmith_api_docs():
-    """Parse OpenAPI spec and create individual records for each endpoint."""
     url = "https://api.smith.langchain.com/openapi.json"
     spec = requests.get(url).json()
+    docs = parse_openapi_spec(spec, base_url="https://api.smith.langchain.com/redoc", domain="langsmith_api")
+    return docs
+
+def load_langgraph_platform_api_docs():
+    with open("docs/langgraph-platform.json", "r") as f:
+        spec = json.load(f)
+    docs = parse_openapi_spec(spec, base_url="https://langchain-ai.github.io/langgraph/cloud/reference/api/api_ref.html", domain="langgraph_platform_api")
+    return docs
+
+def ingest_sdk_and_api_docs():
+    conn = create_sqlite_db()
+    cur = conn.cursor()
     docs = []
-    base_url = "https://api.smith.langchain.com"
+    docs.extend(load_langsmith_api_docs())
+    docs.extend(load_langgraph_platform_api_docs())
     
+    cur.execute("DELETE FROM docs WHERE domain = 'langsmith_api'")
+    
+    for doc in docs:
+        cur.execute("""
+        INSERT INTO docs (domain, title, url, content)
+        VALUES (?, ?, ?, ?)
+        """, (doc["domain"], doc["title"], doc["url"], doc["content"]))
+    
+    conn.commit()
+    print(f"Inserted {len(docs)} documents into SQLite database")    
+    conn.close()
+    return docs
+
+#########################
+# Main
+#########################
+
+if __name__ == "__main__":
+    ingest_docs()
+    ingest_sdk_and_api_docs()
+
+#########################
+# Utils
+#########################
+
+def parse_openapi_spec(spec: dict, base_url: str, domain: str) -> list[dict]:
+    docs = []
     for path, path_item in spec.get("paths", {}).items():
         for method, operation in path_item.items():
             if not isinstance(operation, dict):
@@ -281,9 +299,9 @@ def load_langsmith_api_docs():
                 content_parts.append("\n".join(security_info))
             
             doc = {
-                "domain": "langsmith_api",
+                "domain": domain,
                 "title": title,
-                "url": f"{base_url}{path}#{method.lower()}",
+                "url": base_url,
                 "content": "\n\n".join(content_parts)
             }
             docs.append(doc)
@@ -319,54 +337,10 @@ def load_langsmith_api_docs():
                 content_parts.append(f"Enum values: {', '.join(map(str, schema_def['enum']))}")
             
             doc = {
-                "domain": "langsmith_api",
+                "domain": domain,
                 "title": f"Schema: {schema_name}",
                 "url": f"{base_url}/schemas#{schema_name}",
                 "content": "\n\n".join(content_parts)
             }
             docs.append(doc)
     return docs
-    
-
-def load_langgraph_python_sdk_docs():
-    pass
-
-def load_langgraph_js_sdk_docs():
-    pass
-
-def load_langgraph_platform_api_docs():
-    pass
-
-def ingest_sdk_and_api_docs():
-    conn = create_sqlite_db()
-    cur = conn.cursor()
-    
-    docs = []
-    # docs.extend(load_langchain_js_api_docs())
-    # docs.extend(load_langsmith_python_sdk_docs())
-    # docs.extend(load_langsmith_js_sdk_docs())
-    docs.extend(load_langsmith_api_docs())
-    # docs.extend(load_langgraph_python_sdk_docs())
-    # docs.extend(load_langgraph_js_sdk_docs())
-    # docs.extend(load_langgraph_platform_api_docs())
-    
-    cur.execute("DELETE FROM docs WHERE domain = 'langsmith_api'")
-    
-    for doc in docs:
-        cur.execute("""
-        INSERT INTO docs (domain, title, url, content)
-        VALUES (?, ?, ?, ?)
-        """, (doc["domain"], doc["title"], doc["url"], doc["content"]))
-    
-    conn.commit()
-    print(f"Inserted {len(docs)} documents into SQLite database")    
-    conn.close()
-    return docs
-
-#########################
-# Main
-#########################
-
-if __name__ == "__main__":
-    # ingest_docs()
-    ingest_sdk_and_api_docs()
