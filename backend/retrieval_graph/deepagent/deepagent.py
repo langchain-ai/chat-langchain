@@ -76,7 +76,14 @@ async def langgraph_platform_api_search(match_string: str) -> str:
 
 class AgentConfig(BaseModel):
     instructions: Optional[str] = DEEP_AGENT_DEFAULT_INSTRUCTIONS
-    subagents: Optional[list[dict]] = []
+    subagents: Optional[list[dict]] = [
+        {
+            "name": "api-researcher",
+            "description": "A subagent that can search the API documentation for LangSmith and LangGraph Platform",
+            "tools": ["langsmith_api_search", "langgraph_platform_api_search"],
+            "prompt": "You are a helpful assistant that can search the API documentation for information",
+        }
+    ]
 
 class StateSchema(DeepAgentState):
     documents: list[Document]
