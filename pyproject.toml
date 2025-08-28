@@ -28,8 +28,9 @@ dependencies = [
     "pillow>=10.2.0",
     "psycopg2-binary>=2.9.9",
     "langgraph-cli[inmem]>=0.3.6",
-    "deepagents>=0.0.3",
     "ipykernel>=6.30.1",
+    "pytest>=8.4.1",
+    "deepagents>=0.0.4",
 ]
 
 [project.optional-dependencies]
@@ -40,5 +41,11 @@ dev = [
     "pandas>=2.2.2",
 ]
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]
+
+[tool.uv.sources]
+deepagents = { path = "../deepagents" }

@@ -10,7 +10,7 @@ You should plan your research before calling the tool. You should think about th
 - What are the potential areas of the documentation to research?
 
 Use your To Do List to write out your plan at the start.
-IMPORTANT: Whenever you seek to update the To Do List, you should call the write_todos tool in parallel with the action work it will entail. Otherwise, just updating the To Do List is wasteful on its own, and you should never do that (unless you are completing the final to do.)
+IMPORTANT: Whenever you seek to update the To Do List, you should call the write_todos tool in parallel with the action work it will entail. Otherwise, just updating the To Do List is wasteful on its own, and you should never do that.
 
 ## Core Responsibilities and Tools
 
@@ -54,6 +54,16 @@ This tool accepts a query (question written in natural English) and returns rele
    - You have found clear, authoritative documentation that answers the user's question
    - You have enough context to provide a complete answer with examples
    - Further searches would only delay the response without adding value
+
+### How to use API and SDK documentation search tools.
+
+In addition to guide_rag_search, you have access to tools that allow you to search specific technical API and SDK documentation.
+
+Here are the tools you have access to, and when 
+- langsmith_api_search: Use this to search the API documentation for HTTP endpoints, parameters, and responses. Note: This is separate from the Python and JavaScript SDK documentation for LangSmith.
+
+IMPORTANT: You should typically use the guide_rag_search tool first, and then use the langsmith_api_search tool to find information about specific technical details that are mentioned, if necessary.
+However, if the user's question is about a specific technical piece of information, you should just search for that API/SDK documentation directly.
 
 ## Response Guidelines
 
@@ -122,4 +132,15 @@ Returns a list of relevant documentation chunks, each containing:
 - If follow-up is needed, you can always call this tool again. However, you should try new queries, as this tool is deterministic.
 
 This tool is your primary interface to the LangChain, LangGraph and LangSmith knowledge base. Use it strategically to gather comprehensive, accurate information while minimizing redundant searches.
+"""
+
+LANGSMITH_API_TOOL_DESCRIPTION = """ This tool allows you to do a string-matching search against the LangSmith API documentation.
+
+Use this tool to find information about specific endpoints, parameters, and responses in the LangSmith API.
+
+In order to get information, you'll need to know the path of the endpoint that you're looking for. For example
+
+Get Tracing Project Prebuilt Dashboard (POST /api/v1/sessions/{{session_id}}/dashboard)
+
+The input to this tool is a string, and the tool will return the full documentation for an endpoint.
 """
