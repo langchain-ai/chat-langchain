@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_weaviate import WeaviateVectorStore
 
 from backend.configuration import BaseConfiguration
-from backend.constants import WEAVIATE_DOCS_INDEX_NAME
+from backend.constants import WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
 
 
 def make_text_encoder(model: str) -> Embeddings:
@@ -37,7 +37,7 @@ def make_weaviate_retriever(
     ) as weaviate_client:
         store = WeaviateVectorStore(
             client=weaviate_client,
-            index_name=WEAVIATE_DOCS_INDEX_NAME,
+            index_name=WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,
             text_key="text",
             embedding=embedding_model,
             attributes=["source", "title"],
