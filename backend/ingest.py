@@ -10,9 +10,8 @@ import json
 
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
-from langchain.document_loaders import RecursiveUrlLoader, SitemapLoader
+from langchain.document_loaders import SitemapLoader
 from langchain.indexes import SQLRecordManager, index
-from langchain.utils.html import PREFIXES_TO_IGNORE_REGEX, SUFFIXES_TO_IGNORE_REGEX
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_weaviate import WeaviateVectorStore
 
@@ -85,7 +84,11 @@ def load_langchain_js_docs():
         "https://js.langchain.com/sitemap.xml",
         parsing_function=simple_extractor,
         default_parser="lxml",
-        bs_kwargs={"parse_only": SoupStrainer(name=("article", "title", "html", "lang", "content"))},
+        bs_kwargs={
+            "parse_only": SoupStrainer(
+                name=("article", "title", "html", "lang", "content")
+            )
+        },
         meta_function=metadata_extractor,
         filter_urls=["https://js.langchain.com/docs/"],
     ).load()
@@ -95,9 +98,20 @@ def load_aggregated_docs_site():
         "https://docs.langchain.com/sitemap.xml",
         parsing_function=simple_extractor,
         default_parser="lxml",
-        bs_kwargs={"parse_only": SoupStrainer(name=("article", "title", "html", "lang", "content"))},
+        bs_kwargs={
+            "parse_only": SoupStrainer(
+                name=("article", "title", "html", "lang", "content")
+            )
+        },
         meta_function=metadata_extractor,
     ).load()
+
+
+def ingest_general_guides_and_tutorials():
+    langchain_python_docs = load_langchain_python_docs()
+    langchain_js_docs = load_langchain_js_docs()
+    aggregated_site_docs = load_aggregated_docs_site()
+    return langchain_python_docs + langchain_js_docs + aggregated_site_docs
 
 def ingest_general_guides_and_tutorials():
     langchain_python_docs = load_langchain_python_docs()
@@ -123,11 +137,14 @@ def ingest_docs():
             attributes=["source", "title"],
         )
         record_manager = SQLRecordManager(
-            f"weaviate/{WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
+            f"weaviate/{WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME}",
+            db_url=RECORD_MANAGER_DB_URL,
         )
         record_manager.create_schema()
         general_guides_and_tutorials_docs = ingest_general_guides_and_tutorials()
-        docs_transformed = text_splitter.split_documents(general_guides_and_tutorials_docs)
+        docs_transformed = text_splitter.split_documents(
+            general_guides_and_tutorials_docs
+        )
         docs_transformed = [
             doc for doc in docs_transformed if len(doc.page_content) > 10
         ]
@@ -150,7 +167,9 @@ def ingest_docs():
         )
         logger.info(f"Indexing stats: {indexing_stats}")
         num_vecs = (
-            weaviate_client.collections.get(WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME)
+            weaviate_client.collections.get(
+                WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
+            )
             .aggregate.over_all()
             .total_count
         )
