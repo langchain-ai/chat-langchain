@@ -113,12 +113,6 @@ def ingest_general_guides_and_tutorials():
     aggregated_site_docs = load_aggregated_docs_site()
     return langchain_python_docs + langchain_js_docs + aggregated_site_docs
 
-def ingest_general_guides_and_tutorials():
-    langchain_python_docs = load_langchain_python_docs()
-    langchain_js_docs = load_langchain_js_docs()
-    aggregated_site_docs = load_aggregated_docs_site()
-    return langchain_python_docs + langchain_js_docs + aggregated_site_docs
-
 def ingest_docs():
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     embedding = get_embeddings_model()
