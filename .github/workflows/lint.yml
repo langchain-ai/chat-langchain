@@ -47,7 +47,7 @@ jobs:
         run: poetry install --with dev
 
       - name: Get .mypy_cache to speed up mypy
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         env:
           SEGMENT_DOWNLOAD_TIMEOUT_MIN: "2"
         with:
