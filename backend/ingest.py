@@ -3,7 +3,10 @@
 import logging
 import os
 import re
+import sqlite3
 from typing import Optional
+import requests
+import json
 
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
@@ -15,6 +18,7 @@ from langchain_weaviate import WeaviateVectorStore
 from backend.constants import WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
 from backend.embeddings import get_embeddings_model
 from backend.parser import langchain_docs_extractor
+from backend.utils import parse_openapi_spec
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -56,11 +60,9 @@ def simple_extractor(html: str | BeautifulSoup) -> str:
         )
     return re.sub(r"\n\n+", "\n\n", soup.text).strip()
 
-
 #########################
 # General Guides and Tutorials
 #########################
-
 
 # NOTE: To be deprecated once LangChain docs are migrated to new site.
 def load_langchain_python_docs():
@@ -77,7 +79,6 @@ def load_langchain_python_docs():
         meta_function=metadata_extractor,
     ).load()
 
-
 # NOTE: To be deprecated once LangChain docs are migrated to new site.
 def load_langchain_js_docs():
     return SitemapLoader(
@@ -92,7 +93,6 @@ def load_langchain_js_docs():
         meta_function=metadata_extractor,
         filter_urls=["https://js.langchain.com/docs/"],
     ).load()
-
 
 def load_aggregated_docs_site():
     return SitemapLoader(
@@ -113,7 +113,6 @@ def ingest_general_guides_and_tutorials():
     langchain_js_docs = load_langchain_js_docs()
     aggregated_site_docs = load_aggregated_docs_site()
     return langchain_python_docs + langchain_js_docs + aggregated_site_docs
-
 
 def ingest_docs():
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
@@ -173,6 +172,63 @@ def ingest_docs():
             f"General Guides and Tutorials now has this many vectors: {num_vecs}",
         )
 
+#########################
+# API and SDK Docs
+#########################
+
+SQLITE_DB_PATH = "api_sdk_docs.db"
+
+def create_sqlite_db():
+    conn = sqlite3.connect(SQLITE_DB_PATH)
+    cur = conn.cursor()
+    cur.execute("""
+    CREATE VIRTUAL TABLE IF NOT EXISTS docs USING fts5(
+        domain,
+        title,
+        url,
+        content
+    );
+    """)
+    conn.commit()
+    return conn
+
+def load_langsmith_api_docs():
+    url = "https://api.smith.langchain.com/openapi.json"
+    spec = requests.get(url).json()
+    docs = parse_openapi_spec(spec, base_url="https://api.smith.langchain.com/redoc", domain="langsmith_api")
+    return docs
+
+def load_langgraph_platform_api_docs():
+    with open("docs/langgraph-platform.json", "r") as f:
+        spec = json.load(f)
+    docs = parse_openapi_spec(spec, base_url="https://langchain-ai.github.io/langgraph/cloud/reference/api/api_ref.html", domain="langgraph_platform_api")
+    return docs
+
+def ingest_sdk_and_api_docs():
+    conn = create_sqlite_db()
+    cur = conn.cursor()
+    docs = []
+    docs.extend(load_langsmith_api_docs())
+    docs.extend(load_langgraph_platform_api_docs())
+    
+    cur.execute("DELETE FROM docs WHERE domain = 'langsmith_api'")
+    cur.execute("DELETE FROM docs WHERE domain = 'langgraph_platform_api'")
+    
+    for doc in docs:
+        cur.execute("""
+        INSERT INTO docs (domain, title, url, content)
+        VALUES (?, ?, ?, ?)
+        """, (doc["domain"], doc["title"], doc["url"], doc["content"]))
+    
+    conn.commit()
+    print(f"Inserted {len(docs)} documents into SQLite database")    
+    conn.close()
+    return docs
+
+#########################
+# Main
+#########################
 
 if __name__ == "__main__":
-    ingest_docs()
+    # ingest_docs()
+    ingest_sdk_and_api_docs()
