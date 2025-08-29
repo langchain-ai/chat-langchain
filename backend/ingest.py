@@ -18,6 +18,7 @@ from langchain_weaviate import WeaviateVectorStore
 from backend.constants import WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
 from backend.embeddings import get_embeddings_model
 from backend.parser import langchain_docs_extractor
+from backend.utils import parse_openapi_spec
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -211,6 +212,7 @@ def ingest_sdk_and_api_docs():
     docs.extend(load_langgraph_platform_api_docs())
     
     cur.execute("DELETE FROM docs WHERE domain = 'langsmith_api'")
+    cur.execute("DELETE FROM docs WHERE domain = 'langgraph_platform_api'")
     
     for doc in docs:
         cur.execute("""
@@ -228,132 +230,5 @@ def ingest_sdk_and_api_docs():
 #########################
 
 if __name__ == "__main__":
-    ingest_docs()
+    # ingest_docs()
     ingest_sdk_and_api_docs()
-
-#########################
-# Utils
-#########################
-
-def parse_openapi_spec(spec: dict, base_url: str, domain: str) -> list[dict]:
-    docs = []
-    for path, path_item in spec.get("paths", {}).items():
-        for method, operation in path_item.items():
-            if not isinstance(operation, dict):
-                continue
-            title = f"{method.upper()} {path}"
-            if operation.get("summary"):
-                title = f"{operation['summary']} ({method.upper()} {path})"
-            
-            content_parts = []
-            
-            if operation.get("operationId"):
-                content_parts.append(f"Operation ID: {operation['operationId']}")
-            
-            if operation.get("description"):
-                content_parts.append(f"Description: {operation['description']}")
-            
-            if operation.get("tags"):
-                content_parts.append(f"Tags: {', '.join(operation['tags'])}")
-            
-            if operation.get("parameters"):
-                param_info = []
-                for param in operation["parameters"]:
-                    param_str = f"- {param.get('name', 'unnamed')} ({param.get('in', 'unknown')})"
-                    if param.get("required"):
-                        param_str += " [required]"
-                    if param.get("description"):
-                        param_str += f": {param['description']}"
-                    if param.get("schema"):
-                        schema = param["schema"]
-                        if "type" in schema:
-                            param_str += f" (type: {schema['type']}"
-                            if "format" in schema:
-                                param_str += f", format: {schema['format']}"
-                            param_str += ")"
-                    param_info.append(param_str)
-                
-                if param_info:
-                    content_parts.append("Parameters:\n" + "\n".join(param_info))
-            
-            if operation.get("requestBody"):
-                req_body = operation["requestBody"]
-                body_info = ["Request Body:"]
-                if req_body.get("required"):
-                    body_info.append("- Required: true")
-                if req_body.get("description"):
-                    body_info.append(f"- Description: {req_body['description']}")
-                if req_body.get("content"):
-                    content_types = list(req_body["content"].keys())
-                    body_info.append(f"- Content-Types: {', '.join(content_types)}")
-                    for content_type, content_spec in req_body["content"].items():
-                        if content_spec.get("schema", {}).get("$ref"):
-                            ref = content_spec["schema"]["$ref"]
-                            schema_name = ref.split("/")[-1] if "/" in ref else ref
-                            body_info.append(f"- Schema: {schema_name}")
-                content_parts.append("\n".join(body_info))
-            
-            if operation.get("responses"):
-                response_info = ["Responses:"]
-                for status_code, response in operation["responses"].items():
-                    resp_str = f"- {status_code}"
-                    if response.get("description"):
-                        resp_str += f": {response['description']}"
-                    response_info.append(resp_str)
-                content_parts.append("\n".join(response_info))
-            
-            if operation.get("security"):
-                security_info = ["Security Requirements:"]
-                for security_req in operation["security"]:
-                    for scheme_name, scopes in security_req.items():
-                        security_info.append(f"- {scheme_name}")
-                        if scopes:
-                            security_info.append(f"  Scopes: {', '.join(scopes)}")
-                content_parts.append("\n".join(security_info))
-            
-            doc = {
-                "domain": domain,
-                "title": title,
-                "url": base_url,
-                "content": "\n\n".join(content_parts)
-            }
-            docs.append(doc)
-    
-    if "components" in spec and "schemas" in spec["components"]:
-        for schema_name, schema_def in spec["components"]["schemas"].items():
-            content_parts = [f"Schema: {schema_name}"]
-            
-            if schema_def.get("type"):
-                content_parts.append(f"Type: {schema_def['type']}")
-            
-            if schema_def.get("description"):
-                content_parts.append(f"Description: {schema_def['description']}")
-            
-            if schema_def.get("properties"):
-                prop_info = ["Properties:"]
-                for prop_name, prop_def in schema_def["properties"].items():
-                    prop_str = f"- {prop_name}"
-                    if prop_def.get("type"):
-                        prop_str += f" ({prop_def['type']}"
-                        if prop_def.get("format"):
-                            prop_str += f", format: {prop_def['format']}"
-                        prop_str += ")"
-                    if prop_def.get("description"):
-                        prop_str += f": {prop_def['description']}"
-                    prop_info.append(prop_str)
-                content_parts.append("\n".join(prop_info))
-            
-            if schema_def.get("required"):
-                content_parts.append(f"Required fields: {', '.join(schema_def['required'])}")
-            
-            if schema_def.get("enum"):
-                content_parts.append(f"Enum values: {', '.join(map(str, schema_def['enum']))}")
-            
-            doc = {
-                "domain": domain,
-                "title": f"Schema: {schema_name}",
-                "url": f"{base_url}/schemas#{schema_name}",
-                "content": "\n\n".join(content_parts)
-            }
-            docs.append(doc)
-    return docs

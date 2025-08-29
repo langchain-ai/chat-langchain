@@ -74,7 +74,53 @@ def sample_tool()""",
     )
 ]
 
-from backend.retrieval_graph.deepagent.deepagent import deep_agent
+LANGSMITH_API_QA_DATASET = [
+    QA(
+        question="How can I delete service accounts in langsmith with the api?",
+        criteria="Should have code snippet for deleting service accounts",
+        docs=["https://api.smith.langchain.com/redoc#tag/service-accounts/operation/delete_service_account_api_v1_service_accounts__service_account_id__delete"]
+    ),
+    QA(
+        question="How can I get sub comments in langsmith with the api?",
+        criteria="Should have code snippet for getting sub comments",
+        docs=["https://api.smith.langchain.com/redoc#tag/comments/operation/get_sub_comments_api_v1_comments__owner___repo___parent_comment_id__get"]
+    ),
+    QA(
+        question="How can I get list out all of my prompt optimization jobs in langsmith?",
+        criteria="Should have code snippet for getting prompt optimization jobs",
+        docs=["https://api.smith.langchain.com/redoc#tag/optimization-jobs/operation/list_jobs_api_v1_repos__owner___repo__optimization_jobs_get"]
+    ),
+    QA(
+        question="How can I see all of my usage limits in langsmith for my org?",
+        criteria="Should have code snippet for getting usage limits",
+        docs=["https://api.smith.langchain.com/redoc#tag/usage-limits/operation/list_org_usage_limits_api_v1_usage_limits_org_get"]
+    )
+]
+
+LANGGRAPH_PLATFORM_API_QA_DATASET = [
+    QA(
+        question="How can I programmatically get thread state for a checkpoint with an http request?",
+        criteria="Should have code snippet for getting thread state",
+        docs=["https://langchain-ai.github.io/langgraph/cloud/reference/api/api_ref.html#tag/threads/get/threads/{thread_id}/state/{checkpoint_id}"]
+    ),
+    QA(
+        question="How can I programmatically create a batch of stateless runs for my langgraph server?",
+        criteria="Should have code snippet for creating stateless runs",
+        docs=["https://langchain-ai.github.io/langgraph/cloud/reference/api/api_ref.html#tag/stateless-runs/post/runs/batch"]
+    ),
+    QA(
+        question="How can I programmatically get the subgraphs of an assistant on my langgraph server?",
+        criteria="Should have code snippet for getting subgraphs",
+        docs=["https://langchain-ai.github.io/langgraph/cloud/reference/api/api_ref.html#tag/assistants/get/assistants/{assistant_id}/subgraphs"]
+    ),
+    QA(
+        question="How can I programmatically find all of my cron jobs on my langgraph server?",
+        criteria="Should have code snippet for getting cron jobs",
+        docs=["https://langchain-ai.github.io/langgraph/cloud/reference/api/api_ref.html#tag/crons-plus-tier/post/runs/crons/search"]
+    )
+]
+
+from backend.retrieval_graph.deepagent.deepagent import deep_agent, react_agent, react_agent_no_listing_tool
 from backend.retrieval_graph.graph import graph
 from langchain_core.messages import HumanMessage
 from langsmith import Client
@@ -113,6 +159,36 @@ def create_langsmith_dataset():
                 }
             }
         )
+    for qa in LANGSMITH_API_QA_DATASET:
+        examples.append(
+            {
+                "inputs": {
+                    "messages": [HumanMessage(qa.question)]
+                },
+                "outputs": {
+                    "criteria": qa.criteria,
+                    "docs": qa.docs
+                },
+                "metadata": {
+                    "subject": "langsmith_api"
+                }
+            }
+        )
+    for qa in LANGGRAPH_PLATFORM_API_QA_DATASET:
+        examples.append(
+            {
+                "inputs": {
+                    "messages": [HumanMessage(qa.question)]
+                },
+                "outputs": {
+                    "criteria": qa.criteria,
+                    "docs": qa.docs
+                },
+                "metadata": {
+                    "subject": "langgraph_platform_api"
+                }
+            }
+        )
     client.create_examples(dataset_id="bb0a62ed-2d15-4953-ae22-0c65eb0e1063", examples=examples)
 
 
@@ -145,106 +221,21 @@ async def target_func(inputs: dict):
 async def original_clc_target_func(inputs: dict):
     return await graph.ainvoke(inputs)
 
+async def react_agent_target_func(inputs: dict):
+    return await react_agent.ainvoke(inputs)
+    # return await react_agent_no_listing_tool.ainvoke(inputs)
+
+
 if __name__ == "__main__":
     # create_langsmith_dataset()
-    # async def main():
-    #     await client.aevaluate(
-    #         original_clc_target_func,
-    #         data="bb0a62ed-2d15-4953-ae22-0c65eb0e1063",
-    #         evaluators=[found_docs],
-    #         experiment_prefix="original-clc: ",
-    #         max_concurrency=10
-    #     )
-    # asyncio.run(main())
+    async def main():
+        await client.aevaluate(
+            target_func,
+            data="bb0a62ed-2d15-4953-ae22-0c65eb0e1063",
+            evaluators=[found_docs],
+            experiment_prefix="deep-agent-v2-prompt-caching: ",
+            max_concurrency=10
+        )
+    asyncio.run(main())
 
-    ####################################
-    # Create React Agent EXAMPLE
-    ####################################
-    from langchain_anthropic import ChatAnthropic
-    from langgraph.prebuilt import create_react_agent
-    from langchain_core.messages import SystemMessage, HumanMessage
-    from langchain_core.tools import tool
-    from langgraph.checkpoint.memory import MemorySaver
-    import requests
-
-    @tool
-    def say_zaijian(input: str) -> str:
-        """
-        Say zaijian to the user
-        """
-        return "Zaijian"
-
-    @tool
-    def say_adios(input: str) -> str:
-        """
-        Say adios to the user
-        """
-        return "Adios"
-
-    @tool
-    def say_goodbye(input: str) -> str:
-        """
-        Say goodbye to the user
-        """
-        return "Goodbye"
-
-    from typing import Annotated
-    from langchain_core.messages import BaseMessage
-    from langgraph.graph import MessagesState
-    from langgraph.graph.message import add_messages
-
-    get_response = requests.get(
-        "https://raw.githubusercontent.com/langchain-ai/langgraph/main/README.md"
-    )
-    readme = get_response.text
     
-    model = ChatAnthropic(model="claude-3-7-sonnet-20250219").bind(cache_control={"type": "ephemeral"})
-    # model = ChatAnthropic(model="claude-3-7-sonnet-20250219")
-    agent = create_react_agent(model, tools=[say_goodbye, say_adios, say_zaijian], checkpointer=MemorySaver())
-    agent.invoke({"messages": [SystemMessage("Use every single tool to say goodbye, you don't know what language the user will respond best to, so it's best to use all of them. Call them in series! Not in parallel. Call say_goodbye first."), HumanMessage(f"{readme}")]}, config={"configurable": {"thread_id": "aaa"}})
-
-
-    ####################################
-    # Working EXAMPLE
-    ####################################
-    # import requests
-    # from langchain_anthropic import ChatAnthropic
-    # from langgraph.checkpoint.memory import MemorySaver
-    # from langgraph.graph import START, StateGraph, add_messages
-    # from typing_extensions import Annotated, TypedDict
-
-    # model = ChatAnthropic(model="claude-3-7-sonnet-20250219").bind(cache_control={"type": "ephemeral"})
-
-    # def messages_reducer(left: list, right: list) -> list:
-    #     return add_messages(left, right)
-
-    # class State(TypedDict):
-    #     messages: Annotated[list, messages_reducer]
-
-    # workflow = StateGraph(state_schema=State)
-
-    # def call_model(state: State):
-    #     response = model.invoke(state["messages"])
-    #     return {"messages": [response]}
-    # workflow.add_edge(START, "model")
-    # workflow.add_node("model", call_model)
-    # memory = MemorySaver()
-    # app = workflow.compile(checkpointer=memory)
-
-    # config = {"configurable": {"thread_id": "abc123"}}
-    # # Question 1: Nothing
-    # query = "Hi! I'm Bob."
-    # input_message = HumanMessage([{"type": "text", "text": query}])
-    # output = app.invoke({"messages": [input_message]}, config)
-    #  # Question 2: Create cache
-    # get_response = requests.get(
-    #     "https://raw.githubusercontent.com/langchain-ai/langgraph/main/README.md"
-    # )
-    # readme = get_response.text
-    # query = f"Check out this readme: {readme}"
-    # input_message = HumanMessage([{"type": "text", "text": query}])
-    # output = app.invoke({"messages": [input_message]}, config)
-    # # Question 3: Use cache
-    # query = "What was my name again?"
-    # input_message = HumanMessage([{"type": "text", "text": query}])
-    # output = app.invoke({"messages": [input_message]}, config)
