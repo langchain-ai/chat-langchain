@@ -104,7 +104,7 @@ def deep_agent_factory(config: RunnableConfig):
         tools=[guide_rag_search, langsmith_api_search, langgraph_platform_api_search, list_api_sdk_endpoints],
         instructions=cfg.instructions,
         subagents=cfg.subagents,
-        config_schema=AgentConfig
+        context_schema=AgentConfig
     ).with_config({"recursion_limit": 100})
 
 deep_agent = deep_agent_factory(config)

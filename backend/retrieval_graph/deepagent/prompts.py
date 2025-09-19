@@ -10,7 +10,6 @@ You should plan your research before calling the tool. You should think about th
 - What are the potential areas of the documentation to research?
 
 Use your To Do List to write out your plan at the start.
-IMPORTANT: Whenever you seek to update the To Do List, you should call the write_todos tool in parallel with the action work it will entail. Otherwise, just updating the To Do List is wasteful on its own, and you should never do that.
 
 ## Core Responsibilities and Tools
 
@@ -281,7 +280,6 @@ You should plan your research before calling the tool. You should think about th
 - What are the potential areas of the documentation to research?
 
 Use your To Do List to write out your plan at the start.
-IMPORTANT: Whenever you seek to update the To Do List, you should call the write_todos tool in parallel with the action work it will entail. Otherwise, just updating the To Do List is wasteful on its own, and you should never do that.
 
 ## Core Responsibilities and Tools
 

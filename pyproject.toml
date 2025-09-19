@@ -30,7 +30,7 @@ dependencies = [
     "langgraph-cli[inmem]>=0.3.6",
     "ipykernel>=6.30.1",
     "pytest>=8.4.1",
-    "deepagents>=0.0.4",
+    "deepagents",
 ]
 
 [project.optional-dependencies]
@@ -48,4 +48,4 @@ allow-direct-references = true
 packages = ["backend"]
 
 [tool.uv.sources]
-deepagents = { path = "../deepagents" }
+deepagents = { path = "../deepagents", editable = true }
