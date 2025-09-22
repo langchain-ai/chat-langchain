@@ -76,10 +76,10 @@ def load_chat_model(fully_specified_name: str) -> BaseChatModel:
         provider = ""
         model = fully_specified_name
 
-    model_kwargs = {"temperature": 0, "stream_usage": True}
+    model_kwargs = {"temperature": 0}
     if provider == "google_genai":
         model_kwargs["convert_system_message_to_human"] = True
-    return init_chat_model(model, model_provider=provider, **model_kwargs)
+    return init_chat_model(model, model_provider=provider, stream_usage=True, **model_kwargs)
 
 
 def reduce_docs(
