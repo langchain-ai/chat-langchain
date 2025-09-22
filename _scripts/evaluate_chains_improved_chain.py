@@ -7,7 +7,6 @@ from typing import Literal, Optional, Union
 
 import weaviate
 from langchain import load as langchain_load
-from langchain.chat_models import ChatAnthropic, ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.output_parsers import CommaSeparatedListOutputParser
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
@@ -16,6 +15,8 @@ from langchain.schema.retriever import BaseRetriever
 from langchain.schema.runnable import Runnable, RunnableMap
 from langchain.smith import RunEvalConfig
 from langchain.vectorstores import Weaviate
+from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langsmith import Client, RunEvaluator
 from langsmith.evaluation.evaluator import EvaluationResult
 from langsmith.schemas import Example, Run
