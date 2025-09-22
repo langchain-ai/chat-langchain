@@ -40,7 +40,9 @@ def create_chain(
     temperature: float = 0.0,
 ) -> Runnable:
     model_name = model or _MODEL_MAP[model_provider]
-    model = _PROVIDER_MAP[model_provider](model=model_name, temperature=temperature)
+    model = _PROVIDER_MAP[model_provider](
+        model=model_name, temperature=temperature, stream_usage=True
+    )
 
     _template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
@@ -54,9 +56,9 @@ def create_chain(
     _template = """
     You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
     If you really don't know the answer, just say "Hmm, I'm not sure." Don't try to make up an answer.
-    Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
+    Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user.
     <context>
-        {context} 
+        {context}
     <context/>"""
 
     if chat_history:
