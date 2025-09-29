@@ -7,6 +7,7 @@ from langsmith import Client
 client = Client(
     api_key=os.getenv("LANGCHAIN_PROMPT_API_KEY"),
     api_url=os.getenv("LANGCHAIN_PROMPT_API_URL"),
+    workspace_id=os.getenv("LANGSMITH_WORKSPACE_ID"),
 )
 # fetch from langsmith
 ROUTER_SYSTEM_PROMPT = (
