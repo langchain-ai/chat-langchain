@@ -32,6 +32,7 @@ export function useThreads(userId: string | undefined) {
         metadata: {
           user_id: id,
         },
+        ifExists: "do_nothing",
       });
       if (!thread || !thread.thread_id) {
         throw new Error("Thread creation failed.");
