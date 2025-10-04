@@ -20,6 +20,6 @@ export type Feedback = {
 };
 
 export type ModelOptions =
-  | "openai/gpt-4.1-mini"
+  | "openai/gpt-5-mini"
   | "anthropic/claude-3-5-haiku-20241022"
   | "google_genai/gemini-2.0-flash";

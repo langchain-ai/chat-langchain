@@ -8,7 +8,7 @@ import {
 } from "@assistant-ui/react";
 import { v4 as uuidv4 } from "uuid";
 import { useExternalMessageConverter } from "@assistant-ui/react";
-import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+import type { Message } from "@langchain/langgraph-sdk";
 import { useToast } from "../hooks/use-toast";
 import {
   convertToOpenAIFormat,
@@ -74,10 +74,11 @@ function ChatLangChainComponent(): React.ReactElement {
     setIsRunning(true);
 
     try {
-      const humanMessage = new HumanMessage({
+      const humanMessage: Message = {
+        type: "human",
         content: message.content[0].text,
         id: uuidv4(),
-      });
+      };
 
       setMessages((prevMessages) => [...prevMessages, humanMessage]);
 
@@ -91,9 +92,9 @@ function ChatLangChainComponent(): React.ReactElement {
     }
   }
 
-  const threadMessages = useExternalMessageConverter<BaseMessage>({
+  const threadMessages = useExternalMessageConverter<Message>({
     callback: convertLangchainMessages,
-    messages: messages,
+    messages,
     isRunning,
   });
 

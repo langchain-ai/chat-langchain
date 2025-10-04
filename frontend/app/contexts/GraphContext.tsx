@@ -12,7 +12,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { useToast } from "../hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
 
@@ -32,10 +31,10 @@ export interface GraphInput {
 interface GraphData {
   runId: string;
   isStreaming: boolean;
-  messages: BaseMessage[];
+  messages: Message[];
   selectedModel: ModelOptions;
   setSelectedModel: Dispatch<SetStateAction<ModelOptions>>;
-  setMessages: Dispatch<SetStateAction<BaseMessage[]>>;
+  setMessages: Dispatch<SetStateAction<Message[]>>;
   streamMessage: (
     currentThreadId: string | null | undefined,
     params: GraphInput,
@@ -76,7 +75,7 @@ function flattenMessageContent(content: Message["content"]): string {
         if (typeof part === "string") {
           return part;
         }
-        if (typeof part?.text === "string") {
+        if (part?.type === "text" && typeof part.text === "string") {
           return part.text;
         }
         return "";
@@ -88,39 +87,11 @@ function flattenMessageContent(content: Message["content"]): string {
   return "";
 }
 
-function convertSdkMessageToBase(message: Message): BaseMessage | null {
-  const content = flattenMessageContent(message.content);
-
-  switch (message.type) {
-    case "human":
-      return new HumanMessage({
-        id: message.id,
-        content,
-        additional_kwargs: message.additional_kwargs ?? {},
-      });
-    case "ai":
-      return new AIMessage({
-        id: message.id,
-        content,
-        tool_calls: message.tool_calls,
-        additional_kwargs: message.additional_kwargs ?? {},
-      });
-    default:
-      return null;
-  }
-}
-
-function isToolMessageWithName(
-  message: BaseMessage,
-  toolName: string,
-): boolean {
-  if (message._getType() !== "ai") {
-    return false;
-  }
-  const aiMsg = message as AIMessage;
+function isToolMessageWithName(message: Message, toolName: string): boolean {
   return (
-    Array.isArray(aiMsg.tool_calls) &&
-    aiMsg.tool_calls.some((t) => t.name === toolName)
+    message.type === "ai" &&
+    Array.isArray(message.tool_calls) &&
+    message.tool_calls.some((toolCall) => toolCall.name === toolName)
   );
 }
 
@@ -137,10 +108,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   } = useThreads(userId);
   const [runId, setRunId] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [messages, setMessages] = useState<BaseMessage[]>([]);
-  const [selectedModel, setSelectedModel] = useState<ModelOptions>(
-    "openai/gpt-4.1-mini",
-  );
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedModel, setSelectedModel] =
+    useState<ModelOptions>("openai/gpt-5-mini");
   const [_threadId, setThreadId] = useQueryState("threadId");
 
   const streamStateRef = useRef<StreamRunState | null>(null);
@@ -160,7 +130,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     }
 
     const progressMessageId = streamState.progressMessageId;
-    const progressMessage = new AIMessage({
+    const progressMessage: Message = {
+      type: "ai",
       id: progressMessageId,
       content: "",
       tool_calls: [
@@ -169,7 +140,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           args: { step },
         },
       ],
-    });
+    };
 
     setMessages((prevMessages) => {
       const existingMessageIndex = prevMessages.findIndex(
@@ -214,7 +185,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         if (node === "analyze_and_route_query" && update.router) {
           const routerMessageId = streamState.routerMessageId ?? uuidv4();
           streamState.routerMessageId = routerMessageId;
-          const routerMessage = new AIMessage({
+          const routerMessage: Message = {
+            type: "ai",
             id: routerMessageId,
             content: "",
             tool_calls: [
@@ -223,7 +195,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 args: update.router,
               },
             ],
-          });
+          };
 
           setMessages((prev) => {
             const idx = prev.findIndex((msg) => msg.id === routerMessageId);
@@ -256,7 +228,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
               streamState.generatingQuestionsMessageId ?? uuidv4();
             streamState.generatingQuestionsMessageId = messageId;
 
-            const generatingMessage = new AIMessage({
+            const generatingMessage: Message = {
+              type: "ai",
               id: messageId,
               content: "",
               tool_calls: [
@@ -265,7 +238,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   args: { questions },
                 },
               ],
-            });
+            };
 
             setMessages((prev) => {
               const idx = prev.findIndex((msg) => msg.id === messageId);
@@ -293,7 +266,11 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 );
                 if (idx === -1) return prev;
 
-                const existing = prev[idx] as AIMessage;
+                const existing = prev[idx];
+                if (existing.type !== "ai") {
+                  return prev;
+                }
+
                 const existingToolCall = existing.tool_calls?.[0];
                 if (!existingToolCall || !existingToolCall.args?.questions) {
                   return prev;
@@ -312,7 +289,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   },
                 );
 
-                const nextMessage = new AIMessage({
+                const nextMessage: Message = {
                   ...existing,
                   tool_calls: [
                     {
@@ -323,7 +300,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       },
                     },
                   ],
-                });
+                };
 
                 const next = [...prev];
                 next[idx] = nextMessage;
@@ -335,7 +312,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
         if (node === "respond") {
           if (!streamState.answerHeaderInserted) {
-            const answerHeaderToolMsg = new AIMessage({
+            const answerHeaderToolMsg: Message = {
+              type: "ai",
               content: "",
               tool_calls: [
                 {
@@ -343,7 +321,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   args: {},
                 },
               ],
-            });
+            };
             setMessages((prev) => [...prev, answerHeaderToolMsg]);
             streamState.answerHeaderInserted = true;
           }
@@ -355,7 +333,8 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           if (documents?.length && !streamState.selectedDocumentsMessageId) {
             const messageId = uuidv4();
             streamState.selectedDocumentsMessageId = messageId;
-            const selectedDocumentsMessage = new AIMessage({
+            const selectedDocumentsMessage: Message = {
+              type: "ai",
               id: messageId,
               content: "",
               tool_calls: [
@@ -366,7 +345,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   },
                 },
               ],
-            });
+            };
 
             setMessages((prev) => [...prev, selectedDocumentsMessage]);
           }
@@ -422,14 +401,13 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           setMessages((prev) => {
             const idx = prev.findIndex((msg) => msg.id === lastMessage.id);
             if (idx === -1) return prev;
-            const updated = new AIMessage({
-              id: lastMessage.id,
+            const updated: Message = {
+              ...prev[idx],
               content: addDocumentLinks(
                 flattenMessageContent(lastMessage.content),
                 documents,
               ),
-              tool_calls: lastMessage.tool_calls,
-            });
+            };
             const next = [...prev];
             next[idx] = updated;
             return next;
@@ -442,9 +420,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           const sharedRunURL = await shareRun(finalRunId);
           if (sharedRunURL) {
             setMessages((prevMessages) => {
-              const langSmithToolCallMessage = new AIMessage({
-                content: "",
+              const langSmithToolCallMessage: Message = {
+                type: "ai",
                 id: uuidv4(),
+                content: "",
                 tool_calls: [
                   {
                     name: "langsmith_tool_ui",
@@ -454,7 +433,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       ?.split("/")?.[0],
                   },
                 ],
-              });
+              };
               return [...prevMessages, langSmithToolCallMessage];
             });
           }
@@ -487,26 +466,29 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           continue;
         }
 
-        const baseMessage = convertSdkMessageToBase(sdkMessage);
-        if (!baseMessage || !baseMessage.id) continue;
-
-        const existingIndex = indexById.get(baseMessage.id);
+        const existingIndex = sdkMessage.id
+          ? indexById.get(sdkMessage.id)
+          : undefined;
         if (existingIndex != null) {
-          next[existingIndex] = baseMessage;
+          next[existingIndex] = sdkMessage;
           continue;
         }
 
-        if (baseMessage._getType() === "ai") {
-          const answerHeaderIndex = next.findIndex((msg) =>
-            isToolMessageWithName(msg, "answer_header"),
-          );
+        if (sdkMessage.type === "ai") {
+          let answerHeaderIndex = -1;
+          for (let i = next.length - 1; i >= 0; i -= 1) {
+            if (isToolMessageWithName(next[i], "answer_header")) {
+              answerHeaderIndex = i;
+              break;
+            }
+          }
           if (answerHeaderIndex !== -1) {
-            next.splice(answerHeaderIndex + 1, 0, baseMessage);
+            next.splice(answerHeaderIndex + 1, 0, sdkMessage);
             continue;
           }
         }
 
-        next.push(baseMessage);
+        next.push(sdkMessage);
       }
 
       return next;
@@ -588,11 +570,14 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
       const threadValues = thread.values as Record<string, any>;
 
-      const actualMessages = (
-        (threadValues.messages as Record<string, any>[]) || []
-      ).flatMap((msg, index, array) => {
+      const baseMessages = Array.isArray(threadValues.messages)
+        ? (threadValues.messages as Message[])
+        : [];
+
+      const actualMessages = baseMessages.flatMap((msg, index, array) => {
         if (msg.type === "human") {
-          const progressAIMessage = new AIMessage({
+          const progressMessage: Message = {
+            type: "ai",
             id: uuidv4(),
             content: "",
             tool_calls: [
@@ -603,47 +588,48 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 },
               },
             ],
-          });
-          return [
-            new HumanMessage({
-              ...msg,
-              content: msg.content,
-            }),
-            progressAIMessage,
-          ];
+          };
+          return [msg, progressMessage];
         }
 
         if (msg.type === "ai") {
           const isLastAiMessage =
             index === array.length - 1 || array[index + 1].type === "human";
           if (isLastAiMessage) {
-            const routerMessage = threadValues.router
-              ? new AIMessage({
-                  content: "",
-                  id: uuidv4(),
-                  tool_calls: [
-                    {
-                      name: "router_logic",
-                      args: threadValues.router,
+            const syntheticMessages: Message[] = [];
+            if (threadValues.router) {
+              syntheticMessages.push({
+                type: "ai",
+                id: uuidv4(),
+                content: "",
+                tool_calls: [
+                  {
+                    name: "router_logic",
+                    args: threadValues.router,
+                  },
+                ],
+              });
+            }
+            if (
+              Array.isArray(threadValues.documents) &&
+              threadValues.documents.length
+            ) {
+              syntheticMessages.push({
+                type: "ai",
+                id: uuidv4(),
+                content: "",
+                tool_calls: [
+                  {
+                    name: "selected_documents",
+                    args: {
+                      documents: threadValues.documents,
                     },
-                  ],
-                })
-              : undefined;
-            const selectedDocumentsAIMessage = threadValues.documents?.length
-              ? new AIMessage({
-                  content: "",
-                  id: uuidv4(),
-                  tool_calls: [
-                    {
-                      name: "selected_documents",
-                      args: {
-                        documents: threadValues.documents,
-                      },
-                    },
-                  ],
-                })
-              : undefined;
-            const answerHeaderToolMsg = new AIMessage({
+                  },
+                ],
+              });
+            }
+            syntheticMessages.push({
+              type: "ai",
               content: "",
               tool_calls: [
                 {
@@ -652,22 +638,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 },
               ],
             });
-            return [
-              ...(routerMessage ? [routerMessage] : []),
-              ...(selectedDocumentsAIMessage
-                ? [selectedDocumentsAIMessage]
-                : []),
-              answerHeaderToolMsg,
-              new AIMessage({
-                ...msg,
-                content: msg.content,
-              }),
-            ];
+            return [...syntheticMessages, msg];
           }
-          return new AIMessage({
-            ...msg,
-            content: msg.content,
-          });
+          return [msg];
         }
 
         return [];
