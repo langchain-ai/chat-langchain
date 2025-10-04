@@ -11,7 +11,10 @@ import {
 
 const modelOptionsAndLabels: Partial<Record<ModelOptions, string>> = {
   "anthropic/claude-3-5-haiku-20241022": "Claude 3.5 Haiku",
+  "openai/gpt-4.1-mini": "GPT 4.1 Mini",
   "openai/gpt-5-mini": "GPT 5 Mini",
+  "openai/gpt-5-nano": "GPT 5 Nano",
+
   "google_genai/gemini-2.0-flash": "Gemini 2.0 Flash",
 };
 

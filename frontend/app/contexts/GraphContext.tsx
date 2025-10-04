@@ -103,14 +103,14 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     getThreadById,
     setUserThreads,
     getUserThreads,
-    createThread,
     deleteThread,
   } = useThreads(userId);
   const [runId, setRunId] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [selectedModel, setSelectedModel] =
-    useState<ModelOptions>("openai/gpt-5-mini");
+  const [selectedModel, setSelectedModel] = useState<ModelOptions>(
+    "openai/gpt-4.1-mini",
+  );
   const [_threadId, setThreadId] = useQueryState("threadId");
 
   const streamStateRef = useRef<StreamRunState | null>(null);
@@ -662,7 +662,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         getThreadById,
         setUserThreads,
         getUserThreads,
-        createThread,
         deleteThread,
       },
       graphData: {
@@ -683,7 +682,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       getThreadById,
       setUserThreads,
       getUserThreads,
-      createThread,
       deleteThread,
       runId,
       isStreaming,
