@@ -4,12 +4,12 @@ import { ComposerPrimitive, ThreadPrimitive } from "@assistant-ui/react";
 import { type FC } from "react";
 
 import { SendHorizontalIcon } from "lucide-react";
-import type { Message } from "@langchain/langgraph-sdk";
+import { BaseMessage } from "@langchain/core/messages";
 import { TooltipIconButton } from "../ui/assistant-ui/tooltip-icon-button";
 import { cn } from "@/app/utils/cn";
 
 export interface ChatComposerProps {
-  messages: Message[];
+  messages: BaseMessage[];
   submitDisabled: boolean;
 }
 

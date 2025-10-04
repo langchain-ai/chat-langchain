@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Client, Thread } from "@langchain/langgraph-sdk";
+import { useToast } from "./use-toast";
 import { useQueryState } from "nuqs";
 
 export const createClient = () => {
@@ -13,6 +14,7 @@ export const createClient = () => {
 };
 
 export function useThreads(userId: string | undefined) {
+  const { toast } = useToast();
   const [isUserThreadsLoading, setIsUserThreadsLoading] = useState(false);
   const [userThreads, setUserThreads] = useState<Thread[]>([]);
   const [threadId, setThreadId] = useQueryState("threadId");
@@ -21,6 +23,28 @@ export function useThreads(userId: string | undefined) {
     if (typeof window == "undefined" || !userId) return;
     getUserThreads(userId);
   }, [userId]);
+
+  const createThread = async (id: string) => {
+    const client = createClient();
+    let thread;
+    try {
+      thread = await client.threads.create({
+        metadata: {
+          user_id: id,
+        },
+      });
+      if (!thread || !thread.thread_id) {
+        throw new Error("Thread creation failed.");
+      }
+      setThreadId(thread.thread_id);
+    } catch (e) {
+      console.error("Error creating thread", e);
+      toast({
+        title: "Error creating thread.",
+      });
+    }
+    return thread;
+  };
 
   const getUserThreads = async (id: string) => {
     setIsUserThreadsLoading(true);
@@ -79,6 +103,7 @@ export function useThreads(userId: string | undefined) {
     getThreadById,
     setUserThreads,
     getUserThreads,
+    createThread,
     deleteThread,
   };
 }
