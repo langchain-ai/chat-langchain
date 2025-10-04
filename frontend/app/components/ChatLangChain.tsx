@@ -55,7 +55,7 @@ function ChatLangChainComponent(): React.ReactElement {
       console.error("Failed to fetch thread in query param", e);
       setThreadId(null);
     }
-  }, [threadId]);
+  }, [getThreadById, setThreadId, switchSelectedThread, threadId]);
 
   const isSubmitDisabled = !userId;
 

@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { parsePartialJson } from "@langchain/core/output_parsers";
 import { useToast } from "../hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
 
@@ -61,6 +62,7 @@ type StreamRunState = {
   selectedDocumentsMessageId?: string;
   answerHeaderInserted?: boolean;
   latestDocuments?: Record<string, any>[];
+  generatingQuestionsBuffer?: string;
   runId?: string;
 };
 
@@ -93,6 +95,205 @@ function isToolMessageWithName(message: Message, toolName: string): boolean {
     Array.isArray(message.tool_calls) &&
     message.tool_calls.some((toolCall) => toolCall.name === toolName)
   );
+}
+
+function normalizeMessageForUI(
+  message: Message,
+  streamState: StreamRunState | null,
+): Message {
+  if (message.type !== "ai" || !Array.isArray(message.tool_calls)) {
+    return message;
+  }
+
+  let messageId = message.id;
+  let hasGeneratingUpdate = false;
+
+  const normalizedToolCalls = message.tool_calls.map((toolCall) => {
+    if (toolCall.name !== "generating_questions") {
+      return toolCall;
+    }
+
+    const rawSteps = Array.isArray((toolCall.args as any)?.questions)
+      ? ((toolCall.args as any)?.questions as Array<unknown>)
+      : Array.isArray((toolCall.args as any)?.steps)
+        ? ((toolCall.args as any)?.steps as Array<unknown>)
+        : [];
+
+    const questions = rawSteps
+      .map((step, idx) => {
+        if (typeof step === "string") {
+          const trimmed = step.trim();
+          if (!trimmed) return null;
+          return {
+            step: idx + 1,
+            question: trimmed,
+          };
+        }
+        if (
+          step &&
+          typeof step === "object" &&
+          "question" in step &&
+          typeof (step as any).question === "string"
+        ) {
+          const trimmed = (step as any).question.trim();
+          if (!trimmed) return null;
+          return {
+            step: (step as any).step ?? idx + 1,
+            question: trimmed,
+            queries: (step as any).queries,
+            documents: (step as any).documents,
+          };
+        }
+        return null;
+      })
+      .filter(Boolean) as Array<{
+      step: number;
+      question: string;
+      queries?: unknown;
+      documents?: unknown;
+    }>;
+
+    if (!questions.length) {
+      return toolCall;
+    }
+
+    hasGeneratingUpdate = true;
+
+    if (!messageId) {
+      messageId = streamState?.generatingQuestionsMessageId ?? uuidv4();
+    }
+    if (streamState) {
+      streamState.generatingQuestionsMessageId = messageId;
+      streamState.generatingQuestionsBuffer = "";
+    }
+
+    return {
+      ...toolCall,
+      args: {
+        ...toolCall.args,
+        questions,
+      },
+    };
+  });
+
+  if (!hasGeneratingUpdate) {
+    // Handle streaming chunks arriving before tool_calls are populated.
+    if (!streamState) {
+      return message;
+    }
+
+    const additionalToolCalls = (message as any)?.additional_kwargs?.tool_calls;
+    const toolCallChunks = (message as any)?.tool_call_chunks;
+    const invalidToolCalls = (message as any)?.invalid_tool_calls;
+
+    let accumulated = "";
+
+    if (Array.isArray(additionalToolCalls)) {
+      for (const chunk of additionalToolCalls) {
+        const argChunk = chunk?.function?.arguments;
+        if (typeof argChunk === "string") {
+          accumulated += argChunk;
+        }
+      }
+    }
+
+    if (Array.isArray(toolCallChunks)) {
+      for (const chunk of toolCallChunks) {
+        if (typeof chunk?.args === "string") {
+          accumulated += chunk.args;
+        }
+      }
+    }
+
+    if (Array.isArray(invalidToolCalls)) {
+      for (const chunk of invalidToolCalls) {
+        if (typeof chunk?.args === "string") {
+          accumulated += chunk.args;
+        }
+      }
+    }
+
+    if (!accumulated) {
+      return message;
+    }
+
+    const buffer = (streamState.generatingQuestionsBuffer ?? "") + accumulated;
+    streamState.generatingQuestionsBuffer = buffer;
+
+    try {
+      const parsed = parsePartialJson(buffer);
+      const rawSteps = Array.isArray((parsed as any)?.questions)
+        ? ((parsed as any)?.questions as Array<unknown>)
+        : Array.isArray((parsed as any)?.steps)
+          ? ((parsed as any)?.steps as Array<unknown>)
+          : [];
+
+      const questions = rawSteps
+        .map((step, idx) => {
+          if (typeof step === "string") {
+            const trimmed = step.trim();
+            if (!trimmed) return null;
+            return {
+              step: idx + 1,
+              question: trimmed,
+            };
+          }
+          if (
+            step &&
+            typeof step === "object" &&
+            "question" in step &&
+            typeof (step as any).question === "string"
+          ) {
+            const trimmed = (step as any).question.trim();
+            if (!trimmed) return null;
+            return {
+              step: (step as any).step ?? idx + 1,
+              question: trimmed,
+              queries: (step as any).queries,
+              documents: (step as any).documents,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean) as Array<{
+        step: number;
+        question: string;
+        queries?: unknown;
+        documents?: unknown;
+      }>;
+
+      if (!questions.length) {
+        return message;
+      }
+
+      if (!messageId) {
+        messageId = streamState.generatingQuestionsMessageId ?? uuidv4();
+      }
+      streamState.generatingQuestionsMessageId = messageId;
+
+      return {
+        type: "ai",
+        id: messageId,
+        content: "",
+        tool_calls: [
+          {
+            name: "generating_questions",
+            args: { questions },
+          },
+        ],
+      };
+    } catch (error) {
+      // Ignore parse errors until we have a full JSON payload
+      return message;
+    }
+  }
+
+  return {
+    ...message,
+    id: messageId,
+    content: "",
+    tool_calls: normalizedToolCalls,
+  };
 }
 
 export function GraphProvider({ children }: { children: ReactNode }) {
@@ -350,6 +551,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             setMessages((prev) => [...prev, selectedDocumentsMessage]);
           }
         }
+
+        if (node === "respond_to_general_query") {
+          streamState.answerHeaderInserted = true;
+        }
       }
     },
     [updateProgress],
@@ -458,6 +663,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     if (!streamMessages.length) return;
 
     setMessages((prev) => {
+      const streamState = streamStateRef.current;
       const next = [...prev];
       const indexById = new Map(next.map((msg, idx) => [msg.id, idx]));
 
@@ -466,15 +672,31 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           continue;
         }
 
-        const existingIndex = sdkMessage.id
-          ? indexById.get(sdkMessage.id)
-          : undefined;
-        if (existingIndex != null) {
-          next[existingIndex] = sdkMessage;
+        const normalizedMessage = normalizeMessageForUI(
+          sdkMessage,
+          streamState,
+        );
+
+        const flattenedContent = flattenMessageContent(
+          normalizedMessage.content,
+        );
+        if (
+          normalizedMessage.type === "ai" &&
+          (!Array.isArray(normalizedMessage.tool_calls) ||
+            normalizedMessage.tool_calls.length === 0) &&
+          !flattenedContent
+        ) {
           continue;
         }
 
-        if (sdkMessage.type === "ai") {
+        const targetId = normalizedMessage.id;
+        const existingIndex = targetId ? indexById.get(targetId) : undefined;
+        if (existingIndex != null) {
+          next[existingIndex] = normalizedMessage;
+          continue;
+        }
+
+        if (normalizedMessage.type === "ai") {
           let answerHeaderIndex = -1;
           for (let i = next.length - 1; i >= 0; i -= 1) {
             if (isToolMessageWithName(next[i], "answer_header")) {
@@ -483,12 +705,12 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             }
           }
           if (answerHeaderIndex !== -1) {
-            next.splice(answerHeaderIndex + 1, 0, sdkMessage);
+            next.splice(answerHeaderIndex + 1, 0, normalizedMessage);
             continue;
           }
         }
 
-        next.push(sdkMessage);
+        next.push(normalizedMessage);
       }
 
       return next;
@@ -525,6 +747,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       streamStateRef.current = {
         progressMessageId: uuidv4(),
         hasProgressBeenSet: false,
+        generatingQuestionsBuffer: "",
       };
 
       try {
@@ -541,7 +764,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             metadata: userId ? { user_id: userId } : undefined,
             streamResumable: true,
             onDisconnect: "continue",
-            streamMode: ["messages", "updates"],
+            streamMode: ["messages", "messages-tuple", "updates"],
           },
         );
       } catch (error) {
