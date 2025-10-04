@@ -48,6 +48,7 @@ async def analyze_and_route_query(
         {"role": "system", "content": configuration.router_system_prompt}
     ] + state.messages
     response = cast(Router, await model.ainvoke(messages))
+    state.router = response
     return {"router": response}
 
 
@@ -227,17 +228,40 @@ async def respond(
 
 
 # Define the graph
-
-
 builder = StateGraph(AgentState, input=InputState, config_schema=AgentConfiguration)
+
+builder.add_node(analyze_and_route_query)
+builder.add_node(ask_for_more_info)
+builder.add_node(respond_to_general_query)
 builder.add_node(create_research_plan)
 builder.add_node(conduct_research)
 builder.add_node(respond)
 
-builder.add_edge(START, "create_research_plan")
+builder.add_edge(START, "analyze_and_route_query")
+
+builder.add_conditional_edges(
+    "analyze_and_route_query",
+    route_query,
+    {
+        "create_research_plan": "create_research_plan",
+        "ask_for_more_info": "ask_for_more_info",
+        "respond_to_general_query": "respond_to_general_query"
+    }
+)
+
 builder.add_edge("create_research_plan", "conduct_research")
-builder.add_conditional_edges("conduct_research", check_finished)
+builder.add_conditional_edges(
+    "conduct_research",
+    check_finished,
+    {
+        "respond": "respond",
+        "conduct_research": "conduct_research"
+    }
+)
+
 builder.add_edge("respond", END)
+builder.add_edge("ask_for_more_info", END)
+builder.add_edge("respond_to_general_query", END)
 
 # Compile into a graph object that you can invoke and deploy.
 graph = builder.compile()
