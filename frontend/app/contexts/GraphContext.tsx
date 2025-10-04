@@ -1,6 +1,5 @@
 "use client";
 
-import { parsePartialJson } from "@langchain/core/output_parsers";
 import {
   createContext,
   Dispatch,
@@ -22,7 +21,7 @@ import { ModelOptions } from "../types";
 import { useRuns } from "../hooks/useRuns";
 import { useUser } from "../hooks/useUser";
 import { addDocumentLinks, nodeToStep } from "./utils";
-import { Thread } from "@langchain/langgraph-sdk";
+import type { Message, Thread } from "@langchain/langgraph-sdk";
 import { useQueryState } from "nuqs";
 import { useStream } from "@langchain/langgraph-sdk/react";
 
@@ -45,7 +44,6 @@ interface GraphData {
 }
 
 type UserDataContextType = ReturnType<typeof useUser>;
-
 type ThreadsDataContextType = ReturnType<typeof useThreads>;
 
 type GraphContentType = {
@@ -59,11 +57,72 @@ const GraphContext = createContext<GraphContentType | undefined>(undefined);
 type StreamRunState = {
   progressMessageId: string;
   hasProgressBeenSet: boolean;
-  fullRoutingStr: string;
-  fullGeneratingQuestionsStr: string;
   generatingQuestionsMessageId?: string;
+  routerMessageId?: string;
+  selectedDocumentsMessageId?: string;
+  answerHeaderInserted?: boolean;
+  latestDocuments?: Record<string, any>[];
   runId?: string;
 };
+
+function flattenMessageContent(content: Message["content"]): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+        if (typeof part?.text === "string") {
+          return part.text;
+        }
+        return "";
+      })
+      .join("")
+      .trim();
+  }
+
+  return "";
+}
+
+function convertSdkMessageToBase(message: Message): BaseMessage | null {
+  const content = flattenMessageContent(message.content);
+
+  switch (message.type) {
+    case "human":
+      return new HumanMessage({
+        id: message.id,
+        content,
+        additional_kwargs: message.additional_kwargs ?? {},
+      });
+    case "ai":
+      return new AIMessage({
+        id: message.id,
+        content,
+        tool_calls: message.tool_calls,
+        additional_kwargs: message.additional_kwargs ?? {},
+      });
+    default:
+      return null;
+  }
+}
+
+function isToolMessageWithName(
+  message: BaseMessage,
+  toolName: string,
+): boolean {
+  if (message._getType() !== "ai") {
+    return false;
+  }
+  const aiMsg = message as AIMessage;
+  return (
+    Array.isArray(aiMsg.tool_calls) &&
+    aiMsg.tool_calls.some((t) => t.name === toolName)
+  );
+}
 
 export function GraphProvider({ children }: { children: ReactNode }) {
   const { userId } = useUser();
@@ -94,257 +153,188 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const { shareRun } = useRuns();
 
-  const handleLangChainEvent = useCallback(
-    (event: any) => {
-      if (!event) return;
+  const updateProgress = useCallback((step: number) => {
+    const streamState = streamStateRef.current;
+    if (!streamState) {
+      return;
+    }
 
+    const progressMessageId = streamState.progressMessageId;
+    const progressMessage = new AIMessage({
+      id: progressMessageId,
+      content: "",
+      tool_calls: [
+        {
+          name: "progress",
+          args: { step },
+        },
+      ],
+    });
+
+    setMessages((prevMessages) => {
+      const existingMessageIndex = prevMessages.findIndex(
+        (msg) => msg.id === progressMessageId,
+      );
+
+      if (existingMessageIndex !== -1) {
+        const nextMessages = [...prevMessages];
+        nextMessages[existingMessageIndex] = progressMessage;
+        return nextMessages;
+      }
+
+      return [...prevMessages, progressMessage];
+    });
+
+    streamState.hasProgressBeenSet = true;
+  }, []);
+
+  const handleUpdateEvent = useCallback(
+    (data: Record<string, any> | undefined) => {
+      if (!data) return;
       const streamState = streamStateRef.current;
-      const node = event?.metadata?.langgraph_node as string | undefined;
+      if (!streamState) return;
 
-      if (event?.metadata?.run_id) {
-        setRunId((prev) => prev || event.metadata.run_id);
-        if (streamState) {
-          streamState.runId = event.metadata.run_id;
+      for (const [node, update] of Object.entries(data)) {
+        if (!update || typeof update !== "object") continue;
+
+        if (
+          node === "analyze_and_route_query" ||
+          node === "create_research_plan" ||
+          node === "conduct_research" ||
+          node === "respond"
+        ) {
+          updateProgress(nodeToStep(node));
+        } else if (
+          node === "respond_to_general_query" ||
+          node === "ask_for_more_info"
+        ) {
+          updateProgress(4);
         }
-      }
 
-      if (!streamState) {
-        return;
-      }
+        if (node === "analyze_and_route_query" && update.router) {
+          const routerMessageId = streamState.routerMessageId ?? uuidv4();
+          streamState.routerMessageId = routerMessageId;
+          const routerMessage = new AIMessage({
+            id: routerMessageId,
+            content: "",
+            tool_calls: [
+              {
+                name: "router_logic",
+                args: update.router,
+              },
+            ],
+          });
 
-      const progressMessageId = streamState.progressMessageId;
+          setMessages((prev) => {
+            const idx = prev.findIndex((msg) => msg.id === routerMessageId);
+            if (idx !== -1) {
+              const next = [...prev];
+              next[idx] = routerMessage;
+              return next;
+            }
+            return [...prev, routerMessage];
+          });
+        }
 
-      if (!streamState.hasProgressBeenSet) {
-        const step = nodeToStep(node ?? "");
-        const progressMessage = new AIMessage({
-          id: progressMessageId,
-          content: "",
-          tool_calls: [
-            {
-              name: "progress",
-              args: { step },
-            },
-          ],
-        });
-        setMessages((prevMessages) => {
-          const existingMessageIndex = prevMessages.findIndex(
-            (msg) => msg.id === progressMessageId,
-          );
+        if (node === "create_research_plan" && Array.isArray(update.steps)) {
+          const questions = update.steps
+            .map((step: unknown, index: number) => {
+              if (typeof step !== "string") {
+                return null;
+              }
+              const trimmed = step.trim();
+              if (!trimmed) return null;
+              return {
+                step: index + 1,
+                question: trimmed,
+              };
+            })
+            .filter(Boolean);
 
-          if (existingMessageIndex !== -1) {
-            return [
-              ...prevMessages.slice(0, existingMessageIndex),
-              progressMessage,
-              ...prevMessages.slice(existingMessageIndex + 1),
-            ];
+          if (questions.length) {
+            const messageId =
+              streamState.generatingQuestionsMessageId ?? uuidv4();
+            streamState.generatingQuestionsMessageId = messageId;
+
+            const generatingMessage = new AIMessage({
+              id: messageId,
+              content: "",
+              tool_calls: [
+                {
+                  name: "generating_questions",
+                  args: { questions },
+                },
+              ],
+            });
+
+            setMessages((prev) => {
+              const idx = prev.findIndex((msg) => msg.id === messageId);
+              if (idx !== -1) {
+                const next = [...prev];
+                next[idx] = generatingMessage;
+                return next;
+              }
+              return [...prev, generatingMessage];
+            });
+          }
+        }
+
+        if (node === "conduct_research") {
+          if (Array.isArray(update.documents)) {
+            streamState.latestDocuments = update.documents;
           }
 
-          return [...prevMessages, progressMessage];
-        });
-        streamState.hasProgressBeenSet = true;
-      }
+          if (streamState.generatingQuestionsMessageId) {
+            const { question, queries, documents } = update;
+            if (question || queries || documents) {
+              setMessages((prev) => {
+                const idx = prev.findIndex(
+                  (msg) => msg.id === streamState.generatingQuestionsMessageId,
+                );
+                if (idx === -1) return prev;
 
-      if (event.event === "on_chain_start") {
-        if (
-          [
-            "analyze_and_route_query",
-            "create_research_plan",
-            "conduct_research",
-            "respond",
-          ].includes(node ?? "")
-        ) {
-          setMessages((prevMessages) => {
-            const existingMessageIndex = prevMessages.findIndex(
-              (msg) => msg.id === progressMessageId,
-            );
+                const existing = prev[idx] as AIMessage;
+                const existingToolCall = existing.tool_calls?.[0];
+                if (!existingToolCall || !existingToolCall.args?.questions) {
+                  return prev;
+                }
 
-            if (existingMessageIndex !== -1) {
-              return [
-                ...prevMessages.slice(0, existingMessageIndex),
-                new AIMessage({
-                  id: progressMessageId,
-                  content: "",
+                const updatedQuestions = existingToolCall.args.questions.map(
+                  (q: any) => {
+                    if (q.question === question) {
+                      return {
+                        ...q,
+                        queries: queries ?? q.queries,
+                        documents: documents ?? q.documents,
+                      };
+                    }
+                    return q;
+                  },
+                );
+
+                const nextMessage = new AIMessage({
+                  ...existing,
                   tool_calls: [
                     {
-                      name: "progress",
+                      ...existingToolCall,
                       args: {
-                        step: nodeToStep(node ?? ""),
+                        ...existingToolCall.args,
+                        questions: updatedQuestions,
                       },
                     },
                   ],
-                }),
-                ...prevMessages.slice(existingMessageIndex + 1),
-              ];
-            }
-
-            console.warn(
-              "Progress message ID is defined but not found in messages",
-            );
-            return prevMessages;
-          });
-        }
-
-        if (node === "respond") {
-          const documents = event?.data?.input?.documents;
-          if (documents?.length) {
-            setMessages((prevMessages) => {
-              const selectedDocumentsAIMessage = new AIMessage({
-                content: "",
-                tool_calls: [
-                  {
-                    name: "selected_documents",
-                    args: {
-                      documents,
-                    },
-                  },
-                ],
-              });
-              return [...prevMessages, selectedDocumentsAIMessage];
-            });
-          }
-        }
-        return;
-      }
-
-      if (event.event === "on_chat_model_stream") {
-        const message = event?.data?.chunk;
-        if (!message) return;
-
-        if (node === "analyze_and_route_query") {
-          const toolCallChunk = message.tool_call_chunks?.[0];
-          streamState.fullRoutingStr += toolCallChunk?.args || "";
-          try {
-            const parsedData: { logic: string } = parsePartialJson(
-              streamState.fullRoutingStr,
-            );
-            if (parsedData && parsedData.logic !== "") {
-              setMessages((prevMessages) => {
-                const existingMessageIndex = prevMessages.findIndex(
-                  (msg) => msg.id === message.id,
-                );
-
-                const routerMessage = new AIMessage({
-                  ...message,
-                  tool_calls: [
-                    {
-                      name: "router_logic",
-                      args: parsedData,
-                    },
-                  ],
                 });
 
-                if (existingMessageIndex !== -1) {
-                  return [
-                    ...prevMessages.slice(0, existingMessageIndex),
-                    routerMessage,
-                    ...prevMessages.slice(existingMessageIndex + 1),
-                  ];
-                }
-
-                return [...prevMessages, routerMessage];
+                const next = [...prev];
+                next[idx] = nextMessage;
+                return next;
               });
             }
-          } catch (error) {
-            console.error("Error parsing router logic data:", error);
-          }
-        }
-
-        if (node === "respond_to_general_query") {
-          setMessages((prevMessages) => {
-            const existingMessageIndex = prevMessages.findIndex(
-              (msg) => msg.id === message.id,
-            );
-            if (existingMessageIndex !== -1) {
-              return [
-                ...prevMessages.slice(0, existingMessageIndex),
-                new AIMessage({
-                  ...prevMessages[existingMessageIndex],
-                  content:
-                    (prevMessages[existingMessageIndex].content as string) +
-                    message.content,
-                }),
-                ...prevMessages.slice(existingMessageIndex + 1),
-              ];
-            }
-
-            const newMessage = new AIMessage({
-              ...message,
-            });
-            return [...prevMessages, newMessage];
-          });
-        }
-
-        if (node === "create_research_plan") {
-          streamState.generatingQuestionsMessageId = message.id;
-          const toolCallChunk = message.tool_call_chunks?.[0];
-          streamState.fullGeneratingQuestionsStr += toolCallChunk?.args || "";
-          try {
-            const parsedData: { steps: string[] } = parsePartialJson(
-              streamState.fullGeneratingQuestionsStr,
-            );
-            if (parsedData && Array.isArray(parsedData.steps)) {
-              const questions = parsedData.steps
-                .map((step, index) => ({
-                  step: index + 1,
-                  question: step.trim(),
-                }))
-                .filter((q) => q.question !== "");
-
-              if (questions.length > 0) {
-                setMessages((prevMessages) => {
-                  const existingMessageIndex = prevMessages.findIndex(
-                    (msg) => msg.id === message.id,
-                  );
-
-                  const toolCall = {
-                    name: "generating_questions",
-                    args: { questions },
-                  };
-
-                  if (existingMessageIndex !== -1) {
-                    return [
-                      ...prevMessages.slice(0, existingMessageIndex),
-                      new AIMessage({
-                        ...prevMessages[existingMessageIndex],
-                        content: "",
-                        tool_calls: [toolCall],
-                      }),
-                      ...prevMessages.slice(existingMessageIndex + 1),
-                    ];
-                  }
-
-                  const newMessage = new AIMessage({
-                    ...message,
-                    content: "",
-                    tool_calls: [toolCall],
-                  });
-                  return [...prevMessages, newMessage];
-                });
-              }
-            }
-          } catch (error) {
-            console.error("Error parsing generating questions data:", error);
           }
         }
 
         if (node === "respond") {
-          setMessages((prevMessages) => {
-            const existingMessageIndex = prevMessages.findIndex(
-              (msg) => msg.id === message.id,
-            );
-            if (existingMessageIndex !== -1) {
-              return [
-                ...prevMessages.slice(0, existingMessageIndex),
-                new AIMessage({
-                  ...prevMessages[existingMessageIndex],
-                  content:
-                    (prevMessages[existingMessageIndex].content as string) +
-                    message.content,
-                }),
-                ...prevMessages.slice(existingMessageIndex + 1),
-              ];
-            }
-
+          if (!streamState.answerHeaderInserted) {
             const answerHeaderToolMsg = new AIMessage({
               content: "",
               tool_calls: [
@@ -354,148 +344,36 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                 },
               ],
             });
-            const newMessage = new AIMessage({
-              ...message,
-            });
-            return [...prevMessages, answerHeaderToolMsg, newMessage];
-          });
-        }
-        return;
-      }
+            setMessages((prev) => [...prev, answerHeaderToolMsg]);
+            streamState.answerHeaderInserted = true;
+          }
 
-      if (event.event === "on_chain_end") {
-        if (
-          node === "conduct_research" &&
-          event?.data?.output &&
-          typeof event.data.output === "object" &&
-          "question" in event.data.output
-        ) {
-          setMessages((prevMessages) => {
-            const generatingId = streamState.generatingQuestionsMessageId;
-            if (!generatingId) {
-              return prevMessages;
-            }
-            const foundIndex = prevMessages.findIndex(
-              (msg) =>
-                "tool_calls" in msg &&
-                Array.isArray((msg as AIMessage).tool_calls) &&
-                (msg as AIMessage).tool_calls?.length > 0 &&
-                (msg as AIMessage).tool_calls?.[0].name ===
-                  "generating_questions" &&
-                msg.id === generatingId,
-            );
+          const documents = Array.isArray(update.documents)
+            ? update.documents
+            : streamState.latestDocuments;
 
-            if (foundIndex === -1) {
-              return prevMessages;
-            }
-
-            const messageToUpdate = prevMessages[foundIndex] as AIMessage;
-            const updatedToolCalls = messageToUpdate.tool_calls?.map(
-              (toolCall) => {
-                if (toolCall.name === "generating_questions") {
-                  const updatedQuestions = toolCall.args.questions.map(
-                    (q: any) => {
-                      if (q.question === event.data.output.question) {
-                        return {
-                          ...q,
-                          queries: event.data.output.queries,
-                          documents: event.data.output.documents,
-                        };
-                      }
-                      return q;
-                    },
-                  );
-
-                  return {
-                    ...toolCall,
-                    args: {
-                      ...toolCall.args,
-                      questions: updatedQuestions,
-                    },
-                  };
-                }
-                return toolCall;
-              },
-            );
-
-            const updatedMessage = new AIMessage({
-              ...messageToUpdate,
-              tool_calls: updatedToolCalls,
+          if (documents?.length && !streamState.selectedDocumentsMessageId) {
+            const messageId = uuidv4();
+            streamState.selectedDocumentsMessageId = messageId;
+            const selectedDocumentsMessage = new AIMessage({
+              id: messageId,
+              content: "",
+              tool_calls: [
+                {
+                  name: "selected_documents",
+                  args: {
+                    documents,
+                  },
+                },
+              ],
             });
 
-            return [
-              ...prevMessages.slice(0, foundIndex),
-              updatedMessage,
-              ...prevMessages.slice(foundIndex + 1),
-            ];
-          });
-        }
-
-        if (
-          ["respond", "respond_to_general_query", "ask_for_more_info"].includes(
-            node ?? "",
-          )
-        ) {
-          setMessages((prevMessages) => {
-            const existingMessageIndex = prevMessages.findIndex(
-              (msg) => msg.id === progressMessageId,
-            );
-            if (existingMessageIndex !== -1) {
-              return [
-                ...prevMessages.slice(0, existingMessageIndex),
-                new AIMessage({
-                  id: progressMessageId,
-                  content: "",
-                  tool_calls: [
-                    {
-                      name: "progress",
-                      args: {
-                        step: 4,
-                      },
-                    },
-                  ],
-                }),
-                ...prevMessages.slice(existingMessageIndex + 1),
-              ];
-            }
-
-            console.warn(
-              "Progress message ID is defined but not found in messages",
-            );
-            return prevMessages;
-          });
-        }
-
-        if (node === "respond") {
-          const inputDocuments = event?.data?.input?.documents;
-          const modelMessage = event?.data?.output?.messages?.[0];
-          if (modelMessage && inputDocuments) {
-            setMessages((prevMessages) => {
-              const existingMessageIndex = prevMessages.findIndex(
-                (pMsg) => pMsg.id === modelMessage.id,
-              );
-              if (existingMessageIndex !== -1) {
-                const newMessageWithLinks = new AIMessage({
-                  ...modelMessage,
-                  content: addDocumentLinks(
-                    modelMessage.content,
-                    inputDocuments,
-                  ),
-                });
-
-                return [
-                  ...prevMessages.slice(0, existingMessageIndex),
-                  newMessageWithLinks,
-                  ...prevMessages.slice(existingMessageIndex + 1),
-                ];
-              }
-              return prevMessages;
-            });
+            setMessages((prev) => [...prev, selectedDocumentsMessage]);
           }
         }
       }
     },
-    [setMessages],
+    [updateProgress],
   );
 
   const thread = useStream<
@@ -518,38 +396,71 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    onLangChainEvent: handleLangChainEvent,
-    onFinish: async (_state, meta) => {
+    onUpdateEvent: handleUpdateEvent,
+    onFinish: async (state, meta) => {
       setIsStreaming(false);
       const currentState = streamStateRef.current;
       streamStateRef.current = null;
+
       const finalRunId =
         meta?.run_id ?? currentState?.runId ?? runIdRef.current;
-      if (!finalRunId) return;
+      if (finalRunId) {
+        setRunId(finalRunId);
+      }
 
-      setRunId(finalRunId);
-      try {
-        const sharedRunURL = await shareRun(finalRunId);
-        if (!sharedRunURL) return;
+      const stateValues = state?.values as Record<string, any> | undefined;
+      const outputMessages = Array.isArray(stateValues?.messages)
+        ? (stateValues?.messages as Message[])
+        : [];
+      const documents = Array.isArray(stateValues?.documents)
+        ? (stateValues?.documents as Record<string, any>[])
+        : [];
 
-        setMessages((prevMessages) => {
-          const langSmithToolCallMessage = new AIMessage({
-            content: "",
-            id: uuidv4(),
-            tool_calls: [
-              {
-                name: "langsmith_tool_ui",
-                args: { sharedRunURL },
-                id: sharedRunURL
-                  ?.split("https://smith.langchain.com/public/")[1]
-                  ?.split("/")?.[0],
-              },
-            ],
+      if (outputMessages.length && documents.length) {
+        const lastMessage = outputMessages[outputMessages.length - 1];
+        if (lastMessage?.id) {
+          setMessages((prev) => {
+            const idx = prev.findIndex((msg) => msg.id === lastMessage.id);
+            if (idx === -1) return prev;
+            const updated = new AIMessage({
+              id: lastMessage.id,
+              content: addDocumentLinks(
+                flattenMessageContent(lastMessage.content),
+                documents,
+              ),
+              tool_calls: lastMessage.tool_calls,
+            });
+            const next = [...prev];
+            next[idx] = updated;
+            return next;
           });
-          return [...prevMessages, langSmithToolCallMessage];
-        });
-      } catch (error) {
-        console.error("Failed to share run", error);
+        }
+      }
+
+      if (finalRunId) {
+        try {
+          const sharedRunURL = await shareRun(finalRunId);
+          if (sharedRunURL) {
+            setMessages((prevMessages) => {
+              const langSmithToolCallMessage = new AIMessage({
+                content: "",
+                id: uuidv4(),
+                tool_calls: [
+                  {
+                    name: "langsmith_tool_ui",
+                    args: { sharedRunURL },
+                    id: sharedRunURL
+                      ?.split("https://smith.langchain.com/public/")[1]
+                      ?.split("/")?.[0],
+                  },
+                ],
+              });
+              return [...prevMessages, langSmithToolCallMessage];
+            });
+          }
+        } catch (error) {
+          console.error("Failed to share run", error);
+        }
       }
     },
     onError: (error) => {
@@ -562,6 +473,45 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       });
     },
   });
+
+  useEffect(() => {
+    const streamMessages = thread.messages ?? [];
+    if (!streamMessages.length) return;
+
+    setMessages((prev) => {
+      const next = [...prev];
+      const indexById = new Map(next.map((msg, idx) => [msg.id, idx]));
+
+      for (const sdkMessage of streamMessages) {
+        if (sdkMessage.type === "human") {
+          continue;
+        }
+
+        const baseMessage = convertSdkMessageToBase(sdkMessage);
+        if (!baseMessage || !baseMessage.id) continue;
+
+        const existingIndex = indexById.get(baseMessage.id);
+        if (existingIndex != null) {
+          next[existingIndex] = baseMessage;
+          continue;
+        }
+
+        if (baseMessage._getType() === "ai") {
+          const answerHeaderIndex = next.findIndex((msg) =>
+            isToolMessageWithName(msg, "answer_header"),
+          );
+          if (answerHeaderIndex !== -1) {
+            next.splice(answerHeaderIndex + 1, 0, baseMessage);
+            continue;
+          }
+        }
+
+        next.push(baseMessage);
+      }
+
+      return next;
+    });
+  }, [thread.messages]);
 
   const streamMessage = useCallback(
     async (
@@ -593,8 +543,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       streamStateRef.current = {
         progressMessageId: uuidv4(),
         hasProgressBeenSet: false,
-        fullRoutingStr: "",
-        fullGeneratingQuestionsStr: "",
       };
 
       try {
@@ -611,7 +559,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             metadata: userId ? { user_id: userId } : undefined,
             streamResumable: true,
             onDisconnect: "continue",
-            streamMode: ["events"],
+            streamMode: ["messages", "updates"],
           },
         );
       } catch (error) {
