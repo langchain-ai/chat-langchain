@@ -3,11 +3,11 @@ import {
   ThreadMessageLike,
   ToolCallContentPart,
 } from "@assistant-ui/react";
-import { AIMessage, BaseMessage, ToolMessage } from "@langchain/core/messages";
+import type { Message } from "@langchain/langgraph-sdk";
 
 // Not exposed by `@assistant-ui/react` package, but is
 // the required return type for this callback function.
-type Message =
+type AssistantUiMessage =
   | ThreadMessageLike
   | {
       role: "tool";
@@ -16,35 +16,56 @@ type Message =
       result: any;
     };
 
-export const convertLangchainMessages: useExternalMessageConverter.Callback<
-  BaseMessage
-> = (message): Message | Message[] => {
-  if (typeof message.content !== "string") {
-    throw new Error("Only text messages are supported");
+export function messageContentToText(message: Message): string {
+  const { content } = message;
+  if (typeof content === "string") {
+    return content;
   }
+  if (Array.isArray(content)) {
+    const textParts = content
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+        if (part?.type === "text" && typeof part.text === "string") {
+          return part.text;
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return textParts.join("\n");
+  }
+  return "";
+}
 
-  switch (message._getType()) {
+export const convertLangchainMessages: useExternalMessageConverter.Callback<
+  Message
+> = (message): AssistantUiMessage | AssistantUiMessage[] => {
+  const textContent = messageContentToText(message);
+
+  switch (message.type) {
     case "system":
       return {
         role: "system",
         id: message.id,
-        content: [{ type: "text", text: message.content }],
+        content: [{ type: "text", text: textContent }],
       };
     case "human":
       return {
         role: "user",
         id: message.id,
-        content: [{ type: "text", text: message.content }],
+        content: [{ type: "text", text: textContent }],
       };
     case "ai":
-      const aiMsg = message as AIMessage;
-      const toolCallsContent: ToolCallContentPart[] = aiMsg.tool_calls?.length
-        ? aiMsg.tool_calls.map((tc) => ({
+      const toolCallsContent: ToolCallContentPart[] = Array.isArray(
+        message.tool_calls,
+      )
+        ? message.tool_calls.map((toolCall) => ({
             type: "tool-call" as const,
-            toolCallId: tc.id ?? "",
-            toolName: tc.name,
-            args: tc.args,
-            argsText: JSON.stringify(tc.args),
+            toolCallId: toolCall.id ?? "",
+            toolName: toolCall.name,
+            args: toolCall.args,
+            argsText: JSON.stringify(toolCall.args),
           }))
         : [];
       return {
@@ -54,7 +75,7 @@ export const convertLangchainMessages: useExternalMessageConverter.Callback<
           ...toolCallsContent,
           {
             type: "text",
-            text: message.content,
+            text: textContent,
           },
         ],
       };
@@ -62,33 +83,32 @@ export const convertLangchainMessages: useExternalMessageConverter.Callback<
       return {
         role: "tool",
         toolName: message.name,
-        toolCallId: (message as ToolMessage).tool_call_id,
+        toolCallId: message.tool_call_id,
         result: message.content,
       };
     default:
-      throw new Error(`Unsupported message type: ${message._getType()}`);
+      throw new Error(`Unsupported message type: ${message.type}`);
   }
 };
 
-export function convertToOpenAIFormat(message: BaseMessage) {
-  if (typeof message.content !== "string") {
-    throw new Error("Only text messages are supported");
-  }
-  switch (message._getType()) {
+export function convertToOpenAIFormat(message: Message) {
+  const textContent = messageContentToText(message);
+
+  switch (message.type) {
     case "system":
       return {
         role: "system",
-        content: message.content,
+        content: textContent,
       };
     case "human":
       return {
         role: "user",
-        content: message.content,
+        content: textContent,
       };
     case "ai":
       return {
         role: "assistant",
-        content: message.content,
+        content: textContent,
       };
     case "tool":
       return {
@@ -97,6 +117,6 @@ export function convertToOpenAIFormat(message: BaseMessage) {
         result: message.content,
       };
     default:
-      throw new Error(`Unsupported message type: ${message._getType()}`);
+      throw new Error(`Unsupported message type: ${message.type}`);
   }
 }
