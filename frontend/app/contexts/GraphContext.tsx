@@ -24,6 +24,7 @@ import { addDocumentLinks, nodeToStep } from "./utils";
 import type { Message, Thread } from "@langchain/langgraph-sdk";
 import { useQueryState } from "nuqs";
 import { useStream } from "@langchain/langgraph-sdk/react";
+import { messageContentToText } from "../utils/convert_messages";
 
 export interface GraphInput {
   messages?: Record<string, any>[];
@@ -65,29 +66,6 @@ type StreamRunState = {
   generatingQuestionsBuffer?: string;
   runId?: string;
 };
-
-function flattenMessageContent(content: Message["content"]): string {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") {
-          return part;
-        }
-        if (part?.type === "text" && typeof part.text === "string") {
-          return part.text;
-        }
-        return "";
-      })
-      .join("")
-      .trim();
-  }
-
-  return "";
-}
 
 function isToolMessageWithName(message: Message, toolName: string): boolean {
   return (
@@ -609,7 +587,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             const updated: Message = {
               ...prev[idx],
               content: addDocumentLinks(
-                flattenMessageContent(lastMessage.content),
+                messageContentToText(lastMessage),
                 documents,
               ),
             };
@@ -677,9 +655,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           streamState,
         );
 
-        const flattenedContent = flattenMessageContent(
-          normalizedMessage.content,
-        );
+        const flattenedContent = messageContentToText(normalizedMessage);
         if (
           normalizedMessage.type === "ai" &&
           (!Array.isArray(normalizedMessage.tool_calls) ||

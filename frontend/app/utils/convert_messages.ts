@@ -16,7 +16,7 @@ type AssistantUiMessage =
       result: any;
     };
 
-function messageContentToText(message: Message): string {
+export function messageContentToText(message: Message): string {
   const { content } = message;
   if (typeof content === "string") {
     return content;
