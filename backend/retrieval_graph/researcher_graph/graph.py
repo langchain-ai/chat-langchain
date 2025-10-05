@@ -6,15 +6,16 @@ which is responsible for generating search queries and retrieving relevant docum
 
 from typing import cast
 
-from backend import retrieval
-from backend.retrieval_graph.configuration import AgentConfiguration
-from backend.retrieval_graph.researcher_graph.state import QueryState, ResearcherState
-from backend.utils import load_chat_model
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 from typing_extensions import TypedDict
+
+from backend import retrieval
+from backend.retrieval_graph.configuration import AgentConfiguration
+from backend.retrieval_graph.researcher_graph.state import QueryState, ResearcherState
+from backend.utils import load_chat_model
 
 
 async def generate_queries(

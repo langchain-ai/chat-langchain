@@ -8,13 +8,14 @@ conducting research, and formulating responses.
 
 from typing import Any, Literal, TypedDict, cast
 
+from langchain_core.messages import BaseMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.graph import END, START, StateGraph
+
 from backend.retrieval_graph.configuration import AgentConfiguration
 from backend.retrieval_graph.researcher_graph.graph import graph as researcher_graph
 from backend.retrieval_graph.state import AgentState, InputState
 from backend.utils import format_docs, load_chat_model
-from langchain_core.messages import BaseMessage
-from langchain_core.runnables import RunnableConfig
-from langgraph.graph import END, START, StateGraph
 
 
 async def create_research_plan(

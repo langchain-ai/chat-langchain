@@ -7,10 +7,11 @@ definitions for agent state, input state, and router classification schema.
 from dataclasses import dataclass, field
 from typing import Annotated
 
-from backend.utils import reduce_docs
 from langchain_core.documents import Document
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
+
+from backend.utils import reduce_docs
 
 
 # Optional, the InputState is a restricted version of the State that is used to

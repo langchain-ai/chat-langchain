@@ -3,12 +3,13 @@ from contextlib import contextmanager
 from typing import Iterator
 
 import weaviate
-from backend.configuration import BaseConfiguration
-from backend.constants import WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
 from langchain_core.embeddings import Embeddings
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import RunnableConfig
 from langchain_weaviate import WeaviateVectorStore
+
+from backend.configuration import BaseConfiguration
+from backend.constants import WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
 
 
 def make_text_encoder(model: str) -> Embeddings:
