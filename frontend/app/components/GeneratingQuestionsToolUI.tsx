@@ -22,8 +22,12 @@ type Question = {
 };
 
 const QuestionCard = ({ question }: { question: Question }) => {
-  const displayedDocuments = question.documents?.slice(0, 6) || [];
-  const remainingDocuments = question.documents?.slice(6) || [];
+  const documents = question.documents;
+  const documentList = Array.isArray(documents) ? documents : [];
+  const displayedDocuments = documentList.slice(0, 6);
+  const remainingDocuments = documentList.slice(6);
+  const hasDocuments = documentList.length > 0;
+  const documentsLoaded = documents !== undefined;
 
   return (
     <Card className="md:w-[250px] sm:w-[250px] w-full md:max-w-full h-[140px] bg-inherit border-gray-500 flex flex-col gap-2">
@@ -45,7 +49,7 @@ const QuestionCard = ({ question }: { question: Question }) => {
         <div className="flex flex-col gap-1 mt-auto">
           <hr className="border-gray-400" />
           <div className="flex flex-wrap items-start justify-start gap-2 pt-1">
-            {question.documents?.length ? (
+            {hasDocuments ? (
               <>
                 {displayedDocuments.map((doc: Document, idx: number) => (
                   <DocumentDialog
@@ -73,21 +77,21 @@ const QuestionCard = ({ question }: { question: Question }) => {
                           All Documents for Question
                         </h2>
                         <div className="flex flex-wrap gap-2">
-                          {question.documents?.map(
-                            (doc: Document, idx: number) => (
-                              <DocumentDialog
-                                key={`all-documents-${idx}`}
-                                document={doc}
-                                trigger={<DocumentCard document={doc} />}
-                              />
-                            ),
-                          )}
+                          {documentList.map((doc: Document, idx: number) => (
+                            <DocumentDialog
+                              key={`all-documents-${idx}`}
+                              document={doc}
+                              trigger={<DocumentCard document={doc} />}
+                            />
+                          ))}
                         </div>
                       </div>
                     </SheetContent>
                   </Sheet>
                 )}
               </>
+            ) : documentsLoaded ? (
+              <span className="text-sm text-gray-400">No documents found</span>
             ) : (
               <span className="flex items-center justify-start gap-2 text-gray-400">
                 <p className="text-sm">Finding documents</p>

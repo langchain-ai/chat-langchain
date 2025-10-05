@@ -10,7 +10,7 @@ export function convertThreadActualToThreadProps(
   const values = thread.values as Record<string, any> | undefined;
   return {
     id: thread.thread_id,
-    label: values?.messages?.[0].content || "Untitled",
+    label: values?.messages?.[0]?.content || "Untitled",
     createdAt: new Date(thread.created_at),
     onClick: () => {
       return switchSelectedThread(thread);
