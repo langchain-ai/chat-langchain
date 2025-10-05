@@ -2,13 +2,12 @@
 # This is ugly
 import argparse
 
+# Ugly. Requires PYTHONATH=$(PWD) to run
+from backend.chain import create_chain, get_retriever
 from langchain.smith import RunEvalConfig
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langsmith import Client
-
-# Ugly. Requires PYTHONATH=$(PWD) to run
-from backend.chain import create_chain, get_retriever
 
 _PROVIDER_MAP = {
     "openai": ChatOpenAI,

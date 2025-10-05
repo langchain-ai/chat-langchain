@@ -8,9 +8,8 @@ from typing import cast
 
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableConfig
-from langgraph.constants import Send
 from langgraph.graph import END, START, StateGraph
-from langgraph.config import get_stream_writer
+from langgraph.types import Send
 from typing_extensions import TypedDict
 
 from backend import retrieval
@@ -68,11 +67,10 @@ async def retrieve_documents(
     Returns:
         dict[str, list[Document]]: A dictionary with a 'documents' key containing the list of retrieved documents.
     """
-    writer = get_stream_writer()
     with retrieval.make_retriever(config) as retriever:
         response = await retriever.ainvoke(state.query, config)
-        writer({"retrieve_documents": {"index": state.index, "documents": response}})
-        return {"documents": response}
+
+    return {"documents": response, "query_index": state.query_index}
 
 
 def retrieve_in_parallel(state: ResearcherState) -> list[Send]:
@@ -91,7 +89,7 @@ def retrieve_in_parallel(state: ResearcherState) -> list[Send]:
         - Each Send object targets the "retrieve_documents" node with the corresponding query.
     """
     return [
-        Send("retrieve_documents", QueryState(query=query, index=i))
+        Send("retrieve_documents", QueryState(query=query, query_index=i))
         for i, query in enumerate(state.queries)
     ]
 

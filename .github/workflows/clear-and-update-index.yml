@@ -7,21 +7,43 @@ jobs:
   build:
     runs-on: ubuntu-latest
     environment: Indexing
+
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v6
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
 
-      - name: Install dependencies
-        run: poetry install
+      - name: Pin uv cache dir
+        shell: bash
+        run: echo "UV_CACHE_DIR=$GITHUB_WORKSPACE/.uv_cache" >> "$GITHUB_ENV"
+
+      - name: Restore caches (.venv and uv)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./.uv_cache
+            ./.venv
+          key: >
+            index-${{ runner.os }}-${{ runner.arch }}-py-3.11-
+            ${{ hashFiles('pyproject.toml') }}-
+            ${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            index-${{ runner.os }}-${{ runner.arch }}-py-3.11-
+            index-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Sync dependencies
+        shell: bash
+        run: uv sync --all-groups --frozen
 
       - name: Clear index
-        run: poetry run python _scripts/clear_index.py
+        shell: bash
+        run: uv run python _scripts/clear_index.py
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
@@ -29,7 +51,8 @@ jobs:
           RECORD_MANAGER_DB_URL: ${{ secrets.RECORD_MANAGER_DB_URL }}
 
       - name: Ingest docs
-        run: poetry run python backend/ingest.py
+        shell: bash
+        run: uv run python backend/ingest.py
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
