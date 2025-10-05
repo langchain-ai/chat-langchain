@@ -57,23 +57,15 @@ const GraphContext = createContext<GraphContentType | undefined>(undefined);
 
 type StreamRunState = {
   progressMessageId: string;
-  hasProgressBeenSet: boolean;
   generatingQuestionsMessageId?: string;
   routerMessageId?: string;
   selectedDocumentsMessageId?: string;
+  answerHeaderMessageId?: string;
   answerHeaderInserted?: boolean;
   latestDocuments?: Record<string, any>[];
   generatingQuestionsBuffer?: string;
   runId?: string;
 };
-
-function isToolMessageWithName(message: Message, toolName: string): boolean {
-  return (
-    message.type === "ai" &&
-    Array.isArray(message.tool_calls) &&
-    message.tool_calls.some((toolCall) => toolCall.name === toolName)
-  );
-}
 
 function normalizeMessageForUI(
   message: Message,
@@ -334,8 +326,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
       return [...prevMessages, progressMessage];
     });
-
-    streamState.hasProgressBeenSet = true;
   }, []);
 
   const handleUpdateEvent = useCallback(
@@ -437,8 +427,35 @@ export function GraphProvider({ children }: { children: ReactNode }) {
           }
 
           if (streamState.generatingQuestionsMessageId) {
-            const { question, queries, documents } = update;
-            if (question || queries || documents) {
+            const {
+              question,
+              queries,
+              documents,
+              step: stepFromUpdate,
+            } = update as Record<string, unknown>;
+
+            const questionText =
+              typeof question === "string"
+                ? question
+                : question && typeof question === "object"
+                  ? (question as Record<string, unknown>).question
+                  : undefined;
+            const questionStep =
+              typeof stepFromUpdate === "number"
+                ? stepFromUpdate
+                : question &&
+                    typeof question === "object" &&
+                    typeof (question as Record<string, unknown>).step ===
+                      "number"
+                  ? (question as Record<string, unknown>).step
+                  : undefined;
+
+            if (
+              questionText ||
+              typeof questionStep === "number" ||
+              queries ||
+              documents
+            ) {
               setMessages((prev) => {
                 const idx = prev.findIndex(
                   (msg) => msg.id === streamState.generatingQuestionsMessageId,
@@ -455,18 +472,67 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   return prev;
                 }
 
+                let didUpdateQuestion = false;
                 const updatedQuestions = existingToolCall.args.questions.map(
                   (q: any) => {
-                    if (q.question === question) {
-                      return {
-                        ...q,
-                        queries: queries ?? q.queries,
-                        documents: documents ?? q.documents,
-                      };
+                    const matchesStep =
+                      typeof questionStep === "number" &&
+                      typeof q.step === "number" &&
+                      q.step === questionStep;
+                    const matchesQuestion =
+                      typeof questionText === "string" &&
+                      typeof q.question === "string" &&
+                      q.question === questionText;
+
+                    if (!matchesStep && !matchesQuestion) {
+                      return q;
                     }
-                    return q;
+
+                    didUpdateQuestion = true;
+                    return {
+                      ...q,
+                      queries:
+                        queries !== undefined
+                          ? queries ?? q.queries
+                          : q.queries,
+                      documents:
+                        documents !== undefined
+                          ? documents ?? q.documents
+                          : q.documents,
+                    };
                   },
                 );
+
+                let normalizedQuestions = updatedQuestions;
+
+                if (!didUpdateQuestion && documents !== undefined) {
+                  if (existingToolCall.args.questions.length === 1) {
+                    normalizedQuestions = existingToolCall.args.questions.map(
+                      (q: any) => ({
+                        ...q,
+                        documents: documents ?? q.documents,
+                      }),
+                    );
+                    didUpdateQuestion = true;
+                  } else if (
+                    Array.isArray(documents) &&
+                    documents.length === 0
+                  ) {
+                    normalizedQuestions = existingToolCall.args.questions.map(
+                      (q: any) => ({
+                        ...q,
+                        documents: Array.isArray(q.documents)
+                          ? q.documents
+                          : [],
+                      }),
+                    );
+                    didUpdateQuestion = true;
+                  }
+                }
+
+                if (!didUpdateQuestion) {
+                  return prev;
+                }
 
                 const nextMessage: Message = {
                   ...existing,
@@ -475,7 +541,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                       ...existingToolCall,
                       args: {
                         ...existingToolCall.args,
-                        questions: updatedQuestions,
+                        questions: normalizedQuestions,
                       },
                     },
                   ],
@@ -491,8 +557,13 @@ export function GraphProvider({ children }: { children: ReactNode }) {
 
         if (node === "respond") {
           if (!streamState.answerHeaderInserted) {
+            const answerHeaderMessageId =
+              streamState.answerHeaderMessageId ?? uuidv4();
+            streamState.answerHeaderMessageId = answerHeaderMessageId;
+
             const answerHeaderToolMsg: Message = {
               type: "ai",
+              id: answerHeaderMessageId,
               content: "",
               tool_calls: [
                 {
@@ -562,6 +633,11 @@ export function GraphProvider({ children }: { children: ReactNode }) {
     onFinish: async (state, meta) => {
       setIsStreaming(false);
       const currentState = streamStateRef.current;
+
+      if (currentState) {
+        updateProgress(4);
+      }
+
       streamStateRef.current = null;
 
       const finalRunId =
@@ -673,20 +749,23 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         }
 
         if (normalizedMessage.type === "ai") {
-          let answerHeaderIndex = -1;
-          for (let i = next.length - 1; i >= 0; i -= 1) {
-            if (isToolMessageWithName(next[i], "answer_header")) {
-              answerHeaderIndex = i;
-              break;
+          const answerHeaderId = streamState?.answerHeaderMessageId;
+          if (answerHeaderId) {
+            const answerHeaderIndex = indexById.get(answerHeaderId);
+            if (answerHeaderIndex != null) {
+              next.splice(answerHeaderIndex + 1, 0, normalizedMessage);
+              if (normalizedMessage.id) {
+                indexById.set(normalizedMessage.id, answerHeaderIndex + 1);
+              }
+              continue;
             }
-          }
-          if (answerHeaderIndex !== -1) {
-            next.splice(answerHeaderIndex + 1, 0, normalizedMessage);
-            continue;
           }
         }
 
         next.push(normalizedMessage);
+        if (normalizedMessage.id) {
+          indexById.set(normalizedMessage.id, next.length - 1);
+        }
       }
 
       return next;
@@ -722,7 +801,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       setIsStreaming(true);
       streamStateRef.current = {
         progressMessageId: uuidv4(),
-        hasProgressBeenSet: false,
         generatingQuestionsBuffer: "",
       };
 
@@ -829,6 +907,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             }
             syntheticMessages.push({
               type: "ai",
+              id: uuidv4(),
               content: "",
               tool_calls: [
                 {

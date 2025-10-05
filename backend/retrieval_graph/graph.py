@@ -14,7 +14,7 @@ from langgraph.graph import END, START, StateGraph
 
 from backend.retrieval_graph.configuration import AgentConfiguration
 from backend.retrieval_graph.researcher_graph.graph import graph as researcher_graph
-from backend.retrieval_graph.state import AgentState, InputState, Router
+from backend.retrieval_graph.state import AgentState, InputState
 from backend.utils import format_docs, load_chat_model
 
 
