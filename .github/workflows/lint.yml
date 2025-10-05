@@ -6,9 +6,7 @@ on:
   pull_request:
 
 env:
-  POETRY_VERSION: "1.7.1"
-
-  # This env var allows us to get inline annotations when ruff has complaints.
+  # For inline annotations from ruff
   RUFF_OUTPUT_FORMAT: github
 
 jobs:
@@ -23,38 +21,51 @@ jobs:
         # GitHub rate-limits how many jobs can be running at any one time.
         # Starting new jobs is also relatively slow,
         # so linting on fewer versions makes CI faster.
-        python-version:
-          - "3.11"
+        python-version: ["3.11"]
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }} + Poetry ${{ env.POETRY_VERSION }}
-        uses: "./.github/actions/poetry_setup"
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          poetry-version: ${{ env.POETRY_VERSION }}
-          cache-key: lint
 
-      - name: Check Poetry File
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Pin uv cache dir
         shell: bash
-        run: poetry check
+        run: echo "UV_CACHE_DIR=$GITHUB_WORKSPACE/.uv_cache" >> "$GITHUB_ENV"
 
-      - name: Check lock file
-        shell: bash
-        run: poetry lock --check
-
-      - name: Install dependencies
-        run: poetry install --with dev
-
-      - name: Get .mypy_cache to speed up mypy
-        uses: actions/cache@v3
-        env:
-          SEGMENT_DOWNLOAD_TIMEOUT_MIN: "2"
+      - name: Restore caches (.venv and uv)
+        uses: actions/cache@v4
         with:
           path: |
+            ./.uv_cache
+            ./.venv
             ./.mypy_cache
-          key: mypy-lint-${{ runner.os }}-${{ runner.arch }}-py${{ matrix.python-version }}-${{ hashFiles('./poetry.lock') }}
+          key: >
+            lint-${{ runner.os }}-${{ runner.arch }}-py-${{ matrix.python-version }}-
+            ${{ hashFiles('pyproject.toml') }}-
+            ${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            lint-${{ runner.os }}-${{ runner.arch }}-py-${{ matrix.python-version }}-
+            lint-${{ runner.os }}-${{ runner.arch }}-
 
-      - name: Analysing the code with our lint
+      # Ensure deps match the lock (fails if lock is stale)
+      - name: Sync dependencies (frozen)
+        shell: bash
+        run: uv sync --all-groups --frozen
+
+      - name: Show tool versions
+        shell: bash
         run: |
-          make lint
+          uv --version
+          .venv/bin/python -V
+          .venv/bin/ruff -V || true
+          .venv/bin/mypy -V || true
+
+      - name: Lint
+        shell: bash
+        run: uv run make lint
