@@ -6,15 +6,14 @@ import re
 from typing import Optional
 
 import weaviate
+from backend.constants import WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
+from backend.embeddings import get_embeddings_model
+from backend.parser import langchain_docs_extractor
 from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import SitemapLoader
 from langchain.indexes import SQLRecordManager, index
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_weaviate import WeaviateVectorStore
-
-from backend.constants import WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
-from backend.embeddings import get_embeddings_model
-from backend.parser import langchain_docs_extractor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
