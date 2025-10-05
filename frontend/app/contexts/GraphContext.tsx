@@ -533,6 +533,66 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       for (const [node, update] of Object.entries(data)) {
         if (!update || typeof update !== "object") continue;
 
+        if (node === "retrieve_documents") {
+          const { query_index: queryIndex, documents } =
+            update as Record<string, unknown>;
+
+          if (typeof queryIndex === "number") {
+            if (!streamState.questionDocumentsByIndex) {
+              streamState.questionDocumentsByIndex = {};
+            }
+
+            if (Array.isArray(documents)) {
+              streamState.questionDocumentsByIndex[queryIndex] = documents as unknown[];
+            } else if (documents === "delete") {
+              streamState.questionDocumentsByIndex[queryIndex] = [];
+            }
+
+            if (streamState.generatingQuestionsMessageId) {
+              setMessages((prev) => {
+                const idx = prev.findIndex(
+                  (msg) => msg.id === streamState.generatingQuestionsMessageId,
+                );
+                if (idx === -1) return prev;
+
+                const existing = prev[idx];
+                if (existing.type !== "ai") {
+                  return prev;
+                }
+
+                const existingToolCall = existing.tool_calls?.[0];
+                if (!existingToolCall || !existingToolCall.args?.questions) {
+                  return prev;
+                }
+
+                const questionsWithDocuments = applyDocumentsFromMap(
+                  existingToolCall.args.questions,
+                  streamState.questionDocumentsByIndex,
+                );
+
+                const nextMessage: Message = {
+                  ...existing,
+                  tool_calls: [
+                    {
+                      ...existingToolCall,
+                      args: {
+                        ...existingToolCall.args,
+                        questions: questionsWithDocuments,
+                      },
+                    },
+                  ],
+                };
+
+                const next = [...prev];
+                next[idx] = nextMessage;
+                return next;
+              });
+            }
+          }
+
+          continue;
+        }
+
         if (
           node === "analyze_and_route_query" ||
           node === "create_research_plan" ||
@@ -826,9 +886,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       }
     },
     onUpdateEvent: handleUpdateEvent,
-    onCustomEvent: (event) => {
-      console.log("Custom event", event);
-    },
     onFinish: async (state, meta) => {
       setIsStreaming(false);
       const currentState = streamStateRef.current;
@@ -1094,8 +1151,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             },
             metadata: userId ? { user_id: userId } : undefined,
             streamResumable: true,
+            streamSubgraphs: true,
             onDisconnect: "continue",
-            streamMode: ["messages-tuple", "custom"],
+            streamMode: ["messages-tuple", "updates"],
           },
         );
       } catch (error) {
