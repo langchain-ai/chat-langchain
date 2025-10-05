@@ -69,7 +69,7 @@ async def retrieve_documents(
     """
     with retrieval.make_retriever(config) as retriever:
         response = await retriever.ainvoke(state.query, config)
-        return {"documents": response, "index": state.index}
+        return {"documents": response}
 
 
 def retrieve_in_parallel(state: ResearcherState) -> list[Send]:
