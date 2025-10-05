@@ -67,6 +67,99 @@ type StreamRunState = {
   runId?: string;
 };
 
+function mergeAiMessages(existing: Message, incoming: Message): Message {
+  if (existing.type !== "ai" || incoming.type !== "ai") {
+    return incoming;
+  }
+
+  const existingToolCalls = Array.isArray(existing.tool_calls)
+    ? existing.tool_calls
+    : [];
+  const incomingToolCalls = Array.isArray(incoming.tool_calls)
+    ? incoming.tool_calls
+    : [];
+
+  const mergedToolCalls = incomingToolCalls.map((incomingCall) => {
+    if (incomingCall.name !== "generating_questions") {
+      return incomingCall;
+    }
+
+    const existingCall = existingToolCalls.find(
+      (call) => call.name === "generating_questions",
+    );
+
+    if (
+      !existingCall ||
+      !Array.isArray(existingCall.args?.questions) ||
+      !Array.isArray(incomingCall.args?.questions)
+    ) {
+      return incomingCall;
+    }
+
+    const mergedQuestions = incomingCall.args.questions.map(
+      (incomingQuestion) => {
+        if (!incomingQuestion || typeof incomingQuestion !== "object") {
+          return incomingQuestion;
+        }
+
+        const existingQuestion = existingCall.args.questions.find(
+          (candidate: Record<string, unknown>) => {
+            if (!candidate || typeof candidate !== "object") {
+              return false;
+            }
+
+            const sameStep =
+              typeof candidate.step === "number" &&
+              typeof incomingQuestion.step === "number" &&
+              candidate.step === incomingQuestion.step;
+
+            const sameQuestion =
+              typeof candidate.question === "string" &&
+              typeof incomingQuestion.question === "string" &&
+              candidate.question === incomingQuestion.question;
+
+            return sameStep || sameQuestion;
+          },
+        );
+
+        if (!existingQuestion || typeof existingQuestion !== "object") {
+          return incomingQuestion;
+        }
+
+        const documents =
+          incomingQuestion.documents !== undefined
+            ? incomingQuestion.documents
+            : (existingQuestion as any).documents;
+        const queries =
+          incomingQuestion.queries !== undefined
+            ? incomingQuestion.queries
+            : (existingQuestion as any).queries;
+
+        return {
+          ...existingQuestion,
+          ...incomingQuestion,
+          documents,
+          queries,
+        };
+      },
+    );
+
+    return {
+      ...incomingCall,
+      args: {
+        ...incomingCall.args,
+        questions: mergedQuestions,
+      },
+    };
+  });
+
+  return {
+    ...existing,
+    ...incoming,
+    tool_calls: mergedToolCalls,
+  };
+}
+
 function normalizeMessageForUI(
   message: Message,
   streamState: StreamRunState | null,
@@ -744,7 +837,15 @@ export function GraphProvider({ children }: { children: ReactNode }) {
         const targetId = normalizedMessage.id;
         const existingIndex = targetId ? indexById.get(targetId) : undefined;
         if (existingIndex != null) {
-          next[existingIndex] = normalizedMessage;
+          const existingMessage = next[existingIndex];
+          if (existingMessage) {
+            next[existingIndex] = mergeAiMessages(
+              existingMessage,
+              normalizedMessage,
+            );
+          } else {
+            next[existingIndex] = normalizedMessage;
+          }
           continue;
         }
 
