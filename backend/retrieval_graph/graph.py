@@ -114,9 +114,15 @@ async def respond(
     # TODO: add a re-ranker here
     top_k = 20
     context = format_docs(state.documents[:top_k])
-    prompt = configuration.response_system_prompt.format(context=context)
-    messages = [{"role": "system", "content": prompt}] + state.messages
-    response = await model.ainvoke(messages)
+    response = await model.ainvoke(
+        [
+            {
+                "role": "system",
+                "content": configuration.response_system_prompt.format(context=context),
+            },
+            *state.messages,
+        ]
+    )
     return {"messages": [response], "answer": response.content}
 
 

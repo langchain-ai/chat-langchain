@@ -16,6 +16,7 @@ class QueryState:
     """Private state for the retrieve_documents node in the researcher graph."""
 
     query: str
+    index: int
 
 
 @dataclass(kw_only=True)

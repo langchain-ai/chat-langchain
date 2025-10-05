@@ -55,7 +55,7 @@ async def generate_queries(
 
 async def retrieve_documents(
     state: QueryState, *, config: RunnableConfig
-) -> dict[str, list[Document]]:
+) -> dict[str, list[Document] | int]:
     """Retrieve documents based on a given query.
 
     This function uses a retriever to fetch relevant documents for a given query.
@@ -69,7 +69,7 @@ async def retrieve_documents(
     """
     with retrieval.make_retriever(config) as retriever:
         response = await retriever.ainvoke(state.query, config)
-        return {"documents": response}
+        return {"documents": response, "index": state.index}
 
 
 def retrieve_in_parallel(state: ResearcherState) -> list[Send]:
@@ -88,7 +88,8 @@ def retrieve_in_parallel(state: ResearcherState) -> list[Send]:
         - Each Send object targets the "retrieve_documents" node with the corresponding query.
     """
     return [
-        Send("retrieve_documents", QueryState(query=query)) for query in state.queries
+        Send("retrieve_documents", QueryState(query=query, index=i))
+        for i, query in enumerate(state.queries)
     ]
 
 

@@ -65,7 +65,148 @@ type StreamRunState = {
   latestDocuments?: Record<string, any>[];
   generatingQuestionsBuffer?: string;
   runId?: string;
+  questionDocumentsByIndex?: Record<number, unknown[]>;
 };
+
+function asQuestionObject(
+  question: unknown,
+): (Record<string, unknown> & { question?: unknown; step?: unknown }) | null {
+  if (!question || typeof question !== "object") {
+    return null;
+  }
+  return question as Record<string, unknown> & {
+    question?: unknown;
+    step?: unknown;
+    documents?: unknown;
+    queries?: unknown;
+  };
+}
+
+function getQuestionKey(question: unknown, fallbackIndex: number): string {
+  const questionObject = asQuestionObject(question);
+  if (questionObject) {
+    if (typeof questionObject.index === "number") {
+      return `index:${questionObject.index}`;
+    }
+    if (typeof questionObject.step === "number") {
+      return `step:${questionObject.step}`;
+    }
+    if (typeof questionObject.question === "string") {
+      return `question:${questionObject.question}`;
+    }
+  }
+
+  if (typeof question === "string") {
+    return `question:${question}`;
+  }
+
+  return `index:${fallbackIndex}`;
+}
+
+function mergeQuestionArrays(
+  existingQuestions: unknown[],
+  incomingQuestions: unknown[],
+): unknown[] {
+  const mergedQuestions = existingQuestions.map((question) => {
+    const questionObject = asQuestionObject(question);
+    return questionObject ? { ...questionObject } : question;
+  });
+
+  const questionIndexByKey = new Map<string, number>();
+
+  mergedQuestions.forEach((question, index) => {
+    questionIndexByKey.set(getQuestionKey(question, index), index);
+  });
+
+  incomingQuestions.forEach((incomingQuestion, index) => {
+    const key = getQuestionKey(incomingQuestion, index);
+    const existingIndex = questionIndexByKey.get(key);
+
+    if (existingIndex === undefined) {
+      const incomingObject = asQuestionObject(incomingQuestion);
+      const normalizedQuestion = incomingObject
+        ? {
+            ...incomingObject,
+            index:
+              typeof incomingObject.index === "number"
+                ? incomingObject.index
+                : index,
+          }
+        : incomingQuestion;
+      questionIndexByKey.set(key, mergedQuestions.length);
+      mergedQuestions.push(normalizedQuestion);
+      return;
+    }
+
+    const existingQuestion = mergedQuestions[existingIndex];
+    const existingQuestionObject = asQuestionObject(existingQuestion);
+    const incomingQuestionObject = asQuestionObject(incomingQuestion);
+
+    if (!existingQuestionObject || !incomingQuestionObject) {
+      mergedQuestions[existingIndex] = incomingQuestion;
+      return;
+    }
+
+    const normalizedIndex =
+      typeof incomingQuestionObject.index === "number"
+        ? incomingQuestionObject.index
+        : typeof existingQuestionObject.index === "number"
+          ? existingQuestionObject.index
+          : existingIndex;
+
+    const incomingDocuments =
+      incomingQuestionObject.documents !== undefined
+        ? incomingQuestionObject.documents
+        : existingQuestionObject.documents;
+    const incomingQueries =
+      incomingQuestionObject.queries !== undefined
+        ? incomingQuestionObject.queries
+        : existingQuestionObject.queries;
+
+    mergedQuestions[existingIndex] = {
+      ...existingQuestionObject,
+      ...incomingQuestionObject,
+      documents: incomingDocuments,
+      queries: incomingQueries,
+      index: normalizedIndex,
+    };
+  });
+
+  return mergedQuestions;
+}
+
+function applyDocumentsFromMap(
+  questions: unknown[],
+  documentsByIndex: Record<number, unknown[]> | undefined,
+): unknown[] {
+  if (!documentsByIndex) {
+    return questions;
+  }
+
+  return questions.map((question, idx) => {
+    const questionObject = asQuestionObject(question);
+    if (!questionObject) {
+      return question;
+    }
+
+    const indexValue =
+      typeof questionObject.index === "number" ? questionObject.index : idx;
+    const storedDocuments = documentsByIndex[indexValue];
+
+    if (storedDocuments === undefined) {
+      return {
+        ...questionObject,
+        index: indexValue,
+      };
+    }
+
+    return {
+      ...questionObject,
+      index: indexValue,
+      documents: storedDocuments,
+    };
+  });
+}
 
 function mergeAiMessages(existing: Message, incoming: Message): Message {
   if (existing.type !== "ai" || incoming.type !== "ai") {
@@ -88,60 +229,18 @@ function mergeAiMessages(existing: Message, incoming: Message): Message {
       (call) => call.name === "generating_questions",
     );
 
-    if (
-      !existingCall ||
-      !Array.isArray(existingCall.args?.questions) ||
-      !Array.isArray(incomingCall.args?.questions)
-    ) {
+    if (!existingCall || !Array.isArray(existingCall.args?.questions)) {
       return incomingCall;
     }
 
-    const mergedQuestions = incomingCall.args.questions.map(
-      (incomingQuestion) => {
-        if (!incomingQuestion || typeof incomingQuestion !== "object") {
-          return incomingQuestion;
-        }
+    const existingQuestions = existingCall.args.questions;
+    const incomingQuestions = Array.isArray(incomingCall.args?.questions)
+      ? incomingCall.args.questions
+      : [];
 
-        const existingQuestion = existingCall.args.questions.find(
-          (candidate: Record<string, unknown>) => {
-            if (!candidate || typeof candidate !== "object") {
-              return false;
-            }
-
-            const sameStep =
-              typeof candidate.step === "number" &&
-              typeof incomingQuestion.step === "number" &&
-              candidate.step === incomingQuestion.step;
-
-            const sameQuestion =
-              typeof candidate.question === "string" &&
-              typeof incomingQuestion.question === "string" &&
-              candidate.question === incomingQuestion.question;
-
-            return sameStep || sameQuestion;
-          },
-        );
-
-        if (!existingQuestion || typeof existingQuestion !== "object") {
-          return incomingQuestion;
-        }
-
-        const documents =
-          incomingQuestion.documents !== undefined
-            ? incomingQuestion.documents
-            : (existingQuestion as any).documents;
-        const queries =
-          incomingQuestion.queries !== undefined
-            ? incomingQuestion.queries
-            : (existingQuestion as any).queries;
-
-        return {
-          ...existingQuestion,
-          ...incomingQuestion,
-          documents,
-          queries,
-        };
-      },
+    const mergedQuestions = mergeQuestionArrays(
+      existingQuestions,
+      incomingQuestions,
     );
 
     return {
@@ -189,6 +288,7 @@ function normalizeMessageForUI(
           if (!trimmed) return null;
           return {
             step: idx + 1,
+            index: idx,
             question: trimmed,
           };
         }
@@ -202,6 +302,7 @@ function normalizeMessageForUI(
           if (!trimmed) return null;
           return {
             step: (step as any).step ?? idx + 1,
+            index: (step as any).index ?? idx,
             question: trimmed,
             queries: (step as any).queries,
             documents: (step as any).documents,
@@ -298,6 +399,7 @@ function normalizeMessageForUI(
             if (!trimmed) return null;
             return {
               step: idx + 1,
+              index: idx,
               question: trimmed,
             };
           }
@@ -311,6 +413,7 @@ function normalizeMessageForUI(
             if (!trimmed) return null;
             return {
               step: (step as any).step ?? idx + 1,
+              index: (step as any).index ?? idx,
               question: trimmed,
               queries: (step as any).queries,
               documents: (step as any).documents,
@@ -519,13 +622,32 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             streamState.latestDocuments = update.documents;
           }
 
+          const updateRecord = update as Record<string, unknown>;
+          const questionIndex =
+            typeof updateRecord.index === "number"
+              ? (updateRecord.index as number)
+              : undefined;
+
+          if (questionIndex !== undefined) {
+            if (!streamState.questionDocumentsByIndex) {
+              streamState.questionDocumentsByIndex = {};
+            }
+
+            if (Array.isArray(updateRecord.documents)) {
+              streamState.questionDocumentsByIndex[questionIndex] =
+                updateRecord.documents as unknown[];
+            } else if (updateRecord.documents === "delete") {
+              streamState.questionDocumentsByIndex[questionIndex] = [];
+            }
+          }
+
           if (streamState.generatingQuestionsMessageId) {
             const {
               question,
               queries,
               documents,
               step: stepFromUpdate,
-            } = update as Record<string, unknown>;
+            } = updateRecord;
 
             const questionText =
               typeof question === "string"
@@ -543,12 +665,50 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   ? (question as Record<string, unknown>).step
                   : undefined;
 
-            if (
-              questionText ||
-              typeof questionStep === "number" ||
-              queries ||
-              documents
-            ) {
+            const questionsFromUpdate = Array.isArray(
+              (update as Record<string, unknown>).questions,
+            )
+              ? ((update as Record<string, unknown>).questions as unknown[])
+              : [];
+
+            const questionsWithStoredDocs = applyDocumentsFromMap(
+              questionsFromUpdate,
+              streamState.questionDocumentsByIndex,
+            );
+
+            const shouldCreatePatchObject =
+              questionText !== undefined || typeof questionStep === "number";
+
+            const patchObjects: unknown[] = [...questionsWithStoredDocs];
+            const questionIndex =
+              typeof updateRecord.index === "number"
+                ? (updateRecord.index as number)
+                : undefined;
+
+            let documentsForPatch = documents;
+            if (questionIndex !== undefined) {
+              const stored =
+                streamState.questionDocumentsByIndex?.[questionIndex];
+              if (stored !== undefined) {
+                documentsForPatch = stored;
+              }
+            }
+
+            if (documentsForPatch === "delete") {
+              documentsForPatch = [];
+            }
+
+            if (shouldCreatePatchObject) {
+              patchObjects.push({
+                question: questionText,
+                step: questionStep,
+                index: questionIndex,
+                documents: documentsForPatch,
+                queries,
+              });
+            }
+
+            if (patchObjects.length) {
               setMessages((prev) => {
                 const idx = prev.findIndex(
                   (msg) => msg.id === streamState.generatingQuestionsMessageId,
@@ -565,67 +725,10 @@ export function GraphProvider({ children }: { children: ReactNode }) {
                   return prev;
                 }
 
-                let didUpdateQuestion = false;
-                const updatedQuestions = existingToolCall.args.questions.map(
-                  (q: any) => {
-                    const matchesStep =
-                      typeof questionStep === "number" &&
-                      typeof q.step === "number" &&
-                      q.step === questionStep;
-                    const matchesQuestion =
-                      typeof questionText === "string" &&
-                      typeof q.question === "string" &&
-                      q.question === questionText;
-
-                    if (!matchesStep && !matchesQuestion) {
-                      return q;
-                    }
-
-                    didUpdateQuestion = true;
-                    return {
-                      ...q,
-                      queries:
-                        queries !== undefined
-                          ? queries ?? q.queries
-                          : q.queries,
-                      documents:
-                        documents !== undefined
-                          ? documents ?? q.documents
-                          : q.documents,
-                    };
-                  },
+                const normalizedQuestions = mergeQuestionArrays(
+                  existingToolCall.args.questions,
+                  patchObjects,
                 );
-
-                let normalizedQuestions = updatedQuestions;
-
-                if (!didUpdateQuestion && documents !== undefined) {
-                  if (existingToolCall.args.questions.length === 1) {
-                    normalizedQuestions = existingToolCall.args.questions.map(
-                      (q: any) => ({
-                        ...q,
-                        documents: documents ?? q.documents,
-                      }),
-                    );
-                    didUpdateQuestion = true;
-                  } else if (
-                    Array.isArray(documents) &&
-                    documents.length === 0
-                  ) {
-                    normalizedQuestions = existingToolCall.args.questions.map(
-                      (q: any) => ({
-                        ...q,
-                        documents: Array.isArray(q.documents)
-                          ? q.documents
-                          : [],
-                      }),
-                    );
-                    didUpdateQuestion = true;
-                  }
-                }
-
-                if (!didUpdateQuestion) {
-                  return prev;
-                }
 
                 const nextMessage: Message = {
                   ...existing,
@@ -746,6 +849,75 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       const documents = Array.isArray(stateValues?.documents)
         ? (stateValues?.documents as Record<string, any>[])
         : [];
+
+      const generatingQuestionsMessage = outputMessages.find(
+        (msg) =>
+          msg.type === "ai" &&
+          Array.isArray(msg.tool_calls) &&
+          msg.tool_calls.some(
+            (toolCall) => toolCall.name === "generating_questions",
+          ),
+      );
+
+      if (generatingQuestionsMessage) {
+        const planMessageId =
+          generatingQuestionsMessage.id ??
+          currentState?.generatingQuestionsMessageId;
+        const normalizedPlanMessage = normalizeMessageForUI(
+          {
+            ...generatingQuestionsMessage,
+            id: planMessageId ?? generatingQuestionsMessage.id ?? uuidv4(),
+          },
+          null,
+        );
+
+        setMessages((prev) => {
+          const findExistingIndex = (messages: Message[]): number => {
+            if (planMessageId) {
+              const foundById = messages.findIndex(
+                (msg) => msg.id === planMessageId,
+              );
+              if (foundById !== -1) {
+                return foundById;
+              }
+            }
+
+            return messages.findIndex(
+              (msg) =>
+                msg.type === "ai" &&
+                Array.isArray(msg.tool_calls) &&
+                msg.tool_calls.some(
+                  (toolCall) => toolCall.name === "generating_questions",
+                ),
+            );
+          };
+
+          const existingIndex = findExistingIndex(prev);
+
+          if (existingIndex === -1) {
+            const filtered = prev.filter(
+              (msg) =>
+                !(
+                  msg.type === "ai" &&
+                  Array.isArray(msg.tool_calls) &&
+                  msg.tool_calls.some(
+                    (toolCall) => toolCall.name === "generating_questions",
+                  )
+                ),
+            );
+            return [...filtered, normalizedPlanMessage];
+          }
+
+          const existingMessage = prev[existingIndex];
+          const merged = mergeAiMessages(
+            existingMessage,
+            normalizedPlanMessage,
+          );
+          const next = [...prev];
+          next[existingIndex] = merged;
+          return next;
+        });
+      }
 
       if (outputMessages.length && documents.length) {
         const lastMessage = outputMessages[outputMessages.length - 1];
@@ -903,6 +1075,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       streamStateRef.current = {
         progressMessageId: uuidv4(),
         generatingQuestionsBuffer: "",
+        questionDocumentsByIndex: {},
       };
 
       try {
