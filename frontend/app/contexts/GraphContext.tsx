@@ -826,6 +826,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       }
     },
     onUpdateEvent: handleUpdateEvent,
+    onCustomEvent: (event) => {
+      console.log("Custom event", event);
+    },
     onFinish: async (state, meta) => {
       setIsStreaming(false);
       const currentState = streamStateRef.current;
@@ -1092,7 +1095,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
             metadata: userId ? { user_id: userId } : undefined,
             streamResumable: true,
             onDisconnect: "continue",
-            streamMode: ["messages", "messages-tuple", "updates"],
+            streamMode: ["messages-tuple", "custom"],
           },
         );
       } catch (error) {

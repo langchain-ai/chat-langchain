@@ -10,6 +10,7 @@ from langchain_core.documents import Document
 from langchain_core.runnables import RunnableConfig
 from langgraph.constants import Send
 from langgraph.graph import END, START, StateGraph
+from langgraph.config import get_stream_writer
 from typing_extensions import TypedDict
 
 from backend import retrieval
@@ -67,8 +68,10 @@ async def retrieve_documents(
     Returns:
         dict[str, list[Document]]: A dictionary with a 'documents' key containing the list of retrieved documents.
     """
+    writer = get_stream_writer()
     with retrieval.make_retriever(config) as retriever:
         response = await retriever.ainvoke(state.query, config)
+        writer({"retrieve_documents": {"index": state.index, "documents": response}})
         return {"documents": response}
 
 
