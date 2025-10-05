@@ -8,7 +8,7 @@ import {
 } from "@assistant-ui/react";
 import { v4 as uuidv4 } from "uuid";
 import { useExternalMessageConverter } from "@assistant-ui/react";
-import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+import type { Message } from "@langchain/langgraph-sdk";
 import { useToast } from "../hooks/use-toast";
 import {
   convertToOpenAIFormat,
@@ -25,7 +25,7 @@ function ChatLangChainComponent(): React.ReactElement {
   const { toast } = useToast();
   const { threadsData, userData, graphData } = useGraphContext();
   const { userId } = userData;
-  const { getUserThreads, createThread, getThreadById } = threadsData;
+  const { getUserThreads, getThreadById } = threadsData;
   const { messages, setMessages, streamMessage, switchSelectedThread } =
     graphData;
   const [isRunning, setIsRunning] = useState(false);
@@ -55,7 +55,7 @@ function ChatLangChainComponent(): React.ReactElement {
       console.error("Failed to fetch thread in query param", e);
       setThreadId(null);
     }
-  }, [threadId]);
+  }, [getThreadById, setThreadId, switchSelectedThread, threadId]);
 
   const isSubmitDisabled = !userId;
 
@@ -73,29 +73,16 @@ function ChatLangChainComponent(): React.ReactElement {
 
     setIsRunning(true);
 
-    let currentThreadId = threadId;
-    if (!currentThreadId) {
-      const thread = await createThread(userId);
-      if (!thread) {
-        toast({
-          title: "Error",
-          description: "Thread creation failed.",
-        });
-        return;
-      }
-      setThreadId(thread.thread_id);
-      currentThreadId = thread.thread_id;
-    }
-
     try {
-      const humanMessage = new HumanMessage({
+      const humanMessage: Message = {
+        type: "human",
         content: message.content[0].text,
         id: uuidv4(),
-      });
+      };
 
       setMessages((prevMessages) => [...prevMessages, humanMessage]);
 
-      await streamMessage(currentThreadId, {
+      await streamMessage(threadId ?? undefined, {
         messages: [convertToOpenAIFormat(humanMessage)],
       });
     } finally {
@@ -105,9 +92,9 @@ function ChatLangChainComponent(): React.ReactElement {
     }
   }
 
-  const threadMessages = useExternalMessageConverter<BaseMessage>({
+  const threadMessages = useExternalMessageConverter<Message>({
     callback: convertLangchainMessages,
-    messages: messages,
+    messages,
     isRunning,
   });
 
