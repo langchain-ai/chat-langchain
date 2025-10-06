@@ -1,5 +1,5 @@
 {
-  "debug": "https://langgra.ph/schema.json",
+  "$schema": "https://langgra.ph/schema.json",
   "dependencies": ["."],
   "graphs": {
     "chat": "./backend/retrieval_graph/graph.py:graph"
@@ -8,6 +8,7 @@
   "image_distro": "wolfi",
   "checkpointer": {
     "ttl": {
+      "strategy": "delete",
       "sweep_interval_minutes": 60,
       "default_ttl": 43200
     }
