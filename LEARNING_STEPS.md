@@ -19,14 +19,14 @@ This comprehensive learning guide will help you understand the Chat LangChain co
 
 ### Step 1: Understand the Project Structure
 
-- [ ] **Read core documentation files**
+- [x] **Read core documentation files**
 
   - `README.md` - Project overview and setup
   - `CONCEPTS.md` - Core concepts (vector stores, indexing, retrieval)
   - `MODIFY.md` - How to customize the application
   - `PRODUCTION.md` - Production deployment considerations
 
-- [ ] **Explore project structure**
+- [x] **Explore project structure**
   ```
   /backend/          # Python backend with LangChain/LangGraph
   /frontend/         # Next.js frontend
