@@ -2,13 +2,12 @@
 # This is ugly
 import argparse
 
+# Ugly. Requires PYTHONATH=$(PWD) to run
+from backend.chain import create_chain, get_retriever
 from langchain.smith import RunEvalConfig
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langsmith import Client
-
-# Ugly. Requires PYTHONATH=$(PWD) to run
-from backend.chain import create_chain, get_retriever
 
 _PROVIDER_MAP = {
     "openai": ChatOpenAI,
@@ -31,7 +30,7 @@ if __name__ == "__main__":
     ds = client.read_dataset(dataset_name=args.dataset_name)
     retriever = get_retriever()
     llm = _PROVIDER_MAP[args.model_provider](
-        model=_MODEL_MAP[args.model_provider], temperature=0
+        model=_MODEL_MAP[args.model_provider], temperature=0, stream_usage=True
     )
 
     # In app, we always pass in a chat history, but for evaluation we don't

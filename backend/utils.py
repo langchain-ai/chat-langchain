@@ -76,7 +76,7 @@ def load_chat_model(fully_specified_name: str) -> BaseChatModel:
         provider = ""
         model = fully_specified_name
 
-    model_kwargs = {"temperature": 0}
+    model_kwargs = {"temperature": 0, "stream_usage": True}
     if provider == "google_genai":
         model_kwargs["convert_system_message_to_human"] = True
     return init_chat_model(model, model_provider=provider, **model_kwargs)

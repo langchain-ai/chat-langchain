@@ -1,36 +1,48 @@
-[tool.poetry]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
 name = "chat-langchain"
 version = "0.1.1"
 description = ""
-authors = ["SN <6432132+samnoyes@users.noreply.github.com>"]
 readme = "README.md"
+authors = [
+  { name = "SN", email = "6432132+samnoyes@users.noreply.github.com" },
+]
+requires-python = ">=3.11"
 packages = [{ include = "backend" }]
+dependencies = [
+  "langchain>=0.3.0,<0.4.0",
+  "langsmith==0.4.9",
+  "langchain-google-genai>=2.1.2,<3.0.0",
+  "langchain-core>=0.3.10,<0.4.0",
+  "langchain-community>=0.3.0,<0.4.0",
+  "langchain-openai>=0.3.12,<0.4.0",
+  "langchain-anthropic>=0.3.10,<0.4.0",
+  "langchain-weaviate>=0.0.3,<0.1.0",
+  "langgraph>=0.4.5",
+  "beautifulsoup4>=4.12.2,<5.0.0",
+  "weaviate-client>=4.0.0,<5.0.0",
+  "lxml>=6,<7.0.0",
+  "voyageai>=0.1.4,<0.2.0",
+  "pillow>=10.2.0,<11.0.0",
+  "psycopg2-binary>=2.9.9,<3.0.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-langchain = ">=0.3.0,<0.4.0"
-langsmith = "0.4.9" 
-langchain-google-genai = ">=2.1.2,<3.0.0"
-langchain-core = ">=0.3.10,<0.4.0"
-langchain-community = ">=0.3.0,<0.4.0"
-langchain-openai = ">=0.3.12,<0.4.0"
-langchain-anthropic = ">=0.3.10,<0.4.0"
-langchain-weaviate = ">=0.0.3,<0.1.0"
-langgraph = ">=0.4.5"
-beautifulsoup4 = "^4.12.2"
-weaviate-client = "^4.0.0"
-lxml = "^4.9.3"
-voyageai = "^0.1.4"
-pillow = "^10.2.0"
-# do not remove this, it's used for indexing
-psycopg2-binary = "^2.9.9"
+[dependency-groups]
+dev = [
+  "langgraph-sdk>=0.2,<0.3",
+  "pytest>=7.3.0,<8.0.0",
+  "ruff>=0.13.3,<0.14.0",
+  "pandas>=2.2.2,<3.0.0",
+]
 
-[tool.poetry.group.dev.dependencies]
-langgraph-sdk = ">=0.1.61,<0.2.0"
-pytest = "^7.3.0"
-ruff = "^0.2.2"
-pandas = "^2.2.2"
+[tool.uv]
+default-groups = ["dev"]
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.hatch.build]
+exclude = ["tests/"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
