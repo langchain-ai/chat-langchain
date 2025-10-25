@@ -36,12 +36,12 @@ This comprehensive learning guide will help you understand the Chat LangChain co
 
 ### Step 2: Environment Setup
 
-- [ ] **Install dependencies**
+- [x] **Install dependencies**
 
   - Backend: `poetry install` (Python dependencies)
   - Frontend: `cd frontend && yarn install`
 
-- [ ] **Understand configuration**
+- [x] **Understand configuration**
   - `pyproject.toml` - Python dependencies and project metadata
   - `frontend/package.json` - Node.js dependencies
   - `langgraph.json` - LangGraph configuration
@@ -54,7 +54,9 @@ This comprehensive learning guide will help you understand the Chat LangChain co
 
 #### Data Ingestion Pipeline
 
-- [ ] **Study document ingestion** (`backend/ingest.py`)
+- [x] **Read CONCEPTS.md frist**
+
+- [x] **Study document ingestion** (`backend/ingest.py`)
 
   - How documents are loaded from LangChain documentation sites
   - Text splitting with `RecursiveCharacterTextSplitter`

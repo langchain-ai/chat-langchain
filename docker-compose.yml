@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine # Using latest stable version with Alpine for smaller size
+    container_name: chat_langchain_postgres
+    restart: unless-stopped
+
+    environment:
+      # Required environment variables
+      POSTGRES_DB: chat_langchain
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: zkdtn1234
+
+      # Optional: Set timezone
+      TZ: UTC
+
+      # Optional: Set locale
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      # Data persistence
+      - postgres_data:/var/lib/postgresql/data
+
+# Named volumes
+volumes:
+  postgres_data:
+    driver: local

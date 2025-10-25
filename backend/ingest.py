@@ -4,6 +4,10 @@ import logging
 import os
 import re
 from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
@@ -37,9 +41,9 @@ def metadata_extractor(
     return {
         "source": meta["loc"],
         "title": title,
-        "description": description_element.get("content", "")
-        if description_element
-        else "",
+        "description": (
+            description_element.get("content", "") if description_element else ""
+        ),
         "language": html_element.get("lang", "") if html_element else "",
         **meta,
     }
@@ -108,11 +112,11 @@ def load_aggregated_docs_site():
     ).load()
 
 
-def ingest_general_guides_and_tutorials():
-    langchain_python_docs = load_langchain_python_docs()
+def ingest_general_guides_and_tutorials():  # test with just js docs
+    # langchain_python_docs = load_langchain_python_docs()
     langchain_js_docs = load_langchain_js_docs()
-    aggregated_site_docs = load_aggregated_docs_site()
-    return langchain_python_docs + langchain_js_docs + aggregated_site_docs
+    # aggregated_site_docs = load_aggregated_docs_site()
+    return langchain_js_docs  # + aggregated_site_docs
 
 
 def ingest_docs():
