@@ -1,57 +1,136 @@
 # Document Ingestion Flow - Complete Guide
 
-A comprehensive guide to understanding how Chat LangChain ingests, processes, and stores documents for semantic search.
+A comprehensive guide to understanding how Chat LangChain ingests, processes, and stores documents for semantic search using local Weaviate with Docker.
 
 ## 🎯 What is Document Ingestion?
 
-Document ingestion is the process of taking raw documents (like web pages), converting them into searchable vectors, and storing them in a database. This enables AI assistants to search through documents by **meaning** rather than just keywords.
+Document ingestion converts raw documents (web pages) into searchable vectors stored in a database. This enables AI assistants to search by **meaning** rather than keywords.
 
-Think of it like creating an index for a library - but instead of organizing by title or author, we organize by the **meaning** of the content.
+## 🐳 Docker Infrastructure
 
-## 📦 Key Components
+### Three-Container Architecture
 
-### 1. Vector Database (Weaviate)
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Docker Compose Network                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌──────────────────┐         ┌──────────────────┐          │
+│  │   PostgreSQL     │         │    Weaviate      │          │
+│  │   :5432          │         │    :8080         │          │
+│  │                  │         │    :50051        │          │
+│  │  Record Manager  │         │  Vector Store    │◄─────┐   │
+│  │  (Deduplication) │         │                  │      │   │
+│  └──────────────────┘         └────────┬─────────┘      │   │
+│                                        │                │   │
+│                                        │ Internal HTTP  │   │
+│                                        │                │   │
+│                                        ▼                │   │
+│                          ┌──────────────────────┐      │   │
+│                          │ text2vec-transformers│──────┘   │
+│                          │      :8080           │          │
+│                          │                      │          │
+│                          │ sentence-transformers│          │
+│                          │ multi-qa-MiniLM-L6   │          │
+│                          └──────────────────────┘          │
+└─────────────────────────────────────────────────────────────┘
+```
 
-**Purpose:** Store document content and vectors for semantic search
+### Container Roles
 
-**What it stores:**
+**1. PostgreSQL** (`:5432`)
 
-- **Vectors**: Arrays of 1,536 numbers representing document meaning
-- **Text**: The actual document content
-- **Metadata**: Source URL, title, description
+- Tracks indexed documents for deduplication
+- Stores content hashes and timestamps
+- Prevents duplicate processing
 
-**Used for:**
+**2. Weaviate** (`:8080`)
 
-- Searching documents by meaning
-- Retrieving relevant content for user queries
-- Powering the AI chat responses
+- Vector database server
+- Manages vectorization via `text2vec-transformers:8080`
+- Stores vectors + text + metadata
 
-### 2. Record Manager (PostgreSQL)
+**3. text2vec-transformers** (internal `:8080`)
 
-**Purpose:** Track which documents have been indexed to prevent duplicates
+- Embedding model: `sentence-transformers-multi-qa-MiniLM-L6-cos-v1`
+- Converts text → 384-dimensional vectors
+- Called by Weaviate (not directly by Python)
 
-**What it stores:**
+### Internal Communication Flow
 
-- **Document Key**: Unique identifier (usually the URL)
-- **Content Hash**: Fingerprint of the document content
-- **Timestamp**: When it was last indexed
+```
+Your Python Code
+    │ "Store: 'What is LangChain?'"
+    ↓
+Weaviate Server (:8080)
+    │ Internal HTTP → text2vec-transformers:8080
+    ↓
+text2vec-transformers
+    │ Returns 384-dim vector [0.123, -0.456, ...]
+    ↓
+Weaviate Server
+    │ Stores: {text, vector, metadata}
+    ↓
+Your Python Code
+    │ Response: "Document stored"
+```
 
-**Used for:**
+**Key Point:** Your Python code only talks to Weaviate at `localhost:8080`. Weaviate handles all embedding requests internally to the transformers container.
 
-- Detecting if a document already exists
-- Detecting if a document's content changed
-- Preventing duplicate processing and costs
+---
 
-### 3. Embedding Model (OpenAI)
+## 🔄 High-Level System Flow
 
-**Purpose:** Convert text into numerical vectors
+### Ingestion Process
 
-**What it does:**
+```
+[Web Scraping]
+    │ Load 32 pages from js.langchain.com
+    ↓
+[Text Splitting]
+    │ Split into 465 chunks (1000 chars each)
+    ↓
+[Python: ingest.py]
+    │ Send chunks to Weaviate
+    ↓
+[Weaviate Server]
+    │ Forward text to text2vec-transformers:8080
+    ↓
+[text2vec-transformers]
+    │ Generate 384-dim vectors
+    ↓
+[Weaviate Server]
+    │ Store: {text, vector, source, title}
+    ↓
+[Record Manager (PostgreSQL)]
+    │ Track: source URL + content hash
+    └─► Deduplication on next run
+```
 
-- Takes text as input
-- Returns an array of 1,536 floating-point numbers
-- Same text always produces the same vector
-- Similar texts produce similar vectors
+### Retrieval Process
+
+```
+[User Query]
+    │ "What is LangChain?"
+    ↓
+[Python: retrieval.py]
+    │ retriever.invoke(query)
+    ↓
+[Weaviate Server]
+    │ Forward query to text2vec-transformers:8080
+    ↓
+[text2vec-transformers]
+    │ Generate query vector
+    ↓
+[Weaviate Server]
+    │ Find similar vectors (cosine similarity)
+    │ Return top-k documents with distance scores
+    ↓
+[Python: retrieval.py]
+    └─► List[Document] with metadata
+```
+
+---
 
 ## 🔄 Complete Ingestion Flow
 
@@ -100,16 +179,45 @@ flowchart TD
 langchain_python_docs = load_langchain_python_docs()
 langchain_js_docs = load_langchain_js_docs()
 aggregated_site_docs = load_aggregated_docs_site()
-
-# Example: 1 document loaded (4000 characters)
-doc = {
-    "page_content": "LangChain is a framework for developing...",
-    "metadata": {
-        "source": "https://python.langchain.com/docs/intro",
-        "title": "Introduction to LangChain"
-    }
-}
 ```
+
+**What does `load_langchain_js_docs()` return?**
+
+A list of LangChain `Document` objects loaded from the sitemap:
+
+```python
+[
+    Document(
+        page_content="LangChain.js\n\nIntroduction\n\nLangChain is a framework for developing applications powered by language models...",
+        metadata={
+            "source": "https://js.langchain.com/docs/get_started/introduction",
+            "title": "Introduction | 🦜️🔗 LangChain.js",
+            "description": "LangChain is a framework for developing applications powered by language models.",
+            "language": "en",
+            "loc": "https://js.langchain.com/docs/get_started/introduction",
+            "lastmod": "2024-10-15T10:30:00+00:00",
+            "changefreq": "weekly",
+            "priority": 0.8
+        }
+    ),
+    Document(
+        page_content="Installation\n\nTo get started with LangChain.js, install the package...",
+        metadata={
+            "source": "https://js.langchain.com/docs/get_started/installation",
+            "title": "Installation | 🦜️🔗 LangChain.js",
+            ...
+        }
+    ),
+    # ... hundreds more documents from the sitemap
+]
+```
+
+**Key Details:**
+
+- **Return Type**: `List[Document]` (typically 100-500 documents)
+- **Filtering**: Only URLs matching `https://js.langchain.com/docs/` are included
+- **Content**: Clean text extracted via `simple_extractor()` (HTML tags removed, excessive newlines collapsed)
+- **Metadata**: Source URL, title, description, language from HTML elements
 
 ### Step 2: Split Documents into Chunks
 
@@ -119,9 +227,82 @@ text_splitter = RecursiveCharacterTextSplitter(
     chunk_overlap=200     # 200 characters overlap between chunks
 )
 
-# Example: 1 document (4000 chars) → 1 chunk
-# Larger doc (10000 chars) → 3 chunks with overlap
+docs_transformed = text_splitter.split_documents(general_guides_and_tutorials_docs)
+
+# Filter out tiny chunks
+docs_transformed = [doc for doc in docs_transformed if len(doc.page_content) > 10]
 ```
+
+**Transformation Process:**
+
+```mermaid
+flowchart TD
+    A[📄 Input: 1 Large Document<br/>8000 characters] --> B[🔪 RecursiveCharacterTextSplitter<br/>chunk_size=4000, overlap=200]
+    B --> C[📋 Chunk 1<br/>chars 0-4000<br/>Same metadata]
+    B --> D[📋 Chunk 2<br/>chars 3800-7800<br/>200 char overlap<br/>Same metadata]
+    B --> E[📋 Chunk 3<br/>chars 7600-8000<br/>200 char overlap<br/>Same metadata]
+
+    C --> F[✅ Filter: len > 10]
+    D --> F
+    E --> F
+
+    F --> G[📦 Output: 3 Chunks<br/>Ready for embedding]
+
+    style A fill:#FFE4B5
+    style C fill:#90EE90
+    style D fill:#90EE90
+    style E fill:#90EE90
+    style G fill:#87CEEB
+```
+
+**Before Splitting:**
+
+```python
+# 1 document (8000 characters)
+Document(
+    page_content="LangChain.js\n\nIntroduction\n\nLangChain is a framework..." (8000 chars),
+    metadata={
+        "source": "https://js.langchain.com/docs/intro",
+        "title": "Introduction | 🦜️🔗 LangChain.js"
+    }
+)
+```
+
+**After Splitting:**
+
+```python
+# Becomes 3 smaller chunks
+[
+    Document(
+        page_content="LangChain.js\n\nIntroduction\n\nLangChain is a framework..." (4000 chars),
+        metadata={
+            "source": "https://js.langchain.com/docs/intro",  # Same!
+            "title": "Introduction | 🦜️🔗 LangChain.js"      # Same!
+        }
+    ),
+    Document(
+        page_content="...powered by language models\n\nThe main value props..." (4000 chars, 200 overlap),
+        metadata={
+            "source": "https://js.langchain.com/docs/intro",  # Same!
+            "title": "Introduction | 🦜️🔗 LangChain.js"      # Same!
+        }
+    ),
+    Document(
+        page_content="...for accomplishing specific tasks..." (400 chars, 200 overlap),
+        metadata={
+            "source": "https://js.langchain.com/docs/intro",  # Same!
+            "title": "Introduction | 🦜️🔗 LangChain.js"      # Same!
+        }
+    )
+]
+```
+
+**Key Points:**
+
+- **Input**: ~100-500 large documents (potentially 5000+ chars each)
+- **Output**: ~500-2000+ smaller chunks (max 4000 chars each)
+- **Metadata preserved**: All chunks keep the same `source` URL (critical for record management!)
+- **200-char overlap**: Ensures context isn't lost at boundaries
 
 **Why split documents?**
 
@@ -129,39 +310,151 @@ text_splitter = RecursiveCharacterTextSplitter(
 - Smaller chunks = more precise search results
 - Overlap ensures context isn't lost between chunks
 
-### Step 3: Generate Embeddings (Convert to Vectors)
+### Step 3: Generate Embeddings (Server-Side)
 
 ```python
-# Input: Text chunk
-text = "LangChain is a framework for developing applications..."
+# Python code sends text to Weaviate
+vectorstore.add_documents([
+    Document(page_content="LangChain is a framework...", metadata={...})
+])
 
-# Process: Send to OpenAI API
-embedding_model = OpenAIEmbeddings(model="text-embedding-3-small")
-vector = embedding_model.embed_documents([text])
-
-# Output: Array of 1,536 numbers
-vector = [0.023, -0.015, 0.034, 0.001, -0.019, ..., 0.008]
+# What happens internally:
+# 1. Weaviate receives text
+# 2. Weaviate calls text2vec-transformers:8080
+# 3. Transformers returns 384-dim vector [0.023, -0.015, ..., 0.008]
+# 4. Weaviate stores: {text, vector, metadata}
 ```
 
 **What is a vector?**
 
-- A mathematical representation of text meaning
-- 1,536 floating-point numbers (for text-embedding-3-small)
+- Mathematical representation of text meaning
+- 384 floating-point numbers (multi-qa-MiniLM-L6)
 - Similar texts have similar vectors
 - Enables "meaning-based" search
+- **Generated server-side** (no API costs!)
 
-### Step 4: Check Record Manager
+### Step 4: Check Record Manager & Smart Deduplication
+
+The Record Manager uses `source_id_key="source"` to **group chunks by their source URL** and track changes.
 
 ```python
-# Extract document key (unique identifier)
-doc_key = doc.metadata["source"]  # "https://python.langchain.com/docs/intro"
+# For each chunk after splitting
+for doc in docs_transformed:
+    # Extract document key (unique identifier)
+    doc_key = doc.metadata["source"]  # e.g., "https://js.langchain.com/docs/intro"
 
-# Generate content hash
-content_hash = hash(doc.page_content + doc_key)  # "a3f5c9b2e8d1..."
+    # Generate content hash
+    content_hash = hash(doc.page_content + doc_key)  # e.g., "a3f5c9b2e8d1..."
 
-# Check if already indexed
-record = record_manager.get(key=doc_key)
+    # Check if already indexed
+    record = record_manager.get(key=doc_key)
 ```
+
+**How Record Management Works:**
+
+```mermaid
+flowchart TD
+    A[📄 Run 1: Load URL<br/>example.com/page1] --> B[🔪 Split into 3 Chunks]
+    B --> C[📝 Chunk 1: hash_h1<br/>source: page1]
+    B --> D[📝 Chunk 2: hash_h2<br/>source: page1]
+    B --> E[📝 Chunk 3: hash_h3<br/>source: page1]
+
+    C --> F[💾 Record Manager<br/>Groups by source_id_key]
+    D --> F
+    E --> F
+
+    F --> G[📊 Stored Record<br/>source: page1<br/>hashes: h1, h2, h3<br/>vector_ids: v1, v2, v3]
+
+    G --> H[📄 Run 2: Same URL<br/>Content Updated!]
+
+    H --> I[🔪 Split into 3 New Chunks]
+    I --> J[📝 Chunk 1: hash_h1_v2<br/>source: page1]
+    I --> K[📝 Chunk 2: hash_h2_v2<br/>source: page1]
+    I --> L[📝 Chunk 3: hash_h3_v2<br/>source: page1]
+
+    J --> M{🔍 Compare by source: page1<br/>Old: h1, h2, h3<br/>New: h1_v2, h2_v2, h3_v2}
+    K --> M
+    L --> M
+
+    M --> N[❌ Delete old vectors<br/>v1, v2, v3]
+    M --> O[✅ Insert new vectors<br/>v1_v2, v2_v2, v3_v2]
+
+    N --> P[📊 Updated Record<br/>source: page1<br/>hashes: h1_v2, h2_v2, h3_v2<br/>vector_ids: v1_v2, v2_v2, v3_v2]
+    O --> P
+
+    style G fill:#90EE90
+    style M fill:#FFD700
+    style N fill:#FF6B6B
+    style O fill:#4ECDC4
+    style P fill:#90EE90
+```
+
+**Real Example - First Run:**
+
+```python
+# URL: https://js.langchain.com/docs/intro (8000 chars)
+# After splitting → 3 chunks
+
+# Record Manager stores:
+{
+    "group_id": "https://js.langchain.com/docs/intro",  # source_id_key
+    "doc_hashes": [
+        "hash_abc123",  # Chunk 1 hash
+        "hash_def456",  # Chunk 2 hash
+        "hash_ghi789"   # Chunk 3 hash
+    ],
+    "vector_ids": ["vec_1", "vec_2", "vec_3"],
+    "updated_at": "2024-10-25T10:00:00"
+}
+```
+
+**Real Example - Second Run (Content Changed):**
+
+```python
+# Same URL, but website content updated
+# After splitting → 3 NEW chunks (different content)
+
+# Record Manager compares:
+# - Groups by: "https://js.langchain.com/docs/intro"
+# - Old hashes: [hash_abc123, hash_def456, hash_ghi789]
+# - New hashes: [hash_xyz111, hash_xyz222, hash_xyz333]
+# - Result: NO MATCHES!
+
+# Actions:
+# 1. DELETE old vectors: vec_1, vec_2, vec_3 from Weaviate
+# 2. INSERT new vectors: vec_4, vec_5, vec_6 to Weaviate
+# 3. UPDATE record:
+{
+    "group_id": "https://js.langchain.com/docs/intro",
+    "doc_hashes": [
+        "hash_xyz111",  # NEW Chunk 1 hash
+        "hash_xyz222",  # NEW Chunk 2 hash
+        "hash_xyz333"   # NEW Chunk 3 hash
+    ],
+    "vector_ids": ["vec_4", "vec_5", "vec_6"],  # NEW vector IDs
+    "updated_at": "2024-10-26T14:30:00"
+}
+```
+
+**Key Insight: Grouping by `source_id_key`**
+
+The critical parameter is `source_id_key="source"` in the index function:
+
+```python
+indexing_stats = index(
+    docs_transformed,
+    record_manager,
+    vectorstore,
+    cleanup="full",
+    source_id_key="source"  # ← Groups all chunks by their 'source' URL!
+)
+```
+
+This means:
+
+- All chunks from the **same URL are treated as a group**
+- When content changes, **all old chunks are deleted** and **all new chunks are inserted**
+- Record Manager tracks at the **source URL level**, not individual chunk level
 
 **Three possible outcomes:**
 
@@ -224,57 +517,164 @@ if record.content_hash != content_hash:
 
 ## 🔍 How Search Works After Ingestion
 
-```mermaid
-flowchart LR
-    A[👤 User Query:<br/>'How does memory work?'] --> B[🧠 Convert Query to Vector]
-    B --> C[📊 Calculate Similarity<br/>with All Stored Vectors]
-    C --> D[🎯 Find Closest Matches]
-    D --> E[📄 Return Matching Documents]
-    E --> F[🤖 Send to LLM for Answer]
-
-    style B fill:#90EE90
-    style C fill:#FFD700
-    style E fill:#87CEEB
+```
+User Query: "How does memory work?"
+    │
+    ↓
+Python: retriever.invoke(query)
+    │ Sends raw text to Weaviate
+    ↓
+Weaviate Server
+    │ Calls text2vec-transformers:8080
+    ↓
+text2vec-transformers
+    │ Returns query vector [0.019, -0.013, ...]
+    ↓
+Weaviate Server
+    │ Calculates cosine similarity with all stored vectors
+    │ Memory doc: distance = 0.12 (close!)
+    │ Chains doc: distance = 0.89 (far)
+    ↓
+Python Code
+    │ Receives top-k documents with distance scores
+    └─► Returns: List[Document]
 ```
 
 **Example:**
 
 ```python
-# User asks
-user_query = "How does memory work in LangChain?"
+from backend.retrieval import make_retriever
 
-# Convert to vector
-query_vector = [0.019, -0.013, 0.036, ..., 0.007]
+config = RunnableConfig(configurable={"search_kwargs": {"k": 3}})
 
-# Weaviate calculates similarity
-# Vector about memory: similarity = 0.89 (high!)
-# Vector about chains: similarity = 0.45 (low)
+with make_retriever(config) as retriever:
+    # Uses Weaviate's near_text query (server-side vectorization)
+    docs = retriever.invoke("How does memory work in LangChain?")
 
-# Returns most similar documents
-results = [
-    {
-        "text": "Memory allows your applications to store and recall...",
-        "source": "https://python.langchain.com/docs/memory",
-        "similarity": 0.89
-    }
-]
+    for doc in docs:
+        print(f"Title: {doc.metadata['title']}")
+        print(f"Distance: {doc.metadata['distance']:.4f}")
+        print(f"Content: {doc.page_content[:200]}...")
+```
+
+## 🎓 Record Management Summary
+
+### How Chunks Are Tracked Across Runs
+
+```mermaid
+graph TB
+    subgraph "Run 1: Initial Load"
+        A1[URL: docs/intro<br/>Content: Version 1<br/>8000 chars] --> B1[Split]
+        B1 --> C1[Chunk 1: h1]
+        B1 --> C2[Chunk 2: h2]
+        B1 --> C3[Chunk 3: h3]
+        C1 --> D1[Record Manager]
+        C2 --> D1
+        C3 --> D1
+        D1 --> E1[Store Group:<br/>source: docs/intro<br/>hashes: h1,h2,h3]
+    end
+
+    subgraph "Run 2: Content Changed"
+        A2[URL: docs/intro<br/>Content: Version 2<br/>8000 chars] --> B2[Split]
+        B2 --> C4[Chunk 1: h1v2]
+        B2 --> C5[Chunk 2: h2v2]
+        B2 --> C6[Chunk 3: h3v2]
+        C4 --> D2[Record Manager]
+        C5 --> D2
+        C6 --> D2
+        D2 --> E2{Compare by source:<br/>docs/intro}
+        E2 --> F1[Old hashes:<br/>h1, h2, h3]
+        E2 --> F2[New hashes:<br/>h1v2, h2v2, h3v2]
+        F1 --> G[❌ DELETE old vectors]
+        F2 --> H[✅ INSERT new vectors]
+        G --> I[Update Record:<br/>source: docs/intro<br/>hashes: h1v2,h2v2,h3v2]
+        H --> I
+    end
+
+    E1 -.->|Next run| A2
+
+    style E1 fill:#90EE90
+    style E2 fill:#FFD700
+    style G fill:#FF6B6B
+    style H fill:#4ECDC4
+    style I fill:#90EE90
+```
+
+### Key Concepts
+
+**1. One Source URL → Multiple Chunks → One Record Group**
+
+```
+URL: https://js.langchain.com/docs/intro
+├── Chunk 1 (hash: abc123)
+├── Chunk 2 (hash: def456)
+└── Chunk 3 (hash: ghi789)
+
+Record Manager Entry:
+{
+  group_id: "https://js.langchain.com/docs/intro",
+  hashes: ["abc123", "def456", "ghi789"]
+}
+```
+
+**2. Comparison Happens at Group Level**
+
+- Record Manager groups all chunks by `source_id_key="source"`
+- When the same URL is re-ingested:
+  - Compare: Old hash list vs New hash list
+  - If ANY hash is different → Update ALL chunks in that group
+  - If all hashes match → Skip ALL chunks in that group
+
+**3. `cleanup="full"` Removes Deleted Sources**
+
+```python
+# Run 1: 3 URLs
+- docs/intro → 3 chunks
+- docs/install → 2 chunks
+- docs/guide → 4 chunks
+
+# Run 2: docs/install removed from sitemap
+- docs/intro → 3 chunks (unchanged, SKIP)
+- docs/guide → 4 chunks (unchanged, SKIP)
+# ❌ docs/install automatically DELETED from vector DB
+```
+
+**4. Time Savings Through Smart Tracking**
+
+```
+First Run:
+- 32 URLs → 465 chunks
+- Generate 465 embeddings (server-side)
+- Time: ~8 seconds
+
+Second Run (no changes):
+- 32 URLs → 465 chunks
+- Generate 0 embeddings (all skipped!)
+- Time: ~1 second
+- Savings: 87.5% time! ⚡
+
+Third Run (5 URLs changed):
+- 27 URLs unchanged → 390 chunks SKIPPED
+- 5 URLs changed → 75 chunks UPDATED
+- Generate 75 embeddings (server-side)
+- Time: ~2 seconds
+- Savings: 75% time! ⚡
 ```
 
 ## 📊 Real-World Example with Numbers
 
-### Scenario: Ingesting LangChain Documentation
+### Scenario: Ingesting LangChain JS Documentation
 
 **First Run (Initial Load):**
 
 ```python
-# Documents loaded: 1,500
-# After splitting: 7,500 chunks
-# Embeddings generated: 7,500
-# API cost: ~$15
-# Time: ~15 minutes
+# Documents loaded: 32 pages (from sitemap)
+# After splitting: 465 chunks (1000 chars each)
+# Embeddings generated: 465 (server-side, no cost!)
+# Time: ~8 seconds
 
 indexing_stats = {
-    'num_added': 7500,
+    'num_added': 465,
     'num_updated': 0,
     'num_skipped': 0,
     'num_deleted': 0
@@ -284,62 +684,63 @@ indexing_stats = {
 **Second Run (No Changes):**
 
 ```python
-# Documents loaded: 1,500 (same)
-# After splitting: 7,500 chunks (same)
+# Documents loaded: 32 pages (same)
+# After splitting: 465 chunks (same)
 # Embeddings generated: 0 ✅ (all skipped!)
-# API cost: ~$0.10
-# Time: ~30 seconds
+# Time: ~1 second
 
 indexing_stats = {
     'num_added': 0,
     'num_updated': 0,
-    'num_skipped': 7500,  # All documents unchanged
+    'num_skipped': 465,  # All documents unchanged
     'num_deleted': 0
 }
 ```
 
-**Third Run (100 New Docs, 50 Updated):**
+**Third Run (5 Pages Updated):**
 
 ```python
-# New documents: 100 → 500 chunks
-# Updated documents: 50 → 200 chunks
-# Unchanged: 1,350 → 6,800 chunks
-# Embeddings generated: 700 (only new + updated)
-# API cost: ~$1.50
-# Time: ~2 minutes
+# New documents: 0
+# Updated documents: 5 pages → ~75 chunks
+# Unchanged: 27 pages → 390 chunks
+# Embeddings generated: 75 (only updated chunks)
+# Time: ~2 seconds
 
 indexing_stats = {
-    'num_added': 500,      # New chunks
-    'num_updated': 200,    # Changed chunks
-    'num_skipped': 6800,   # Unchanged chunks
+    'num_added': 0,
+    'num_updated': 75,     # Changed chunks
+    'num_skipped': 390,    # Unchanged chunks
     'num_deleted': 0
 }
 ```
 
 ## 💡 Why This System is Smart
 
-### 1. **Cost Efficiency**
+### 1. **Local & Private**
 
-- **Without Record Manager:** Re-process everything every time = $15 per run
-- **With Record Manager:** Only process changes = $1.50 per run
-- **Savings:** 90% cost reduction! 💰
+- **All processing happens locally** in Docker containers
+- No external API calls for embeddings
+- Your data never leaves your machine
+- No API costs for embeddings! 🎉
 
 ### 2. **No Duplicates**
 
 - **Without Record Manager:** Each run adds duplicates
-  - Run 1: 7,500 vectors
-  - Run 2: 15,000 vectors (50% duplicates!)
-  - Run 3: 22,500 vectors (67% duplicates!)
+  - Run 1: 465 vectors
+  - Run 2: 930 vectors (50% duplicates!)
+  - Run 3: 1,395 vectors (67% duplicates!)
 - **With Record Manager:** Always exactly the right number
-  - Run 1: 7,500 vectors
-  - Run 2: 7,500 vectors (same)
-  - Run 3: 7,500 vectors (same)
+  - Run 1: 465 vectors
+  - Run 2: 465 vectors (same)
+  - Run 3: 465 vectors (same)
 
-### 3. **Speed**
+### 3. **Speed & Efficiency**
 
-- Skip unchanged documents
-- Only generate embeddings when needed
+- Skip unchanged documents (no re-processing)
+- Only generate embeddings when content changes
 - 85% faster on subsequent runs
+- First run: ~8 seconds for 32 pages → 465 vectors
+- Second run (unchanged): ~1 second (all skipped)
 
 ### 4. **Automatic Cleanup**
 
@@ -358,87 +759,107 @@ Using `cleanup="full"` removes deleted documents:
 ```python
 def ingest_docs():
     # 1. Load and prepare documents
-    docs = ingest_general_guides_and_tutorials()
+    docs = ingest_general_guides_and_tutorials()  # 32 HTML pages
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=4000,
-        chunk_overlap=200
+        chunk_size=1000,   # 1000 chars per chunk
+        chunk_overlap=100   # 100 chars overlap
     )
-    docs_transformed = text_splitter.split_documents(docs)
+    docs_transformed = text_splitter.split_documents(docs)  # → 465 chunks
 
-    # 2. Initialize embedding model
-    embedding = get_embeddings_model()
+    # 2. Get embedding model (returns None for Weaviate built-in)
+    embedding = get_embeddings_model()  # → None
 
-    # 3. Connect to Vector DB
-    vectorstore = WeaviateVectorStore(
-        client=weaviate_client,
-        index_name="LangChain_general_guides",
-        embedding=embedding
-    )
+    # 3. Connect to local Weaviate
+    with weaviate.connect_to_local() as weaviate_client:
+        # 4. Create Vector Store (embedding=None = server-side vectorization)
+        vectorstore = WeaviateVectorStore(
+            client=weaviate_client,
+            index_name="LangChain_General_Guides_And_Tutorials_...",
+            text_key="text",
+            embedding=None,  # ← Weaviate handles vectorization!
+            attributes=["source", "title"]
+        )
 
-    # 4. Initialize Record Manager
-    record_manager = SQLRecordManager(
-        "weaviate/LangChain_general_guides",
-        db_url=RECORD_MANAGER_DB_URL
-    )
-    record_manager.create_schema()
+        # 5. Initialize Record Manager
+        record_manager = SQLRecordManager(
+            "weaviate/LangChain_General_Guides_...",
+            db_url="postgresql://postgres:zkdtn1234@localhost:5432/chat_langchain"
+        )
+        record_manager.create_schema()
 
-    # 5. Index with smart deduplication
-    indexing_stats = index(
-        docs_transformed,           # Documents to process
-        record_manager,             # Tracks what's indexed
-        vectorstore,                # Where to store vectors
-        cleanup="full",             # Remove deleted docs
-        source_id_key="source"      # Use 'source' URL as key
-    )
+        # 6. Index with smart deduplication
+        indexing_stats = index(
+            docs_transformed,
+            record_manager,
+            vectorstore,
+            cleanup="full",
+            source_id_key="source",  # Group by URL
+            force_update=False
+        )
 
-    print(f"Indexing complete: {indexing_stats}")
+        print(f"Indexing complete: {indexing_stats}")
+        # Output: {'num_added': 465, 'num_updated': 0, 'num_skipped': 0, 'num_deleted': 0}
 ```
 
 ## 🎯 Key Takeaways
 
-1. **Two Databases, Two Purposes:**
+1. **Docker-Based Local Setup:**
 
-   - Vector DB (Weaviate) = Search engine for finding documents
-   - Record Manager (PostgreSQL) = Bookkeeper preventing duplicates
+   - **PostgreSQL** = Tracks indexed documents (deduplication)
+   - **Weaviate** = Vector database server
+   - **text2vec-transformers** = Embedding model (384-dim vectors)
+   - All communication happens internally—Python only talks to Weaviate
 
-2. **Smart Processing:**
+2. **Server-Side Vectorization:**
 
-   - Only generate embeddings for new/changed documents
-   - Skip unchanged documents automatically
-   - Clean up deleted documents
+   - Python sends raw text to Weaviate (`embedding=None`)
+   - Weaviate calls text2vec-transformers internally
+   - No external API calls or costs
+   - Your data stays private and local
 
-3. **Content Hash is Key:**
+3. **Document Pipeline:**
 
-   - Document ID (URL) = Identity ("Who are you?")
-   - Content Hash = Version ("Have you changed?")
+   - **Load**: 32 HTML pages from sitemap
+   - **Split**: 32 pages → 465 chunks (1000 chars, 100 overlap)
+   - **Vectorize**: Server-side via text2vec-transformers
+   - **Store**: Weaviate stores {text, vector, metadata}
 
-4. **Production Ready:**
-   - Cost efficient (90% savings)
-   - Fast (85% faster on re-runs)
-   - Reliable (no duplicates)
-   - Automatic (handles updates and deletions)
+4. **Smart Deduplication with Record Manager:**
+
+   - Groups chunks by source URL (`source_id_key="source"`)
+   - Tracks content hashes in PostgreSQL
+   - **NEW**: First time seeing URL → insert all chunks
+   - **SKIP**: URL exists, hashes match → skip (huge savings!)
+   - **UPDATE**: URL exists, hash differs → delete old + insert new
+   - **DELETE**: URL removed from source → auto-cleanup
+
+5. **Production Benefits:**
+   - **Private**: All local, no data leaves your machine
+   - **Fast**: 85% faster on re-runs (skip unchanged)
+   - **Reliable**: No duplicates, automatic cleanup
+   - **Cost**: $0 for embeddings! 🎉
 
 ## 📚 Quick Reference
 
-### Vector Database Schema
+### Vector Database Schema (Weaviate)
 
 ```json
 {
-  "vector": [1536 floats],
+  "vector": [384 floats],  // multi-qa-MiniLM-L6 embeddings
   "text": "document content",
-  "source": "url",
-  "title": "page title"
+  "source": "https://js.langchain.com/docs/...",
+  "title": "Page Title | 🦜️🔗 LangChain.js"
 }
 ```
 
-### Record Manager Schema
+### Record Manager Schema (PostgreSQL)
 
 ```json
 {
-  "key": "document_url",
-  "content_hash": "hash_of_content",
-  "updated_at": "timestamp",
-  "namespace": "database_namespace"
+  "key": "https://js.langchain.com/docs/...",
+  "content_hash": "a3f5c9b2e8d1...",
+  "updated_at": "2024-10-30 10:30:00",
+  "namespace": "weaviate/LangChain_General_Guides_..."
 }
 ```
 
@@ -449,31 +870,62 @@ index(
     docs,                    # Documents to process
     record_manager,          # Deduplication tracker
     vectorstore,             # Storage destination
-    cleanup="full",          # "full" | "incremental" | None
-    source_id_key="source",  # Metadata field for document ID
-    force_update=False       # Force re-embedding everything
+    cleanup="full",          # Auto-delete removed documents
+    source_id_key="source",  # Group by URL
+    force_update=False       # Skip if unchanged
 )
 ```
 
-## 🚀 Running the Ingestion
+## 🚀 Running the System
+
+### Start Docker Containers
 
 ```bash
-# Set environment variables
-export WEAVIATE_URL="your-weaviate-url"
-export WEAVIATE_API_KEY="your-api-key"
-export RECORD_MANAGER_DB_URL="postgresql://user:pass@host/db"
-export OPENAI_API_KEY="your-openai-key"
+# Start all services (PostgreSQL, Weaviate, text2vec-transformers)
+docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f weaviate
+```
+
+### Run Ingestion
+
+```bash
+# Set environment (already configured in .env)
+# RECORD_MANAGER_DB_URL=postgresql://postgres:zkdtn1234@localhost:5432/chat_langchain
 
 # Run ingestion
-python backend/ingest.py
+PYTHONPATH=. poetry run python backend/ingest.py
 
 # Output:
-# INFO: Indexing stats: {'num_added': 7500, 'num_updated': 0, 'num_skipped': 0, 'num_deleted': 0}
-# INFO: General Guides and Tutorials now has this many vectors: 7500
+# Fetching pages: 100%|████████| 32/32 [00:08<00:00,  3.60it/s]
+# INFO: Indexing stats: {'num_added': 465, 'num_updated': 0, 'num_skipped': 0, 'num_deleted': 0}
+# INFO: General Guides and Tutorials now has this many vectors: 465
+```
+
+### Query Documents
+
+```bash
+# Test retrieval
+PYTHONPATH=. poetry run python -c "
+from langchain_core.runnables import RunnableConfig
+from backend.retrieval import make_retriever
+
+config = RunnableConfig(configurable={'search_kwargs': {'k': 3}})
+with make_retriever(config) as retriever:
+    docs = retriever.invoke('What is LangChain?')
+    print(f'Found {len(docs)} documents')
+    print(f'Top result: {docs[0].metadata[\"title\"][:60]}')
+"
 ```
 
 ---
 
-**Built with:** LangChain, Weaviate, PostgreSQL, OpenAI Embeddings
+**Built with:** LangChain, Weaviate, PostgreSQL, sentence-transformers
 
-**Last Updated:** October 25, 2024
+**Architecture:** Local Docker setup with server-side vectorization
+
+**Last Updated:** October 30, 2024

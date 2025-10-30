@@ -25,7 +25,34 @@ services:
       # Data persistence
       - postgres_data:/var/lib/postgresql/data
 
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.33.2
+    container_name: chat_langchain_weaviate
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 20
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
+      DEFAULT_VECTORIZER_MODULE: text2vec-transformers
+      ENABLE_MODULES: text2vec-transformers
+      TRANSFORMERS_INFERENCE_API: http://text2vec-transformers:8080
+      CLUSTER_HOSTNAME: "node1"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+
+  text2vec-transformers:
+    image: cr.weaviate.io/semitechnologies/transformers-inference:sentence-transformers-multi-qa-MiniLM-L6-cos-v1
+    container_name: chat_langchain_transformers
+    restart: unless-stopped
+    environment:
+      ENABLE_CUDA: "0"
+
 # Named volumes
 volumes:
   postgres_data:
+    driver: local
+  weaviate_data:
     driver: local

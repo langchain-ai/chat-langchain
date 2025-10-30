@@ -1,4 +1,4 @@
-WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_transformers_multi_qa_MiniLM"
 WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME = (
-    "LangChain_General_Guides_And_Tutorials_OpenAI_text_embedding_3_small"
+    "LangChain_General_Guides_And_Tutorials_transformers_multi_qa_MiniLM"
 )

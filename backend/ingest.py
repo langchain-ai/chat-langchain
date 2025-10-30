@@ -23,8 +23,6 @@ from backend.parser import langchain_docs_extractor
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
 
@@ -94,7 +92,7 @@ def load_langchain_js_docs():
             )
         },
         meta_function=metadata_extractor,
-        filter_urls=["https://js.langchain.com/docs/"],
+        filter_urls=["https://js.langchain.com/docs/concepts"],
     ).load()
 
 
@@ -120,14 +118,11 @@ def ingest_general_guides_and_tutorials():  # test with just js docs
 
 
 def ingest_docs():
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
+    # text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     embedding = get_embeddings_model()
 
-    with weaviate.connect_to_weaviate_cloud(
-        cluster_url=WEAVIATE_URL,
-        auth_credentials=weaviate.classes.init.Auth.api_key(WEAVIATE_API_KEY),
-        skip_init_checks=True,
-    ) as weaviate_client:
+    with weaviate.connect_to_local() as weaviate_client:
         # General Guides and Tutorials
         general_guides_and_tutorials_vectorstore = WeaviateVectorStore(
             client=weaviate_client,

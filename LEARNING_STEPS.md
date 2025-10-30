@@ -63,7 +63,7 @@ This comprehensive learning guide will help you understand the Chat LangChain co
   - Embedding generation and storage in Weaviate
   - Metadata extraction and processing
 
-- [ ] **Understand embeddings** (`backend/embeddings.py`)
+- [x] **Understand embeddings** (`backend/embeddings.py`)
 
   - Embedding model configuration
   - Integration with various providers (OpenAI, Voyage, etc.)

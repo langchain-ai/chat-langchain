@@ -20,15 +20,14 @@ from langsmith import Client, RunEvaluator
 from langsmith.evaluation.evaluator import EvaluationResult
 from langsmith.schemas import Example, Run
 
-WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
-WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
+WEAVIATE_URL = os.environ.get("WEAVIATE_URL", "http://localhost:8080")
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_transformers_multi_qa_MiniLM"
 
 
 def search(inp: str, callbacks=None) -> list:
+    # Note: This uses the old Weaviate client API v3. Consider upgrading to v4.
     client = weaviate.Client(
         url=WEAVIATE_URL,
-        auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
     weaviate_client = Weaviate(
         client=client,

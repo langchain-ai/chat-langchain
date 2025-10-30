@@ -29,7 +29,7 @@ _MODEL_MAP = {
     "openai": "gpt-3.5-turbo-1106",
     "anthropic": "claude-2",
 }
-WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_transformers_multi_qa_MiniLM"
 
 
 def create_chain(
@@ -110,12 +110,11 @@ def create_chain(
 
 
 def _get_retriever():
-    WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-    WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
+    WEAVIATE_URL = os.environ.get("WEAVIATE_URL", "http://localhost:8080")
 
+    # Note: This uses the old Weaviate client API v3. Consider upgrading to v4.
     client = weaviate.Client(
         url=WEAVIATE_URL,
-        auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
     weaviate_client = Weaviate(
         client=client,

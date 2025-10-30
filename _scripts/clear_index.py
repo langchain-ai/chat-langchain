@@ -10,16 +10,16 @@ from langchain.vectorstores import Weaviate
 
 logger = logging.getLogger(__name__)
 
-WEAVIATE_URL = os.environ["WEAVIATE_URL"]
-WEAVIATE_API_KEY = os.environ["WEAVIATE_API_KEY"]
+WEAVIATE_URL = os.environ.get("WEAVIATE_URL", "http://localhost:8080")
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
-WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_OpenAI_text_embedding_3_small"
+WEAVIATE_DOCS_INDEX_NAME = "LangChain_Combined_Docs_transformers_multi_qa_MiniLM"
 
 
 def clear():
+    # Note: This uses the old Weaviate client API v3. Consider upgrading to v4.
+    host = WEAVIATE_URL.replace("http://", "").replace("https://", "")
     client = weaviate.Client(
         url=WEAVIATE_URL,
-        auth_client_secret=weaviate.AuthApiKey(api_key=WEAVIATE_API_KEY),
     )
     vectorstore = Weaviate(
         client=client,
