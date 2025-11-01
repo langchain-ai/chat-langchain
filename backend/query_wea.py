@@ -24,7 +24,7 @@ def main():
         for i, doc in enumerate(docs, 1):
             print(f"{i}. {doc.metadata['title']}")
             print(f"   Source: {doc.metadata['source'][:70]}")
-            print(f"   Distance: {doc.metadata['distance']:.4f}")
+            # print(f"   Distance: {doc.metadata['distance']:.4f}")
             if args.show_content:
                 # print(f"   Content: {doc.page_content[:200]}...")
                 print(f"   Content: {doc.page_content}")
@@ -36,10 +36,10 @@ if __name__ == "__main__":
 
 
 # # Basic query
-# PYTHONPATH=. poetry run python query_weaviate.py "What is LangChain?"
+# PYTHONPATH=. poetry run python backend/query_wea.py "How to use langchain-mcp-adapters to connect MCP servers to an LLM?"
 
 # # With custom k value
-# PYTHONPATH=. poetry run python query_weaviate.py "How do I use agents?" -k 3
+# PYTHONPATH=. poetry run python backend/query_wea.py "How do I use agents?" -k 3
 
 # # Show content preview
-# PYTHONPATH=. poetry run python query_weaviate.py "What are chains?" --show-content
+# PYTHONPATH=. poetry run python backend/query_wea.py "What are chains?" --show-content

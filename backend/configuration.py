@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field, fields
 from typing import Annotated, Any, Literal, Optional, Type, TypeVar
 
@@ -42,7 +43,7 @@ class BaseConfiguration:
         str,
         {"__template_metadata__": {"kind": "embeddings"}},
     ] = field(
-        default="weaviate/text2vec-transformers",
+        default_factory=lambda: os.getenv("EMBEDDING_MODEL", "ollama/nomic-embed-text"),
         metadata={
             "description": "Name of the embedding model to use. Must be a valid embedding model name."
         },

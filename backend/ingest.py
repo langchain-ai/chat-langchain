@@ -1,5 +1,6 @@
 """Load html from files, clean up, split, ingest into Weaviate."""
 
+import json
 import logging
 import os
 import re
@@ -107,19 +108,25 @@ def load_aggregated_docs_site():
             )
         },
         meta_function=metadata_extractor,
+        filter_urls=[
+            "https://docs.langchain.com/oss/javascript/langchain/mcp",
+            "https://docs.langchain.com/oss/javascript/langchain/agents",
+            "https://docs.langchain.com/oss/javascript/langchain/context-engineering",
+        ],
     ).load()
 
 
 def ingest_general_guides_and_tutorials():  # test with just js docs
     # langchain_python_docs = load_langchain_python_docs()
-    langchain_js_docs = load_langchain_js_docs()
-    # aggregated_site_docs = load_aggregated_docs_site()
-    return langchain_js_docs  # + aggregated_site_docs
+    # langchain_js_docs = load_langchain_js_docs()
+    aggregated_site_docs = load_aggregated_docs_site()
+    return aggregated_site_docs  # + langchain_js_docs
 
 
 def ingest_docs():
-    # text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    # Larger chunks for nomic-embed-text (2K token context window)
+    # 4000 chars ≈ 1000-1300 tokens, well within the 2K limit
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     embedding = get_embeddings_model()
 
     with weaviate.connect_to_local() as weaviate_client:
@@ -143,6 +150,40 @@ def ingest_docs():
         docs_transformed = [
             doc for doc in docs_transformed if len(doc.page_content) > 10
         ]
+
+        # Write transformed chunks to JSON file for inspection
+        chunks_data = []
+        for doc in docs_transformed:
+            doc_dict = {
+                "page_content": doc.page_content,
+                "metadata": doc.metadata,
+                "type": doc.type if hasattr(doc, "type") else "Document",
+            }
+            # Add any additional fields that might exist
+            for attr in dir(doc):
+                if not attr.startswith("_") and attr not in [
+                    "page_content",
+                    "metadata",
+                    "type",
+                ]:
+                    try:
+                        value = getattr(doc, attr)
+                        if not callable(value):
+                            # Try to serialize the value, convert to string if not serializable
+                            try:
+                                json.dumps(value)
+                                doc_dict[attr] = value
+                            except (TypeError, ValueError):
+                                # Skip non-serializable objects like FieldInfo
+                                pass
+                    except Exception:
+                        pass
+            chunks_data.append(doc_dict)
+
+        chunks_file_path = os.path.join(os.path.dirname(__file__), "..", "chunks.json")
+        with open(chunks_file_path, "w", encoding="utf-8") as f:
+            json.dump(chunks_data, f, indent=2, ensure_ascii=False)
+        logger.info(f"Wrote {len(chunks_data)} chunks to chunks.json")
 
         # We try to return 'source' and 'title' metadata when querying vector store and
         # Weaviate will error at query time if one of the attributes is missing from a

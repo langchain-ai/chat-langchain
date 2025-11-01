@@ -36,23 +36,32 @@ services:
       QUERY_DEFAULTS_LIMIT: 20
       AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
       PERSISTENCE_DATA_PATH: "/var/lib/weaviate"
-      DEFAULT_VECTORIZER_MODULE: text2vec-transformers
-      ENABLE_MODULES: text2vec-transformers
-      TRANSFORMERS_INFERENCE_API: http://text2vec-transformers:8080
+      DEFAULT_VECTORIZER_MODULE: none
+      ENABLE_MODULES: ""
       CLUSTER_HOSTNAME: "node1"
     volumes:
       - weaviate_data:/var/lib/weaviate
 
-  text2vec-transformers:
-    image: cr.weaviate.io/semitechnologies/transformers-inference:sentence-transformers-multi-qa-MiniLM-L6-cos-v1
-    container_name: chat_langchain_transformers
+  ollama:
+    image: ollama/ollama:0.12.8
+    container_name: chat_langchain_ollama
     restart: unless-stopped
-    environment:
-      ENABLE_CUDA: "0"
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "ollama serve & sleep 3 && ollama pull nomic-embed-text && tail -f /dev/null",
+      ]
 
 # Named volumes
 volumes:
   postgres_data:
     driver: local
   weaviate_data:
+    driver: local
+  ollama_data:
     driver: local

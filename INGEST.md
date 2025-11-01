@@ -19,20 +19,17 @@ Document ingestion converts raw documents (web pages) into searchable vectors st
 │  │   PostgreSQL     │         │    Weaviate      │          │
 │  │   :5432          │         │    :8080         │          │
 │  │                  │         │    :50051        │          │
-│  │  Record Manager  │         │  Vector Store    │◄─────┐   │
-│  │  (Deduplication) │         │                  │      │   │
-│  └──────────────────┘         └────────┬─────────┘      │   │
-│                                        │                │   │
-│                                        │ Internal HTTP  │   │
-│                                        │                │   │
-│                                        ▼                │   │
-│                          ┌──────────────────────┐      │   │
-│                          │ text2vec-transformers│──────┘   │
-│                          │      :8080           │          │
-│                          │                      │          │
-│                          │ sentence-transformers│          │
-│                          │ multi-qa-MiniLM-L6   │          │
-│                          └──────────────────────┘          │
+│  │  Record Manager  │         │  Vector Store    │          │
+│  │  (Deduplication) │         │                  │          │
+│  └──────────────────┘         └──────────────────┘          │
+│                                                               │
+│                          ┌──────────────────────┐            │
+│                          │      Ollama          │            │
+│                          │      :11434          │            │
+│                          │                      │            │
+│                          │  nomic-embed-text    │            │
+│                          │  (2K context, 768d)  │            │
+│                          └──────────────────────┘            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -47,14 +44,15 @@ Document ingestion converts raw documents (web pages) into searchable vectors st
 **2. Weaviate** (`:8080`)
 
 - Vector database server
-- Manages vectorization via `text2vec-transformers:8080`
 - Stores vectors + text + metadata
+- No built-in vectorizer (uses external embeddings)
 
-**3. text2vec-transformers** (internal `:8080`)
+**3. Ollama** (`:11434`)
 
-- Embedding model: `sentence-transformers-multi-qa-MiniLM-L6-cos-v1`
-- Converts text → 384-dimensional vectors
-- Called by Weaviate (not directly by Python)
+- Embedding model: `nomic-embed-text`
+- Converts text → 768-dimensional vectors
+- 2K token context window
+- Called directly by Python via LangChain
 
 ### Internal Communication Flow
 
@@ -62,20 +60,20 @@ Document ingestion converts raw documents (web pages) into searchable vectors st
 Your Python Code
     │ "Store: 'What is LangChain?'"
     ↓
+Ollama Server (:11434)
+    │ Processes with nomic-embed-text
+    ↓
+Your Python Code
+    │ Receives 768-dim vector [0.123, -0.456, ...]
+    ↓
 Weaviate Server (:8080)
-    │ Internal HTTP → text2vec-transformers:8080
-    ↓
-text2vec-transformers
-    │ Returns 384-dim vector [0.123, -0.456, ...]
-    ↓
-Weaviate Server
     │ Stores: {text, vector, metadata}
     ↓
 Your Python Code
     │ Response: "Document stored"
 ```
 
-**Key Point:** Your Python code only talks to Weaviate at `localhost:8080`. Weaviate handles all embedding requests internally to the transformers container.
+**Key Point:** Your Python code calls Ollama at `localhost:11434` for embeddings, then sends the vectors to Weaviate at `localhost:8080` for storage.
 
 ---
 
@@ -88,16 +86,16 @@ Your Python Code
     │ Load 32 pages from js.langchain.com
     ↓
 [Text Splitting]
-    │ Split into 465 chunks (1000 chars each)
+    │ Split into ~120 chunks (4000 chars each)
     ↓
 [Python: ingest.py]
-    │ Send chunks to Weaviate
+    │ Send text to Ollama
     ↓
-[Weaviate Server]
-    │ Forward text to text2vec-transformers:8080
+[Ollama Server]
+    │ Generate 768-dim vectors with nomic-embed-text
     ↓
-[text2vec-transformers]
-    │ Generate 384-dim vectors
+[Python: ingest.py]
+    │ Send vectors + text to Weaviate
     ↓
 [Weaviate Server]
     │ Store: {text, vector, source, title}
@@ -116,11 +114,11 @@ Your Python Code
 [Python: retrieval.py]
     │ retriever.invoke(query)
     ↓
-[Weaviate Server]
-    │ Forward query to text2vec-transformers:8080
+[Ollama Server]
+    │ Generate query vector with nomic-embed-text
     ↓
-[text2vec-transformers]
-    │ Generate query vector
+[Python: retrieval.py]
+    │ Send query vector to Weaviate
     ↓
 [Weaviate Server]
     │ Find similar vectors (cosine similarity)
@@ -224,7 +222,7 @@ A list of LangChain `Document` objects loaded from the sitemap:
 ```python
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=4000,      # Max 4000 characters per chunk
-    chunk_overlap=200     # 200 characters overlap between chunks
+    chunk_overlap=400     # 400 characters overlap between chunks
 )
 
 docs_transformed = text_splitter.split_documents(general_guides_and_tutorials_docs)
@@ -313,25 +311,26 @@ Document(
 ### Step 3: Generate Embeddings (Server-Side)
 
 ```python
-# Python code sends text to Weaviate
+# Python code generates embeddings via Ollama, then stores in Weaviate
 vectorstore.add_documents([
     Document(page_content="LangChain is a framework...", metadata={...})
 ])
 
 # What happens internally:
-# 1. Weaviate receives text
-# 2. Weaviate calls text2vec-transformers:8080
-# 3. Transformers returns 384-dim vector [0.023, -0.015, ..., 0.008]
-# 4. Weaviate stores: {text, vector, metadata}
+# 1. Python calls Ollama at localhost:11434
+# 2. Ollama/nomic-embed-text returns 768-dim vector [0.023, -0.015, ..., 0.008]
+# 3. Python sends {text, vector, metadata} to Weaviate
+# 4. Weaviate stores the complete document
 ```
 
 **What is a vector?**
 
 - Mathematical representation of text meaning
-- 384 floating-point numbers (multi-qa-MiniLM-L6)
+- 768 floating-point numbers (nomic-embed-text)
 - Similar texts have similar vectors
 - Enables "meaning-based" search
-- **Generated server-side** (no API costs!)
+- 2K token context window for better understanding
+- **Generated locally via Ollama** (no API costs!)
 
 ### Step 4: Check Record Manager & Smart Deduplication
 
@@ -669,12 +668,12 @@ Third Run (5 URLs changed):
 
 ```python
 # Documents loaded: 32 pages (from sitemap)
-# After splitting: 465 chunks (1000 chars each)
-# Embeddings generated: 465 (server-side, no cost!)
-# Time: ~8 seconds
+# After splitting: ~120 chunks (4000 chars each)
+# Embeddings generated: ~120 (via Ollama, no cost!)
+# Time: ~10-15 seconds (local generation)
 
 indexing_stats = {
-    'num_added': 465,
+    'num_added': 120,
     'num_updated': 0,
     'num_skipped': 0,
     'num_deleted': 0
@@ -685,14 +684,14 @@ indexing_stats = {
 
 ```python
 # Documents loaded: 32 pages (same)
-# After splitting: 465 chunks (same)
+# After splitting: ~120 chunks (same)
 # Embeddings generated: 0 ✅ (all skipped!)
 # Time: ~1 second
 
 indexing_stats = {
     'num_added': 0,
     'num_updated': 0,
-    'num_skipped': 465,  # All documents unchanged
+    'num_skipped': 120,  # All documents unchanged
     'num_deleted': 0
 }
 ```
@@ -701,15 +700,15 @@ indexing_stats = {
 
 ```python
 # New documents: 0
-# Updated documents: 5 pages → ~75 chunks
-# Unchanged: 27 pages → 390 chunks
-# Embeddings generated: 75 (only updated chunks)
-# Time: ~2 seconds
+# Updated documents: 5 pages → ~19 chunks
+# Unchanged: 27 pages → ~101 chunks
+# Embeddings generated: 19 (only updated chunks)
+# Time: ~3 seconds
 
 indexing_stats = {
     'num_added': 0,
-    'num_updated': 75,     # Changed chunks
-    'num_skipped': 390,    # Unchanged chunks
+    'num_updated': 19,     # Changed chunks
+    'num_skipped': 101,    # Unchanged chunks
     'num_deleted': 0
 }
 ```
@@ -719,27 +718,29 @@ indexing_stats = {
 ### 1. **Local & Private**
 
 - **All processing happens locally** in Docker containers
-- No external API calls for embeddings
+- Ollama runs embeddings on your machine
 - Your data never leaves your machine
 - No API costs for embeddings! 🎉
+- 768-dimensional vectors for better semantic understanding
 
 ### 2. **No Duplicates**
 
 - **Without Record Manager:** Each run adds duplicates
-  - Run 1: 465 vectors
-  - Run 2: 930 vectors (50% duplicates!)
-  - Run 3: 1,395 vectors (67% duplicates!)
+  - Run 1: 120 vectors
+  - Run 2: 240 vectors (50% duplicates!)
+  - Run 3: 360 vectors (67% duplicates!)
 - **With Record Manager:** Always exactly the right number
-  - Run 1: 465 vectors
-  - Run 2: 465 vectors (same)
-  - Run 3: 465 vectors (same)
+  - Run 1: 120 vectors
+  - Run 2: 120 vectors (same)
+  - Run 3: 120 vectors (same)
 
 ### 3. **Speed & Efficiency**
 
 - Skip unchanged documents (no re-processing)
 - Only generate embeddings when content changes
 - 85% faster on subsequent runs
-- First run: ~8 seconds for 32 pages → 465 vectors
+- Larger chunks (4000 chars) = fewer vectors to process
+- First run: ~10-15 seconds for 32 pages → ~120 vectors
 - Second run (unchanged): ~1 second (all skipped)
 
 ### 4. **Automatic Cleanup**
@@ -761,22 +762,22 @@ def ingest_docs():
     # 1. Load and prepare documents
     docs = ingest_general_guides_and_tutorials()  # 32 HTML pages
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,   # 1000 chars per chunk
-        chunk_overlap=100   # 100 chars overlap
+        chunk_size=4000,   # 4000 chars per chunk (larger for better context)
+        chunk_overlap=400   # 400 chars overlap
     )
-    docs_transformed = text_splitter.split_documents(docs)  # → 465 chunks
+    docs_transformed = text_splitter.split_documents(docs)  # → ~120 chunks
 
-    # 2. Get embedding model (returns None for Weaviate built-in)
-    embedding = get_embeddings_model()  # → None
+    # 2. Get embedding model (OllamaEmbeddings for nomic-embed-text)
+    embedding = get_embeddings_model()  # → OllamaEmbeddings
 
     # 3. Connect to local Weaviate
     with weaviate.connect_to_local() as weaviate_client:
-        # 4. Create Vector Store (embedding=None = server-side vectorization)
+        # 4. Create Vector Store (embedding=OllamaEmbeddings)
         vectorstore = WeaviateVectorStore(
             client=weaviate_client,
-            index_name="LangChain_General_Guides_And_Tutorials_...",
+            index_name="LangChain_General_Guides_And_Tutorials_nomic_embed_text",
             text_key="text",
-            embedding=None,  # ← Weaviate handles vectorization!
+            embedding=embedding,  # ← Python handles vectorization via Ollama!
             attributes=["source", "title"]
         )
 
@@ -798,7 +799,7 @@ def ingest_docs():
         )
 
         print(f"Indexing complete: {indexing_stats}")
-        # Output: {'num_added': 465, 'num_updated': 0, 'num_skipped': 0, 'num_deleted': 0}
+        # Output: {'num_added': 120, 'num_updated': 0, 'num_skipped': 0, 'num_deleted': 0}
 ```
 
 ## 🎯 Key Takeaways
@@ -806,22 +807,23 @@ def ingest_docs():
 1. **Docker-Based Local Setup:**
 
    - **PostgreSQL** = Tracks indexed documents (deduplication)
-   - **Weaviate** = Vector database server
-   - **text2vec-transformers** = Embedding model (384-dim vectors)
-   - All communication happens internally—Python only talks to Weaviate
+   - **Weaviate** = Vector database server (storage only)
+   - **Ollama** = Embedding service with nomic-embed-text (768-dim vectors, 2K context)
+   - Python calls Ollama for embeddings, then stores in Weaviate
 
-2. **Server-Side Vectorization:**
+2. **Client-Side Vectorization via Ollama:**
 
-   - Python sends raw text to Weaviate (`embedding=None`)
-   - Weaviate calls text2vec-transformers internally
+   - Python calls Ollama at `localhost:11434`
+   - Ollama generates vectors using nomic-embed-text
+   - Python sends vectors to Weaviate for storage
    - No external API calls or costs
    - Your data stays private and local
 
 3. **Document Pipeline:**
 
    - **Load**: 32 HTML pages from sitemap
-   - **Split**: 32 pages → 465 chunks (1000 chars, 100 overlap)
-   - **Vectorize**: Server-side via text2vec-transformers
+   - **Split**: 32 pages → ~120 chunks (4000 chars, 400 overlap)
+   - **Vectorize**: Via Ollama/nomic-embed-text (768 dimensions)
    - **Store**: Weaviate stores {text, vector, metadata}
 
 4. **Smart Deduplication with Record Manager:**
@@ -845,7 +847,7 @@ def ingest_docs():
 
 ```json
 {
-  "vector": [384 floats],  // multi-qa-MiniLM-L6 embeddings
+  "vector": [768 floats],  // nomic-embed-text embeddings
   "text": "document content",
   "source": "https://js.langchain.com/docs/...",
   "title": "Page Title | 🦜️🔗 LangChain.js"
@@ -881,7 +883,7 @@ index(
 ### Start Docker Containers
 
 ```bash
-# Start all services (PostgreSQL, Weaviate, text2vec-transformers)
+# Start all services (PostgreSQL, Weaviate, Ollama)
 docker-compose up -d
 
 # Check status
@@ -897,13 +899,13 @@ docker-compose logs -f weaviate
 # Set environment (already configured in .env)
 # RECORD_MANAGER_DB_URL=postgresql://postgres:zkdtn1234@localhost:5432/chat_langchain
 
-# Run ingestion
+# Run ingestion (make sure Ollama is running and has pulled nomic-embed-text)
 PYTHONPATH=. poetry run python backend/ingest.py
 
 # Output:
 # Fetching pages: 100%|████████| 32/32 [00:08<00:00,  3.60it/s]
-# INFO: Indexing stats: {'num_added': 465, 'num_updated': 0, 'num_skipped': 0, 'num_deleted': 0}
-# INFO: General Guides and Tutorials now has this many vectors: 465
+# INFO: Indexing stats: {'num_added': 120, 'num_updated': 0, 'num_skipped': 0, 'num_deleted': 0}
+# INFO: General Guides and Tutorials now has this many vectors: 120
 ```
 
 ### Query Documents
@@ -924,8 +926,8 @@ with make_retriever(config) as retriever:
 
 ---
 
-**Built with:** LangChain, Weaviate, PostgreSQL, sentence-transformers
+**Built with:** LangChain, Weaviate, PostgreSQL, Ollama, nomic-embed-text
 
-**Architecture:** Local Docker setup with server-side vectorization
+**Architecture:** Local Docker setup with Ollama-powered embeddings
 
 **Last Updated:** October 30, 2024
