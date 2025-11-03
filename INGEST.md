@@ -1,6 +1,66 @@
-# Document Ingestion Flow - Complete Guide
-
 A comprehensive guide to understanding how Chat LangChain ingests, processes, and stores documents for semantic search using local Weaviate with Docker.
+
+> **Learning Journey:** This is part of my exploration of the [Chat LangChain](https://github.com/langchain-ai/chat-langchain) open-source project.
+>
+> **Source Repository:** [langchain-ai/chat-langchain](https://github.com/langchain-ai/chat-langchain)  
+> **Practice Repository:** [thongvmdev/chat-langchain-practice](https://github.com/thongvmdev/chat-langchain-practice)
+
+---
+
+## 🚨 Problem & Solution
+
+### The Challenge
+
+While learning RAG systems from the Chat LangChain project, I encountered two major obstacles:
+
+1. **Cloud Weaviate Limitations**
+
+   - Free tier cluster expires after **14 days**
+   - Not suitable for continuous learning and experimentation
+   - Need to recreate clusters repeatedly
+   - Limited storage and query capacity
+
+2. **OpenAI Embedding Costs**
+   - OpenAI embeddings charge per token
+   - For learning purposes, re-running ingestion multiple times adds up quickly
+   - Example: Ingesting 500 documents × 3 practice runs = significant costs
+   - Not cost-effective for experimentation and iteration
+
+### The Solution: Local Docker Stack
+
+I solved both problems by switching to a **completely local, zero-cost setup**:
+
+**Architecture Changes:**
+
+```diff
+- Cloud Weaviate Cluster (14-day limit)
++ Local Weaviate Docker Container (unlimited)
+
+- OpenAI Embeddings ($$$)
++ Ollama + nomic-embed-text Model (free!)
+
+- External API dependencies
++ 100% local Docker Compose setup
+```
+
+**Benefits:**
+
+- ✅ **Zero Cost:** No API fees, no cloud limits
+- ✅ **Privacy:** All data stays on your machine
+- ✅ **Unlimited Learning:** Run ingestion as many times as needed
+- ✅ **Offline Capable:** Work without internet connection
+- ✅ **Fast Iteration:** No rate limits or network latency
+
+**Technical Stack:**
+
+- **PostgreSQL** (Record Manager): Tracks indexed documents for deduplication
+- **Weaviate** (Vector Store): Stores embeddings and document metadata
+- **Ollama** (Embedding Service): Generates vectors using `nomic-embed-text`
+  - 768-dimensional vectors
+  - 2K token context window
+  - Runs locally on CPU/GPU
+
+**Setup:** See `docker-compose.yml` for the complete configuration
 
 ## 🎯 What is Document Ingestion?
 
@@ -53,27 +113,6 @@ Document ingestion converts raw documents (web pages) into searchable vectors st
 - Converts text → 768-dimensional vectors
 - 2K token context window
 - Called directly by Python via LangChain
-
-### Internal Communication Flow
-
-```
-Your Python Code
-    │ "Store: 'What is LangChain?'"
-    ↓
-Ollama Server (:11434)
-    │ Processes with nomic-embed-text
-    ↓
-Your Python Code
-    │ Receives 768-dim vector [0.123, -0.456, ...]
-    ↓
-Weaviate Server (:8080)
-    │ Stores: {text, vector, metadata}
-    ↓
-Your Python Code
-    │ Response: "Document stored"
-```
-
-**Key Point:** Your Python code calls Ollama at `localhost:11434` for embeddings, then sends the vectors to Weaviate at `localhost:8080` for storage.
 
 ---
 
@@ -923,11 +962,3 @@ with make_retriever(config) as retriever:
     print(f'Top result: {docs[0].metadata[\"title\"][:60]}')
 "
 ```
-
----
-
-**Built with:** LangChain, Weaviate, PostgreSQL, Ollama, nomic-embed-text
-
-**Architecture:** Local Docker setup with Ollama-powered embeddings
-
-**Last Updated:** October 30, 2024
