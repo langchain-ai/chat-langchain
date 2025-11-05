@@ -48,7 +48,9 @@ def create_search_queries_chain(
     include_question_and_chat_history=True,
 ) -> Runnable:
     model_name = model or _MODEL_MAP[model_provider]
-    model = _PROVIDER_MAP[model_provider](model=model_name, temperature=temperature)
+    model = _PROVIDER_MAP[model_provider](
+        model=model_name, temperature=temperature, stream_usage=True
+    )
     output_parser = CommaSeparatedListOutputParser()
 
     _template = """Given the following conversation and a follow up question, generate a list of search queries within LangChain's internal documentation. Keep the total number of search queries to be less than 3, and try to minimize the number of search queries if possible. We want to search as few times as possible, only retrieving the information that is absolutely necessary for answering the user's questions.
@@ -63,7 +65,7 @@ EXAMPLES:
     Chat History:
 
     Follow Up Input: Hi LangChain!
-    Search Queries: 
+    Search Queries:
 
     Chat History:
     What are vector stores?
@@ -115,14 +117,16 @@ def create_chain(
 ) -> Runnable:
     _inputs = create_search_queries_chain(retriever, model_provider, model, temperature)
     model_name = model or _MODEL_MAP[model_provider]
-    model = _PROVIDER_MAP[model_provider](model=model_name, temperature=temperature)
+    model = _PROVIDER_MAP[model_provider](
+        model=model_name, temperature=temperature, stream_usage=True
+    )
 
     _template = """
     You are an expert programmer and problem-solver, tasked to answer any question about Langchain. Using the provided context, answer the user's question to the best of your ability using the resources provided.
     If you really don't know the answer, just say "Hmm, I'm not sure." Don't try to make up an answer.
-    Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user. 
+    Anything between the following markdown blocks is retrieved from a knowledge bank, not part of the conversation with the user.
     <context>
-        {context} 
+        {context}
     <context/>"""
 
     _context = {

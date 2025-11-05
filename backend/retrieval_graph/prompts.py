@@ -1,8 +1,13 @@
+import os
+
 from langsmith import Client
 
 """Default prompts."""
 
-client = Client()
+client = Client(
+    api_key=os.getenv("LANGCHAIN_PROMPT_API_KEY"),
+    api_url=os.getenv("LANGCHAIN_PROMPT_API_URL"),
+)
 # fetch from langsmith
 ROUTER_SYSTEM_PROMPT = (
     client.pull_prompt("langchain-ai/chat-langchain-router-prompt")
