@@ -68,7 +68,7 @@ This comprehensive learning guide will help you understand the Chat LangChain co
   - Embedding model configuration
   - Integration with various providers (OpenAI, Voyage, etc.)
 
-- [ ] **Review parsing logic** (`backend/parser.py`)
+- [x] **Review parsing logic** (`backend/parser.py`)
   - Document content extraction
   - HTML parsing and cleaning
 

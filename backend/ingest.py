@@ -144,6 +144,26 @@ def ingest_docs():
         )
         record_manager.create_schema()
         general_guides_and_tutorials_docs = ingest_general_guides_and_tutorials()
+
+        print(f"General Guides and Tutorials docs: {general_guides_and_tutorials_docs}")
+
+        # Write raw documents to JSON file for inspection
+        raw_docs_data = [
+            {
+                "page_content": doc.page_content,
+                "metadata": doc.metadata,
+                "type": doc.type if hasattr(doc, "type") else "Document",
+            }
+            for doc in general_guides_and_tutorials_docs
+        ]
+
+        raw_docs_file_path = os.path.join(
+            os.path.dirname(__file__), "..", "raw_docs.json"
+        )
+        with open(raw_docs_file_path, "w", encoding="utf-8") as f:
+            json.dump(raw_docs_data, f, indent=2, ensure_ascii=False)
+        logger.info(f"Wrote {len(raw_docs_data)} raw documents to raw_docs.json")
+
         docs_transformed = text_splitter.split_documents(
             general_guides_and_tutorials_docs
         )
