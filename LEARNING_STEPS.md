@@ -76,7 +76,7 @@ This comprehensive learning guide will help you understand the Chat LangChain co
 
 #### Core Graph Architecture
 
-- [ ] **Main retrieval graph** (`backend/retrieval_graph/graph.py`)
+- [x] **Main retrieval graph** (`backend/retrieval_graph/graph.py`)
   - `analyze_and_route_query()` - Query classification
   - `create_research_plan()` - Multi-step research planning
   - `conduct_research()` - Executing research steps
@@ -85,34 +85,34 @@ This comprehensive learning guide will help you understand the Chat LangChain co
 
 #### State Management
 
-- [ ] **Agent state** (`backend/retrieval_graph/state.py`)
+- [x] **Agent state** (`backend/retrieval_graph/state.py`)
   - `InputState` - Input message structure
   - `AgentState` - Complete conversation state
   - `Router` - Query classification types
 
 #### Configuration System
 
-- [ ] **Agent configuration** (`backend/retrieval_graph/configuration.py`)
+- [x] **Agent configuration** (`backend/retrieval_graph/configuration.py`)
   - Model selection (query_model, response_model)
   - System prompts customization
   - Retrieval provider configuration
 
 ### Step 5: Researcher Sub-Graph
 
-- [ ] **Researcher graph** (`backend/retrieval_graph/researcher_graph/`)
+- [x] **Researcher graph** (`backend/retrieval_graph/researcher_graph/`)
   - `generate_queries()` - Creating search queries
   - `retrieve_documents()` - Document retrieval
   - Parallel query execution and result aggregation
 
 ### Step 6: Retrieval & Utilities
 
-- [ ] **Retrieval methods** (`backend/retrieval.py`)
+- [x] **Retrieval methods** (`backend/retrieval.py`)
 
   - Vector similarity search
   - Multiple retrieval providers support
   - Query rewriting and optimization
 
-- [ ] **Utility functions** (`backend/utils.py`)
+- [x] **Utility functions** (`backend/utils.py`)
   - Model loading and configuration
   - Document formatting
   - Helper functions
