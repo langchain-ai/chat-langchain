@@ -125,28 +125,28 @@ This comprehensive learning guide will help you understand the Chat LangChain co
 
 #### Core Components
 
-- [ ] **Main app structure**
+- [x] **Main app structure**
   - `frontend/app/page.tsx` - Root page component
   - `frontend/app/layout.tsx` - Application layout
   - `frontend/app/components/ChatLangChain.tsx` - Main chat interface
 
 #### Chat Interface
 
-- [ ] **Chat system** (`frontend/app/components/chat-interface/`)
+- [x] **Chat system** (`frontend/app/components/chat-interface/`)
   - `index.tsx` - Main chat component using assistant-ui
   - `chat-composer.tsx` - Message input component
   - `messages.tsx` - Message display and rendering
 
 #### UI Components
 
-- [ ] **Custom UI components** (`frontend/app/components/ui/`)
+- [x] **Custom UI components** (`frontend/app/components/ui/`)
   - Built with Radix UI primitives
   - Tailwind CSS styling
   - `button.tsx`, `dialog.tsx`, `toast.tsx`, etc.
 
 #### Tool UI Components
 
-- [ ] **Research visualization** (`frontend/app/components/`)
+- [x] **Research visualization** (`frontend/app/components/`)
   - `GeneratingQuestionsToolUI.tsx` - Query generation display
   - `ProgressToolUI.tsx` - Research progress tracking
   - `SelectedDocumentsToolUI.tsx` - Document selection display
@@ -155,7 +155,7 @@ This comprehensive learning guide will help you understand the Chat LangChain co
 
 #### Context System
 
-- [ ] **Graph context** (`frontend/app/contexts/GraphContext.tsx`)
+- [x] **Graph context** (`frontend/app/contexts/GraphContext.tsx`)
   - Message state management
   - Thread management
   - User data handling
@@ -163,7 +163,7 @@ This comprehensive learning guide will help you understand the Chat LangChain co
 
 #### Custom Hooks
 
-- [ ] **React hooks** (`frontend/app/hooks/`)
+- [x] **React hooks** (`frontend/app/hooks/`)
   - `useRuns.tsx` - LangSmith run tracking
   - `useThreads.tsx` - Thread management
   - `useUser.tsx` - User session management
@@ -173,14 +173,14 @@ This comprehensive learning guide will help you understand the Chat LangChain co
 
 #### API Routes
 
-- [ ] **Next.js API routes** (`frontend/app/api/`)
+- [x] **Next.js API routes** (`frontend/app/api/`)
   - `[...path]/route.ts` - LangGraph Cloud proxy
   - `runs/feedback/route.ts` - LangSmith feedback
   - `runs/share/route.ts` - Run sharing
 
 #### Message Conversion
 
-- [ ] **Message handling** (`frontend/app/utils/convert_messages.ts`)
+- [x] **Message handling** (`frontend/app/utils/convert_messages.ts`)
   - LangChain to OpenAI format conversion
   - Message type transformations
 
