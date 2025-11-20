@@ -3,14 +3,80 @@
 Functions:
     format_docs: Convert documents to an xml-formatted string.
     load_chat_model: Load a chat model from a model name.
+    get_weaviate_client: Create a Weaviate client connection.
 """
 
+import os
 import uuid
-from typing import Any, Literal, Optional, Union
+from contextlib import contextmanager
+from typing import Any, Iterator, Literal, Optional, Union
 
+import weaviate
+from weaviate.auth import AuthApiKey
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
+
+
+@contextmanager
+def get_weaviate_client(
+    weaviate_url: Optional[str] = None,
+    weaviate_grpc_url: Optional[str] = None,
+    weaviate_api_key: Optional[str] = None,
+    http_port: int = 443,
+    grpc_port: int = 443,
+) -> Iterator[weaviate.WeaviateClient]:
+    """Create and manage a Weaviate client connection.
+
+    This is a context manager that creates a Weaviate client connection and ensures
+    it is properly closed after use.
+
+    Args:
+        weaviate_url: The Weaviate HTTP URL. If None, reads from WEAVIATE_URL env var.
+        weaviate_grpc_url: The Weaviate gRPC URL. If None, uses weaviate_url for both HTTP and gRPC.
+        weaviate_api_key: The Weaviate API key. If None, reads from WEAVIATE_API_KEY env var.
+        http_port: The HTTP port to use (default: 443).
+        grpc_port: The gRPC port to use (default: 443).
+
+    Yields:
+        weaviate.WeaviateClient: A connected Weaviate client.
+
+    Example:
+        >>> with get_weaviate_client() as client:
+        ...     # Use the client
+        ...     collection = client.collections.get("MyCollection")
+    """
+    # Get URL and API key from environment if not provided
+    url = weaviate_url or os.environ.get(
+        "WEAVIATE_URL", "https://weaviate.hanu-nus.com"
+    )
+    api_key = weaviate_api_key or os.environ.get("WEAVIATE_API_KEY", "admin-key")
+
+    # Extract hostname from URL (remove https:// or http://)
+    http_host = url.replace("https://", "").replace("http://", "")
+
+    # Use separate gRPC URL if provided, otherwise use the same as HTTP
+    if weaviate_grpc_url:
+        grpc_host = weaviate_grpc_url.replace("https://", "").replace("http://", "")
+    else:
+        grpc_host = http_host
+
+    # Create Weaviate client
+    client = weaviate.connect_to_custom(
+        http_host=http_host,
+        http_port=http_port,
+        http_secure=True,
+        grpc_host=grpc_host,
+        grpc_port=grpc_port,
+        grpc_secure=True,
+        auth_credentials=AuthApiKey(api_key=api_key),
+    )
+
+    try:
+        yield client
+    finally:
+        # Ensure the client is closed
+        client.close()
 
 
 def _format_doc(doc: Document) -> str:

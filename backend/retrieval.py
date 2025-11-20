@@ -1,7 +1,7 @@
+import os
 from contextlib import contextmanager
 from typing import Iterator
 
-import weaviate
 from langchain_core.embeddings import Embeddings
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import RunnableConfig
@@ -12,6 +12,10 @@ from backend.constants import (
     OLLAMA_BASE_URL,
     WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,
 )
+from backend.utils import get_weaviate_client
+
+WEAVIATE_URL = os.environ.get("WEAVIATE_URL", "https://weaviate.hanu-nus.com")
+WEAVIATE_API_KEY = os.environ.get("WEAVIATE_API_KEY", "admin-key")
 
 
 def make_text_encoder(model: str) -> Embeddings:
@@ -37,7 +41,11 @@ def make_text_encoder(model: str) -> Embeddings:
 def make_weaviate_retriever(
     configuration: BaseConfiguration, embedding_model: Embeddings
 ) -> Iterator[BaseRetriever]:
-    with weaviate.connect_to_local() as weaviate_client:
+    with get_weaviate_client(
+        weaviate_url=WEAVIATE_URL,
+        weaviate_api_key=WEAVIATE_API_KEY,
+        grpc_port=50051,
+    ) as weaviate_client:
         store = WeaviateVectorStore(
             client=weaviate_client,
             index_name=WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,

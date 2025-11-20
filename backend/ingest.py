@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+import weaviate.classes.init as wvc
 
-import weaviate
 from bs4 import BeautifulSoup, SoupStrainer
 from langchain.document_loaders import SitemapLoader
 from langchain.indexes import SQLRecordManager, index
@@ -20,11 +20,16 @@ from langchain_weaviate import WeaviateVectorStore
 from backend.constants import WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
 from backend.embeddings import get_embeddings_model
 from backend.parser import langchain_docs_extractor
+from backend.utils import get_weaviate_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+WEAVIATE_URL = os.environ.get("WEAVIATE_URL")
+WEAVIATE_GRPC_URL = os.environ.get("WEAVIATE_GRPC_URL")
+
+WEAVIATE_API_KEY = os.environ.get("WEAVIATE_API_KEY")
 
 
 def metadata_extractor(
@@ -129,7 +134,11 @@ def ingest_docs():
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
     embedding = get_embeddings_model()
 
-    with weaviate.connect_to_local() as weaviate_client:
+    with get_weaviate_client(
+        weaviate_url=WEAVIATE_URL,
+        weaviate_grpc_url=WEAVIATE_GRPC_URL,
+        weaviate_api_key=WEAVIATE_API_KEY,
+    ) as weaviate_client:
         # General Guides and Tutorials
         general_guides_and_tutorials_vectorstore = WeaviateVectorStore(
             client=weaviate_client,

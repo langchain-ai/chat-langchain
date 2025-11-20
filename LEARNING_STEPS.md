@@ -195,7 +195,7 @@ This comprehensive learning guide will help you understand the Chat LangChain co
   - Feedback systems
   - Performance monitoring
 
-### Step 11: Evaluation & Testing System
+### Step 11: Evaluation & Testing System > Ignore
 
 - [ ] **Evaluation scripts** (`_scripts/`)
   - `evaluate_chat_langchain.py` - End-to-end system evaluation
@@ -292,7 +292,7 @@ python _scripts/clear_index.py
 
 #### Custom Actions
 
-- [ ] **`poetry_setup/action.yml`** - Reusable Poetry Setup
+- [ ] **`uv/action.yml`** - Reusable UV Setup
 
   - **Purpose**: Optimized Poetry installation with dependency caching
   - **Features**:

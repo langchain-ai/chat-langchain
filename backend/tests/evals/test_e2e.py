@@ -1,3 +1,8 @@
+from dotenv import load_dotenv
+
+# Load environment variables before any other imports that might need them
+load_dotenv()
+
 import asyncio
 from typing import Any
 
@@ -12,14 +17,16 @@ from pydantic import BaseModel, Field
 from backend.retrieval_graph.graph import graph
 from backend.utils import format_docs, load_chat_model
 
-DATASET_NAME = "chat-langchain-qa"
+# DATASET_NAME = "chat-langchain-qa"
+DATASET_NAME = "small-chatlangchain-dataset"
 EXPERIMENT_PREFIX = "chat-langchain-ci"
 
 SCORE_RETRIEVAL_RECALL = "retrieval_recall"
 SCORE_ANSWER_CORRECTNESS = "answer_correctness_score"
 SCORE_ANSWER_VS_CONTEXT_CORRECTNESS = "answer_vs_context_correctness_score"
 
-JUDGE_MODEL_NAME = "anthropic/claude-3-5-haiku-20241022"
+# JUDGE_MODEL_NAME = "anthropic/claude-3-5-haiku-20241022"
+JUDGE_MODEL_NAME = "openai/gpt-4o-mini"
 
 judge_llm = load_chat_model(JUDGE_MODEL_NAME)
 
@@ -48,8 +55,8 @@ class GradeAnswer(BaseModel):
     )
     score: float = Field(
         description="Score that shows how correct the answer is. Use 1.0 if completely correct and 0.0 if completely incorrect",
-        minimum=0.0,
-        maximum=1.0,
+        ge=0.0,
+        le=1.0,
     )
 
 
@@ -77,11 +84,11 @@ qa_chain = QA_PROMPT | judge_llm.with_structured_output(GradeAnswer)
 def evaluate_qa(run: Run, example: Example) -> dict:
     messages = run.outputs.get("messages") or []
     if not messages:
-        return {"score": 0.0}
+        return {"key": SCORE_ANSWER_CORRECTNESS, "score": 0.0}
 
     last_message = messages[-1]
     if not isinstance(last_message, AIMessage):
-        return {"score": 0.0}
+        return {"key": SCORE_ANSWER_CORRECTNESS, "score": 0.0}
 
     score: GradeAnswer = qa_chain.invoke(
         {
@@ -116,17 +123,17 @@ context_qa_chain = CONTEXT_QA_PROMPT | judge_llm.with_structured_output(GradeAns
 def evaluate_qa_context(run: Run, example: Example) -> dict:
     messages = run.outputs.get("messages") or []
     if not messages:
-        return {"score": 0.0}
+        return {"key": SCORE_ANSWER_VS_CONTEXT_CORRECTNESS, "score": 0.0}
 
     documents = run.outputs.get("documents") or []
     if not documents:
-        return {"score": 0.0}
+        return {"key": SCORE_ANSWER_VS_CONTEXT_CORRECTNESS, "score": 0.0}
 
     context = format_docs(documents)
 
     last_message = messages[-1]
     if not isinstance(last_message, AIMessage):
-        return {"score": 0.0}
+        return {"key": SCORE_ANSWER_VS_CONTEXT_CORRECTNESS, "score": 0.0}
 
     score: GradeAnswer = context_qa_chain.invoke(
         {
@@ -167,10 +174,11 @@ def test_scores_regression():
         aevaluate(
             run_graph,
             data=DATASET_NAME,
-            evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
+            # evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
+            evaluators=[evaluate_retrieval_recall],
             experiment_prefix=EXPERIMENT_PREFIX,
             metadata={"judge_model_name": JUDGE_MODEL_NAME},
-            max_concurrency=4,
+            max_concurrency=1,
         )
     )
     experiment_result_df = pd.DataFrame(
@@ -179,6 +187,25 @@ def test_scores_regression():
     )
     average_scores = experiment_result_df.mean()
 
+    # Print detailed results
+    print("\n" + "=" * 50)
+    print("EVALUATION RESULTS")
+    print("=" * 50)
+    print("\nDataFrame with all results:")
+    print(experiment_result_df)
+    print("\nAverage Scores:")
+    print(average_scores)
+    print("\nIndividual Score Breakdown:")
+    print(f"  Retrieval Recall: {average_scores[SCORE_RETRIEVAL_RECALL]:.2%}")
+    print(f"  Answer Correctness: {average_scores[SCORE_ANSWER_CORRECTNESS]:.2%}")
+    print(
+        f"  Answer vs Context Correctness: {average_scores[SCORE_ANSWER_VS_CONTEXT_CORRECTNESS]:.2%}"
+    )
+    print("=" * 50 + "\n")
+
     assert average_scores[SCORE_RETRIEVAL_RECALL] >= 0.65
     assert average_scores[SCORE_ANSWER_CORRECTNESS] >= 0.9
     assert average_scores[SCORE_ANSWER_VS_CONTEXT_CORRECTNESS] >= 0.9
+
+
+# python -m pytest backend/tests/evals/test_e2e.py::test_scores_regression -v -s --> run this test

@@ -128,7 +128,9 @@ async def respond(
 
 # Define the graph
 
-builder = StateGraph(AgentState, input=InputState, config_schema=AgentConfiguration)
+builder = StateGraph(
+    AgentState, input_schema=InputState, context_schema=AgentConfiguration
+)
 builder.add_node(create_research_plan)
 builder.add_node(conduct_research)
 builder.add_node(respond)
