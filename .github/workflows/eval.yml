@@ -54,4 +54,5 @@ jobs:
           WEAVIATE_URL: ${{ vars.WEAVIATE_URL }}
           WEAVIATE_GRPC_URL: ${{ vars.WEAVIATE_GRPC_URL }}
           WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+          RECORD_MANAGER_DB_URL: ${{ secrets.RECORD_MANAGER_DB_URL }}
         run: uv run pytest backend/tests/evals
