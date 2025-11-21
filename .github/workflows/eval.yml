@@ -48,7 +48,9 @@ jobs:
         env:
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+          WEAVIATE_URL: ${{ vars.WEAVIATE_URL }}
           WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
         run: uv run pytest backend/tests/evals
