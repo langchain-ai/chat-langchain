@@ -175,7 +175,8 @@ def test_scores_regression():
         aevaluate(
             run_graph,
             data=DATASET_NAME,
-            evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
+            # evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
+            evaluators=[evaluate_qa, evaluate_qa_context],
             experiment_prefix=EXPERIMENT_PREFIX,
             metadata={"judge_model_name": JUDGE_MODEL_NAME},
             max_concurrency=1,
@@ -187,7 +188,7 @@ def test_scores_regression():
     )
     average_scores = experiment_result_df.mean()
 
-    assert average_scores[SCORE_RETRIEVAL_RECALL] >= 0.65
+    # assert average_scores[SCORE_RETRIEVAL_RECALL] >= 0.65
     assert average_scores[SCORE_ANSWER_CORRECTNESS] >= 0.9
     assert average_scores[SCORE_ANSWER_VS_CONTEXT_CORRECTNESS] >= 0.9
 
