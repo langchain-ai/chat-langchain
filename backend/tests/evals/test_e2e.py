@@ -26,7 +26,8 @@ SCORE_ANSWER_CORRECTNESS = "answer_correctness_score"
 SCORE_ANSWER_VS_CONTEXT_CORRECTNESS = "answer_vs_context_correctness_score"
 
 # JUDGE_MODEL_NAME = "anthropic/claude-3-5-haiku-20241022"
-JUDGE_MODEL_NAME = "openai/gpt-4o-mini"
+# JUDGE_MODEL_NAME = "openai/gpt-4o-mini"
+JUDGE_MODEL_NAME = "groq/gpt-oss-20b"
 
 judge_llm = load_chat_model(JUDGE_MODEL_NAME)
 
@@ -174,8 +175,7 @@ def test_scores_regression():
         aevaluate(
             run_graph,
             data=DATASET_NAME,
-            # evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
-            evaluators=[evaluate_retrieval_recall],
+            evaluators=[evaluate_retrieval_recall, evaluate_qa, evaluate_qa_context],
             experiment_prefix=EXPERIMENT_PREFIX,
             metadata={"judge_model_name": JUDGE_MODEL_NAME},
             max_concurrency=1,
@@ -186,22 +186,6 @@ def test_scores_regression():
         for result in experiment_results._results
     )
     average_scores = experiment_result_df.mean()
-
-    # Print detailed results
-    print("\n" + "=" * 50)
-    print("EVALUATION RESULTS")
-    print("=" * 50)
-    print("\nDataFrame with all results:")
-    print(experiment_result_df)
-    print("\nAverage Scores:")
-    print(average_scores)
-    print("\nIndividual Score Breakdown:")
-    print(f"  Retrieval Recall: {average_scores[SCORE_RETRIEVAL_RECALL]:.2%}")
-    print(f"  Answer Correctness: {average_scores[SCORE_ANSWER_CORRECTNESS]:.2%}")
-    print(
-        f"  Answer vs Context Correctness: {average_scores[SCORE_ANSWER_VS_CONTEXT_CORRECTNESS]:.2%}"
-    )
-    print("=" * 50 + "\n")
 
     assert average_scores[SCORE_RETRIEVAL_RECALL] >= 0.65
     assert average_scores[SCORE_ANSWER_CORRECTNESS] >= 0.9
