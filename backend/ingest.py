@@ -9,15 +9,17 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
-import weaviate.classes.init as wvc
 
 from bs4 import BeautifulSoup, SoupStrainer
-from langchain.document_loaders import SitemapLoader
+from langchain_community.document_loaders import SitemapLoader
 from langchain.indexes import SQLRecordManager, index
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_weaviate import WeaviateVectorStore
 
-from backend.constants import WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME
+from backend.constants import (
+    OLLAMA_BASE_URL,
+    WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,
+)
 from backend.embeddings import get_embeddings_model
 from backend.parser import langchain_docs_extractor
 from backend.utils import get_weaviate_client
@@ -132,7 +134,7 @@ def ingest_docs():
     # Larger chunks for nomic-embed-text (2K token context window)
     # 4000 chars ≈ 1000-1300 tokens, well within the 2K limit
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
-    embedding = get_embeddings_model()
+    embedding = get_embeddings_model(base_url=OLLAMA_BASE_URL)
 
     with get_weaviate_client(
         weaviate_url=WEAVIATE_URL,

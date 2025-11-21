@@ -15,15 +15,14 @@ class AgentConfiguration(BaseConfiguration):
     # models
 
     query_model: str = field(
-        # default="anthropic/claude-3-5-haiku-20241022",
-        default="openai/gpt-4o-mini",
+        default="groq/openai/gpt-oss-20b",
         metadata={
             "description": "The language model used for processing and refining queries. Should be in the form: provider/model-name."
         },
     )
 
     response_model: str = field(
-        default="openai/gpt-4o-mini",
+        default="groq/openai/gpt-oss-20b",
         metadata={
             "description": "The language model used for generating responses. Should be in the form: provider/model-name."
         },

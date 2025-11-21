@@ -10,6 +10,7 @@ from backend.constants import OLLAMA_BASE_URL
 
 def get_embeddings_model(
     model: str = None,
+    base_url: str = OLLAMA_BASE_URL,
 ) -> Optional[Embeddings]:
     """Get embeddings model.
 
@@ -27,7 +28,8 @@ def get_embeddings_model(
         # Ollama embeddings with nomic-embed-text (2K context, 768 dimensions)
         return OllamaEmbeddings(
             model=model_name,
-            base_url=OLLAMA_BASE_URL,
+            base_url=base_url,
+            client_kwargs={"headers": {"X-API-Key": os.getenv("OLLAMA_API_KEY", "")}},
         )
     elif provider == "openai":
         return OpenAIEmbeddings(model=model_name, chunk_size=200)

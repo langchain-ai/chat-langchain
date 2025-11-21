@@ -38,7 +38,9 @@ async def create_research_plan(
 
     configuration = AgentConfiguration.from_runnable_config(config)
     structured_output_kwargs = (
-        {"method": "function_calling"} if "openai" in configuration.query_model else {}
+        {"method": "function_calling"}
+        if "openai" in configuration.query_model or "groq" in configuration.query_model
+        else {}
     )
     model = load_chat_model(configuration.query_model).with_structured_output(
         Plan, **structured_output_kwargs

@@ -14,6 +14,7 @@ from typing import Any, Iterator, Literal, Optional, Union
 import weaviate
 from weaviate.auth import AuthApiKey
 from langchain.chat_models import init_chat_model
+from langchain_groq import ChatGroq
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseChatModel
 
@@ -47,8 +48,9 @@ def get_weaviate_client(
         ...     collection = client.collections.get("MyCollection")
     """
     # Get URL and API key from environment if not provided
-    url = weaviate_url or os.environ.get(
-        "WEAVIATE_URL", "https://weaviate.hanu-nus.com"
+    url = weaviate_url or os.environ.get("WEAVIATE_URL", "weaviate.hanu-nus.com")
+    grpc_url = weaviate_grpc_url or os.environ.get(
+        "WEAVIATE_GRPC_URL", "grpc-weaviate.hanu-nus.com"
     )
     api_key = weaviate_api_key or os.environ.get("WEAVIATE_API_KEY", "admin-key")
 
@@ -56,8 +58,8 @@ def get_weaviate_client(
     http_host = url.replace("https://", "").replace("http://", "")
 
     # Use separate gRPC URL if provided, otherwise use the same as HTTP
-    if weaviate_grpc_url:
-        grpc_host = weaviate_grpc_url.replace("https://", "").replace("http://", "")
+    if grpc_url:
+        grpc_host = grpc_url.replace("https://", "").replace("http://", "")
     else:
         grpc_host = http_host
 
@@ -135,6 +137,12 @@ def load_chat_model(fully_specified_name: str) -> BaseChatModel:
 
     Args:
         fully_specified_name (str): String in the format 'provider/model'.
+
+    Examples:
+        >>> # Load Groq model
+        >>> model = load_chat_model("groq/llama-3.3-70b-versatile")
+        >>> # Load other models
+        >>> model = load_chat_model("openai/gpt-4")
     """
     if "/" in fully_specified_name:
         provider, model = fully_specified_name.split("/", maxsplit=1)
@@ -142,6 +150,16 @@ def load_chat_model(fully_specified_name: str) -> BaseChatModel:
         provider = ""
         model = fully_specified_name
 
+    # Handle Groq provider directly
+    if provider == "groq":
+        return ChatGroq(
+            model_name="openai/gpt-oss-20b",
+            # model_name=model,
+            temperature=0,
+            streaming=True,
+        )
+
+    # Handle other providers using init_chat_model
     model_kwargs = {"temperature": 0, "stream_usage": True}
     if provider == "google_genai":
         model_kwargs["convert_system_message_to_human"] = True

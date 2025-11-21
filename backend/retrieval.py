@@ -1,7 +1,10 @@
-import os
 from contextlib import contextmanager
 from typing import Iterator
+from dotenv import load_dotenv
 
+# Load environment variables from .env file
+load_dotenv()
+import os
 from langchain_core.embeddings import Embeddings
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import RunnableConfig
@@ -12,29 +15,14 @@ from backend.constants import (
     OLLAMA_BASE_URL,
     WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,
 )
+from backend.embeddings import get_embeddings_model
 from backend.utils import get_weaviate_client
 
-WEAVIATE_URL = os.environ.get("WEAVIATE_URL", "https://weaviate.hanu-nus.com")
-WEAVIATE_API_KEY = os.environ.get("WEAVIATE_API_KEY", "admin-key")
+RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+WEAVIATE_URL = os.environ.get("WEAVIATE_URL")
+WEAVIATE_GRPC_URL = os.environ.get("WEAVIATE_GRPC_URL")
 
-
-def make_text_encoder(model: str) -> Embeddings:
-    """Connect to the configured text encoder."""
-    provider, model_name = model.split("/", maxsplit=1)
-    match provider:
-        case "ollama":
-            from langchain_ollama import OllamaEmbeddings
-
-            return OllamaEmbeddings(
-                model=model_name,
-                base_url=OLLAMA_BASE_URL,
-            )
-        case "openai":
-            from langchain_openai import OpenAIEmbeddings
-
-            return OpenAIEmbeddings(model=model_name)
-        case _:
-            raise ValueError(f"Unsupported embedding provider: {provider}")
+WEAVIATE_API_KEY = os.environ.get("WEAVIATE_API_KEY")
 
 
 @contextmanager
@@ -43,8 +31,8 @@ def make_weaviate_retriever(
 ) -> Iterator[BaseRetriever]:
     with get_weaviate_client(
         weaviate_url=WEAVIATE_URL,
+        weaviate_grpc_url=WEAVIATE_GRPC_URL,
         weaviate_api_key=WEAVIATE_API_KEY,
-        grpc_port=50051,
     ) as weaviate_client:
         store = WeaviateVectorStore(
             client=weaviate_client,
@@ -60,10 +48,13 @@ def make_weaviate_retriever(
 @contextmanager
 def make_retriever(
     config: RunnableConfig,
+    base_url: str = OLLAMA_BASE_URL,
 ) -> Iterator[BaseRetriever]:
     """Create a retriever for the agent, based on the current configuration."""
     configuration = BaseConfiguration.from_runnable_config(config)
-    embedding_model = make_text_encoder(configuration.embedding_model)
+    embedding_model = get_embeddings_model(
+        configuration.embedding_model, base_url=base_url
+    )
     match configuration.retriever_provider:
         case "weaviate":
             with make_weaviate_retriever(configuration, embedding_model) as retriever:
