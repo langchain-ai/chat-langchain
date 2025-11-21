@@ -52,5 +52,6 @@ jobs:
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
           OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
           WEAVIATE_URL: ${{ vars.WEAVIATE_URL }}
+          WEAVIATE_GRPC_URL: ${{ vars.WEAVIATE_GRPC_URL }}
           WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
         run: uv run pytest backend/tests/evals
