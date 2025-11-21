@@ -153,8 +153,7 @@ def load_chat_model(fully_specified_name: str) -> BaseChatModel:
     # Handle Groq provider directly
     if provider == "groq":
         return ChatGroq(
-            model_name="openai/gpt-oss-20b",
-            # model_name=model,
+            model_name=model,
             temperature=0,
             streaming=True,
         )
