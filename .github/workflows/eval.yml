@@ -10,7 +10,7 @@ concurrency:
 jobs:
   run_eval:
     runs-on: ubuntu-latest
-    environment: Evaluation
+    environment: evals
     steps:
       - uses: actions/checkout@v4
 
