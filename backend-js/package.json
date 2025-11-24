@@ -1,0 +1,66 @@
+{
+    "name": "chat-langchain-backend-js",
+    "version": "1.0.0",
+    "description": "JavaScript/TypeScript implementation of chat-langchain backend with LangGraph",
+    "type": "module",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx watch src/server.ts",
+        "langgraph:dev": "langgraphjs dev",
+        "start": "node dist/server.js",
+        "ingest": "tsx src/ingest/index.ts",
+        "test": "vitest",
+        "test:e2e": "vitest run tests/evals",
+        "typecheck": "tsc --noEmit",
+        "clean": "rm -rf dist"
+    },
+    "keywords": [
+        "langchain",
+        "langgraph",
+        "rag",
+        "typescript",
+        "weaviate"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "@langchain/anthropic": "^1.1.1",
+        "@langchain/community": "^1.0.4",
+        "@langchain/core": "^1.0.6",
+        "@langchain/groq": "^1.0.1",
+        "@langchain/langgraph": "^1.0.2",
+        "@langchain/ollama": "^1.0.1",
+        "@langchain/openai": "^1.1.2",
+        "@langchain/textsplitters": "^1.0.0",
+        "@langchain/weaviate": "^1.0.0",
+        "cheerio": "^1.0.0",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.7",
+        "express": "^4.21.2",
+        "jsdom": "^27.2.0",
+        "langchain": "^1.0.6",
+        "langsmith": "^0.3.81",
+        "openai": "^6.9.1",
+        "pg": "^8.16.3",
+        "uuid": "^11.0.3",
+        "weaviate-client": "^3.2.0",
+        "zod": "^3.24.1"
+    },
+    "devDependencies": {
+        "@langchain/langgraph-cli": "^1.0.4",
+        "@types/cors": "^2.8.17",
+        "@types/express": "^5.0.0",
+        "@types/jsdom": "^27",
+        "@types/node": "^22.0.0",
+        "@types/pg": "^8.15.6",
+        "@types/uuid": "^10.0.0",
+        "tsx": "^4.19.0",
+        "typescript": "^5.6.0",
+        "vitest": "^2.1.0"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "packageManager": "pnpm@10.23.0"
+}

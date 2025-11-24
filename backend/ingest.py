@@ -117,8 +117,8 @@ def load_aggregated_docs_site():
         meta_function=metadata_extractor,
         filter_urls=[
             "https://docs.langchain.com/oss/javascript/langchain/mcp",
-            "https://docs.langchain.com/oss/javascript/langchain/agents",
-            "https://docs.langchain.com/oss/javascript/langchain/context-engineering",
+            # "https://docs.langchain.com/oss/javascript/langchain/agents",
+            # "https://docs.langchain.com/oss/javascript/langchain/context-engineering",
         ],
     ).load()
 
