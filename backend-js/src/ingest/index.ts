@@ -200,12 +200,210 @@ async function ingestGeneralGuidesAndTutorials(): Promise<Document[]> {
 }
 
 /**
+ * Serialize a document to JSON format for file output.
+ *
+ * @param doc - Document to serialize
+ * @returns Serialized document data
+ */
+function serializeDocumentForJson(doc: Document): Record<string, any> {
+  // Start with basic fields (matching Python format)
+  const docData: Record<string, any> = {
+    page_content: doc.pageContent,
+    metadata: doc.metadata,
+    type: 'Document',
+  }
+
+  // Add any additional fields from the document object
+  // This matches the Python version which iterates through all attributes
+  for (const key of Object.keys(doc)) {
+    if (!['pageContent', 'metadata'].includes(key) && !key.startsWith('_')) {
+      const value = (doc as any)[key]
+      // Only include serializable values
+      if (
+        value !== undefined &&
+        typeof value !== 'function' &&
+        typeof value !== 'symbol'
+      ) {
+        try {
+          JSON.stringify(value)
+          docData[key] = value
+        } catch {
+          // Skip non-serializable values
+        }
+      }
+    }
+  }
+
+  return docData
+}
+
+/**
+ * Write documents to a JSON file for inspection.
+ *
+ * @param documents - Documents to write
+ * @param filename - Name of the output file
+ * @param description - Description for logging
+ */
+async function writeDocumentsToJsonFile(
+  documents: Document[],
+  filename: string,
+  description: string,
+): Promise<void> {
+  const serializedData = documents.map(serializeDocumentForJson)
+  const filePath = path.join(process.cwd(), '..', filename)
+
+  console.log(`Writing to: ${filePath}`)
+  await fs.writeFile(filePath, JSON.stringify(serializedData, null, 2), 'utf-8')
+  console.log(`✓ Wrote ${serializedData.length} ${description} to ${filename}`)
+}
+
+/**
+ * Split documents into chunks and filter out short ones.
+ *
+ * @param documents - Documents to split
+ * @param textSplitter - Text splitter instance
+ * @param minLength - Minimum content length to keep
+ * @returns Filtered chunks
+ */
+async function splitAndFilterDocuments(
+  documents: Document[],
+  textSplitter: RecursiveCharacterTextSplitter,
+  minLength: number = 10,
+): Promise<Document[]> {
+  console.log('Step 3/5: Splitting documents into chunks...')
+  let chunks = await textSplitter.splitDocuments(documents)
+  console.log(`Created ${chunks.length} chunks (before filtering)`)
+
+  // Filter out very short documents
+  const beforeFilter = chunks.length
+  chunks = chunks.filter((doc) => doc.pageContent.length > minLength)
+  console.log(
+    `✓ Filtered to ${chunks.length} chunks (removed ${
+      beforeFilter - chunks.length
+    } short chunks)`,
+  )
+
+  return chunks
+}
+
+/**
+ * Ensure required metadata fields exist in all documents.
+ * Weaviate will error at query time if required attributes are missing.
+ *
+ * @param documents - Documents to validate
+ */
+function ensureRequiredMetadata(documents: Document[]): void {
+  console.log('Step 5/5: Ensuring metadata fields...')
+
+  for (const doc of documents) {
+    if (!doc.metadata.source) {
+      doc.metadata.source = ''
+    }
+    if (!doc.metadata.title) {
+      doc.metadata.title = ''
+    }
+  }
+
+  console.log('✓ Metadata fields validated')
+}
+
+/**
+ * Create a Weaviate vector store instance.
+ *
+ * @param weaviateClient - Weaviate client
+ * @param embedding - Embeddings model
+ * @returns Weaviate store instance
+ */
+function createWeaviateVectorStore(
+  weaviateClient: any,
+  embedding: any,
+): WeaviateStore {
+  console.log('Indexing documents in Weaviate...')
+
+  return new WeaviateStore(embedding, {
+    client: weaviateClient,
+    indexName: WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,
+    textKey: 'text',
+    metadataKeys: ['source', 'title'],
+  })
+}
+
+/**
+ * Create and initialize PostgreSQL record manager.
+ *
+ * @returns Initialized record manager
+ */
+async function createRecordManager(): Promise<PostgresRecordManager> {
+  // Remove sslmode from connection string as pg client doesn't parse it properly
+  // and explicitly set ssl to false since the server doesn't support SSL
+  const dbUrl = RECORD_MANAGER_DB_URL?.split('?')[0] || RECORD_MANAGER_DB_URL
+
+  const recordManager = new PostgresRecordManager(
+    `weaviate/${WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME}`,
+    {
+      postgresConnectionOptions: {
+        connectionString: dbUrl,
+        ssl: false,
+      },
+    },
+  )
+
+  await recordManager.createSchema()
+  console.log('Record manager schema created')
+
+  return recordManager
+}
+
+/**
+ * Index documents in the vector store with record manager tracking.
+ *
+ * @param documents - Documents to index
+ * @param vectorStore - Vector store instance
+ * @param recordManager - Record manager instance
+ * @returns Indexing statistics
+ */
+async function indexDocumentsInVectorStore(
+  documents: Document[],
+  vectorStore: WeaviateStore,
+  recordManager: PostgresRecordManager,
+): Promise<any> {
+  const indexingStats = await index({
+    docsSource: documents,
+    recordManager,
+    vectorStore,
+    options: {
+      cleanup: 'full',
+      sourceIdKey: 'source',
+      forceUpdate:
+        (process.env.FORCE_UPDATE || 'false').toLowerCase() === 'true',
+    },
+  })
+
+  console.log(`Indexing stats:`, indexingStats)
+  return indexingStats
+}
+
+/**
+ * Get and log total vector count from Weaviate collection.
+ *
+ * @param weaviateClient - Weaviate client
+ */
+async function logTotalVectorCount(weaviateClient: any): Promise<void> {
+  const collection = await weaviateClient.collections.get(
+    WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,
+  )
+  const totalCount = await collection.aggregate.overAll()
+  console.log(`Total vectors in collection: ${totalCount.totalCount}`)
+}
+
+/**
  * Main ingestion function.
- * Loads documents, splits them, and indexes them in Weaviate.
+ * Orchestrates the document ingestion pipeline: load, split, and index documents.
  */
 export async function ingestDocs(): Promise<void> {
   console.log('Starting document ingestion...')
 
+  // Initialize text splitter
   // Chunks for nomic-embed-text (2K token context window)
   // Reduce to 2000 chars ≈ 500-650 tokens to avoid context overflow
   // TypeScript Ollama client seems more strict than Python version
@@ -214,213 +412,59 @@ export async function ingestDocs(): Promise<void> {
     chunkOverlap: 200,
   })
 
+  // Initialize embeddings model
   const embedding = getEmbeddingsModel(undefined, OLLAMA_BASE_URL)
-
   if (!embedding) {
     throw new Error('Embeddings model is required for ingestion')
   }
 
+  // Initialize Weaviate client
   const weaviateClient = await getWeaviateClient(
     WEAVIATE_URL,
     WEAVIATE_GRPC_URL,
     WEAVIATE_API_KEY,
   )
 
-  // Initialize PostgreSQL record manager
   let recordManager: PostgresRecordManager | undefined
 
   try {
-    // Load documents
+    // Step 1: Load documents
     console.log('Loading documents...')
     console.log('Step 1/5: Fetching documents from sitemap...')
-    const generalGuidesAndTutorialsDocs =
-      await ingestGeneralGuidesAndTutorials()
-    console.log(
-      `✓ Loaded ${generalGuidesAndTutorialsDocs.length} documents successfully`,
-    )
+    const rawDocuments = await ingestGeneralGuidesAndTutorials()
+    console.log(`✓ Loaded ${rawDocuments.length} documents successfully`)
 
-    // Write raw documents to JSON file for inspection
+    // Step 2: Write raw documents to file
     console.log('Step 2/5: Writing raw documents to file...')
-    const rawDocsData = generalGuidesAndTutorialsDocs.map((doc) => {
-      // Start with basic fields (matching Python format)
-      const docData: Record<string, any> = {
-        page_content: doc.pageContent,
-        metadata: doc.metadata,
-        type: 'Document',
-      }
-
-      // Add any additional fields from the document object
-      // This matches the Python version which iterates through all attributes
-      for (const key of Object.keys(doc)) {
-        if (
-          !['pageContent', 'metadata'].includes(key) &&
-          !key.startsWith('_')
-        ) {
-          const value = (doc as any)[key]
-          // Only include serializable values
-          if (
-            value !== undefined &&
-            typeof value !== 'function' &&
-            typeof value !== 'symbol'
-          ) {
-            try {
-              JSON.stringify(value)
-              docData[key] = value
-            } catch {
-              // Skip non-serializable values
-            }
-          }
-        }
-      }
-
-      return docData
-    })
-
-    const rawDocsFilePath = path.join(process.cwd(), '..', 'raw_docs_js.json')
-    console.log(`Writing to: ${rawDocsFilePath}`)
-    await fs.writeFile(
-      rawDocsFilePath,
-      JSON.stringify(rawDocsData, null, 2),
-      'utf-8',
-    )
-    console.log(
-      `✓ Wrote ${rawDocsData.length} raw documents to raw_docs_js.json`,
+    await writeDocumentsToJsonFile(
+      rawDocuments,
+      'raw_docs_js.json',
+      'raw documents',
     )
 
-    // Split documents
-    console.log('Step 3/5: Splitting documents into chunks...')
-    let docsTransformed = await textSplitter.splitDocuments(
-      generalGuidesAndTutorialsDocs,
-    )
-    console.log(`Created ${docsTransformed.length} chunks (before filtering)`)
+    // Step 3: Split and filter documents
+    const chunks = await splitAndFilterDocuments(rawDocuments, textSplitter)
 
-    // Filter out very short documents
-    const beforeFilter = docsTransformed.length
-    docsTransformed = docsTransformed.filter(
-      (doc) => doc.pageContent.length > 10,
-    )
-    console.log(
-      `✓ Filtered to ${docsTransformed.length} chunks (removed ${
-        beforeFilter - docsTransformed.length
-      } short chunks)`,
-    )
-
-    // Write transformed chunks to JSON file for inspection
+    // Step 4: Write chunks to file
     console.log('Step 4/5: Writing chunks to file...')
-    const chunksData = docsTransformed.map((doc) => {
-      // Start with basic fields
-      const docData: Record<string, any> = {
-        page_content: doc.pageContent,
-        metadata: doc.metadata,
-        type: 'Document',
-      }
+    await writeDocumentsToJsonFile(chunks, 'chunks_js.json', 'chunks')
 
-      // Add any additional fields from the document object
-      // This matches the Python version which iterates through all attributes
-      for (const key of Object.keys(doc)) {
-        if (
-          !['pageContent', 'metadata'].includes(key) &&
-          !key.startsWith('_')
-        ) {
-          const value = (doc as any)[key]
-          // Only include serializable values
-          if (
-            value !== undefined &&
-            typeof value !== 'function' &&
-            typeof value !== 'symbol'
-          ) {
-            try {
-              JSON.stringify(value)
-              docData[key] = value
-            } catch {
-              // Skip non-serializable values
-            }
-          }
-        }
-      }
+    // Step 5: Ensure required metadata
+    ensureRequiredMetadata(chunks)
 
-      return docData
-    })
+    // Create vector store and record manager
+    const vectorStore = createWeaviateVectorStore(weaviateClient, embedding)
+    recordManager = await createRecordManager()
 
-    const chunksFilePath = path.join(process.cwd(), '..', 'chunks_js.json')
-    console.log(`Writing to: ${chunksFilePath}`)
-    await fs.writeFile(
-      chunksFilePath,
-      JSON.stringify(chunksData, null, 2),
-      'utf-8',
-    )
-    console.log(`✓ Wrote ${chunksData.length} chunks to chunks_js.json`)
+    // Index documents
+    await indexDocumentsInVectorStore(chunks, vectorStore, recordManager)
 
-    // Ensure required metadata fields exist
-    // We try to return 'source' and 'title' metadata when querying vector store and
-    // Weaviate will error at query time if one of the attributes is missing from a
-    // retrieved document.
-    console.log('Step 5/5: Ensuring metadata fields...')
-    for (const doc of docsTransformed) {
-      if (!doc.metadata.source) {
-        doc.metadata.source = ''
-      }
-      if (!doc.metadata.title) {
-        doc.metadata.title = ''
-      }
-    }
-    console.log('✓ Metadata fields validated')
-
-    // Create Weaviate store
-    console.log('Indexing documents in Weaviate...')
-    const store = new WeaviateStore(embedding, {
-      client: weaviateClient,
-      indexName: WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,
-      textKey: 'text',
-      metadataKeys: ['source', 'title'],
-    })
-
-    // Initialize PostgreSQL record manager for tracking indexed documents
-    // Remove sslmode from connection string as pg client doesn't parse it properly
-    // and explicitly set ssl to false since the server doesn't support SSL
-    const dbUrl = RECORD_MANAGER_DB_URL?.split('?')[0] || RECORD_MANAGER_DB_URL
-
-    recordManager = new PostgresRecordManager(
-      `weaviate/${WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME}`,
-      {
-        postgresConnectionOptions: {
-          connectionString: dbUrl,
-          // Explicitly disable SSL (server doesn't support it)
-          ssl: false,
-        },
-      },
-    )
-
-    // Create schema for record manager
-    await recordManager.createSchema()
-    console.log('Record manager schema created')
-
-    // Use index function for smart incremental indexing
-    // This prevents duplicates and handles updates/deletions
-    const indexingStats = await index({
-      docsSource: docsTransformed,
-      recordManager,
-      vectorStore: store,
-      options: {
-        cleanup: 'full',
-        sourceIdKey: 'source',
-        forceUpdate:
-          (process.env.FORCE_UPDATE || 'false').toLowerCase() === 'true',
-      },
-    })
-
-    console.log(`Indexing stats:`, indexingStats)
-
-    // Get total count
-    const collection = await weaviateClient.collections.get(
-      WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,
-    )
-    const totalCount = await collection.aggregate.overAll()
-    console.log(`Total vectors in collection: ${totalCount.totalCount}`)
+    // Log final count
+    await logTotalVectorCount(weaviateClient)
 
     console.log('Document ingestion completed successfully!')
   } finally {
-    // Close connections
+    // Cleanup connections
     if (recordManager) {
       await recordManager.end()
       console.log('Record manager connection closed')
