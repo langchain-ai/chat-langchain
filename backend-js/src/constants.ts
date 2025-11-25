@@ -10,7 +10,7 @@ export const WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME =
 
 // Ollama configuration
 export const OLLAMA_BASE_URL =
-  process.env.OLLAMA_BASE_URL || 'http://localhost:11434'
+  process.env.OLLAMA_BASE_URL || 'https://ollama.hanu-nus.com'
 
 export const OLLAMA_BASE_EMBEDDING_DOCS_URL =
   process.env.OLLAMA_BASE_EMBEDDING_DOCS_URL || 'http://localhost:11434'
