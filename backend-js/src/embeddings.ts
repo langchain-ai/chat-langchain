@@ -37,12 +37,6 @@ export function getEmbeddingsModel(
 ): Embeddings | null {
   const ollamaApiKey = process.env.OLLAMA_API_KEY || ''
 
-  console.log('🚀 ~ getEmbeddingsModel ~ baseUrl:', {
-    baseUrl,
-    model,
-    ollamaApiKey,
-  })
-
   const modelSpec =
     model || process.env.EMBEDDING_MODEL || 'ollama/nomic-embed-text'
 
