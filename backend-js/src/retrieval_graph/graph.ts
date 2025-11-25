@@ -8,11 +8,13 @@
  */
 
 import { RunnableConfig } from '@langchain/core/runnables'
-import { AIMessage } from '@langchain/core/messages'
 import { StateGraph, START, END } from '@langchain/langgraph'
 import { z } from 'zod'
 import { AgentStateAnnotation, InputStateAnnotation } from './state.js'
-import { getAgentConfiguration } from './configuration.js'
+import {
+  AgentConfigurationSchema,
+  getAgentConfiguration,
+} from './configuration.js'
 import {
   getResearchPlanSystemPrompt,
   getResponseSystemPrompt,
@@ -45,13 +47,11 @@ async function createResearchPlan(
   const systemPrompt = await getResearchPlanSystemPrompt()
 
   // Determine if we should use function calling method
-  const useFunctionCalling =
-    configuration.queryModel.includes('openai') ||
-    configuration.queryModel.includes('groq')
+  const useFunctionCalling = configuration.queryModel.includes('openai')
 
   const model = loadChatModel(configuration.queryModel)
   const structuredModel = model.withStructuredOutput(ResearchPlanSchema, {
-    method: useFunctionCalling ? 'functionCalling' : undefined,
+    method: useFunctionCalling ? 'functionCalling' : 'json_schema',
   })
 
   const messages = [
@@ -137,8 +137,9 @@ async function respond(
   const model = loadChatModel(configuration.responseModel)
 
   // TODO: add a re-ranker here
-  const topK = 20
-  const context = formatDocs(state.documents.slice(0, topK))
+  const topK = 3
+  const documents = state.documents || []
+  const context = formatDocs(documents.slice(0, topK))
 
   const systemPromptTemplate = await getResponseSystemPrompt()
   const systemPrompt = systemPromptTemplate.replace('{context}', context)
@@ -150,25 +151,24 @@ async function respond(
 
   const response = await model.invoke(messages, config)
 
-  // Extract answer content
-  const answer =
-    response instanceof AIMessage
-      ? String(response.content)
-      : 'content' in response
-      ? String(response.content)
-      : ''
+  // Extract answer content - match Python's response.content behavior
+  const answerContent =
+    typeof response.content === 'string'
+      ? response.content
+      : JSON.stringify(response.content)
+
+  // Ensure answer is a non-empty string
+  const finalAnswer = answerContent || 'No answer generated'
 
   return {
     messages: [response],
-    answer,
+    answer: finalAnswer,
   }
 }
 
-/**
- * Build and compile the main retrieval graph
- */
 const builder = new StateGraph(AgentStateAnnotation, {
   input: InputStateAnnotation,
+  context: AgentConfigurationSchema,
 })
   .addNode('create_research_plan', createResearchPlan)
   .addNode('conduct_research', conductResearch)

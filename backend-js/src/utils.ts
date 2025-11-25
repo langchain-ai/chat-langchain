@@ -130,7 +130,11 @@ export function loadChatModel(fullySpecifiedName: string): BaseChatModel {
   let model: string
 
   if (fullySpecifiedName.includes('/')) {
-    ;[provider, model] = fullySpecifiedName.split('/', 2)
+    // Split only on the first '/' to handle formats like "groq/openai/gpt-oss-20b"
+    // This matches Python's split("/", maxsplit=1) behavior
+    const parts = fullySpecifiedName.split('/')
+    provider = parts[0]
+    model = parts.slice(1).join('/')
   } else {
     provider = ''
     model = fullySpecifiedName
@@ -143,7 +147,9 @@ export function loadChatModel(fullySpecifiedName: string): BaseChatModel {
   switch (provider.toLowerCase()) {
     case 'groq':
       return new ChatGroq({
-        model,
+        // model: 'llama-3.1-8b-instant',
+        // model,
+        model: 'llama-3.1-8b-instant', // TODO: change back to model
         ...baseConfig,
       })
 
@@ -191,6 +197,17 @@ export function loadChatModel(fullySpecifiedName: string): BaseChatModel {
  * @param newDocs - The new input to process. Can be a sequence of Documents, objects, strings, or "delete"
  * @returns Combined list of documents
  */
+/**
+ * Reduce and process documents based on the input type.
+ *
+ * This function handles various input types and converts them into a sequence of Document objects.
+ * It uses dual deduplication: UUID-based (primary) and content-based (secondary).
+ * The content-based check handles retrieved documents that have different UUIDs but identical content.
+ *
+ * @param existing - The existing docs in the state, if any
+ * @param newDocs - The new input to process. Can be a sequence of Documents, objects, strings, or "delete"
+ * @returns Combined list of documents
+ */
 export function reduceDocs(
   existing: Document[] | undefined,
   newDocs: Document[] | Record<string, any>[] | string[] | string | 'delete',
@@ -216,8 +233,19 @@ export function reduceDocs(
   }
 
   const newList: Document[] = []
+  // Primary deduplication: Track UUIDs (matches Python's behavior)
   const existingIds = new Set(
     existingList.map((doc) => doc.metadata?.uuid).filter(Boolean),
+  )
+
+  // Secondary deduplication: Track content+source signatures
+  // This catches retrieved documents with different UUIDs but identical content
+  const existingContentKeys = new Set(
+    existingList.map((doc) => {
+      const source = doc.metadata?.source || ''
+      const content = doc.pageContent.substring(0, 500) // Use first 500 chars as signature
+      return `${source}:::${content}`
+    }),
   )
 
   for (const item of newDocs) {
@@ -231,26 +259,56 @@ export function reduceDocs(
       )
       existingIds.add(itemId)
     } else if (item instanceof Document) {
-      let itemId = item.metadata?.uuid
+      // Use existing id from Document (from vector DB) if available, otherwise check metadata.uuid, fallback to generating new UUID
+      let itemId = item.id || item.metadata?.uuid
       if (!itemId) {
+        // Generate new UUID only if neither id nor metadata.uuid exists
         itemId = uuidv4()
-        item.metadata = { ...item.metadata, uuid: itemId }
       }
 
-      if (!existingIds.has(itemId)) {
-        newList.push(item)
-        existingIds.add(itemId)
+      // Primary check: UUID-based deduplication
+      if (existingIds.has(itemId)) {
+        continue
       }
+
+      // Secondary check: content-based deduplication (for retrieved docs with different UUIDs)
+      const source = item.metadata?.source || ''
+      const contentKey = `${source}:::${item.pageContent.substring(0, 500)}`
+      if (existingContentKeys.has(contentKey)) {
+        continue
+      }
+
+      // Add the document if it's truly unique
+      // Ensure metadata.uuid is set for deduplication consistency, and preserve the id field
+      const newDoc =
+        itemId === item.metadata?.uuid && itemId === item.id
+          ? item
+          : new Document({
+              pageContent: item.pageContent,
+              metadata: { ...item.metadata, uuid: itemId },
+              id: itemId, // Preserve the id field from vector DB
+            })
+
+      newList.push(newDoc)
+      existingIds.add(itemId)
+      existingContentKeys.add(contentKey)
     } else if (typeof item === 'object' && item !== null) {
       // Plain object with pageContent
       const metadata = item.metadata || {}
-      const itemId = metadata.uuid || uuidv4()
+      const pageContent = item.pageContent || ''
+      // Use existing id from object if available (from vector DB), otherwise check metadata.uuid, fallback to generating new UUID
+      let itemId = (item as any).id || metadata.uuid
+
+      if (!itemId) {
+        itemId = uuidv4()
+      }
 
       if (!existingIds.has(itemId)) {
         newList.push(
           new Document({
-            pageContent: item.pageContent || '',
+            pageContent,
             metadata: { ...metadata, uuid: itemId },
+            id: itemId, // Preserve the id field from vector DB
           }),
         )
         existingIds.add(itemId)

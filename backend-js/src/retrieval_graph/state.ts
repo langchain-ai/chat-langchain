@@ -11,6 +11,48 @@ import { Annotation, messagesStateReducer } from '@langchain/langgraph'
 import { reduceDocs } from '../utils.js'
 
 /**
+ * Shared channel definitions to ensure all annotations use the same channel instances.
+ * This prevents "Channel already exists with a different type" errors.
+ */
+const messagesChannel = Annotation<BaseMessage[]>({
+  reducer: messagesStateReducer,
+  default: () => [],
+})
+
+const documentsChannel = Annotation<Document[], Document[] | 'delete'>({
+  reducer: reduceDocs,
+  default: () => [],
+})
+
+const answerChannel = Annotation<string>({
+  reducer: (existing, update) => {
+    // Always return a string value for LangSmith compatibility
+    if (update !== undefined && update !== null) {
+      return String(update)
+    }
+    if (existing !== undefined && existing !== null) {
+      return String(existing)
+    }
+    return ''
+  },
+  default: () => '',
+})
+
+const queryChannel = Annotation<string>({
+  reducer: (existing, update) => {
+    // Always return a string value for LangSmith compatibility
+    if (update !== undefined && update !== null) {
+      return String(update)
+    }
+    if (existing !== undefined && existing !== null) {
+      return String(existing)
+    }
+    return ''
+  },
+  default: () => '',
+})
+
+/**
  * InputState represents the input to the agent.
  *
  * This is a restricted version of the State that is used to define
@@ -23,26 +65,20 @@ export const InputStateAnnotation = Annotation.Root({
    * Typically accumulates a pattern of Human/AI/Human/AI messages.
    * Uses messagesStateReducer to merge messages by ID.
    */
-  messages: Annotation<BaseMessage[]>({
-    reducer: messagesStateReducer,
-    default: () => [],
-  }),
+  messages: messagesChannel,
 })
 
 /**
  * AgentState is the primary state of the retrieval agent.
  *
  * It extends InputState with additional internal state for research planning
- * and document retrieval.
+ * and document retrieval, matching Python's class AgentState(InputState) pattern.
  */
 export const AgentStateAnnotation = Annotation.Root({
   /**
-   * Messages track the conversation history.
+   * Inherit messages from InputStateAnnotation
    */
-  messages: Annotation<BaseMessage[]>({
-    reducer: messagesStateReducer,
-    default: () => [],
-  }),
+  ...InputStateAnnotation.spec,
 
   /**
    * A list of steps in the research plan.
@@ -59,28 +95,18 @@ export const AgentStateAnnotation = Annotation.Root({
 
   /**
    * Documents retrieved by the researcher.
-   * Uses custom reducer to handle document deduplication.
    */
-  documents: Annotation<Document[], Document[] | 'delete'>({
-    reducer: reduceDocs,
-    default: () => [],
-  }),
+  documents: documentsChannel,
 
   /**
    * Final answer. Useful for evaluations.
    */
-  answer: Annotation<string>({
-    reducer: (existing, update) => update || existing || '',
-    default: () => '',
-  }),
+  answer: answerChannel,
 
   /**
    * The original query from the user.
    */
-  query: Annotation<string>({
-    reducer: (existing, update) => update || existing || '',
-    default: () => '',
-  }),
+  query: queryChannel,
 })
 
 // Type exports for use in other modules

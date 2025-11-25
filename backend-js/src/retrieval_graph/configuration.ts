@@ -89,10 +89,14 @@ export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 
 /**
  * Extract agent configuration from RunnableConfig
+ *
+ * Reads from config.configurable to match Python's behavior
+ * This is the standard approach used by LangSmith
  */
 export function getAgentConfiguration(
   config?: RunnableConfig,
 ): AgentConfiguration {
+  // Use configurable (matches Python's from_runnable_config)
   const configurable = config?.configurable || {}
 
   // Convert snake_case to camelCase for all fields

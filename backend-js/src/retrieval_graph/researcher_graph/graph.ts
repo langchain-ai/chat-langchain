@@ -17,7 +17,6 @@ import { getAgentConfiguration } from '../configuration.js'
 import { getGenerateQueriesSystemPrompt } from '../prompts.js'
 import { loadChatModel } from '../../utils.js'
 import { makeRetriever } from '../../retrieval.js'
-
 /**
  * Schema for query generation response
  */
@@ -42,18 +41,16 @@ async function generateQueries(
   const systemPrompt = await getGenerateQueriesSystemPrompt()
 
   // Determine if we should use function calling method
-  const useFunctionCalling =
-    configuration.queryModel.includes('openai') ||
-    configuration.queryModel.includes('groq')
+  const useFunctionCalling = configuration.queryModel.includes('openai')
 
   const model = loadChatModel(configuration.queryModel)
   const structuredModel = model.withStructuredOutput(GenerateQueriesSchema, {
-    method: useFunctionCalling ? 'functionCalling' : undefined,
+    method: useFunctionCalling ? 'functionCalling' : 'json_schema',
   })
 
   const messages = [
     { role: 'system' as const, content: systemPrompt },
-    { role: 'user' as const, content: state.question },
+    { role: 'human' as const, content: state.question },
   ]
 
   const response = await structuredModel.invoke(messages, {

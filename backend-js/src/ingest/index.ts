@@ -21,7 +21,7 @@ import { getWeaviateClient } from '../utils.js'
 import { getEmbeddingsModel } from '../embeddings.js'
 import { FixedSitemapLoader } from './FixedSitemapLoader.js'
 import {
-  OLLAMA_BASE_URL,
+  OLLAMA_BASE_EMBEDDING_DOCS_URL,
   WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,
 } from '../constants.js'
 import {
@@ -168,9 +168,11 @@ async function loadAggregatedDocsSite(): Promise<Document[]> {
   const docs = await loadFromSitemap(
     'https://docs.langchain.com/sitemap.xml',
     [
+      // 'https://docs.langchain.com/oss/javascript',
       'https://docs.langchain.com/oss/javascript/langchain/mcp',
       'https://docs.langchain.com/oss/javascript/langchain/agents',
       'https://docs.langchain.com/oss/javascript/langchain/context-engineering',
+      'https://docs.langchain.com/oss/javascript/concepts/context',
     ],
     simpleExtractor,
   )
@@ -413,7 +415,10 @@ export async function ingestDocs(): Promise<void> {
   })
 
   // Initialize embeddings model
-  const embedding = getEmbeddingsModel(undefined, OLLAMA_BASE_URL)
+  const embedding = getEmbeddingsModel(
+    undefined,
+    OLLAMA_BASE_EMBEDDING_DOCS_URL,
+  )
   if (!embedding) {
     throw new Error('Embeddings model is required for ingestion')
   }

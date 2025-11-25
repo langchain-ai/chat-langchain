@@ -17,6 +17,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_weaviate import WeaviateVectorStore
 
 from backend.constants import (
+    OLLAMA_BASE_EMBEDDING_DOCS_URL,
     OLLAMA_BASE_URL,
     WEAVIATE_GENERAL_GUIDES_AND_TUTORIALS_INDEX_NAME,
 )
@@ -117,8 +118,8 @@ def load_aggregated_docs_site():
         meta_function=metadata_extractor,
         filter_urls=[
             "https://docs.langchain.com/oss/javascript/langchain/mcp",
-            # "https://docs.langchain.com/oss/javascript/langchain/agents",
-            # "https://docs.langchain.com/oss/javascript/langchain/context-engineering",
+            "https://docs.langchain.com/oss/javascript/langchain/agents",
+            "https://docs.langchain.com/oss/javascript/langchain/context-engineering",
         ],
     ).load()
 
@@ -134,7 +135,7 @@ def ingest_docs():
     # Larger chunks for nomic-embed-text (2K token context window)
     # 4000 chars ≈ 1000-1300 tokens, well within the 2K limit
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
-    embedding = get_embeddings_model(base_url=OLLAMA_BASE_URL)
+    embedding = get_embeddings_model(base_url=OLLAMA_BASE_EMBEDDING_DOCS_URL)
 
     with get_weaviate_client(
         weaviate_url=WEAVIATE_URL,
