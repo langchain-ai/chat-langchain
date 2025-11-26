@@ -27,7 +27,7 @@ const SCORE_ANSWER_VS_CONTEXT_CORRECTNESS =
   'answer_vs_context_correctness_score'
 
 // Judge model
-const JUDGE_MODEL_NAME = 'groq/gpt-oss-20b'
+const JUDGE_MODEL_NAME = 'llama-3.1-8b-instant'
 
 const judgeModel = loadChatModel(JUDGE_MODEL_NAME)
 
