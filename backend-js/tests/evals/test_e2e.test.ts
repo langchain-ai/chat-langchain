@@ -27,7 +27,7 @@ const SCORE_ANSWER_VS_CONTEXT_CORRECTNESS =
   'answer_vs_context_correctness_score'
 
 // Judge model
-const JUDGE_MODEL_NAME = 'llama-3.1-8b-instant'
+const JUDGE_MODEL_NAME = 'openai/gpt-4o-mini'
 
 const judgeModel = loadChatModel(JUDGE_MODEL_NAME)
 
