@@ -74,15 +74,6 @@ function evaluateRetrievalRecall(
     run.outputs?.documents?.map?.((doc: Document) => doc.metadata.source) || [],
   )
 
-  console.log('evaluateRetrievalRecall', {
-    retrievedDocs: run.outputs?.documents?.map(
-      (doc: Document) => doc.metadata.source,
-    ),
-    expectedSources: example.metadata?.metadata?.source,
-    retrievedSources,
-    rs: retrievedSources.has(expectedSources),
-  })
-
   // Calculate recall - at least one expected source should be in retrieved docs
   const score = retrievedSources.has(expectedSources) ? 1.0 : 0.0
 
