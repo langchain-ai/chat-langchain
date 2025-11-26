@@ -111,7 +111,6 @@ async function evaluateQA(
     true_answer: expectedOutput.answer,
     answer: lastMessage.content,
   })) as GradeAnswer
-  console.log('🚀 ~ result:', result)
 
   return { key: SCORE_ANSWER_CORRECTNESS, score: result.score }
 }
@@ -213,18 +212,13 @@ describe('E2E Evaluation Tests', () => {
         example.inputs as { question: string },
       )
 
-      const retrievalScore = await evaluateRetrievalRecall(
-        actualOutput,
-        trueSources,
-      )
+      const retrievalScore = evaluateRetrievalRecall(actualOutput, trueSources)
 
-      // Evaluate
-      const qaScore = await evaluateQA(
-        actualOutput,
-        example.inputs,
-        example.outputs,
-      )
-      const contextScore = await evaluateQAContext(actualOutput, example.inputs)
+      // Evaluate in parallel
+      const [qaScore, contextScore] = await Promise.all([
+        evaluateQA(actualOutput, example.inputs, example.outputs),
+        evaluateQAContext(actualOutput, example.inputs),
+      ])
 
       const scores = {
         [qaScore.key]: qaScore.score,
@@ -238,9 +232,20 @@ describe('E2E Evaluation Tests', () => {
         actualOutput,
         scores,
       })
-
-      console.log(`Scores:`, scores)
     }
+
+    // Log all results in a table format
+    const tableData = results.map((result, index) => ({
+      Test: index + 1,
+      Question: (result.input.question as string).substring(0, 50) + '...',
+      [SCORE_RETRIEVAL_RECALL]:
+        result.scores[SCORE_RETRIEVAL_RECALL].toFixed(2),
+      [SCORE_ANSWER_CORRECTNESS]:
+        result.scores[SCORE_ANSWER_CORRECTNESS].toFixed(2),
+      [SCORE_ANSWER_VS_CONTEXT_CORRECTNESS]:
+        result.scores[SCORE_ANSWER_VS_CONTEXT_CORRECTNESS].toFixed(2),
+    }))
+    console.table(tableData)
 
     // Calculate average scores
     const avgAnswerCorrectness =
