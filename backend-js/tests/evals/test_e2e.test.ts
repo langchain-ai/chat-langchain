@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest'
 import { HumanMessage, AIMessage } from '@langchain/core/messages'
 import { Document } from '@langchain/core/documents'
 import { ChatPromptTemplate } from '@langchain/core/prompts'
-import { Client } from 'langsmith'
+import { Client, Run, Example } from 'langsmith'
 import { z } from 'zod'
 import { graph } from '../../src/retrieval_graph/graph.js'
 import { formatDocs, loadChatModel } from '../../src/utils.js'
@@ -54,16 +54,20 @@ type GradeAnswer = z.infer<typeof GradeAnswerSchema>
 
 /**
  * Evaluate retrieval recall
+ * Matches Python signature: evaluate_retrieval_recall(run: Run, example: Example) -> dict
  */
 function evaluateRetrievalRecall(
-  runOutput: any,
-  trueSources: Set<string>,
+  run: Run,
+  example: Example,
 ): { key: string; score: number } {
-  const documents: Document[] = runOutput.documents || []
+  const documents: Document[] = (run.outputs?.documents as Document[]) || []
   const sources = documents.map((doc) => doc.metadata.source)
+  const expectedSources = new Set((example.outputs?.sources as string[]) || [])
 
   // Calculate recall - at least one expected source should be in retrieved docs
-  const score = sources.some((source) => trueSources.has(source)) ? 1.0 : 0.0
+  const score = sources.some((source) => expectedSources.has(source))
+    ? 1.0
+    : 0.0
 
   return { key: SCORE_RETRIEVAL_RECALL, score }
 }
@@ -86,13 +90,13 @@ const QA_PROMPT = ChatPromptTemplate.fromMessages([
 
 /**
  * Evaluate answer correctness based on reference answer
+ * Matches Python signature: evaluate_qa(run: Run, example: Example) -> dict
  */
 async function evaluateQA(
-  runOutput: any,
-  runInput: any,
-  expectedOutput: any,
+  run: Run,
+  example: Example,
 ): Promise<{ key: string; score: number }> {
-  const messages = runOutput.messages || []
+  const messages = (run.outputs?.messages as any[]) || []
   if (messages.length === 0) {
     return { key: SCORE_ANSWER_CORRECTNESS, score: 0.0 }
   }
@@ -107,8 +111,8 @@ async function evaluateQA(
   )
 
   const result = (await qaChain.invoke({
-    question: runInput.question,
-    true_answer: expectedOutput.answer,
+    question: example.inputs?.question,
+    true_answer: example.outputs?.answer,
     answer: lastMessage.content,
   })) as GradeAnswer
 
@@ -133,17 +137,18 @@ const CONTEXT_QA_PROMPT = ChatPromptTemplate.fromMessages([
 
 /**
  * Evaluate answer correctness based on retrieved context
+ * Matches Python signature: evaluate_qa_context(run: Run, example: Example) -> dict
  */
 async function evaluateQAContext(
-  runOutput: any,
-  runInput: any,
+  run: Run,
+  example: Example,
 ): Promise<{ key: string; score: number }> {
-  const messages = runOutput.messages || []
+  const messages = (run.outputs?.messages as any[]) || []
   if (messages.length === 0) {
     return { key: SCORE_ANSWER_VS_CONTEXT_CORRECTNESS, score: 0.0 }
   }
 
-  const documents = runOutput.documents || []
+  const documents = (run.outputs?.documents as Document[]) || []
   if (documents.length === 0) {
     return { key: SCORE_ANSWER_VS_CONTEXT_CORRECTNESS, score: 0.0 }
   }
@@ -160,7 +165,7 @@ async function evaluateQAContext(
   )
 
   const result = (await contextQaChain.invoke({
-    question: runInput.question,
+    question: example.inputs?.question,
     context,
     answer: lastMessage.content,
   })) as GradeAnswer
@@ -180,13 +185,14 @@ async function runGraph(inputs: { question: string }): Promise<any> {
 
 /**
  * Main evaluation test
+ * Uses LangSmith evaluation pattern similar to Python's aevaluate
  */
 describe('E2E Evaluation Tests', () => {
   it('should pass regression test with minimum score thresholds', async () => {
     console.log('Starting evaluation...')
 
     // Load dataset from LangSmith
-    const examples = []
+    const examples: Example[] = []
     for await (const example of client.listExamples({
       datasetName: DATASET_NAME,
     })) {
@@ -195,6 +201,12 @@ describe('E2E Evaluation Tests', () => {
 
     console.log(`Loaded ${examples.length} examples from dataset`)
 
+    // Create experiment name
+    const experimentName = `${EXPERIMENT_PREFIX}-${new Date()
+      .toISOString()
+      .replace(/[:.]/g, '-')
+      .slice(0, -5)}`
+
     const results: Array<{
       input: any
       expectedOutput: any
@@ -202,22 +214,33 @@ describe('E2E Evaluation Tests', () => {
       scores: Record<string, number>
     }> = []
 
-    const trueSources = new Set<string>(
-      examples.map((example) => example.metadata?.metadata?.source),
-    )
-
     // Run evaluation for each example
     for (const example of examples) {
+      // Run the graph
       const actualOutput = await runGraph(
         example.inputs as { question: string },
       )
 
-      const retrievalScore = evaluateRetrievalRecall(actualOutput, trueSources)
+      // Create a Run object for LangSmith tracking (similar to Python's aevaluate)
+      const runId = crypto.randomUUID()
+      const run: Run = {
+        id: runId,
+        name: 'run_graph',
+        inputs: example.inputs as Record<string, any>,
+        outputs: {
+          messages: actualOutput.messages,
+          documents: actualOutput.documents,
+        } as Record<string, any>,
+        run_type: 'chain',
+        start_time: Date.now(),
+        end_time: Date.now(),
+      }
 
-      // Evaluate in parallel
-      const [qaScore, contextScore] = await Promise.all([
-        evaluateQA(actualOutput, example.inputs, example.outputs),
-        evaluateQAContext(actualOutput, example.inputs),
+      // Evaluate in parallel using evaluators that match Python signature
+      const [qaScore, contextScore, retrievalScore] = await Promise.all([
+        evaluateQA(run, example),
+        evaluateQAContext(run, example),
+        Promise.resolve(evaluateRetrievalRecall(run, example)),
       ])
 
       const scores = {
@@ -232,6 +255,37 @@ describe('E2E Evaluation Tests', () => {
         actualOutput,
         scores,
       })
+
+      // Log evaluation results to LangSmith (similar to Python's aevaluate)
+      try {
+        await client.createRun({
+          id: runId,
+          name: 'run_graph',
+          inputs: example.inputs as Record<string, any>,
+          outputs: {
+            messages: actualOutput.messages,
+            documents: actualOutput.documents,
+          } as Record<string, any>,
+          run_type: 'chain',
+          start_time: Date.now(),
+          end_time: Date.now(),
+          project_name: experimentName,
+          extra: {
+            metadata: { judge_model_name: JUDGE_MODEL_NAME },
+          },
+        })
+
+        // Log evaluation results as feedback
+        for (const evalResult of [qaScore, contextScore, retrievalScore]) {
+          await client.createFeedback(runId, evalResult.key, {
+            score: evalResult.score,
+            value: evalResult.score,
+          })
+        }
+      } catch (error) {
+        // Continue even if LangSmith logging fails
+        console.warn('Failed to log to LangSmith:', error)
+      }
     }
 
     // Log all results in a table format
@@ -268,6 +322,7 @@ describe('E2E Evaluation Tests', () => {
       `Average Context Correctness: ${avgContextCorrectness.toFixed(2)}`,
     )
     console.log(`Average Retrieval Recall: ${avgRetrievalRecall.toFixed(2)}`)
+    console.log(`\nLangSmith Experiment: ${experimentName}`)
 
     // Assert minimum thresholds
     expect(avgAnswerCorrectness).toBeGreaterThanOrEqual(0.9)
