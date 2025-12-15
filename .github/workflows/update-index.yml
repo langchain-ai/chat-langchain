@@ -31,7 +31,7 @@ jobs:
         run: echo "UV_CACHE_DIR=$GITHUB_WORKSPACE/.uv_cache" >> "$GITHUB_ENV"
 
       - name: Restore caches (.venv and uv)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ./.uv_cache
