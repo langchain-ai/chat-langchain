@@ -1,0 +1,63 @@
+name: Clear and update index
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: Indexing
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Pin uv cache dir
+        shell: bash
+        run: echo "UV_CACHE_DIR=$GITHUB_WORKSPACE/.uv_cache" >> "$GITHUB_ENV"
+
+      - name: Restore caches (.venv and uv)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./.uv_cache
+            ./.venv
+          key: >
+            index-${{ runner.os }}-${{ runner.arch }}-py-3.11-
+            ${{ hashFiles('pyproject.toml') }}-
+            ${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            index-${{ runner.os }}-${{ runner.arch }}-py-3.11-
+            index-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Sync dependencies
+        shell: bash
+        run: uv sync --all-groups --frozen
+
+      - name: Clear index
+        shell: bash
+        run: uv run python _scripts/clear_index.py
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
+          WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+          RECORD_MANAGER_DB_URL: ${{ secrets.RECORD_MANAGER_DB_URL }}
+
+      - name: Ingest docs
+        shell: bash
+        run: uv run python backend/ingest.py
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
+          WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+          RECORD_MANAGER_DB_URL: ${{ secrets.RECORD_MANAGER_DB_URL }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          VOYAGE_AI_MODEL: ${{ secrets.VOYAGE_AI_MODEL }}
+          VOYAGE_AI_URL: ${{ secrets.VOYAGE_AI_URL }}

@@ -1,0 +1,61 @@
+name: uv-sync-with-caching
+description: Install deps with uv, with cache for uv and .venv.
+
+inputs:
+  python-version:
+    description: Python version (MAJOR.MINOR)
+    required: true
+  uv-version:
+    description: uv version (optional; defaults to latest)
+    required: false
+    default: ""
+  cache-key:
+    description: Extra cache key salt (e.g., CI job name)
+    required: true
+  uv-sync-flags:
+    description: Extra flags for `uv sync` (e.g., "--all-groups --all-extras")
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      name: Setup Python ${{ inputs.python-version }}
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: ${{ inputs.uv-version }}
+
+    # Use a stable, repo-local cache dir so Actions cache works across runners.
+    - name: Set uv cache dir
+      shell: bash
+      run: echo "UV_CACHE_DIR=$GITHUB_WORKSPACE/.uv_cache" >> "$GITHUB_ENV"
+
+    - name: Restore uv and venv caches
+      uses: actions/cache@v4
+      with:
+        path: |
+          ./.uv_cache
+          ./.venv
+        key: >
+          uv-${{ runner.os }}-${{ runner.arch }}-py-${{ inputs.python-version }}-${{ inputs.cache-key }}-
+          ${{ hashFiles('pyproject.toml') }}-
+          ${{ hashFiles('uv.lock') }}
+        restore-keys: |
+          uv-${{ runner.os }}-${{ runner.arch }}-py-${{ inputs.python-version }}-${{ inputs.cache-key }}-
+          uv-${{ runner.os }}-${{ runner.arch }}-py-${{ inputs.python-version }}-
+          uv-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Sync dependencies with uv
+      shell: bash
+      run: uv sync ${{ inputs.uv-sync-flags }}
+
+    - name: Show env info
+      shell: bash
+      run: |
+        uv --version
+        uv pip list | head -n 50
