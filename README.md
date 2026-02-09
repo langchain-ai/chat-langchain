@@ -1,4 +1,4 @@
-# LangChain Docs Agent
+# Chat LangChain
 
 > A simple documentation assistant built with LangGraph.
 
@@ -32,8 +32,8 @@ This is a documentation assistant agent that helps answer questions about LangCh
 
 ```bash
 # Clone the repository
-git clone https://github.com/langchain-ai/Chat-LangChain-Public.git
-cd Chat-LangChain-Public
+git clone https://github.com/langchain-ai/chat-langchain.git
+cd chat-langchain
 
 # Install dependencies with uv
 uv sync
@@ -69,11 +69,11 @@ uv run langgraph dev
 langgraph dev
 ```
 
-Open LangGraph Studio: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024
+Open LangGraph Studio: <https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024>
 
 ## Project Structure
 
-```
+```txt
 ├── src/
 │   ├── agent/
 │   │   ├── docs_graph.py      # Main docs agent
@@ -112,9 +112,9 @@ The agent uses a docs-first research strategy:
 
 ## Resources
 
-- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
-- [LangSmith Documentation](https://docs.smith.langchain.com/)
-- [LangChain Documentation](https://python.langchain.com/)
+- [LangChain Documentation](https://docs.langchain.com/oss/python/langchain/overview)
+- [LangGraph Documentation](https://docs.langchain.com/oss/python/langgraph/overview)
+- [LangSmith Documentation](https://docs.langchain.com/langsmith/home)
 
 ## License
 

@@ -3,13 +3,14 @@ import asyncio
 import logging
 import random
 from typing import Any, Literal
-from typing_extensions import NotRequired
-from pydantic import BaseModel, Field
+
+import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
-import langsmith as ls
+from pydantic import BaseModel, Field
+from typing_extensions import NotRequired
 
 from src.agent.config import GUARDRAILS_MODEL
 
@@ -25,6 +26,7 @@ _dataset_id_cache: str | None = None
 
 class GuardrailsDecision(BaseModel):
     """Structured output for guardrails decision."""
+
     decision: Literal["ALLOWED", "BLOCKED"] = Field(
         description="Whether the query should be ALLOWED or BLOCKED"
     )
@@ -32,6 +34,7 @@ class GuardrailsDecision(BaseModel):
 
 class GuardrailsState(AgentState):
     """Extended state schema with off-topic flag."""
+
     off_topic_query: NotRequired[bool]
 
 
@@ -42,7 +45,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 ## ALWAYS ALLOW - Core Topics:
 - LangChain, LangGraph, LangSmith (features, APIs, concepts, troubleshooting)
 - MCP (Model Context Protocol) - this IS part of the LangChain ecosystem
-- DeepAgents, agent frameworks, agent architectures
+- Deep Agents, agent frameworks, agent architectures
 - LangChain integrations (vector stores, LLM providers, tools, retrievers, embeddings)
 - Any LLM provider questions (OpenAI, Anthropic, Groq, xAI, Google, etc.)
 - Model parameters (temperature, reasoning, max_tokens, etc.)
@@ -133,12 +136,14 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 # Get or create dataset (cache the ID)
                 if _dataset_id_cache is None:
                     try:
-                        dataset = await client.read_dataset(dataset_name=GUARDRAILS_DATASET_NAME)
+                        dataset = await client.read_dataset(
+                            dataset_name=GUARDRAILS_DATASET_NAME
+                        )
                         _dataset_id_cache = str(dataset.id)
                     except Exception:
                         dataset = await client.create_dataset(
                             dataset_name=GUARDRAILS_DATASET_NAME,
-                            description="Production samples for guardrails evaluation. Contains all blocked queries and 10% of allowed queries."
+                            description="Production samples for guardrails evaluation. Contains all blocked queries and 10% of allowed queries.",
                         )
                         _dataset_id_cache = str(dataset.id)
 
@@ -155,7 +160,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(content=f"The user asked: {content}\n\nGenerate a brief, friendly response explaining this is outside your scope.")
+            HumanMessage(
+                content=f"The user asked: {content}\n\nGenerate a brief, friendly response explaining this is outside your scope."
+            ),
         ]
 
         try:
@@ -166,7 +173,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
 
     @hook_config(can_jump_to=["end"])
-    async def abefore_agent(self, state: GuardrailsState, runtime: Runtime) -> dict[str, Any] | None:
+    async def abefore_agent(
+        self, state: GuardrailsState, runtime: Runtime
+    ) -> dict[str, Any] | None:
         """Check if query is LangChain-related before processing."""
         messages = state.get("messages", [])
         if not messages:
@@ -174,8 +183,16 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         # Extract query content for classification
         last_message = messages[-1]
-        last_content = last_message.content if hasattr(last_message, "content") else str(last_message)
-        query_preview = last_content[:100] if isinstance(last_content, str) else str(last_content)[:100]
+        last_content = (
+            last_message.content
+            if hasattr(last_message, "content")
+            else str(last_message)
+        )
+        query_preview = (
+            last_content[:100]
+            if isinstance(last_content, str)
+            else str(last_content)[:100]
+        )
 
         # Classify the query
         decision = await self._classify_query(messages)
@@ -201,7 +218,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         logger.warning(f"Off-topic query detected: {query_preview}...")
 
         if not self.block_off_topic:
-            logger.info("Off-topic query detected but block_off_topic=False, allowing...")
+            logger.info(
+                "Off-topic query detected but block_off_topic=False, allowing..."
+            )
             return None
 
         # Generate rejection and block
@@ -226,7 +245,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             parts = [
                 b if isinstance(b, str) else b.get("text", "")
                 for b in content
-                if isinstance(b, str) or (isinstance(b, dict) and b.get("type") == "text")
+                if isinstance(b, str)
+                or (isinstance(b, dict) and b.get("type") == "text")
             ]
             return " ".join(parts).strip() or None
 
@@ -261,18 +281,22 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         context_section = ""
         if prior_queries:
             recent = prior_queries[-3:]  # Last 3 prior queries
-            context_section = "\n\nPrevious questions in this conversation:\n" + "\n".join(f"- {q}" for q in recent)
+            context_section = (
+                "\n\nPrevious questions in this conversation:\n"
+                + "\n".join(f"- {q}" for q in recent)
+            )
 
         prompt = [
             SystemMessage(content=_GUARDRAILS_SYSTEM_PROMPT),
-            HumanMessage(content=f"Classify this query: {current_query}{context_section}")
+            HumanMessage(
+                content=f"Classify this query: {current_query}{context_section}"
+            ),
         ]
 
         try:
             structured_llm = self.llm.with_structured_output(GuardrailsDecision)
             result: GuardrailsDecision = await structured_llm.ainvoke(
-                prompt,
-                config={"callbacks": [], "tags": ["guardrails"]}
+                prompt, config={"callbacks": [], "tags": ["guardrails"]}
             )
             return result.decision
         except Exception as e:
