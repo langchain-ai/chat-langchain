@@ -1,0 +1,54 @@
+name: Eval
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run_eval:
+    runs-on: ubuntu-latest
+    environment: Evaluation
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Pin uv cache dir
+        shell: bash
+        run: echo "UV_CACHE_DIR=$GITHUB_WORKSPACE/.uv_cache" >> "$GITHUB_ENV"
+
+      - name: Restore caches (.venv and uv)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./.uv_cache
+            ./.venv
+          key: >
+            eval-${{ runner.os }}-${{ runner.arch }}-py-3.11-
+            ${{ hashFiles('pyproject.toml') }}-
+            ${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            eval-${{ runner.os }}-${{ runner.arch }}-py-3.11-
+            eval-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Sync dependencies (frozen)
+        shell: bash
+        run: uv sync --all-groups --frozen
+
+      - name: Evaluate
+        env:
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WEAVIATE_URL: ${{ secrets.WEAVIATE_URL }}
+          WEAVIATE_API_KEY: ${{ secrets.WEAVIATE_API_KEY }}
+        run: uv run pytest backend/tests/evals

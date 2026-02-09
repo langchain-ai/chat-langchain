@@ -1,0 +1,68 @@
+name: lint
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  # For inline annotations from ruff
+  RUFF_OUTPUT_FORMAT: github
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Only lint on the min and max supported Python versions.
+        # It's extremely unlikely that there's a lint issue on any version in between
+        # that doesn't show up on the min or max versions.
+        #
+        # GitHub rate-limits how many jobs can be running at any one time.
+        # Starting new jobs is also relatively slow,
+        # so linting on fewer versions makes CI faster.
+        python-version: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.23"
+
+      - name: Pin uv cache dir
+        shell: bash
+        run: echo "UV_CACHE_DIR=$GITHUB_WORKSPACE/.uv_cache" >> "$GITHUB_ENV"
+
+      - name: Restore caches (.venv and uv)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./.uv_cache
+            ./.venv
+            ./.mypy_cache
+          key: >
+            lint-${{ runner.os }}-${{ runner.arch }}-py-${{ matrix.python-version }}-
+            ${{ hashFiles('pyproject.toml') }}-
+            ${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            lint-${{ runner.os }}-${{ runner.arch }}-py-${{ matrix.python-version }}-
+            lint-${{ runner.os }}-${{ runner.arch }}-
+
+      # Ensure deps match the lock (fails if lock is stale)
+      - name: Sync dependencies (frozen)
+        shell: bash
+        run: uv sync --all-groups --frozen
+
+      - name: Show tool versions
+        shell: bash
+        run: |
+          uv --version
+          .venv/bin/python -V
+          .venv/bin/ruff -V || true
+          .venv/bin/mypy -V || true
+
+      - name: Lint
+        shell: bash
+        run: uv run make lint
