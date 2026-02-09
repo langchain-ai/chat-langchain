@@ -1,45 +1,121 @@
-# 🦜️🔗 Chat LangChain
+# LangChain Docs Agent
 
-This repo is an implementation of a chatbot specifically focused on question answering over the [LangChain documentation](https://python.langchain.com/).
-Built with [LangChain](https://github.com/langchain-ai/langchain/), [LangGraph](https://github.com/langchain-ai/langgraph/), and [Next.js](https://nextjs.org).
+> A simple documentation assistant built with LangGraph.
 
-Deployed version: [chat.langchain.com](https://chat.langchain.com)
+[![LangGraph](https://img.shields.io/badge/Built%20with-LangGraph-blue)](https://langchain-ai.github.io/langgraph/)
+[![Python](https://img.shields.io/badge/Python-3.11+-green)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-> Looking for the JS version? Click [here](https://github.com/langchain-ai/chat-langchainjs).
+## Overview
 
-The app leverages LangChain and LangGraph's streaming support and async API to update the page in real time for multiple users.
+This is a documentation assistant agent that helps answer questions about LangChain, LangGraph, and LangSmith. It demonstrates how to build a production-ready agent using:
 
-## Running locally
+- **LangGraph** - For agent orchestration and state management
+- **LangChain Agents** - For agent creation with middleware support
+- **Guardrails** - To keep conversations on-topic
 
-This project is now deployed using [LangGraph Cloud](https://langchain-ai.github.io/langgraph/cloud/), which means you won't be able to run it locally (or without a LangGraph Cloud account). If you want to run it WITHOUT LangGraph Cloud, please use the code and documentation from this [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve).
+## Features
 
-> [!NOTE]
-> This [branch](https://github.com/langchain-ai/chat-langchain/tree/langserve) **does not** have the same set of features.
+- **Documentation Search** - Searches official LangChain docs
+- **Support KB** - Searches the Pylon knowledge base for known issues
+- **Link Validation** - Verifies URLs before including in responses
+- **Guardrails** - Filters off-topic queries
 
-## 📚 Technical description
+## Quick Start
 
-There are two components: ingestion and question-answering.
+### Prerequisites
 
-Ingestion has the following steps:
+- Python 3.11+
+- [uv](https://github.com/astral-sh/uv) (recommended) or pip
 
-1. Pull html from documentation site as well as the Github Codebase
-2. Load html with LangChain's [RecursiveURLLoader](https://python.langchain.com/docs/integrations/document_loaders/recursive_url) and [SitemapLoader](https://python.langchain.com/docs/integrations/document_loaders/sitemap)
-3. Split documents with LangChain's [RecursiveCharacterTextSplitter](https://python.langchain.com/api_reference/text_splitters/character/langchain_text_splitters.character.RecursiveCharacterTextSplitter.html)
-4. Create a vectorstore of embeddings, using LangChain's [Weaviate vectorstore wrapper](https://python.langchain.com/docs/integrations/vectorstores/weaviate) (with OpenAI's embeddings).
+### Installation
 
-Question-Answering has the following steps:
+```bash
+# Clone the repository
+git clone https://github.com/langchain-ai/Chat-LangChain-Public.git
+cd Chat-LangChain-Public
 
-1. Given the chat history and new user input, determine what a standalone question would be using an LLM.
-2. Given that standalone question, look up relevant documents from the vectorstore.
-3. Pass the standalone question and relevant documents to the model to generate and stream the final answer.
-4. Generate a trace URL for the current chat session, as well as the endpoint to collect feedback.
+# Install dependencies with uv
+uv sync
 
-## Documentation
+# Or with pip
+pip install -e . "langgraph-cli[inmem]"
+```
 
-Looking to use or modify this Use Case Accelerant for your own needs? We've added a few docs to aid with this:
+### Configuration
 
-- **[Concepts](./CONCEPTS.md)**: A conceptual overview of the different components of Chat LangChain. Goes over features like ingestion, vector stores, query analysis, etc.
-- **[Modify](./MODIFY.md)**: A guide on how to modify Chat LangChain for your own needs. Covers the frontend, backend and everything in between.
-- **[LangSmith](./LANGSMITH.md)**: A guide on adding robustness to your application using LangSmith. Covers observability, evaluations, and feedback.
-- **[Production](./PRODUCTION.md)**: Documentation on preparing your application for production usage. Explains different security considerations, and more.
-- **[Deployment](./DEPLOYMENT.md)**: How to deploy your application to production. Covers setting up production databases, deploying the frontend, and more.
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env with your API keys
+```
+
+#### Required Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (or use another provider) |
+| `MINTLIFY_API_KEY` | Mintlify API key for docs search |
+| `PYLON_API_KEY` | Pylon API key for support KB |
+
+### Running Locally
+
+```bash
+# Start LangGraph development server
+uv run langgraph dev
+
+# Or with pip
+langgraph dev
+```
+
+Open LangGraph Studio: https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024
+
+## Project Structure
+
+```
+├── src/
+│   ├── agent/
+│   │   ├── docs_graph.py      # Main docs agent
+│   │   └── config.py          # Model configuration
+│   ├── tools/
+│   │   ├── docs_tools.py      # Documentation search
+│   │   ├── pylon_tools.py     # Support KB tools
+│   │   └── link_check_tools.py # URL validation
+│   ├── prompts/
+│   │   └── docs_agent_prompt.py
+│   └── middleware/
+│       ├── guardrails_middleware.py
+│       └── retry_middleware.py
+├── langgraph.json             # LangGraph configuration
+└── pyproject.toml             # Python project config
+```
+
+## How It Works
+
+The agent uses a docs-first research strategy:
+
+1. **Guardrails Check** - Validates the query is LangChain-related
+2. **Documentation Search** - Searches official docs via Mintlify
+3. **Knowledge Base** - Searches Pylon for known issues/solutions
+4. **Link Validation** - Verifies any URLs before including them
+5. **Response Generation** - Synthesizes a helpful answer
+
+## Deployment
+
+### LangGraph Cloud
+
+1. Push to GitHub
+2. Connect repository in [LangSmith](https://smith.langchain.com/)
+3. Configure environment variables
+4. Deploy
+
+## Resources
+
+- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
+- [LangSmith Documentation](https://docs.smith.langchain.com/)
+- [LangChain Documentation](https://python.langchain.com/)
+
+## License
+
+MIT

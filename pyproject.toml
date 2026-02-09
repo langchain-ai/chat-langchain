@@ -1,48 +1,76 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
-name = "chat-langchain"
-version = "0.1.1"
-description = ""
-readme = "README.md"
+name = "agent"
+version = "0.0.1"
+description = "LangChain docs agent example using LangGraph."
 authors = [
-  { name = "SN", email = "6432132+samnoyes@users.noreply.github.com" },
+    { name = "William Fu-Hinthorn", email = "13333726+hinthornw@users.noreply.github.com" },
 ]
+readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.11"
-packages = [{ include = "backend" }]
 dependencies = [
-  "langchain>=0.3.0,<0.4.0",
-  "langsmith==0.4.9",
-  "langchain-google-genai>=2.1.2,<3.0.0",
-  "langchain-core>=0.3.10,<0.4.0",
-  "langchain-community>=0.3.0,<0.4.0",
-  "langchain-openai>=0.3.12,<0.4.0",
-  "langchain-anthropic>=0.3.10,<0.4.0",
-  "langchain-weaviate>=0.0.3,<0.1.0",
-  "langgraph>=0.4.5",
-  "beautifulsoup4>=4.12.2,<5.0.0",
-  "weaviate-client>=4.0.0,<5.0.0",
-  "lxml>=6,<7.0.0",
-  "voyageai>=0.1.4,<0.2.0",
-  "pillow>=10.2.0,<11.0.0",
-  "psycopg2-binary>=2.9.9,<3.0.0",
+    "langchain>=1.0.2",
+    "langchain-core>=1.0.0a6",
+    "langchain-anthropic>=0.1.23",
+    "langgraph>=1.0.0a4",
+    "langgraph-prebuilt>=0.7.0a2",
+    "langchain-openai>=0.3.0",
+    "langchain-xai>=0.2.0",
+    "langchain-google-genai>=4.0.0",
+    "python-dotenv>=1.0.1",
+    "requests>=2.32.0",
+    "httpx>=0.27.0",
+    "rapidfuzz>=3.0.0",
 ]
+
+
+[project.optional-dependencies]
+dev = ["mypy>=1.11.1", "ruff>=0.6.1"]
+
+[build-system]
+requires = ["setuptools>=73.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["langgraph.templates.agent", "agent"]
+[tool.setuptools.package-dir]
+"langgraph.templates.agent" = "src/agent"
+"agent" = "src/agent"
+
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+[tool.ruff]
+lint.select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # isort
+    "D",    # pydocstyle
+    "D401", # First line should be in imperative mood
+    "T201",
+    "UP",
+]
+lint.ignore = [
+    "UP006",
+    "UP007",
+    # We actually do want to import from typing_extensions
+    "UP035",
+    # Relax the convention by _not_ requiring documentation for every function parameter.
+    "D417",
+    "E501",
+]
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "UP"]
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [dependency-groups]
 dev = [
-  "langgraph-sdk>=0.2,<0.3",
-  "pytest>=7.3.0,<8.0.0",
-  "ruff>=0.13.3,<0.14.0",
-  "pandas>=2.2.2,<3.0.0",
+    "anyio>=4.7.0",
+    "langgraph-api>=0.5.33",
+    "langgraph-cli[inmem]>=0.4.7",
+    "mypy>=1.13.0",
+    "pytest>=8.3.5",
+    "ruff>=0.8.2",
 ]
-
-[tool.uv]
-default-groups = ["dev"]
-
-[tool.hatch.build]
-exclude = ["tests/"]
-
-[tool.hatch.build.targets.wheel]
-packages = ["backend"]

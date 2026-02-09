@@ -1,1 +1,0 @@
-"""Researcher Graph Module."""
