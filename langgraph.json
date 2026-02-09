@@ -1,0 +1,18 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "docs_agent": "./src/agent/docs_graph.py:docs_agent"
+  },
+  "env": ".env",
+  "image_distro": "wolfi",
+  "config": {
+    "recursion_limit": 100
+  },
+  "checkpointer": {
+    "ttl": {
+      "default_ttl": 604800,
+      "sweep_interval_minutes": 60,
+      "strategy": "delete"
+    }
+  }
+}
