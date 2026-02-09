@@ -2,13 +2,14 @@
 # Tools:
 #   - search_support_articles
 #   - get_article_content
+import json
 import logging
 import os
-import json
-import requests
 from typing import Any, Dict, List, Optional
-from langchain.tools import tool
+
+import requests
 from dotenv import load_dotenv
+from langchain.tools import tool
 
 load_dotenv()
 
@@ -44,10 +45,7 @@ _collections_cache: Optional[Dict[str, str]] = None
 
 def _get_headers() -> Dict[str, str]:
     """Get API headers with authentication."""
-    return {
-        "Authorization": f"Bearer {_get_api_key()}",
-        "Accept": "application/json"
-    }
+    return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
 
 
 def _fetch_collections() -> Dict[str, str]:
@@ -98,6 +96,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 # LangChain Tools
 # =============================================================================
 
+
 @tool
 def search_support_articles(collections: str = "all") -> str:
     """Get LangChain support article titles from Pylon KB, filtered by collection(s).
@@ -130,34 +129,44 @@ def search_support_articles(collections: str = "all") -> str:
 
         # Handle None or empty response
         if articles is None or not articles:
-            return json.dumps({
-                "collections": collections,
-                "total": 0,
-                "articles": [],
-                "note": "No articles returned from API"
-            }, indent=2)
+            return json.dumps(
+                {
+                    "collections": collections,
+                    "total": 0,
+                    "articles": [],
+                    "note": "No articles returned from API",
+                },
+                indent=2,
+            )
 
         # Filter to only PUBLIC visibility articles with valid titles
         published_articles = []
         for article in articles:
-            if (article.get("is_published", False)
+            if (
+                article.get("is_published", False)
                 and article.get("title")
                 and article.get("title") != "Untitled"
                 and article.get("visibility_config", {}).get("visibility") == "public"
                 and article.get("identifier")
-                and article.get("slug")):
-
+                and article.get("slug")
+            ):
                 # Construct support.langchain.com URL
                 identifier = article.get("identifier")
                 slug = article.get("slug")
-                support_url = f"https://support.langchain.com/articles/{identifier}-{slug}"
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
+                )
 
-                published_articles.append({
-                    "id": article.get("id"),
-                    "title": article.get("title", ""),
-                    "url": support_url,
-                    "collection_id": article.get("collection_id")  # Keep for filtering, will be set later
-                })
+                published_articles.append(
+                    {
+                        "id": article.get("id"),
+                        "title": article.get("title", ""),
+                        "url": support_url,
+                        "collection_id": article.get(
+                            "collection_id"
+                        ),  # Keep for filtering, will be set later
+                    }
+                )
 
         if not published_articles:
             return "No published articles available in the knowledge base."
@@ -166,9 +175,9 @@ def search_support_articles(collections: str = "all") -> str:
         try:
             collection_map = _fetch_collections()
         except Exception as e:
-            return json.dumps({
-                "error": f"Failed to fetch collections: {str(e)}"
-            }, indent=2)
+            return json.dumps(
+                {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
+            )
 
         # Filter by collection ID if specified
         if collections.lower() != "all":
@@ -189,13 +198,17 @@ def search_support_articles(collections: str = "all") -> str:
                             matched = True
                             break
                     if not matched:
-                        return json.dumps({
-                            "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                        }, indent=2)
+                        return json.dumps(
+                            {
+                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
+                            },
+                            indent=2,
+                        )
 
             # Filter articles by collection_id
             filtered_articles = [
-                article for article in published_articles
+                article
+                for article in published_articles
                 if article.get("collection_id") in collection_ids
             ]
 
@@ -208,12 +221,15 @@ def search_support_articles(collections: str = "all") -> str:
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
         if not published_articles:
-            return json.dumps({
-                "collections": collections,
-                "total": 0,
-                "articles": [],
-                "note": "No articles found"
-            }, indent=2)
+            return json.dumps(
+                {
+                    "collections": collections,
+                    "total": 0,
+                    "articles": [],
+                    "note": "No articles found",
+                },
+                indent=2,
+            )
 
         # Clean up collection_id from output (internal field)
         for article in published_articles:
@@ -224,7 +240,7 @@ def search_support_articles(collections: str = "all") -> str:
             "collections": collections,
             "total": len(published_articles),
             "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content."
+            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
 
         return json.dumps(result, indent=2)
@@ -277,7 +293,9 @@ def get_article_content(article_id: str) -> str:
                 identifier = article.get("identifier", "")
                 slug = article.get("slug", "")
                 if identifier and slug:
-                    support_url = f"https://support.langchain.com/articles/{identifier}-{slug}"
+                    support_url = (
+                        f"https://support.langchain.com/articles/{identifier}-{slug}"
+                    )
                 else:
                     support_url = "URL not available"
 

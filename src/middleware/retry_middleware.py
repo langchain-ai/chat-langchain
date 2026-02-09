@@ -1,13 +1,13 @@
 # Retry middleware for model calls with exponential backoff
 import asyncio
 import logging
-from typing import Callable, Awaitable
+from typing import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
+    ModelCallResult,
     ModelRequest,
     ModelResponse,
-    ModelCallResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -20,6 +20,7 @@ RETRYABLE_FINISH_REASONS = {
 
 class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
+
     pass
 
 
@@ -55,7 +56,7 @@ class ModelRetryMiddleware(AgentMiddleware):
 
                 if finish_reason in RETRYABLE_FINISH_REASONS:
                     if attempt < self.max_retries:
-                        delay = self.initial_delay * (self.backoff_factor ** attempt)
+                        delay = self.initial_delay * (self.backoff_factor**attempt)
                         logger.warning(
                             f"Retryable response ({finish_reason}) "
                             f"attempt {attempt + 1}/{self.max_retries + 1}, "
@@ -70,14 +71,16 @@ class ModelRetryMiddleware(AgentMiddleware):
             except Exception as e:
                 last_exception = e
                 if attempt < self.max_retries:
-                    delay = self.initial_delay * (self.backoff_factor ** attempt)
+                    delay = self.initial_delay * (self.backoff_factor**attempt)
                     logger.warning(
                         f"Model call failed attempt {attempt + 1}/{self.max_retries + 1}: {e}, "
                         f"retrying in {delay:.2f}s"
                     )
                     await asyncio.sleep(delay)
                 else:
-                    logger.error(f"Model call failed after {self.max_retries + 1} attempts: {e}")
+                    logger.error(
+                        f"Model call failed after {self.max_retries + 1} attempts: {e}"
+                    )
 
         # Exhausted retries - raise for fallback middleware
         if last_exception:
