@@ -16,10 +16,10 @@ This is a documentation assistant agent that helps answer questions about LangCh
 
 ## Features
 
-- 🔍 **Documentation Search** - Searches official LangChain docs
-- 📚 **Support KB** - Searches the Pylon knowledge base for known issues
-- 🔗 **Link Validation** - Verifies URLs before including in responses
-- 🛡️ **Guardrails** - Filters off-topic queries
+- **Documentation Search** - Searches official LangChain docs
+- **Support KB** - Searches the Pylon knowledge base for known issues
+- **Link Validation** - Verifies URLs before including in responses
+- **Guardrails** - Filters off-topic queries
 
 ## Quick Start
 
