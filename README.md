@@ -56,8 +56,10 @@ cp .env.example .env
 | Variable | Description |
 |----------|-------------|
 | `ANTHROPIC_API_KEY` | Anthropic API key (or use another provider) |
+| `MINTLIFY_API_URL` | Mintlify API base URL for docs search (e.g. `https://api-dsc.mintlify.com/v1/search/docs.langchain.com`) |
 | `MINTLIFY_API_KEY` | Mintlify API key for docs search |
 | `PYLON_API_KEY` | Pylon API key for support KB |
+| `PYLON_KB_ID` | Pylon knowledge base ID for support articles |
 
 ### Running Locally
 
