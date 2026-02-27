@@ -12,8 +12,6 @@ from langgraph.runtime import Runtime
 from pydantic import BaseModel, Field
 from typing_extensions import NotRequired
 
-from src.agent.config import GUARDRAILS_MODEL
-
 logger = logging.getLogger(__name__)
 
 # Dataset configuration for guardrails evaluation
@@ -123,7 +121,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
     def __init__(self, model: str | None = None, block_off_topic: bool = True):
         super().__init__()
-        model = model or GUARDRAILS_MODEL.id
+        if model is None:
+            from src.agent.config import GUARDRAILS_MODEL
+            model = GUARDRAILS_MODEL.id
         self.llm = init_chat_model(model=model, temperature=0)
         self.block_off_topic = block_off_topic
         logger.info(f"GuardrailsMiddleware initialized with model: {model}")
