@@ -9,6 +9,7 @@ from src.agent.config import (
     model_fallback_middleware,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
+from src.middleware.message_trimmer_middleware import MessageTrimmerMiddleware
 from src.prompts.docs_agent_prompt import docs_agent_prompt
 from src.tools.docs_tools import SearchDocsByLangChain
 from src.tools.link_check_tools import check_links
@@ -25,6 +26,9 @@ guardrails_middleware = GuardrailsMiddleware(
 )
 logger.info(f"Guardrails middleware using {GUARDRAILS_MODEL.name}")
 
+# Trimmer middleware prevents context window overflow for long conversations
+message_trimmer_middleware = MessageTrimmerMiddleware()
+
 docs_agent = create_agent(
     model=configurable_model,
     tools=[
@@ -36,6 +40,7 @@ docs_agent = create_agent(
     system_prompt=docs_agent_prompt,
     middleware=[
         guardrails_middleware,
+        message_trimmer_middleware,
         model_fallback_middleware,
     ],
 )
