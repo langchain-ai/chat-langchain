@@ -2,7 +2,6 @@
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
@@ -25,7 +24,7 @@ class ModelConfig:
     name: str  # Display name, e.g., "Grok 4.1 Fast"
     provider: str  # e.g., "xai", "anthropic", "openai"
     api_key_env: str  # Environment variable for API key
-    description: Optional[str] = None
+    description: str | None = None
 
 
 # All available models - single source of truth
@@ -140,7 +139,7 @@ def _has_api_key(model_config: ModelConfig) -> bool:
 
 
 # Only use models whose API keys are set
-def _first_available(order: list[str]) -> Optional[ModelConfig]:
+def _first_available(order: list[str]) -> ModelConfig | None:
     for key in order:
         m = MODELS[key]
         if _has_api_key(m):
