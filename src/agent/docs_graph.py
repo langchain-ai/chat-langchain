@@ -8,6 +8,7 @@ from src.agent.config import (
     configurable_model,
     model_fallback_middleware,
 )
+from src.middleware.content_normalizer_middleware import ContentNormalizerMiddleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.prompts.docs_agent_prompt import docs_agent_prompt
 from src.tools.docs_tools import SearchDocsByLangChain
@@ -37,5 +38,6 @@ docs_agent = create_agent(
     middleware=[
         guardrails_middleware,
         model_fallback_middleware,
+        ContentNormalizerMiddleware(),
     ],
 )
