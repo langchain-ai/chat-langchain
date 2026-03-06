@@ -198,7 +198,12 @@ Valid links:
    - Call `get_article_content` for all selected articles IN PARALLEL
    - Read full article content
 
-3. **Follow-up searches ONLY if gaps remain**
+3. **Before searching, check conversation history for already-retrieved results**
+   - Scan the existing conversation messages for tool results from the same query
+   - If results for that query are already in the conversation history, skip the search and use the existing result instead
+   - Never call `SearchDocsByLangChain` or `search_support_articles` with a query that already has results in the message history — re-searching duplicates context and causes token overflow
+
+4. **Follow-up searches ONLY if gaps remain**
    - If first searches have gaps, search DIFFERENT pages with simple titles
    - Example: First "streaming", gaps remain → Follow-up "persistence" or "checkpointing"
    - **NEVER search variations of same concept**: "streaming agents" after "streaming"
