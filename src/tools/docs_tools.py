@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 MINTLIFY_API_URL = os.getenv("MINTLIFY_API_URL")
 DEFAULT_PAGE_SIZE = 3
 MAX_PAGE_SIZE = 10
+MAX_CONTENT_CHARS = (
+    8000  # ~2000 tokens; prevents single results from overflowing context
+)
 MAX_RETRIES = 3
 DEFAULT_LANGUAGE = "python"
 CACHE_TTL_SECONDS = 86400
@@ -65,7 +68,11 @@ def _find_fuzzy_match(
 ) -> tuple[str | None, float, int]:
     """Scan cache for best fuzzy match. Returns (key, score, keys_scanned)."""
     first_word = normalized_query.split()[0] if normalized_query else ""
-    pattern = f"{first_word}*|{page_size}|{language}" if first_word else f"*|{page_size}|{language}"
+    pattern = (
+        f"{first_word}*|{page_size}|{language}"
+        if first_word
+        else f"*|{page_size}|{language}"
+    )
 
     best_key = None
     best_score = 0.0
@@ -166,7 +173,12 @@ def get_cache_stats() -> dict[str, Any]:
 def clear_cache() -> None:
     """Clear search cache and reset metrics."""
     _cache.clear()
-    for key in [METRIC_HITS_EXACT, METRIC_HITS_FUZZY, METRIC_MISSES, METRIC_API_REQUESTS]:
+    for key in [
+        METRIC_HITS_EXACT,
+        METRIC_HITS_FUZZY,
+        METRIC_MISSES,
+        METRIC_API_REQUESTS,
+    ]:
         try:
             _cache.set(key, "0", ttl_seconds=315360000)
         except Exception:
@@ -191,7 +203,9 @@ def _track_docs_for_langsmith(urls: list[str]) -> None:
         if not run_tree:
             return
 
-        existing = run_tree.metadata.get("retrieved_docs", []) if run_tree.metadata else []
+        existing = (
+            run_tree.metadata.get("retrieved_docs", []) if run_tree.metadata else []
+        )
         all_docs = (existing if isinstance(existing, list) else []) + urls
 
         unique = []
@@ -219,16 +233,15 @@ def _format_search_results(results: list[dict[str, Any]]) -> str:
         title = metadata.get("title", "Untitled")
         path = result.get("path", "")
         content = result.get("content", "")
+        if len(content) > MAX_CONTENT_CHARS:
+            content = content[:MAX_CONTENT_CHARS] + "... [content truncated]"
         url = f"https://docs.langchain.com{path}" if path else "N/A"
 
         if path:
             urls.append(url)
 
         formatted.append(
-            f"Result {i}:\n"
-            f"Title: {title}\n"
-            f"Link: {url}\n"
-            f"Content: {content}\n"
+            f"Result {i}:\nTitle: {title}\nLink: {url}\nContent: {content}\n"
         )
 
     _track_docs_for_langsmith(urls)
@@ -257,12 +270,16 @@ def _search_docs_api(
 
     _increment_metric(METRIC_API_REQUESTS)
 
-    response = requests.post(MINTLIFY_API_URL, json=payload, headers=headers, timeout=30)
+    response = requests.post(
+        MINTLIFY_API_URL, json=payload, headers=headers, timeout=30
+    )
     response.raise_for_status()
 
     data = response.json()
     if not isinstance(data, list):
-        if isinstance(data, dict) and (error := data.get("error") or data.get("message")):
+        if isinstance(data, dict) and (
+            error := data.get("error") or data.get("message")
+        ):
             raise ValueError(f"Mintlify API error: {error}")
         data = []
 
@@ -306,10 +323,12 @@ def SearchDocsByLangChain(
                 time.sleep(0.5)
 
     logger.error(f"Docs search failed after {MAX_RETRIES} attempts: {last_error}")
-    return json.dumps({
-        "error": "Documentation search unavailable",
-        "message": f"Search failed after {MAX_RETRIES} attempts.",
-        "query": query,
-        "suggestion": "Check https://docs.langchain.com directly.",
-        "details": str(last_error)[:100],
-    })
+    return json.dumps(
+        {
+            "error": "Documentation search unavailable",
+            "message": f"Search failed after {MAX_RETRIES} attempts.",
+            "query": query,
+            "suggestion": "Check https://docs.langchain.com directly.",
+            "details": str(last_error)[:100],
+        }
+    )
