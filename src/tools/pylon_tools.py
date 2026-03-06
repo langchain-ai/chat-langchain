@@ -5,7 +5,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
 from dotenv import load_dotenv
@@ -39,8 +39,8 @@ def _get_api_key() -> str:
 # Cache & API Helpers
 # =============================================================================
 
-_articles_cache: Optional[List[Dict[str, Any]]] = None
-_collections_cache: Optional[Dict[str, str]] = None
+_articles_cache: List[Dict[str, Any]] | None = None
+_collections_cache: Dict[str, str] | None = None
 
 
 def _get_headers() -> Dict[str, str]:
@@ -279,15 +279,17 @@ def get_article_content(article_id: str) -> str:
         # Find the article by ID
         for article in articles:
             if article.get("id") == article_id:
-                # Extract collection from title (best guess based on keywords)
                 title = article.get("title", "Untitled")
-                collection = "Customer Support Knowledge Base"
-                if "langgraph" in title.lower():
-                    collection = "LangGraph"
-                elif "langsmith" in title.lower():
-                    collection = "LangSmith"
-                elif "self" in title.lower() and "host" in title.lower():
-                    collection = "Self Hosted"
+                # Use actual collection_id → collection_name lookup
+                try:
+                    collection_map = _fetch_collections()
+                    collection_id_to_name = {v: k for k, v in collection_map.items()}
+                    coll_id = article.get("collection_id")
+                    collection = collection_id_to_name.get(
+                        coll_id, "Customer Support Knowledge Base"
+                    )
+                except Exception:
+                    collection = "Customer Support Knowledge Base"
 
                 # Construct support.langchain.com URL
                 identifier = article.get("identifier", "")
