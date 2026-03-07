@@ -198,7 +198,7 @@ def _track_docs_for_langsmith(urls: list[str]) -> None:
         seen = set()
         for doc in all_docs:
             if doc not in seen:
-                seen.add(doc)
+               seen.add(doc)
                 unique.append(doc)
 
         run_tree.add_metadata({"retrieved_docs": unique})
@@ -219,7 +219,7 @@ def _format_search_results(results: list[dict[str, Any]]) -> str:
         title = metadata.get("title", "Untitled")
         path = result.get("path", "")
         content = result.get("content", "")
-        url = f"https://docs.langchain.com{path}" if path else "N/A"
+        url = f"https://docs.langchain.com/{path.lstrip('/')}" if path else "N/A"
 
         if path:
             urls.append(url)
@@ -289,7 +289,7 @@ def SearchDocsByLangChain(
     """
     page_size = max(1, min(page_size, MAX_PAGE_SIZE))
 
-    cached = _get_from_cache_fuzzy(query, page_size, language)
+    cached = _get_from_cache_fuzzy(Query, page_size, language)
     if cached is not None:
         return cached
 
@@ -301,7 +301,7 @@ def SearchDocsByLangChain(
             return result
         except Exception as e:
             last_error = e
-            logger.warning(f"Docs search attempt {attempt}/{MAX_RETRIES} failed: {e}")
+            logger.warning(f"Docs search attempt {attempt}/{MAX_RETRIES_failed: {e}")
             if attempt < MAX_RETRIES:
                 time.sleep(0.5)
 
