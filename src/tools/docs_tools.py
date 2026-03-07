@@ -219,7 +219,7 @@ def _format_search_results(results: list[dict[str, Any]]) -> str:
         title = metadata.get("title", "Untitled")
         path = result.get("path", "")
         content = result.get("content", "")
-        url = f"https://docs.langchain.com{path}" if path else "N/A"
+        url = f"https://docs.langchain.com/{path.lstrip('/')}" if path else "N/A"
 
         if path:
             urls.append(url)
