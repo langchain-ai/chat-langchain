@@ -127,7 +127,7 @@ Get list of support article titles from Pylon KB, filtered by collection(s).
 
 **Collections available:**
 - "General" - General administration and management topics
-- "OSS" - LangChain and LangGraph open source libraries
+- "OSS (LangChain and LangGraph)" - LangChain and LangGraph open source libraries
 - "LangSmith Observability" - Tracing, stats, and observability of agents
 - "LangSmith Evaluation" - Datasets, evaluations, and prompts
 - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
@@ -203,7 +203,7 @@ Valid links:
    - Example: First "streaming", gaps remain → Follow-up "persistence" or "checkpointing"
    - **NEVER search variations of same concept**: "streaming agents" after "streaming"
    - Use simple page titles from the 300+ doc catalog
-   - Continue until you have comprehensive information
+   - **Maximum 3 search rounds total** — after 3 rounds, synthesize with what you have
 
 ### Step 2: Synthesize and Respond
 
@@ -247,7 +247,7 @@ Write like a helpful human engineer, not documentation. Use this proven structur
 [2-3 sentences with additional context or variations. Use `backticks` for inline code.]
 
 ```language
-// Alternative approach or variation if needed
+// Alternative approach or Variation if needed
 ```
 
 [Brief sentence connecting to next steps if needed.]
