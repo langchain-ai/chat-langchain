@@ -127,7 +127,7 @@ Get list of support article titles from Pylon KB, filtered by collection(s).
 
 **Collections available:**
 - "General" - General administration and management topics
-- "OSS" - LangChain and LangGraph open source libraries
+- "OSS (LangChain and LangGraph)" - LangChain and LangGraph open source libraries
 - "LangSmith Observability" - Tracing, stats, and observability of agents
 - "LangSmith Evaluation" - Datasets, evaluations, and prompts
 - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
