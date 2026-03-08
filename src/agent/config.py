@@ -104,13 +104,29 @@ MODELS: dict[str, ModelConfig] = {
         api_key_env="GOOGLE_API_KEY",
         description="Most capable Gemini model",
     ),
+    # DeepSeek (supports tool calling; use deepseek-chat for this agent)
+    "deepseek-chat": ModelConfig(
+        id="deepseek:deepseek-chat",
+        name="DeepSeek V3 Chat",
+        provider="deepseek",
+        api_key_env="DEEPSEEK_API_KEY",
+        description="DeepSeek chat model with tool calling",
+    ),
+    "deepseek-reasoner": ModelConfig(
+        id="deepseek:deepseek-reasoner",
+        name="DeepSeek R1 Reasoner",
+        provider="deepseek",
+        api_key_env="DEEPSEEK_API_KEY",
+        description="DeepSeek reasoner (no tool calling)",
+    ),
 }
 
 # Preferred order for default and guardrails (first available wins)
-_DEFAULT_MODEL_ORDER = ["claude-haiku", "grok-4.1-fast", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
-_GUARDRAILS_MODEL_ORDER = ["grok-4.1-fast", "claude-haiku", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
+_DEFAULT_MODEL_ORDER = ["claude-haiku", "deepseek-chat", "grok-4.1-fast", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
+_GUARDRAILS_MODEL_ORDER = ["grok-4.1-fast", "claude-haiku", "deepseek-chat", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
 _FALLBACK_CHAIN_ORDER = [
     MODELS["claude-haiku"],
+    MODELS["deepseek-chat"],
     MODELS["grok-4.1-fast"],
     MODELS["gpt-5-mini"],
     MODELS["claude-sonnet"],
@@ -126,6 +142,7 @@ API_KEYS = [
     "OPENROUTER_API_KEY",
     "XAI_API_KEY",
     "GOOGLE_API_KEY",
+    "DEEPSEEK_API_KEY",
 ]
 
 for key in API_KEYS:
@@ -156,7 +173,7 @@ def _filter_available(model_list: list[ModelConfig]) -> list[ModelConfig]:
 _resolved_default = _first_available(_DEFAULT_MODEL_ORDER)
 if _resolved_default is None:
     raise RuntimeError(
-        "No LLM API key is set. Set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, XAI_API_KEY, GOOGLE_API_KEY. "
+        "No LLM API key is set. Set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, XAI_API_KEY, GOOGLE_API_KEY, DEEPSEEK_API_KEY. "
         "See .env.example for details."
     )
 DEFAULT_MODEL = _resolved_default
