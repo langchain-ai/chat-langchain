@@ -12,6 +12,13 @@ from langgraph.runtime import Runtime
 from pydantic import BaseModel, Field
 from typing_extensions import NotRequired
 
+# Feedback key written to LangSmith by the guardrails middleware.
+# Mirrors the key used by the "declined-request" online auto-evaluator rule so
+# that the rule already finds a score on errored runs and does not attempt to
+# evaluate a trace that has no agent output (which would crash with
+# KeyError: "Input to StructuredPrompt is missing variables {'output'}").
+_DECLINED_REQUEST_FEEDBACK_KEY = "declined-request"
+
 logger = logging.getLogger(__name__)
 
 # Dataset configuration for guardrails evaluation
@@ -172,6 +179,39 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.error(f"Error generating rejection message: {e}")
             return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
 
+    def _emit_declined_request_feedback(
+        self, *, declined: bool, comment: str | None = None
+    ) -> None:
+        """Submit 'declined-request' feedback on the current LangSmith run.
+
+        Submitting this score from the middleware itself means the
+        LangSmith online auto-evaluator rule will find an existing score
+        and skip re-evaluation.  This is critical for errored agent runs
+        where ``outputs`` is ``null``: without a pre-existing score the
+        evaluator's ``StructuredPrompt`` crashes with::
+
+            KeyError: "Input to StructuredPrompt is missing variables {'output'}"
+
+        Args:
+            declined: ``True`` when the request was declined (off-topic),
+                ``False`` when it was allowed through.
+            comment: Optional free-text note attached to the feedback row.
+        """
+        try:
+            run_tree = ls.get_current_run_tree()
+            if run_tree is None:
+                return
+            client = ls.Client()
+            client.create_feedback(
+                run_id=run_tree.id,
+                key=_DECLINED_REQUEST_FEEDBACK_KEY,
+                score=int(declined),  # 1 = declined, 0 = answered
+                comment=comment,
+                source_info={"middleware": self.__class__.__name__},
+            )
+        except Exception as exc:  # pragma: no cover – best-effort telemetry
+            logger.debug("Failed to emit declined-request feedback: %s", exc)
+
     @hook_config(can_jump_to=["end"])
     async def abefore_agent(
         self, state: GuardrailsState, runtime: Runtime
@@ -197,7 +237,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Classify the query
         decision = await self._classify_query(messages)
         if decision is None:
-            # Classification failed - allow query through (fail-open)
+            # Classification failed - allow query through (fail-open).
+            # Emit score=0 so the LangSmith auto-evaluator does not attempt
+            # to evaluate a potentially errored run without output.
+            self._emit_declined_request_feedback(
+                declined=False,
+                comment="guardrails classification failed – defaulting to allowed",
+            )
             return None
 
         # Track in LangSmith metadata
@@ -212,6 +258,15 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: LangChain-related query approved")
+            # Emit score=0 (not declined) so a pre-existing score exists on
+            # this run before the agent processes the request.  If the agent
+            # later errors, the LangSmith auto-evaluator will find this score
+            # and skip re-evaluation rather than crashing on a missing
+            # {output} template variable.
+            self._emit_declined_request_feedback(
+                declined=False,
+                comment="guardrails: query allowed – on-topic",
+            )
             return None
 
         # Handle blocked queries
@@ -221,7 +276,18 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.info(
                 "Off-topic query detected but block_off_topic=False, allowing..."
             )
+            self._emit_declined_request_feedback(
+                declined=False,
+                comment="guardrails: off-topic detected but block_off_topic=False",
+            )
             return None
+
+        # Emit score=1 (declined) before generating the rejection message so
+        # the score is persisted even if the message generation fails.
+        self._emit_declined_request_feedback(
+            declined=True,
+            comment=f"guardrails: off-topic query blocked – {query_preview!r}",
+        )
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
@@ -230,6 +296,55 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             "off_topic_query": True,
             "jump_to": "end",
         }
+
+    async def aafter_agent(
+        self, state: GuardrailsState, runtime: Runtime
+    ) -> dict[str, Any] | None:
+        """Guard the 'declined-request' evaluator against runs with no output.
+
+        The LangSmith online auto-evaluator for 'declined-request' is
+        configured to fire on every root run in the Chat-LangChain project,
+        including runs that errored.  When a run errors the agent produces no
+        output, so ``outputs`` is ``null`` in the LangSmith trace.  The
+        evaluator's ``StructuredPrompt`` then crashes because the ``{output}``
+        template variable is absent::
+
+            KeyError: "Input to StructuredPrompt is missing variables {'output'}"
+
+        This hook runs after the agent loop exits.  If the state contains no
+        AI-generated messages we emit a ``declined-request`` feedback score of
+        ``None`` (skipped) with an explanatory comment so that the evaluator
+        record is already populated and the rule will not re-fire.
+
+        In the normal (non-errored) case ``abefore_agent`` has already posted a
+        definitive score (0 or 1), so this hook is a safety net only.
+        """
+        messages = state.get("messages", [])
+        has_ai_output = any(isinstance(m, AIMessage) for m in messages)
+
+        if not has_ai_output:
+            # The agent produced no output – likely errored.  Post a sentinel
+            # feedback so the auto-evaluator does not attempt to score a run
+            # with a missing {output} variable.
+            try:
+                run_tree = ls.get_current_run_tree()
+                if run_tree is not None:
+                    ls.Client().create_feedback(
+                        run_id=run_tree.id,
+                        key=_DECLINED_REQUEST_FEEDBACK_KEY,
+                        score=None,  # None = not scoreable / skipped
+                        comment=(
+                            "declined-request eval skipped: "
+                            "agent produced no output (run may have errored)"
+                        ),
+                        source_info={"middleware": self.__class__.__name__},
+                    )
+            except Exception as exc:  # pragma: no cover – best-effort telemetry
+                logger.debug(
+                    "Failed to emit declined-request skip feedback: %s", exc
+                )
+
+        return None
 
     def _extract_message_text(self, msg) -> str | None:
         """Extract plain text content from a message."""
