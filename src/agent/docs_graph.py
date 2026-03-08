@@ -2,6 +2,7 @@
 import logging
 
 from langchain.agents import create_agent
+from langchain.agents.middleware import ClearToolUsesEdit, ContextEditingMiddleware
 
 from src.agent.config import (
     GUARDRAILS_MODEL,
@@ -25,6 +26,13 @@ guardrails_middleware = GuardrailsMiddleware(
 )
 logger.info(f"Guardrails middleware using {GUARDRAILS_MODEL.name}")
 
+# Context editing middleware trims old tool results when conversation grows too long,
+# preventing anthropic.BadRequestError: prompt is too long > 200000 tokens.
+# Trigger at 180_000 tokens (safe buffer below Anthropic's 200k limit).
+context_editing_middleware = ContextEditingMiddleware(
+    edits=[ClearToolUsesEdit(trigger=180_000, keep=3)],
+)
+
 docs_agent = create_agent(
     model=configurable_model,
     tools=[
@@ -37,5 +45,6 @@ docs_agent = create_agent(
     middleware=[
         guardrails_middleware,
         model_fallback_middleware,
+        context_editing_middleware,
     ],
 )
