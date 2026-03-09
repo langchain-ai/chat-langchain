@@ -7,6 +7,7 @@ from src.agent.config import (
     GUARDRAILS_MODEL,
     configurable_model,
     model_fallback_middleware,
+    model_retry_middleware,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.prompts.docs_agent_prompt import docs_agent_prompt
@@ -36,6 +37,7 @@ docs_agent = create_agent(
     system_prompt=docs_agent_prompt,
     middleware=[
         guardrails_middleware,
+        model_retry_middleware,
         model_fallback_middleware,
     ],
 )
