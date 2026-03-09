@@ -1,6 +1,7 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
+import concurrent.futures
 import logging
 import re
 from dataclasses import dataclass
@@ -166,10 +167,33 @@ def _format_results(results: list[LinkCheckResult]) -> str:
     if valid:
         lines.append("Valid links:")
         for r in valid:
-            suffix = f" (→ {r.final_url})" if r.final_url else ""
+            suffix = f" (\u2192 {r.final_url})" if r.final_url else ""
             lines.append(f"  - {r.url}{suffix}")
 
     return "\n".join(lines)
+
+
+def _run_async(coro):
+    """Run an async coroutine safely regardless of whether an event loop is running.
+
+    asyncio.run() raises RuntimeError when called from within an already-running
+    event loop (e.g., inside LangGraph's async executor). This helper detects that
+    situation and falls back to running the coroutine in a fresh thread where a
+    new event loop can be created safely.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # An event loop is already running (e.g. LangGraph async context).
+            # Run the coroutine in a separate thread where asyncio.run() is safe.
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
+        else:
+            return loop.run_until_complete(coro)
+    except RuntimeError:
+        # Fallback: no current event loop at all — just create one.
+        return asyncio.run(coro)
 
 
 @tool
@@ -190,5 +214,5 @@ def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
     seen = set()
     unique_urls = [u for u in urls if not (u in seen or seen.add(u))]
 
-    results = asyncio.run(_check_urls_async(unique_urls, timeout))
+    results = _run_async(_check_urls_async(unique_urls, timeout))
     return _format_results(results)
