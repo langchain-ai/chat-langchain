@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -19,9 +20,39 @@ logger = logging.getLogger(__name__)
 PYLON_API_BASE_URL = "https://api.usepylon.com"
 
 
+# =================================================================================
+# HTML stripping helper
+# =================================================================================
+
+
+class _HTMLTextExtractor(HTMLParser):
+    """Extract plain text from an HTML string."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._text: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        """Collect text nodes."""
+        self._text.append(data)
+
+    def get_text(self) -> str:
+        """Return the concatenated text with normalised whitespace."""
+        return " ".join(self._text)
+
+
+def _strip_html(html_content: str) -> str:
+    """Strip all HTML tags and return plain text with normalised whitespace."""
+    extractor = _HTMLTextExtractor()
+    extractor.feed(html_content)
+    text = extractor.get_text()
+    # Collapse runs of whitespace (spaces, tabs, newlines) into single spaces
+    return " ".join(text.split())
+
+
 def _get_kb_id() -> str:
     """Get knowledge base ID from environment."""
-    kb_id = os.getenv("PYLON_KB_ID")
+    kb_id = os.getenv("PYPLON_KB_ID")
     if not kb_id:
         raise ValueError("PYLON_KB_ID not configured in .env")
     return kb_id
@@ -29,15 +60,15 @@ def _get_kb_id() -> str:
 
 def _get_api_key() -> str:
     """Get Pylon API key from environment."""
-    api_key = os.getenv("PYLON_API_KEY")
+    api_key = os.getenv("PYPLON_API_KEY")
     if not api_key:
         raise ValueError("PYLON_API_KEY not configured in .env")
     return api_key
 
 
-# =============================================================================
+# =================================================================================
 # Cache & API Helpers
-# =============================================================================
+# =================================================================================
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
@@ -92,9 +123,9 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     return _articles_cache
 
 
-# =============================================================================
+# =================================================================================
 # LangChain Tools
-# =============================================================================
+# =================================================================================
 
 
 @tool
@@ -300,13 +331,17 @@ def get_article_content(article_id: str) -> str:
                     support_url = "URL not available"
 
                 # Only return id, title, url, collection, content
+                raw_html = article.get(
+                    "current_published_content_html", "No content available"
+                )
+                content = _strip_html(raw_html)[:5000]
                 return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
 
 Content:
-{article.get("current_published_content_html", "No content available")[:5000]}"""
+{content}"""
 
         return f"Article ID {article_id} not found in knowledge base."
 
