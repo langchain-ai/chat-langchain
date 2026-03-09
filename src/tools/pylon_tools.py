@@ -77,7 +77,11 @@ def _fetch_collections() -> Dict[str, str]:
 
 
 def _fetch_all_articles() -> List[Dict[str, Any]]:
-    """Fetch all articles from Pylon API and cache them."""
+    """Fetch all articles from Pylon API and cache them.
+
+    Follows pagination cursors until all pages are retrieved, with a safety
+    cap of 10 pages (~1000 articles) to prevent infinite loops.
+    """
     global _articles_cache
 
     if _articles_cache is not None:
@@ -85,10 +89,36 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/articles"
-    response = requests.get(url, headers=_get_headers())
-    response.raise_for_status()
+    headers = _get_headers()
 
-    _articles_cache = response.json().get("data", [])
+    all_articles: List[Dict[str, Any]] = []
+    max_pages = 10
+    pages_fetched = 0
+    params: Dict[str, Any] = {}
+
+    while pages_fetched < max_pages:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        body = response.json()
+
+        page_data = body.get("data", [])
+        all_articles.extend(page_data)
+        pages_fetched += 1
+
+        # Resolve next-page cursor from common Pylon/REST pagination shapes
+        next_cursor = (
+            body.get("next")
+            or body.get("meta", {}).get("next")
+            or body.get("links", {}).get("next")
+            or body.get("pagination", {}).get("cursor")
+        )
+
+        if not next_cursor:
+            break
+
+        params = {"cursor": next_cursor}
+
+    _articles_cache = all_articles
     return _articles_cache
 
 
@@ -276,18 +306,22 @@ def get_article_content(article_id: str) -> str:
         if articles is None or not articles:
             return "Error: No articles available from API. Check PYLON_API_KEY configuration."
 
+        # Build reverse mapping: collection_id -> collection_name
+        try:
+            collection_map = _fetch_collections()
+            collection_id_to_name = {v: k for k, v in collection_map.items()}
+        except Exception:
+            collection_id_to_name = {}
+
         # Find the article by ID
         for article in articles:
             if article.get("id") == article_id:
-                # Extract collection from title (best guess based on keywords)
                 title = article.get("title", "Untitled")
-                collection = "Customer Support Knowledge Base"
-                if "langgraph" in title.lower():
-                    collection = "LangGraph"
-                elif "langsmith" in title.lower():
-                    collection = "LangSmith"
-                elif "self" in title.lower() and "host" in title.lower():
-                    collection = "Self Hosted"
+                # Look up collection name by collection_id; fall back to default
+                coll_id = article.get("collection_id")
+                collection = collection_id_to_name.get(
+                    coll_id, "Customer Support Knowledge Base"
+                )
 
                 # Construct support.langchain.com URL
                 identifier = article.get("identifier", "")
