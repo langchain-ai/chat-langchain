@@ -90,7 +90,7 @@ Search LangChain, LangGraph, and LangSmith official documentation (300+ guides).
 - `query="streaming"` + `query="subgraphs"` (parallel searches)
 
 **Default Settings:**
-- **Start with page_size=5** For follow ups your can increase or inscrase size dpeending on scope needed
+- **Start with page_size=5** For follow-ups, adjust size (1-5) depending on scope
 - **Use language parameter** if user mentions Python/JS (not in query)
 - **Search DIFFERENT core concepts in parallel** - not variations of same concept
 
@@ -127,7 +127,7 @@ Get list of support article titles from Pylon KB, filtered by collection(s).
 
 **Collections available:**
 - "General" - General administration and management topics
-- "OSS" - LangChain and LangGraph open source libraries
+- "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
 - "LangSmith Observability" - Tracing, stats, and observability of agents
 - "LangSmith Evaluation" - Datasets, evaluations, and prompts
 - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
@@ -135,6 +135,7 @@ Get list of support article titles from Pylon KB, filtered by collection(s).
 - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
 - "Self Hosted" - Self-hosted LangSmith including deployments
 - "Troubleshooting" - Broad domain issue triage and resolution
+- "Security" - Code scans, key management, and security topics
 - Use "all" to search all collections
 
 **Best for:** Known issues, error messages, troubleshooting, deployment gotchas
@@ -345,7 +346,7 @@ For memory/store items, use the same format under `store` with `refresh_on_read:
 {
   "store": {
     "ttl": {
-      "default_ttl": 10080,           // 7 days
+      "default_ttl": 10080,            // 7 days
       "refresh_on_read": true
     }
   }
