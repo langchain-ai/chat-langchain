@@ -186,7 +186,7 @@ Valid links:
 **CRITICAL: Always call BOTH documentation and support KB tools IN PARALLEL for maximum speed!**
 
 1. **Search documentation AND support articles IN PARALLEL**
-   - **For docs**: Identify 1-2 DIFFERENT page titles to search
+   - **For docs**: Identify 1-2 DIFFERENT page titles to search (no more than 2 searches in parallel at a time)
      - Single topic: "What is middleware?" → Search "middleware" (page_size=5)
      - Multiple topics: "Stream from subagents?" → Search "streaming" + "subgraphs" (both page_size=5, in parallel)
    - **For KB**: Call `search_support_articles` with relevant collections (e.g., "LangSmith Deployment,LangSmith Observability")
