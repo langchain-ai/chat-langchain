@@ -178,10 +178,17 @@ if not FALLBACK_MODELS:
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
+# Per-request timeout in seconds. Prevents grok (and other models) from hanging
+# indefinitely — observed as 1-hour hangs on xai:grok-4-1-fast-non-reasoning that
+# block until LangGraph's hard platform timeout kills the task. 120s is enough for
+# any reasonable response; failures propagate to ModelFallbackMiddleware.
+MODEL_REQUEST_TIMEOUT = int(os.getenv("MODEL_REQUEST_TIMEOUT", "120"))
+
 # Primary configurable model (can be switched at runtime)
 configurable_model = init_chat_model(
     model=DEFAULT_MODEL.id,
     configurable_fields=("model",),
+    timeout=MODEL_REQUEST_TIMEOUT,
 )
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
@@ -221,5 +228,6 @@ __all__ = [
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
+    "MODEL_REQUEST_TIMEOUT",
     "logger",
 ]
