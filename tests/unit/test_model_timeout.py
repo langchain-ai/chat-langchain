@@ -9,8 +9,6 @@ def test_model_has_timeout_configured():
 
     from src.agent.config import configurable_model
 
-    # Check that the model has some timeout configuration
-    # The exact attribute depends on the implementation
     model_kwargs = getattr(configurable_model, "model_kwargs", {}) or {}
     timeout = (
         getattr(configurable_model, "request_timeout", None)
@@ -18,7 +16,6 @@ def test_model_has_timeout_configured():
         or model_kwargs.get("request_timeout", None)
     )
 
-    # For _ConfigurableModel, the timeout is stored in _default_config
     if timeout is None:
         default_config = getattr(configurable_model, "_default_config", {}) or {}
         timeout = default_config.get("timeout", None) or default_config.get(
