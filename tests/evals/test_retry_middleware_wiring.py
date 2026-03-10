@@ -1,17 +1,16 @@
 # tests/evals/test_retry_middleware_wiring.py
 import pytest
 from langsmith import testing as t
-
+from src.agent import config
+from src.agent.docs_graph import docs_agent
+from src.middleware.retry_middleware import ModelRetryMiddleware
 
 @pytest.mark.langsmith
 def test_retry_middleware_is_in_agent_middleware_list():
     """Ensure ModelRetryMiddleware is wired into docs_agent's middleware stack."""
-    from src.agent.docs_graph import docs_agent
-    from src.middleware.retry_middleware import ModelRetryMiddleware
 
     t.log_inputs({"check": "ModelRetryMiddleware in docs_agent middleware"})
 
-    # Access middleware list from agent
     middleware_list = getattr(docs_agent, "middleware", [])
     types = [type(m).__name__ for m in middleware_list]
     t.log_outputs({"middleware_types": types})
@@ -26,8 +25,6 @@ def test_retry_middleware_is_in_agent_middleware_list():
 @pytest.mark.langsmith
 def test_retry_middleware_config_is_exported():
     """Ensure model_retry_middleware is properly exported from config."""
-    from src.agent import config
-    from src.middleware.retry_middleware import ModelRetryMiddleware
 
     t.log_inputs({"check": "model_retry_middleware exported from config"})
 
