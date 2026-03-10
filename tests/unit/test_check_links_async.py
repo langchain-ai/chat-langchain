@@ -68,7 +68,7 @@ async def test_check_links_works_in_async_context():
         result = await check_links.acall({"urls": ["https://example.com"]})
 
     assert "1/1 valid" in result
-    assert "https://example.com" in result
+    assert "  - https://example.com" in result
 
 
 @pytest.mark.asyncio
@@ -118,8 +118,8 @@ def test_check_links_works_in_sync_context():
         )
 
     assert "1/2 valid" in result
-    assert "https://example.com" in result
-    assert "https://bad.example.com" in result
+    assert "  - https://example.com" in result
+    assert "  - https://bad.example.com:" in result
     assert "HTTP 404" in result
 
 
