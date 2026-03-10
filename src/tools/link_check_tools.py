@@ -173,12 +173,12 @@ def _format_results(results: list[LinkCheckResult]) -> str:
 
 
 @tool
-def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
+async def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
     """Check if URLs are valid and accessible before including them in a response.
 
     Args:
         urls: List of URLs to validate.
-        timeout: Timeout per request in seconds (default: 5).
+        timeout: Timeout per request in seconds (default: 10).
 
     Returns:
         Formatted results showing which URLs are valid/invalid with details.
@@ -190,5 +190,5 @@ def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
     seen = set()
     unique_urls = [u for u in urls if not (u in seen or seen.add(u))]
 
-    results = asyncio.run(_check_urls_async(unique_urls, timeout))
+    results = await _check_urls_async(unique_urls, timeout)
     return _format_results(results)
