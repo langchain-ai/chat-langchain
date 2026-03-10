@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 MINTLIFY_API_URL = os.getenv("MINTLIFY_API_URL")
-DEFAULT_PAGE_SIZE = 3
+DEFAULT_PAGE_SIZE = 5
 MAX_PAGE_SIZE = 10
 MAX_RETRIES = 3
 DEFAULT_LANGUAGE = "python"
@@ -280,7 +280,7 @@ def SearchDocsByLangChain(
 
     Args:
         query: Natural language search query.
-        page_size: Number of results (default: 3, max: 10).
+        page_size: Number of results (default: 5, max: 10).
         version: Optional version filter (e.g., "v1", "latest").
         language: Programming language filter (default: "python").
 
