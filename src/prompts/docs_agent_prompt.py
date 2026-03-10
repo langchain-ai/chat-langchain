@@ -90,7 +90,7 @@ Search LangChain, LangGraph, and LangSmith official documentation (300+ guides).
 - `query="streaming"` + `query="subgraphs"` (parallel searches)
 
 **Default Settings:**
-- **Start with page_size=5** For follow-ups, adjust size (1-5) depending on scope
+- **Start with page_size=5** For follow ups your can increase or inscrase size dpeending on scope needed
 - **Use language parameter** if user mentions Python/JS (not in query)
 - **Search DIFFERENT core concepts in parallel** - not variations of same concept
 
