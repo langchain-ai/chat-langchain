@@ -4,18 +4,6 @@ These tests verify that the guardrails system prompt explicitly handles pure
 data science library questions (pandas, numpy, sklearn, pyspark, etc.) without
 LangChain context by blocking/redirecting them.
 
-Problem context:
-- Production traces showed users asking pure pandas/pyspark questions getting
-  full code answers (no LangChain context).
-- One user explicitly complained: "are you supposed to give this i thought you
-  where just meant for langchain"
-- Root cause: _GUARDRAILS_SYSTEM_PROMPT "ALWAYS ALLOW - Technical & Development"
-  was too broad - pandas IS software, so it wasn't blocked.
-
-Traces:
-- 019cd3ec-a1de-7281-9f32-d5d4c50ab9ad: pure pandas code request → answered
-- 019cd3ed-82eb-7482-ac3a-d3da0cba17aa: pure PySpark code request → answered
-- 019cd3ed-0fe5-7db0-8e16-c3999c60b86c: user complained about off-topic answer
 """
 
 import os
