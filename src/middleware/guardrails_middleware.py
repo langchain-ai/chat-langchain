@@ -126,6 +126,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         super().__init__()
         if model is None:
             from src.agent.config import GUARDRAILS_MODEL
+
             model = GUARDRAILS_MODEL.id
         self.llm = init_chat_model(model=model, temperature=0)
         self.block_off_topic = block_off_topic
@@ -146,7 +147,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                     except Exception:
                         dataset = await client.create_dataset(
                             dataset_name=GUARDRAILS_DATASET_NAME,
-                            description="Production samples for guardrails evaluation. Contains all blocked queries and 10% of allowed queries.",
+                            description="Production samples for guardrails evaluation. Contains all blocked queries and 1% of allowed queries.",
                         )
                         _dataset_id_cache = str(dataset.id)
 
