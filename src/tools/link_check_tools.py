@@ -17,7 +17,14 @@ USER_AGENT = "LangChain-LinkChecker/1.0"
 CONTENT_CHECK_BYTES = 8192  # Only read first 8KB for soft 404 detection
 
 # Domains known to have soft 404s (return 200 with "not found" content)
-SOFT_404_DOMAINS = {"docs.langchain.com", "python.langchain.com", "js.langchain.com"}
+SOFT_404_DOMAINS = {"docs.langchain.com"}
+
+# Deprecated domains that must never be included in responses.
+# These are blocked outright so check_links never returns a false "valid" signal.
+BLOCKED_DOMAINS = {
+    "python.langchain.com",
+    "js.langchain.com",
+}
 
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
@@ -26,6 +33,7 @@ _cache: dict[str, "LinkCheckResult"] = {}
 @dataclass
 class LinkCheckResult:
     """Result of checking a single URL."""
+
     url: str
     valid: bool
     status_code: int | None = None
@@ -53,10 +61,10 @@ def _needs_soft_404_check(url: str) -> bool:
 
 def _is_soft_404(content: str) -> bool:
     """Detect soft 404 pages that return HTTP 200 but show 'not found' content."""
-    title_match = re.search(r'<title>(.*?)</title>', content, re.IGNORECASE)
+    title_match = re.search(r"<title>(.*?)</title>", content, re.IGNORECASE)
     if title_match:
         title = title_match.group(1).lower()
-        if any(phrase in title for phrase in ['not found', '404', 'page not found']):
+        if any(phrase in title for phrase in ["not found", "404", "page not found"]):
             return True
     return False
 
@@ -71,6 +79,20 @@ async def _check_single_url(
     if url in _cache:
         return _cache[url]
 
+    # Reject deprecated domains before making any HTTP request
+    try:
+        domain = urlparse(url).netloc.lower()
+    except Exception:
+        domain = ""
+    if domain in BLOCKED_DOMAINS:
+        result = LinkCheckResult(
+            url=url,
+            valid=False,
+            error="Deprecated domain: use docs.langchain.com instead",
+        )
+        _cache[url] = result
+        return result
+
     if not _is_valid_url(url):
         result = LinkCheckResult(url=url, valid=False, error="Invalid URL format")
         _cache[url] = result
@@ -81,7 +103,9 @@ async def _check_single_url(
 
         if needs_content_check:
             # Stream response, only read first chunk for soft 404 detection
-            async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
+            async with client.stream(
+                "GET", url, timeout=timeout, follow_redirects=True
+            ) as response:
                 final_url = str(response.url) if str(response.url) != url else None
                 is_valid = 200 <= response.status_code < 400
 
@@ -94,15 +118,21 @@ async def _check_single_url(
 
                     if _is_soft_404(content):
                         result = LinkCheckResult(
-                            url=url, valid=False, status_code=200, final_url=final_url,
+                            url=url,
+                            valid=False,
+                            status_code=200,
+                            final_url=final_url,
                             error="Soft 404: Page shows 'not found' content",
                         )
                         _cache[url] = result
                         return result
 
                 result = LinkCheckResult(
-                    url=url, valid=is_valid, status_code=response.status_code,
-                    final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
+                    url=url,
+                    valid=is_valid,
+                    status_code=response.status_code,
+                    final_url=final_url,
+                    error=None if is_valid else f"HTTP {response.status_code}",
                 )
         else:
             # Use HEAD for non-langchain domains (much faster)
@@ -116,8 +146,11 @@ async def _check_single_url(
             is_valid = 200 <= response.status_code < 400
 
             result = LinkCheckResult(
-                url=url, valid=is_valid, status_code=response.status_code,
-                final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
+                url=url,
+                valid=is_valid,
+                status_code=response.status_code,
+                final_url=final_url,
+                error=None if is_valid else f"HTTP {response.status_code}",
             )
 
         _cache[url] = result
@@ -128,7 +161,9 @@ async def _check_single_url(
     except httpx.TooManyRedirects:
         result = LinkCheckResult(url=url, valid=False, error="Too many redirects")
     except httpx.ConnectError as e:
-        result = LinkCheckResult(url=url, valid=False, error=f"Connection failed: {str(e)[:50]}")
+        result = LinkCheckResult(
+            url=url, valid=False, error=f"Connection failed: {str(e)[:50]}"
+        )
     except Exception as e:
         logger.warning(f"Error checking URL {url}: {e}")
         result = LinkCheckResult(url=url, valid=False, error=f"Error: {str(e)[:50]}")
