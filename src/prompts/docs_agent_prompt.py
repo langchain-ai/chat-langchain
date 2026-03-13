@@ -204,6 +204,8 @@ Valid links:
    - If results for that query are already in the conversation history, skip the search and use the existing result instead
    - Never call `SearchDocsByLangChain` or `search_support_articles` with a query that already has results in the message history — re-searching duplicates context and causes token overflow
 
+**CRITICAL: NEVER call the same tool with the same arguments more than once — this applies within the current response AND across conversation history. If you have already called `SearchDocsByLangChain(query="middleware")` in this response, do NOT call it again with `query="middleware"`. Duplicate tool calls within a single response turn waste tokens, add latency, and are never useful.**
+
 4. **Follow-up searches ONLY if gaps remain**
    - If first searches have gaps, search DIFFERENT pages with simple titles
    - Example: First "streaming", gaps remain → Follow-up "persistence" or "checkpointing"
