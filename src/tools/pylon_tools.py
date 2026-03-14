@@ -5,7 +5,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
 from dotenv import load_dotenv
@@ -39,8 +39,8 @@ def _get_api_key() -> str:
 # Cache & API Helpers
 # =============================================================================
 
-_articles_cache: Optional[List[Dict[str, Any]]] = None
-_collections_cache: Optional[Dict[str, str]] = None
+_articles_cache: List[Dict[str, Any]] | None = None
+_collections_cache: Dict[str, str] | None = None
 
 
 def _get_headers() -> Dict[str, str]:

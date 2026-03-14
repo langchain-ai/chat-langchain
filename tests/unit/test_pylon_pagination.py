@@ -4,15 +4,13 @@ These tests do NOT require network access or LangSmith credentials.
 All HTTP calls are mocked via unittest.mock.
 """
 
-import importlib
-import sys
 import unittest
-from unittest.mock import MagicMock, call, patch
-
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_response(data, next_cursor=None):
     """Build a mock requests.Response whose .json() returns a Pylon-shaped body."""
@@ -36,14 +34,21 @@ def _make_meta_response(data, next_cursor=None):
     return mock_resp
 
 
-ARTICLE_PAGE_1 = [{"id": "a1", "title": "Article 1"}, {"id": "a2", "title": "Article 2"}]
-ARTICLE_PAGE_2 = [{"id": "a3", "title": "Article 3"}, {"id": "a4", "title": "Article 4"}]
+ARTICLE_PAGE_1 = [
+    {"id": "a1", "title": "Article 1"},
+    {"id": "a2", "title": "Article 2"},
+]
+ARTICLE_PAGE_2 = [
+    {"id": "a3", "title": "Article 3"},
+    {"id": "a4", "title": "Article 4"},
+]
 ARTICLE_PAGE_3 = [{"id": "a5", "title": "Article 5"}]
 
 
 # ---------------------------------------------------------------------------
 # Test class
 # ---------------------------------------------------------------------------
+
 
 class TestFetchAllArticlesPagination(unittest.TestCase):
     """Unit tests for _fetch_all_articles() pagination behaviour."""
@@ -52,6 +57,7 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
         """Reload the module and reset the global cache before each test."""
         # Ensure a clean module state so _articles_cache starts as None
         import src.tools.pylon_tools as pylon_module
+
         pylon_module._articles_cache = None
         self.module = pylon_module
 
@@ -161,7 +167,9 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
     @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
     @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
     @patch("src.tools.pylon_tools.requests.get")
-    def test_cache_prevents_duplicate_requests(self, mock_get, mock_kb_id, mock_api_key):
+    def test_cache_prevents_duplicate_requests(
+        self, mock_get, mock_kb_id, mock_api_key
+    ):
         """Calling _fetch_all_articles() twice only hits the network once."""
         mock_get.return_value = _make_response(ARTICLE_PAGE_1, next_cursor=None)
 

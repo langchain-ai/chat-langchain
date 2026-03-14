@@ -2,7 +2,6 @@
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
@@ -25,7 +24,7 @@ class ModelConfig:
     name: str  # Display name, e.g., "Grok 4.1 Fast"
     provider: str  # e.g., "xai", "anthropic", "openai"
     api_key_env: str  # Environment variable for API key
-    description: Optional[str] = None
+    description: str | None = None
 
 
 # All available models - single source of truth
@@ -107,8 +106,20 @@ MODELS: dict[str, ModelConfig] = {
 }
 
 # Preferred order for default and guardrails (first available wins)
-_DEFAULT_MODEL_ORDER = ["claude-haiku", "grok-4.1-fast", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
-_GUARDRAILS_MODEL_ORDER = ["grok-4.1-fast", "claude-haiku", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
+_DEFAULT_MODEL_ORDER = [
+    "claude-haiku",
+    "grok-4.1-fast",
+    "gpt-5-mini",
+    "claude-sonnet",
+    "gemini-2.5-flash",
+]
+_GUARDRAILS_MODEL_ORDER = [
+    "grok-4.1-fast",
+    "claude-haiku",
+    "gpt-5-mini",
+    "claude-sonnet",
+    "gemini-2.5-flash",
+]
 _FALLBACK_CHAIN_ORDER = [
     MODELS["claude-haiku"],
     MODELS["grok-4.1-fast"],
@@ -140,7 +151,7 @@ def _has_api_key(model_config: ModelConfig) -> bool:
 
 
 # Only use models whose API keys are set
-def _first_available(order: list[str]) -> Optional[ModelConfig]:
+def _first_available(order: list[str]) -> ModelConfig | None:
     for key in order:
         m = MODELS[key]
         if _has_api_key(m):
@@ -162,9 +173,13 @@ if _resolved_default is None:
 DEFAULT_MODEL = _resolved_default
 
 _resolved_guardrails = _first_available(_GUARDRAILS_MODEL_ORDER)
-GUARDRAILS_MODEL = _resolved_guardrails if _resolved_guardrails is not None else DEFAULT_MODEL
+GUARDRAILS_MODEL = (
+    _resolved_guardrails if _resolved_guardrails is not None else DEFAULT_MODEL
+)
 if _resolved_guardrails is None:
-    logger.info(f"No separate guardrails key; using default model for guardrails: {GUARDRAILS_MODEL.name}")
+    logger.info(
+        f"No separate guardrails key; using default model for guardrails: {GUARDRAILS_MODEL.name}"
+    )
 
 FALLBACK_MODELS = _filter_available(_FALLBACK_CHAIN_ORDER)
 if not FALLBACK_MODELS:

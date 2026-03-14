@@ -6,6 +6,7 @@ Traces showing the crash:
 - https://smith.langchain.com/o/ebbaf2eb-769b-4505-aca2-d11de10372a4/projects/p/dcffe24f-52f0-434f-aa22-932d27cb23ef/r/019ae55f-f904-7127-bb02-d1bffbf9ec5d
 - https://smith.langchain.com/o/ebbaf2eb-769b-4505-aca2-d11de10372a4/projects/p/dcffe24f-52f0-434f-aa22-932d27cb23ef/r/019ae4c9-30c2-7403-853d-28af82ef62c7
 """
+
 import pytest
 from langchain.agents.middleware import ContextEditingMiddleware
 from langchain.agents.middleware.context_editing import ClearToolUsesEdit
@@ -114,7 +115,13 @@ def test_clear_tool_uses_edit_reduces_tokens_when_triggered():
     for i in range(5):
         ai_msg = AIMessage(
             content="",
-            tool_calls=[{"id": f"call_{i}", "name": "SearchDocsByLangChain", "args": {"query": "streaming"}}],
+            tool_calls=[
+                {
+                    "id": f"call_{i}",
+                    "name": "SearchDocsByLangChain",
+                    "args": {"query": "streaming"},
+                }
+            ],
         )
         tool_msg = ToolMessage(
             content=BIG_CONTENT,
@@ -158,7 +165,13 @@ def test_clear_tool_uses_edit_keeps_recent_results():
     for i in range(4):
         ai_msg = AIMessage(
             content="",
-            tool_calls=[{"id": f"call_{i}", "name": "SearchDocsByLangChain", "args": {"query": f"topic_{i}"}}],
+            tool_calls=[
+                {
+                    "id": f"call_{i}",
+                    "name": "SearchDocsByLangChain",
+                    "args": {"query": f"topic_{i}"},
+                }
+            ],
         )
         tool_msg = ToolMessage(
             content=f"Result for topic_{i}: " + BIG_CONTENT,
@@ -176,11 +189,13 @@ def test_clear_tool_uses_edit_keeps_recent_results():
     preserved = [m for m in tool_messages if m.content != "[cleared]"]
     cleared = [m for m in tool_messages if m.content == "[cleared]"]
 
-    t.log_outputs({
-        "total_tool_messages": len(tool_messages),
-        "preserved": len(preserved),
-        "cleared": len(cleared),
-    })
+    t.log_outputs(
+        {
+            "total_tool_messages": len(tool_messages),
+            "preserved": len(preserved),
+            "cleared": len(cleared),
+        }
+    )
     t.log_reference_outputs({"preserved": keep})
 
     assert len(preserved) == keep, (
@@ -195,9 +210,17 @@ def test_clear_tool_uses_edit_noop_below_trigger():
     messages = [
         AIMessage(
             content="",
-            tool_calls=[{"id": "call_0", "name": "SearchDocsByLangChain", "args": {"query": "agents"}}],
+            tool_calls=[
+                {
+                    "id": "call_0",
+                    "name": "SearchDocsByLangChain",
+                    "args": {"query": "agents"},
+                }
+            ],
         ),
-        ToolMessage(content="Short result", tool_call_id="call_0", name="SearchDocsByLangChain"),
+        ToolMessage(
+            content="Short result", tool_call_id="call_0", name="SearchDocsByLangChain"
+        ),
         HumanMessage(content="Thanks"),
     ]
     original_contents = [m.content for m in messages]
