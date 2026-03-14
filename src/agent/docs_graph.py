@@ -2,6 +2,8 @@
 import logging
 
 from langchain.agents import create_agent
+from langchain.agents.middleware import ContextEditingMiddleware
+from langchain.agents.middleware.context_editing import ClearToolUsesEdit
 
 from src.agent.config import (
     GUARDRAILS_MODEL,
@@ -26,6 +28,15 @@ guardrails_middleware = GuardrailsMiddleware(
 )
 logger.info(f"Guardrails middleware using {GUARDRAILS_MODEL.name}")
 
+# Context editing middleware clears old tool results when the conversation
+# grows too large, preventing BadRequestError when history exceeds the
+# 200k token limit. Trigger at 150k so there is headroom for the model's
+# own response and the system prompt (~4k tokens).
+context_editing_middleware = ContextEditingMiddleware(
+    edits=[ClearToolUsesEdit(trigger=150_000, keep=3)],
+    token_count_method="approximate",
+)
+
 docs_agent = create_agent(
     model=configurable_model,
     tools=[
@@ -39,5 +50,6 @@ docs_agent = create_agent(
         guardrails_middleware,
         model_retry_middleware,
         model_fallback_middleware,
+        context_editing_middleware,
     ],
 )
