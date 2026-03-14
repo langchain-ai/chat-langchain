@@ -23,7 +23,9 @@ BASE_URL = "https://docs.langchain.com"
 # -----------------------------------------------------------------------
 
 
-def _make_result(path: str, title: str = "Test Page", content: str = "Some content") -> dict:
+def _make_result(
+    path: str, title: str = "Test Page", content: str = "Some content"
+) -> dict:
     """Return a minimal Mintlify search result dict."""
     return {
         "path": path,
@@ -84,10 +86,8 @@ class TestUrlConstructionWithoutLeadingSlash:
         with patch("src.tools.docs_tools._track_docs_for_langsmith"):
             output = _format_search_results([_make_result(path)])
         url = _extract_url_from_output(output)
-        assert url.startswith(
-            f"{BASE_URL}/"
-        ), (
-            f"URL '{url}' does not start with ';BASE_URL}/'."
+        assert url.startswith(f"{BASE_URL}/"), (
+            f"URL '{url}' does not start with '{BASE_URL}/'."
         )
 
 
@@ -108,7 +108,7 @@ class TestUrlConstructionWithLeadingSlash:
             output = _format_search_results([_make_result(path)])
         url = _extract_url_from_output(output)
         # Strip the protocol-level '//' before checking
-        url_without_protocol = url[len("https://"):]
+        url_without_protocol = url[len("https://") :]
         assert "//" not in url_without_protocol, (
             f"Double-slash detected in URL '{url}'."
         )
@@ -172,10 +172,8 @@ class TestFormatSearchResults:
             assert url.startswith(f"{BASE_URL}/"), (
                 f"URL '{url}' does not start with '{BASE_URL}/'."
             )
-            url_without_protocol = url[len("https://"):]
-            assert "//" not in url_without_protocol, (
-                f"Double-slash in URL '{url}'."
-            )
+            url_without_protocol = url[len("https://") :]
+            assert "//" not in url_without_protocol, f"Double-slash in URL '{url}'."
 
     def test_no_results_returns_no_results_message(self):
         """An empty results list must return the 'No results found.' message."""

@@ -88,7 +88,9 @@ class RedisCache:
             self._memory[key] = (str(new_val), time.time())
             return new_val
 
-    def scan(self, cursor: int = 0, match: str | None = None, count: int = 100) -> tuple[int, list[str]]:
+    def scan(
+        self, cursor: int = 0, match: str | None = None, count: int = 100
+    ) -> tuple[int, list[str]]:
         """Scan keys with optional pattern matching."""
         if cursor != 0:
             return 0, []

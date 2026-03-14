@@ -1,5 +1,6 @@
 import pytest
 from langsmith import testing as t
+
 from src.prompts.docs_agent_prompt import docs_agent_prompt
 
 
@@ -11,16 +12,18 @@ def test_prompt_instructs_agent_to_avoid_repeat_searches():
     # Check for anti-repetition instruction in the prompt
     prompt_lower = docs_agent_prompt.lower()
 
-    has_no_repeat_instruction = any([
-        "already" in prompt_lower and "search" in prompt_lower,
-        "do not re-search" in prompt_lower,
-        "don't re-search" in prompt_lower,
-        "avoid repeat" in prompt_lower,
-        "already retrieved" in prompt_lower,
-        "already in" in prompt_lower and "history" in prompt_lower,
-        "conversation already" in prompt_lower,
-        "skip" in prompt_lower and "already" in prompt_lower,
-    ])
+    has_no_repeat_instruction = any(
+        [
+            "already" in prompt_lower and "search" in prompt_lower,
+            "do not re-search" in prompt_lower,
+            "don't re-search" in prompt_lower,
+            "avoid repeat" in prompt_lower,
+            "already retrieved" in prompt_lower,
+            "already in" in prompt_lower and "history" in prompt_lower,
+            "conversation already" in prompt_lower,
+            "skip" in prompt_lower and "already" in prompt_lower,
+        ]
+    )
 
     t.log_outputs({"has_no_repeat_instruction": has_no_repeat_instruction})
     t.log_reference_outputs({"has_no_repeat_instruction": True})
@@ -59,6 +62,5 @@ def test_prompt_has_check_history_before_search_guidance():
     t.log_reference_outputs({"min_indicators": 1})
 
     assert len(found) >= 1, (
-        f"Prompt missing anti-duplication guidance. "
-        f"Checked for: {indicators}"
+        f"Prompt missing anti-duplication guidance. Checked for: {indicators}"
     )
