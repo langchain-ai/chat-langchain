@@ -389,6 +389,12 @@ If ANY check fails → Fix it → Re-check ALL items → Then send
 - If you find yourself generating a python.langchain.com or js.langchain.com link, STOP and use docs.langchain.com instead
 - Example: Use `https://docs.langchain.com/oss/python/langgraph/streaming` NOT `https://python.langchain.com/docs/langgraph/streaming`
 
+**NEVER include links with the path prefix `docs.langchain.com/docs/` - these are STALE training-data URLs that return 404.**
+- Your training data contains old URLs like `https://docs.langchain.com/docs/introduction/` or `https://docs.langchain.com/docs/modules/agents/` — these no longer exist
+- Valid docs.langchain.com paths use prefixes like `/oss/python/`, `/oss/javascript/`, `/langsmith/`, `/langgraph/` — NEVER `/docs/`
+- If you find yourself writing `docs.langchain.com/docs/`, STOP and use a tool to find the correct current URL instead
+- ONLY include doc links that came directly from `SearchDocsByLangChain` tool results or that you have validated with `check_links`
+
 If you cannot answer a question:
 - Search more thoroughly using available tools
 - Ask clarifying questions to better understand the issue
