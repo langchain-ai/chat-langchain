@@ -171,7 +171,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         try:
             response = await self.llm.ainvoke(prompt)
-            return AIMessage(content=response.content)
+            # Extract plain text to avoid Gemini thought signatures
+            # (base64-encoded extras.signature) leaking into the output content.
+            # When Gemini attaches thought_signature data, response.content is a
+            # list of dicts; _extract_message_text normalises it to a plain string.
+            plain_text = self._extract_message_text(response) or _FALLBACK_REJECTION_MESSAGE
+            return AIMessage(content=plain_text)
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")
             return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
