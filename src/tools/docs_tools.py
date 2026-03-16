@@ -35,6 +35,11 @@ METRIC_HITS_FUZZY = "metrics:hits_fuzzy"
 METRIC_MISSES = "metrics:misses"
 METRIC_API_REQUESTS = "metrics:api_requests_total"
 
+# Maximum characters of content kept per search result to avoid context overflow.
+# Mintlify returns full documentation pages; without a cap a single search can
+# easily exceed 100K tokens when multiplied across several results.
+MAX_CONTENT_CHARS_PER_RESULT = int(os.getenv("MAX_CONTENT_CHARS_PER_RESULT", "4000"))
+
 ABBREVIATIONS = {
     "auth": "authentication",
     "config": "configuration",
@@ -223,6 +228,11 @@ def _format_search_results(results: list[dict[str, Any]]) -> str:
 
         if path:
             urls.append(url)
+
+        # Truncate content to avoid context-window overflow when full documentation
+        # pages are returned by Mintlify.  A trailing marker signals the truncation.
+        if len(content) > MAX_CONTENT_CHARS_PER_RESULT:
+            content = content[:MAX_CONTENT_CHARS_PER_RESULT] + "... [truncated]"
 
         formatted.append(
             f"Result {i}:\n"
