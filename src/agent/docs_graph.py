@@ -1,5 +1,6 @@
 # Docs agent for LangChain customer service with docs and knowledge base tools
 import logging
+import os
 
 from langchain.agents import create_agent
 
@@ -41,3 +42,8 @@ docs_agent = create_agent(
         model_fallback_middleware,
     ],
 )
+
+if _revision_id := os.environ.get("LANGCHAIN_REVISION_ID"):
+    docs_agent = docs_agent.with_config(
+        {"metadata": {"LANGSMITH_AGENT_VERSION": _revision_id}}
+    )
