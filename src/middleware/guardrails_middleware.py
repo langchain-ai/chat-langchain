@@ -43,7 +43,9 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 ## ALWAYS ALLOW - Core Topics:
 - LangChain, LangGraph, LangSmith (features, APIs, concepts, troubleshooting)
 - MCP (Model Context Protocol) - this IS part of the LangChain ecosystem
-- Deep Agents, agent frameworks, agent architectures
+- Deep Agents, DeepAgents, agent frameworks, agent architectures
+  - DeepAgents-specific terms: Skills, FilesystemMiddleware, SummarizationMiddleware, ErrorHandlingMiddleware, ModelFallbackMiddleware, create_deep_agent, create_agent, deep_agent, SKILL.md, skill templates, skill definition, agent skills
+- LangSmith-specific features: Annotation Queues, Datasets, Experiments, Prompt Hub, Online evaluations, Playground, tracing, runs, feedback, evaluation metrics
 - LangChain integrations (vector stores, LLM providers, tools, retrievers, embeddings)
 - Any LLM provider questions (OpenAI, Anthropic, Groq, xAI, Google, etc.)
 - Model parameters (temperature, reasoning, max_tokens, etc.)
