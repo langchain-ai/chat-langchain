@@ -9,6 +9,7 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.messages import AIMessage
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,56 @@ logger = logging.getLogger(__name__)
 RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
 }
+
+
+def _normalize_content(content) -> str:
+    """Normalize message content to a plain string.
+
+    Gemini models return content as a list of dicts (with thought signature
+    metadata) instead of a plain string. Extract and join all text parts.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [
+            item["text"]
+            for item in content
+            if isinstance(item, dict) and "text" in item
+        ]
+        return "".join(parts)
+    return str(content)
+
+
+def _normalize_response(response: ModelResponse) -> ModelResponse:
+    """Normalize AI message content in a ModelResponse.
+
+    If any AIMessage has list content (e.g. Gemini thought signatures),
+    replace it with a plain string by extracting and joining text parts.
+    """
+    normalized_messages = []
+    changed = False
+    for msg in response.result:
+        if isinstance(msg, AIMessage) and isinstance(msg.content, list):
+            normalized = _normalize_content(msg.content)
+            logger.debug(
+                "Normalized Gemini list content to plain string "
+                f"(had {len(msg.content)} part(s))"
+            )
+            msg = AIMessage(
+                content=normalized,
+                additional_kwargs=msg.additional_kwargs,
+                response_metadata=msg.response_metadata,
+                tool_calls=msg.tool_calls,
+                id=msg.id,
+            )
+            changed = True
+        normalized_messages.append(msg)
+    if changed:
+        return ModelResponse(
+            result=normalized_messages,
+            structured_response=response.structured_response,
+        )
+    return response
 
 
 class MalformedResponseError(Exception):
@@ -66,7 +117,7 @@ class ModelRetryMiddleware(AgentMiddleware):
                         await asyncio.sleep(delay)
                         continue
 
-                return response
+                return _normalize_response(response)
 
             except Exception as e:
                 last_exception = e
