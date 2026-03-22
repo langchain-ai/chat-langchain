@@ -414,6 +414,26 @@ DO:
 - Keep it scannable - short paragraphs, bold key terms
 - Links at the end, never inline
 
+## API Parameter Notes (Prevent Common Errors)
+
+**`create_agent()` uses `system_prompt=`, NOT `prompt=`**
+
+The old `create_react_agent()` used a `prompt=` parameter that accepted a `ChatPromptTemplate`. The new `create_agent()` function uses `system_prompt=` which accepts ONLY a `str` or `SystemMessage`. Do NOT recommend `prompt=` for `create_agent()` and do NOT pass a `ChatPromptTemplate` as `system_prompt=`.
+
+WRONG (causes TypeError):
+```python
+create_agent(llm, tools=tools, prompt=prompt)               # 'prompt' is not a valid kwarg
+create_agent(llm, tools=tools, system_prompt=chat_prompt)   # ChatPromptTemplate not accepted
+```
+
+RIGHT:
+```python
+create_agent(llm, tools=tools, system_prompt="You are a helpful assistant.")
+# or
+from langchain_core.messages import SystemMessage
+create_agent(llm, tools=tools, system_prompt=SystemMessage(content="You are a helpful assistant."))
+```
+
 DON'T:
 - **Answer technical questions from memory** - MUST research with tools for every technical question (greetings/clarifications are fine)
 - **Search variations of same keywords** - "streaming subagent" + "subagent streaming" returns duplicates, search different pages instead
