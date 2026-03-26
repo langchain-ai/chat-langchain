@@ -147,7 +147,8 @@ def search_support_articles(collections: str = "all") -> str:
                     - "Troubleshooting" - Broad domain issue triage and resolution
                     - "Security" - Code scans, key management, and security topics
 
-                    Use "all" to search all collections (default)
+                    Omit this parameter (use the default) to search all collections.
+                    Do NOT include "all" in a comma-separated list — omit the parameter instead.
                     Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
 
     Returns:
@@ -211,38 +212,41 @@ def search_support_articles(collections: str = "all") -> str:
 
         # Filter by collection ID if specified
         if collections.lower() != "all":
-            # Parse requested collection names
+            # Parse requested collection names; if any token is "all", treat as all collections
             requested_collections = [c.strip() for c in collections.split(",")]
+            search_all = any(c.lower() == "all" for c in requested_collections)
 
-            # Get collection IDs for requested collections
-            collection_ids = []
-            for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
-                else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+            if not search_all:
+                # Get collection IDs for requested collections
+                collection_ids = []
+                for coll_name in requested_collections:
+                    if coll_name in collection_map:
+                        collection_ids.append(collection_map[coll_name])
+                    else:
+                        # Try case-insensitive match
+                        matched = False
+                        for key in collection_map.keys():
+                            if key.lower() == coll_name.lower():
+                                collection_ids.append(collection_map[key])
+                                matched = True
+                                break
+                        if not matched:
+                            return json.dumps(
+                                {
+                                    "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
+                                },
+                                indent=2,
+                            )
 
-            # Filter articles by collection_id
-            filtered_articles = [
-                article
-                for article in published_articles
-                if article.get("collection_id") in collection_ids
-            ]
+                # Filter articles by collection_id
+                filtered_articles = [
+                    article
+                    for article in published_articles
+                    if article.get("collection_id") in collection_ids
+                ]
 
-            published_articles = filtered_articles
+                published_articles = filtered_articles
+            # else: "all" appeared in the list — skip filtering, return all articles
 
         # Update collection names based on collection_id (for all articles)
         collection_id_to_name = {v: k for k, v in collection_map.items()}
