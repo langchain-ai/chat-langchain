@@ -11,6 +11,7 @@ from src.agent.config import (
     model_retry_middleware,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
+from src.middleware.system_message_middleware import SystemMessageMiddleware
 from src.prompts.docs_agent_prompt import docs_agent_prompt
 from src.tools.docs_tools import SearchDocsByLangChain
 from src.tools.link_check_tools import check_links
@@ -27,6 +28,8 @@ guardrails_middleware = GuardrailsMiddleware(
 )
 logger.info(f"Guardrails middleware using {GUARDRAILS_MODEL.name}")
 
+system_message_middleware = SystemMessageMiddleware()
+
 docs_agent = create_agent(
     model=configurable_model,
     tools=[
@@ -38,6 +41,7 @@ docs_agent = create_agent(
     system_prompt=docs_agent_prompt,
     middleware=[
         guardrails_middleware,
+        system_message_middleware,
         model_retry_middleware,
         model_fallback_middleware,
     ],
