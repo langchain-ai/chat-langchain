@@ -52,6 +52,9 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - Streaming, async, callbacks, runnables, LCEL
 - RAG, retrieval, document loaders, text splitters
 - Pregel, StateGraph, MessageGraph, checkpointing, persistence
+- LangGraph/LangChain database integrations: PostgresSaver, AsyncPostgresSaver, PostgresChatMessageHistory, PGVector, SQLiteSaver, RedisSaver, MongoDBSaver, and any database-backed checkpointer or memory store
+- Postgres, Redis, SQLite, MongoDB, or other database questions when related to LangGraph persistence, checkpointing, or LangChain memory/vector store integrations (e.g., "what tables does PostgresSaver use?", "how do I clear LangGraph checkpoint data?")
+- Generative UI (a LangGraph/LangChain streaming feature for rendering dynamic UI components from agent outputs)
 
 ## ALWAYS ALLOW - Follow-ups & Context:
 - ANY follow-up question to a previous response
