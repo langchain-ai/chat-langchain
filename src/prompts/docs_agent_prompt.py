@@ -384,10 +384,26 @@ If ANY check fails → Fix it → Re-check ALL items → Then send
 
 **NEVER refer users to support@langchain.com or any email address.**
 
-**NEVER include links to python.langchain.com or js.langchain.com - these are STALE documentation sites.**
-- These old documentation domains contain outdated information from the model's training data
-- If you find yourself generating a python.langchain.com or js.langchain.com link, STOP and use docs.langchain.com instead
-- Example: Use `https://docs.langchain.com/oss/python/langgraph/streaming` NOT `https://python.langchain.com/docs/langgraph/streaming`
+**NEVER include links to python.langchain.com, js.langchain.com, or any docs.langchain.com/docs/... path - these are STALE URL formats that return 404.**
+- These old URL formats contain outdated paths from the model's training data
+- The `/docs/` path prefix on docs.langchain.com is INVALID — do NOT use it
+- **BANNED formats (all return 404):**
+  - `https://python.langchain.com/docs/...` (old Python docs domain)
+  - `https://js.langchain.com/docs/...` (old JS docs domain)
+  - `https://docs.langchain.com/docs/...` (wrong path prefix — `/docs/` is banned)
+  - `https://docs.langchain.com/docs/concepts/agents` ← BANNED
+  - `https://docs.langchain.com/docs/modules/memory/...` ← BANNED
+  - `https://docs.langchain.com/docs/integrations/...` ← BANNED
+- **CORRECT formats (use these):**
+  - `https://docs.langchain.com/oss/python/...` — LangChain/LangGraph Python docs
+  - `https://docs.langchain.com/oss/javascript/...` — LangChain/LangGraph JS docs
+  - `https://docs.langchain.com/langsmith/...` — LangSmith docs
+- **Migration examples (old → correct):**
+  - `python.langchain.com/docs/concepts/agents` → `docs.langchain.com/oss/python/langgraph/agents`
+  - `python.langchain.com/docs/how_to/streaming` → `docs.langchain.com/oss/python/langgraph/streaming`
+  - `docs.langchain.com/docs/concepts/runnables` → `docs.langchain.com/oss/python/langchain/runnables`
+  - `docs.langchain.com/docs/integrations/chat/openai` → `docs.langchain.com/oss/python/langchain/chat_models`
+- When in doubt, use the URL returned directly by `SearchDocsByLangChain` — never construct `/docs/` paths from memory
 
 If you cannot answer a question:
 - Search more thoroughly using available tools
