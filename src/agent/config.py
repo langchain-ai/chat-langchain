@@ -178,6 +178,26 @@ if not FALLBACK_MODELS:
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
+# Build allowlist of valid model IDs from the registry
+ALLOWED_MODEL_IDS = frozenset(m.id for m in MODELS.values())
+logger.info(f"Allowed model IDs: {sorted(ALLOWED_MODEL_IDS)}")
+
+
+def validate_model_id(model_id: str) -> str:
+    """Validate that a model ID is in the MODELS registry.
+
+    Returns the model ID if valid, or the default model ID if not.
+    This prevents users from passing arbitrary model strings via
+    configurable_fields.
+    """
+    if model_id in ALLOWED_MODEL_IDS:
+        return model_id
+    logger.warning(
+        f"Rejected unregistered model '{model_id}', falling back to default: {DEFAULT_MODEL.id}"
+    )
+    return DEFAULT_MODEL.id
+
+
 # Primary configurable model (can be switched at runtime)
 configurable_model = init_chat_model(
     model=DEFAULT_MODEL.id,
@@ -213,6 +233,8 @@ __all__ = [
     "GUARDRAILS_MODEL",
     "FALLBACK_MODELS",
     "ModelConfig",
+    "ALLOWED_MODEL_IDS",
+    "validate_model_id",
     # Configurable models
     "configurable_model",
     "anthropic_configurable_model",

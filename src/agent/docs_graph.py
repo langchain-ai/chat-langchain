@@ -5,10 +5,13 @@ import os
 from langchain.agents import create_agent
 
 from src.agent.config import (
+    ALLOWED_MODEL_IDS,
+    DEFAULT_MODEL,
     GUARDRAILS_MODEL,
     configurable_model,
     model_fallback_middleware,
     model_retry_middleware,
+    validate_model_id,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.prompts.docs_agent_prompt import docs_agent_prompt
