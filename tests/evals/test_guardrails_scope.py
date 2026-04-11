@@ -13,6 +13,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
+from src.prompts.docs_agent_prompt import docs_agent_prompt
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -205,4 +206,35 @@ def test_guardrails_nsfw_rule_is_zero_tolerance():
         "At least one NSFW-related term must appear BEFORE the '## ONLY BLOCK' "
         "section to signal that NSFW blocking is zero-tolerance and not "
         f"subject to the lenient 5-criteria test. Found before: {found_before}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 8: Main agent prompt must have defense-in-depth NSFW refusal
+# ---------------------------------------------------------------------------
+
+AGENT_PROMPT_LOWER = docs_agent_prompt.lower()
+
+
+def test_agent_prompt_has_nsfw_refusal():
+    """Main agent prompt must instruct the agent to refuse NSFW content.
+
+    Even if the guardrails classifier fails open, the agent itself should
+    refuse to generate explicit content.
+    """
+    nsfw_terms = ["nsfw", "sexually explicit", "adult content"]
+    found_nsfw = [term for term in nsfw_terms if term in AGENT_PROMPT_LOWER]
+    assert len(found_nsfw) >= 1, (
+        "The docs agent prompt must contain at least one NSFW-related term "
+        f"as a defense-in-depth refusal instruction. Found: {found_nsfw}. "
+        "Add an NSFW refusal rule to the 'Important Customer Service Rules' "
+        "section of docs_agent_prompt."
+    )
+
+    refusal_terms = ["never", "refuse", "decline", "do not", "must not"]
+    found_refusal = [term for term in refusal_terms if term in AGENT_PROMPT_LOWER]
+    assert len(found_refusal) >= 1, (
+        "The docs agent prompt must contain refusal language alongside NSFW "
+        f"terms. Found refusal terms: {found_refusal}. The prompt should "
+        "instruct the agent to refuse, not just mention NSFW content."
     )
