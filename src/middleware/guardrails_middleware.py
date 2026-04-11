@@ -73,6 +73,12 @@ Note: Data science library questions (pandas, sklearn, pyspark, etc.) are only A
 - Account management, authentication issues
 - Platform access, usage limits
 
+## ALWAYS BLOCK - Zero Tolerance (block immediately, no exceptions):
+- Sexually explicit, pornographic, NSFW, or adult content of any kind
+- Requests to generate, describe, or roleplay adult sexual content
+- Graphic depictions of violence, gore, or torture unrelated to technical content
+- This rule is INDEPENDENT of the criteria below. Do NOT apply the "default is to allow" posture to these categories. Block with 100% confidence.
+
 ## ONLY BLOCK - Must meet ALL criteria:
 1. Query is COMPLETELY unrelated to software/AI/LangChain (cooking, sports, medical advice, celebrity gossip, etc.)
 2. Query is NOT a follow-up to any previous message in the conversation
@@ -86,7 +92,7 @@ Note: Data science library questions (pandas, sklearn, pyspark, etc.) are only A
 3. When uncertain, ALWAYS choose ALLOWED
 4. False positives (blocking valid questions) are much worse than false negatives (allowing off-topic)
 
-Respond with ALLOWED unless you are >95% confident this is egregious misuse with zero relation to the conversation context."""
+Respond with ALLOWED unless you are >95% confident this is egregious misuse with zero relation to the conversation context — except for Zero Tolerance categories above, which are always BLOCKED regardless of confidence level."""
 
 
 _REJECTION_SYSTEM_PROMPT = """You are a helpful LangChain documentation assistant explaining your scope limitations.

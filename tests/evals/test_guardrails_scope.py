@@ -160,3 +160,49 @@ def test_guardrails_prompt_default_is_still_allow():
         "'YOUR DEFAULT IS TO ALLOW' or 'when uncertain, ALWAYS choose ALLOWED' "
         "language from the prompt."
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Prompt must have a zero-tolerance NSFW/explicit content block rule
+# ---------------------------------------------------------------------------
+
+
+def test_guardrails_prompt_has_nsfw_block_rule():
+    """Guardrails prompt must explicitly block NSFW/explicit adult content.
+
+    This rule must be zero-tolerance (not subject to the lenient 5-criteria
+    test) and must appear as its own section to signal higher priority.
+    """
+    nsfw_terms = ["nsfw", "sexually explicit", "adult content", "pornographic"]
+    found = [term for term in nsfw_terms if term in PROMPT_LOWER]
+    assert len(found) >= 2, (
+        "The guardrails system prompt must contain at least two of the "
+        f"following NSFW-related terms: {nsfw_terms}. Found: {found}. "
+        "Add a zero-tolerance NSFW block section to _GUARDRAILS_SYSTEM_PROMPT."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: NSFW block must be independent of the lenient 5-criteria test
+# ---------------------------------------------------------------------------
+
+
+def test_guardrails_nsfw_rule_is_zero_tolerance():
+    """NSFW block rule must NOT be inside the 'ONLY BLOCK' section.
+
+    The ONLY BLOCK section uses a lenient 'must meet ALL criteria' test.
+    NSFW content must be blocked unconditionally, so its rule must appear
+    BEFORE the ONLY BLOCK section (higher priority).
+    """
+    only_block_idx = PROMPT_LOWER.find("## only block")
+    assert only_block_idx != -1, "Prompt must have an '## ONLY BLOCK' section header"
+
+    # At least one NSFW term must appear BEFORE the ONLY BLOCK section
+    nsfw_terms = ["nsfw", "sexually explicit", "adult content", "pornographic"]
+    before_block = PROMPT_LOWER[:only_block_idx]
+    found_before = [term for term in nsfw_terms if term in before_block]
+    assert len(found_before) >= 1, (
+        "At least one NSFW-related term must appear BEFORE the '## ONLY BLOCK' "
+        "section to signal that NSFW blocking is zero-tolerance and not "
+        f"subject to the lenient 5-criteria test. Found before: {found_before}"
+    )
