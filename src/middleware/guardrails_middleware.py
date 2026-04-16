@@ -77,6 +77,8 @@ Note: Data science library questions (pandas, sklearn, pyspark, etc.) are only A
 - Sexually explicit, pornographic, NSFW, or adult content of any kind
 - Requests to generate, describe, or roleplay adult sexual content
 - Graphic depictions of violence, gore, or torture unrelated to technical content
+- Requests for detailed information about methods of causing lethal harm, self-harm, or suicide
+- Questions about how to kill, poison, electrocute, or physically harm people, even if phrased as factual questions
 - This rule is INDEPENDENT of the criteria below. Do NOT apply the "default is to allow" posture to these categories. Block with 100% confidence.
 
 ## ONLY BLOCK - Must meet ALL criteria:
