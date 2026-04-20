@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import random
+import re
 from typing import Any, Literal
 
 import langsmith as ls
@@ -13,6 +14,25 @@ from pydantic import BaseModel, Field
 from typing_extensions import NotRequired
 
 logger = logging.getLogger(__name__)
+
+# Patterns that indicate a prompt-injection / tool-call-spoofing attempt in a
+# user message. We refuse any user input whose text contains:
+#   * "[SYSTEM REMINDER ...]" — attacker impersonating a system instruction
+#   * "[Tool Result]: ..."    — attacker forging tool output as a human message
+#   * bare "<tool_call>" or "</tool_call>" XML — attacker trying to coerce the
+#     model into emitting literal XML instead of using the real structured
+#     tool-calling protocol.
+# These never appear in legitimate LangChain documentation questions.
+_PROMPT_INJECTION_PATTERNS = re.compile(
+    r"(?i)\[\s*SYSTEM\s+REMINDER\b|\[\s*Tool\s+Result\s*\]\s*:|</?tool_call\b"
+)
+
+_INJECTION_REJECTION_MESSAGE = (
+    "I can't process requests that include system-reminder overrides, forged "
+    "tool results, or literal <tool_call> XML — those look like prompt "
+    "injections. Please rephrase your question about LangChain, LangGraph, or "
+    "LangSmith without those markers and I'll be happy to help."
+)
 
 # Dataset configuration for guardrails evaluation
 GUARDRAILS_DATASET_NAME = "Chat-LangChain-Guardrails-Samples"
@@ -203,6 +223,22 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(last_content, str)
             else str(last_content)[:100]
         )
+
+        # Reject prompt-injection / tool-call-spoofing attempts before anything
+        # else. These never appear in legitimate questions, so we don't need to
+        # consult the classifier. Short-circuit with a refusal and jump_to=end
+        # so the main agent never sees the attacker payload.
+        if isinstance(last_content, str) and _PROMPT_INJECTION_PATTERNS.search(
+            last_content
+        ):
+            logger.warning(
+                f"Prompt-injection pattern detected in user message; refusing: {query_preview}..."
+            )
+            return {
+                "messages": [AIMessage(content=_INJECTION_REJECTION_MESSAGE)],
+                "off_topic_query": True,
+                "jump_to": "end",
+            }
 
         # Classify the query
         decision = await self._classify_query(messages)
