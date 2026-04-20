@@ -147,6 +147,8 @@ Fetch the full HTML content of a specific support article by ID.
 
 **Usage:** After using `search_support_articles`, pick 1-3 most relevant articles and fetch their content in parallel.
 
+**CRITICAL — NEVER pass a URL as `article_id`.** The `article_id` is a short Pylon UUID from the `id` field of `search_support_articles` results. URLs from `SearchDocsByLangChain` (e.g. `https://docs.langchain.com/...`) are NOT article IDs and will return "not found". The content for docs.langchain.com pages is already included in the `SearchDocsByLangChain` result snippet — do not call `get_article_content` for them.
+
 **Returns:** Full article content with title, URL, and HTML content
 
 ### 4. `check_links` - Validate URLs Before Responding

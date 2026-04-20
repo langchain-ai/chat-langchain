@@ -293,12 +293,24 @@ def get_article_content(article_id: str) -> str:
     Uses cached articles from search_support_articles to avoid redundant API calls.
 
     Args:
-        article_id: The article ID from search_support_articles
+        article_id: The article ID from search_support_articles (a short UUID, NOT a URL)
 
     Returns:
         Article content with only: id, title, url, collection, content
     """
     try:
+        # Reject URL-shaped inputs with an actionable message. The LLM occasionally
+        # passes SearchDocsByLangChain result URLs here, which always 404 against
+        # the Pylon KB. Tell it exactly what it did wrong and what to do instead.
+        if article_id.startswith("http://") or article_id.startswith("https://"):
+            return (
+                f"Error: '{article_id}' looks like a URL, not an article ID. "
+                "get_article_content only accepts Pylon support-article IDs returned "
+                "by search_support_articles (under the 'id' field). "
+                "If this is a docs.langchain.com URL from SearchDocsByLangChain, the "
+                "page content is already in the search result snippet — do not call "
+                "get_article_content for it."
+            )
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
 
