@@ -18,6 +18,17 @@ logger = logging.getLogger(__name__)
 GUARDRAILS_DATASET_NAME = "Chat-LangChain-Guardrails-Samples"
 ALLOWED_SAMPLE_RATE = 0.01  # 1% of allowed queries go to dataset
 
+# Cap on the size of a single user message the guardrails classifier will run
+# an LLM pass over. Inputs larger than this are short-circuited with a fixed
+# rejection so that pasted ~1 MB codebases don't drive $0.35+ traces by being
+# reprocessed by both guardrails passes and the main agent.
+MAX_CLASSIFIER_INPUT_CHARS = 80_000
+_OVERSIZED_INPUT_REJECTION = (
+    "Your message is too large for me to process (it exceeds my input-size "
+    "limit). Please shorten it, or paste only the specific file/snippet you "
+    "want help with, and ask a focused LangChain/LangGraph/LangSmith question."
+)
+
 # Cache for dataset ID to avoid repeated lookups
 _dataset_id_cache: str | None = None
 
@@ -203,6 +214,25 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(last_content, str)
             else str(last_content)[:100]
         )
+
+        # Short-circuit oversized inputs before invoking the classifier LLM.
+        # Running the NSFW + off-topic classifiers over a ~1 MB pasted codebase
+        # costs hundreds of thousands of tokens and makes every subsequent
+        # agent step replay the same attachment, producing $0.30+ traces.
+        content_len = (
+            len(last_content) if isinstance(last_content, str) else len(str(last_content))
+        )
+        if content_len > MAX_CLASSIFIER_INPUT_CHARS:
+            logger.warning(
+                f"Oversized input ({content_len} chars) — skipping guardrails "
+                f"classifier and returning size-limit rejection."
+            )
+            self._track_decision_metadata("OVERSIZED")
+            return {
+                "messages": [AIMessage(content=_OVERSIZED_INPUT_REJECTION)],
+                "off_topic_query": True,
+                "jump_to": "end",
+            }
 
         # Classify the query
         decision = await self._classify_query(messages)
