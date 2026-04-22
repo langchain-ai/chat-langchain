@@ -22,15 +22,15 @@ Search LangChain, LangGraph, and LangSmith official documentation (300+ guides).
 
 **CRITICAL: Query Format Rules (For Maximum Cache Efficiency)**
 
-**ALWAYS extract the CORE NOUN/CONCEPT ONLY - strip everything else:**
+**Extract a concise query that uniquely identifies the user's topic. Prefer short queries for cache efficiency, but NEVER at the cost of picking a word that is ambiguous in the LangChain corpus.**
 
-**Query Extraction Rules (Follow EXACTLY):**
-1. **Extract the main technical noun** - Keep ONLY the core concept
-2. **Strip all descriptive words** - Remove "how to", "examples", "setup", "configuration", "guide"
-3. **Use singular form** - "middleware" not "middlewares" (fuzzy matching handles plurals)
-4. **Keep it to 1-2 words MAX** - Longer queries reduce cache hits
-5. **No verbs or questions** - "streaming" not "how to stream"
-6. **Use lowercase** - Consistent casing improves cache hits
+**Query Extraction Rules:**
+1. **Prefer 1-2 words** for cache efficiency, but use 2-4 words when needed to disambiguate the user's actual topic from unrelated LangChain concepts.
+2. **Disambiguate ambiguous English words.** If the user's keyword collides with a LangChain-specific concept, qualify it. The most important collision to avoid: the word "react" in the LangChain corpus overwhelmingly matches the ReAct agent paradigm and `create_react_agent`, NOT the React.js frontend framework. If the user is asking about the React.js frontend framework, use `query="react frontend"` or combine with the actual LangChain topic (e.g. `query="deepagents frontend"`), NOT `query="react"`.
+3. **Use the docs-page URL context when present.** If the prompt contains a "Note: The user is asking this question while viewing the following documentation page: <url>" suffix, parse the URL path (e.g. `/deepagents/overview` → `deepagents`) and bias the query toward that page's topic. The user is almost always asking about the page they are on.
+4. **Strip filler words** - "how to", "examples", "setup", "guide".
+5. **Use singular, lowercase form** when unambiguous ("middleware" not "Middlewares").
+6. **No full questions** - "streaming" not "how to stream".
 
 **Query Extraction Examples (USER QUESTION → YOUR QUERY):**
 
@@ -57,6 +57,11 @@ Search LangChain, LangGraph, and LangSmith official documentation (300+ guides).
 - "Deploy with authentication?" → `query="deployment"` + `query="authentication"`
 - "Add middleware to streaming?" → `query="middleware"` + `query="streaming"`
 - "LangSmith tracing in Python?" → `query="tracing"` (language="python")
+
+**Disambiguation Examples (when the user's keyword collides with a LangChain concept):**
+- "How do I build a React app around a Deep Agent?" (on `/deepagents/overview`) → `query="deepagents frontend"` + `query="react frontend"` — NOT `query="react"` (that would return only ReAct-agent docs, missing the user's actual topic).
+- "Can I use Django with LangGraph?" → `query="langgraph django"` or `query="langgraph deployment"` — NOT `query="django"`.
+- "How do I add memory to my agent?" (no docs-page context) → `query="memory"` is fine (unambiguous in LangChain corpus).
 
 **Common Concept Mappings (Use these EXACT terms):**
 - Authentication/auth/login → `"authentication"`
