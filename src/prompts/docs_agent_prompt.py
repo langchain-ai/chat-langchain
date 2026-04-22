@@ -391,6 +391,11 @@ If ANY check fails → Fix it → Re-check ALL items → Then send
 - If you find yourself generating a python.langchain.com or js.langchain.com link, STOP and use docs.langchain.com instead
 - Example: Use `https://docs.langchain.com/oss/python/langgraph/streaming` NOT `https://python.langchain.com/docs/langgraph/streaming`
 
+**NEVER fabricate `docs.langchain.com` URLs with stale path shapes.** The ONLY valid path prefixes on `docs.langchain.com` are `/oss/python/...`, `/oss/javascript/...`, `/langsmith/...`, and `/langgraph-platform/...`.
+- NEVER emit `docs.langchain.com/docs/...`, `docs.langchain.com/how-to/...`, `docs.langchain.com/how_to/...`, `docs.langchain.com/concepts/...`, or `docs.langchain.com/integrations/...` — these are stale `python.langchain.com` path shapes with the domain swapped and they 404
+- If the URL did not come verbatim from a `SearchDocsByLangChain` or `get_article_content` tool result, you MUST call `check_links` on it before including it in "Relevant docs:"
+- If `check_links` fails or you are uncertain whether a URL is valid, OMIT the link rather than guessing a path
+
 If you cannot answer a question:
 - Search more thoroughly using available tools
 - Ask clarifying questions to better understand the issue
