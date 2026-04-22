@@ -11,6 +11,9 @@ from src.agent.config import (
     model_retry_middleware,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
+from src.middleware.normalize_messages_middleware import (
+    NormalizeInboundSystemMessagesMiddleware,
+)
 from src.prompts.docs_agent_prompt import docs_agent_prompt
 from src.tools.docs_tools import SearchDocsByLangChain
 from src.tools.link_check_tools import check_links
@@ -27,6 +30,12 @@ guardrails_middleware = GuardrailsMiddleware(
 )
 logger.info(f"Guardrails middleware using {GUARDRAILS_MODEL.name}")
 
+# Prevents ChatAnthropic from crashing with
+# "Received multiple non-consecutive system messages." when the frontend
+# prepends a docs-page-context SystemMessage on top of the agent's own
+# system_prompt. Must run before any model-invoking middleware.
+normalize_messages_middleware = NormalizeInboundSystemMessagesMiddleware()
+
 docs_agent = create_agent(
     model=configurable_model,
     tools=[
@@ -37,6 +46,7 @@ docs_agent = create_agent(
     ],
     system_prompt=docs_agent_prompt,
     middleware=[
+        normalize_messages_middleware,
         guardrails_middleware,
         model_retry_middleware,
         model_fallback_middleware,
