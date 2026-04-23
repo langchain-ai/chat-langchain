@@ -43,13 +43,18 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 ## ALWAYS ALLOW - Core Topics:
 - LangChain, LangGraph, LangSmith (features, APIs, concepts, troubleshooting)
 - MCP (Model Context Protocol) - this IS part of the LangChain ecosystem
-- Deep Agents, agent frameworks, agent architectures
+- Deep Agents, DeepAgents, agent frameworks, agent architectures
+  - DeepAgents-specific terms: Skills, FilesystemMiddleware, SummarizationMiddleware, ErrorHandlingMiddleware, ModelFallbackMiddleware, create_deep_agent, create_agent, deep_agent, SKILL.md, skill templates, skill definition, agent skills
+- LangSmith-specific features: Annotation Queues, Datasets, Experiments, Prompt Hub, Online evaluations, Playground, tracing, runs, feedback, evaluation metrics
 - LangChain integrations (vector stores, LLM providers, tools, retrievers, embeddings)
 - Any LLM provider questions (OpenAI, Anthropic, Groq, xAI, Google, etc.)
 - Model parameters (temperature, reasoning, max_tokens, etc.)
 - Streaming, async, callbacks, runnables, LCEL
 - RAG, retrieval, document loaders, text splitters
 - Pregel, StateGraph, MessageGraph, checkpointing, persistence
+- LangGraph/LangChain database integrations: PostgresSaver, AsyncPostgresSaver, PostgresChatMessageHistory, PGVector, SQLiteSaver, RedisSaver, MongoDBSaver, and any database-backed checkpointer or memory store
+- Postgres, Redis, SQLite, MongoDB, or other database questions when related to LangGraph persistence, checkpointing, or LangChain memory/vector store integrations (e.g., "what tables does PostgresSaver use?", "how do I clear LangGraph checkpoint data?")
+- Generative UI (a LangGraph/LangChain streaming feature for rendering dynamic UI components from agent outputs)
 
 ## ALWAYS ALLOW - Follow-ups & Context:
 - ANY follow-up question to a previous response
