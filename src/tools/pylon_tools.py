@@ -279,6 +279,13 @@ def search_support_articles(collections: str = "all") -> str:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
     except requests.exceptions.RequestException as e:
+        # Surface auth failures loudly so they don't silently degrade search
+        # into "no results" and so LangSmith tool-error metrics catch them.
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        if status in (401, 403):
+            raise RuntimeError(
+                f"Pylon KB auth failed ({status}); rotate PYLON_API_KEY"
+            ) from e
         # Network/API error
         return json.dumps({"error": str(e)}, indent=2)
     except Exception as e:
@@ -348,7 +355,15 @@ Content:
         # API key not configured
         return f"Error: {str(e)}"
     except requests.exceptions.RequestException as e:
-        # Network/API error
+        # Surface auth failures loudly rather than stringifying them into tool
+        # content — otherwise the agent treats a 401 as a valid "article body"
+        # and the failure stays invisible to tool-error monitoring.
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        if status in (401, 403):
+            raise RuntimeError(
+                f"Pylon KB auth failed ({status}); rotate PYLON_API_KEY"
+            ) from e
+        # Other network/API errors (5xx, timeouts, etc.) — fall through as string.
         return f"Error fetching article: {str(e)}"
     except Exception as e:
         # Catch-all for unexpected errors
