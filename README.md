@@ -14,6 +14,8 @@ This is a documentation assistant agent that helps answer questions about LangCh
 - **LangChain Agents** - For agent creation with middleware support
 - **Guardrails** - To keep conversations on-topic
 
+The repo also includes a Next.js frontend in `frontend/` for the public chat UI.
+
 ## Features
 
 - **Documentation Search** - Searches official LangChain docs
@@ -63,6 +65,8 @@ cp .env.example .env
 
 ### Running Locally
 
+#### Backend
+
 ```bash
 # Start LangGraph development server
 uv run langgraph dev
@@ -72,6 +76,16 @@ langgraph dev
 ```
 
 Open LangGraph Studio: <https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024>
+
+#### Frontend
+
+```bash
+cd frontend
+npm ci
+npm run dev:local
+```
+
+The frontend expects the LangGraph server at `http://127.0.0.1:2024` by default. If you want trace sharing from the UI, set `LANGSMITH_API_KEY` in `frontend/.env.local`.
 
 ## Project Structure
 
@@ -89,6 +103,7 @@ Open LangGraph Studio: <https://smith.langchain.com/studio/?baseUrl=http://127.0
 │   └── middleware/
 │       ├── guardrails_middleware.py
 │       └── retry_middleware.py
+├── frontend/                  # Next.js public chat UI
 ├── langgraph.json             # LangGraph configuration
 └── pyproject.toml             # Python project config
 ```

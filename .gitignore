@@ -166,5 +166,15 @@ uv.lock
 # Codebase tools logging
 codebase_tools.log
 
+# Next.js / Node frontend
+frontend/.next/
+frontend/node_modules/
+frontend/.env.local
+frontend/.env*.local
+frontend/tsconfig.tsbuildinfo
+
+# macOS
+.DS_Store
+
 # Note: deps/chat-repo/ (including private repos) is tracked for LangGraph Cloud deployment
 # The private repos need to be in GitHub so LangGraph Cloud can clone them
