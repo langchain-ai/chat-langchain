@@ -4,6 +4,8 @@
     "docs_agent": "./src/agent/docs_graph.py:docs_agent"
   },
   "env": ".env",
+  "auth": { "path": "./src/api/auth.py:auth", "disable_studio_auth": true },
+  "http": { "app": "./src/api/server.py:app" },
   "image_distro": "wolfi",
   "config": {
     "recursion_limit": 100

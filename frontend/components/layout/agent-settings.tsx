@@ -166,9 +166,9 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
 
   // Repo selection handlers
   const selectedRepos = config.repos ?? []
-  const isPublicOnly = config.agentType === 'public_codebase_agent'
-  const showRepoSelector = config.agentType === 'codebase_agent' || isPublicOnly
-  const includePrivate = !isPublicOnly
+  const isPublicOnly = false
+  const showRepoSelector = false
+  const includePrivate = false
 
   const updateRepos = useCallback((repos: string[]) => {
     onConfigChange({ ...config, repos })

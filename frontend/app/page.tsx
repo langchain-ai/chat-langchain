@@ -1,21 +1,24 @@
 "use client"
 
 import { Suspense, useState, useEffect, useRef } from "react"
+import { useSession } from "next-auth/react"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { ChatInterface } from "@/components/chat/chat-interface"
+import { SignInModal } from "@/components/auth/sign-in-modal"
 import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-dialog"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
 import { resolveClientProfile } from "@/lib/config/client-config"
 import type { AgentConfig } from "@/components/layout/agent-settings"
-import { generateQuickTitle } from "@/lib/utils/string"
+import { generateQuickTitle, generateThreadTitle } from "@/lib/utils/string"
 import {
   getAllowedModels,
   getAllowedAgents,
   getDefaultModel,
   getDefaultAgent,
+  isAuthRequired,
   CONFIG_STORAGE,
   type ModelOption,
   type AgentType,
@@ -28,6 +31,7 @@ function DashboardContent() {
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
+  const { data: session, status } = useSession()
 
   // Track newly created threads that haven't been initialized in backend yet
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
@@ -179,31 +183,87 @@ function DashboardContent() {
     // Check if this thread already exists
     const existingThread = threads.find(t => t.thread_id === threadId)
     const isUntitledThread = existingThread?.metadata?.title === "Untitled"
+    const shouldGenerateAITitle = !existingThread || // First message (thread doesn't exist)
+                                  isUntitledThread || // First real message (was "Untitled")
+                                  (messageCount && messageCount > 1 && messageCount % 5 === 0) // Every 5 messages after
 
     if (!existingThread || isUntitledThread) {
-      const quickTitle = generateQuickTitle(title)
+      // First message: Keep "Untitled" while AI title generates, then replace directly
 
       if (!existingThread) {
-        // Thread doesn't exist at all - add it with a deterministic local title
+        // Thread doesn't exist at all - add it with "Untitled"
         addOptimisticThread({
           thread_id: threadId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           metadata: {
             user_id: userId,
-            title: quickTitle,
+            title: "Untitled",
             lastMessage,
             client: resolvedClient,
           },
         })
       }
 
-      // First real message: replace the placeholder title with a deterministic local title
+      // Update last message immediately (keep "Untitled" for now)
       await updateThreadMetadata(threadId, {
         user_id: userId,
-        title: quickTitle,
         lastMessage,
         client: resolvedClient,
+      })
+
+      // Generate AI title in background - goes straight from "Untitled" to AI title
+      generateThreadTitle({
+        userMessage: title,
+        assistantResponse: lastMessage,
+      }).then((aiTitle) => {
+        if (aiTitle.length > 0) {
+          console.log('Setting AI title:', aiTitle)
+          updateThreadMetadata(threadId, {
+            user_id: userId,
+            title: aiTitle,
+            lastMessage,
+            client: resolvedClient,
+          })
+        }
+      }).catch((error) => {
+        console.error('Failed to generate AI title:', error)
+        // Fallback to quick title if AI fails
+        const quickTitle = generateQuickTitle(title)
+        updateThreadMetadata(threadId, {
+          user_id: userId,
+          title: quickTitle,
+          lastMessage,
+          client: resolvedClient,
+        })
+      })
+    } else if (shouldGenerateAITitle && messageCount) {
+      // Every 5 messages: Regenerate AI title based on conversation
+      console.log(`Regenerating AI title at message ${messageCount}`)
+
+      // Update last message immediately
+      await updateThreadMetadata(threadId, {
+        user_id: userId,
+        lastMessage,
+        client: resolvedClient,
+      })
+
+      // Generate new AI title in background
+      generateThreadTitle({
+        userMessage: title,
+        assistantResponse: lastMessage,
+      }).then((aiTitle) => {
+        if (aiTitle.length > 0) {
+          console.log('Updated title at message', messageCount, '→', aiTitle)
+          updateThreadMetadata(threadId, {
+            user_id: userId,
+            title: aiTitle,
+            lastMessage,
+            client: resolvedClient,
+          })
+        }
+      }).catch((error) => {
+        console.error('Failed to regenerate AI title:', error)
       })
     } else {
       // Regular update: Just update last message, keep existing title
@@ -319,13 +379,19 @@ function DashboardContent() {
     },
   ])
 
+  // Show sign-in modal if auth is required and user is not authenticated
+  const showSignInModal = isAuthRequired() && status !== "loading" && !session
+
   return (
     <>
+      <SignInModal open={showSignInModal} />
       <KeyboardShortcutsDialog
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
       <div className="flex h-screen bg-background">
+      {/* Only show sidebar when user is authenticated or auth is not required */}
+      {!showSignInModal && (
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -335,6 +401,7 @@ function DashboardContent() {
           onDeleteThread={handleDeleteThread}
           isLoading={threadsLoading}
         />
+      )}
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header
           showToolCalls={showToolCalls}

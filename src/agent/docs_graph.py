@@ -14,6 +14,7 @@ from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.prompts.docs_agent_prompt import docs_agent_prompt
 from src.tools.docs_tools import SearchDocsByLangChain
 from src.tools.link_check_tools import check_links
+from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_article_content, search_support_articles
 
 # Set up logging for this module
@@ -33,6 +34,7 @@ docs_agent = create_agent(
         SearchDocsByLangChain,
         search_support_articles,
         get_article_content,
+        fetch_langchain_pricing,
         check_links,
     ],
     system_prompt=docs_agent_prompt,
