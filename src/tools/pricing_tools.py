@@ -27,13 +27,13 @@ _cached_at: float = 0.0
 def _extract_text(html: str) -> str:
     """Strip HTML tags and collapse whitespace."""
     text = re.sub(
-        r"<script\b[^>]*>[\s\S]*?</script\s*>",
+        r"<script\b[^>]*>[\s\S]*?</script\b[^>]*>",
         "",
         html,
         flags=re.DOTALL | re.IGNORECASE,
     )
     text = re.sub(
-        r"<style\b[^>]*>[\s\S]*?</style\s*>", "", text, flags=re.DOTALL | re.IGNORECASE
+        r"<style\b[^>]*>[\s\S]*?</style\b[^>]*>", "", text, flags=re.DOTALL | re.IGNORECASE
     )
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"[ \t]+", " ", text)
