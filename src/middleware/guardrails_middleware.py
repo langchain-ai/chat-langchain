@@ -40,7 +40,7 @@ _GUARDRAILS_SYSTEM_PROMPT = """You are a lenient content filter for a LangChain 
 YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is completely unrelated AND NOT a follow-up to previous context.
 
 ## ALWAYS ALLOW - Core Topics:
-- LangChain, LangGraph, LangSmith (features, APIs, concepts, troubleshooting)
+- LangChain, LangGraph, LangSmith, Fleet (features, APIs, concepts, troubleshooting)
 - MCP (Model Context Protocol) - this IS part of the LangChain ecosystem
 - DeepAgents, agent frameworks, agent architectures
 - LangChain integrations (vector stores, LLM providers, tools, retrievers, embeddings)
