@@ -68,6 +68,13 @@ MODELS: dict[str, ModelConfig] = {
         api_key_env="OPENAI_API_KEY",
         description="Fastest, most economical",
     ),
+    "gpt-5.4-nano": ModelConfig(
+        id="openai:gpt-5.4-nano",
+        name="GPT-5.4 Nano",
+        provider="openai",
+        api_key_env="OPENAI_API_KEY",
+        description="Fastest, most economical",
+    ),
     "gpt-5-mini": ModelConfig(
         id="openai:gpt-5-mini",
         name="GPT-5 Mini",
@@ -108,7 +115,7 @@ MODELS: dict[str, ModelConfig] = {
 
 # Preferred order for default and guardrails (first available wins)
 _DEFAULT_MODEL_ORDER = ["claude-haiku", "grok-4.1-fast", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
-_GUARDRAILS_MODEL_ORDER = ["grok-4.1-fast", "claude-haiku", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
+_GUARDRAILS_MODEL_ORDER = ["gpt-5.4-nano", "grok-4.1-fast", "claude-haiku", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
 _FALLBACK_CHAIN_ORDER = [
     MODELS["claude-haiku"],
     MODELS["grok-4.1-fast"],
