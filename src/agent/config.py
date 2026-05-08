@@ -21,73 +21,38 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ModelConfig:
-    id: str  # e.g., "xai:grok-4-1-fast-non-reasoning"
-    name: str  # Display name, e.g., "Grok 4.1 Fast"
-    provider: str  # e.g., "xai", "anthropic", "openai"
+    id: str  # e.g., "google_genai:gemini-3.1-flash-lite-preview"
+    name: str  # Display name, e.g., "Gemini 3.1 Flash Lite"
+    provider: str  # e.g., "google", "openai", "baseten"
     api_key_env: str  # Environment variable for API key
     description: Optional[str] = None
 
 
-# All available models - single source of truth
+# All backend-supported models. This intentionally mirrors the frontend's
+# selectable model IDs plus Jewel's guardrails/fallback models.
 MODELS: dict[str, ModelConfig] = {
-    # xAI (Grok)
-    "grok-4.1-fast": ModelConfig(
-        id="xai:grok-4-1-fast-non-reasoning",
-        name="Grok 4.1 Fast",
-        provider="xai",
-        api_key_env="XAI_API_KEY",
-        description="Fast, optimized for tool calling",
-    ),
     # Anthropic
-    "claude-haiku": ModelConfig(
-        id="anthropic:claude-haiku-4-5",
+    "claude-haiku-4.5": ModelConfig(
+        id="anthropic:claude-haiku-4-5-20251001",
         name="Claude Haiku 4.5",
         provider="anthropic",
         api_key_env="ANTHROPIC_API_KEY",
-        description="Fast and cost-effective",
-    ),
-    "claude-sonnet": ModelConfig(
-        id="anthropic:claude-sonnet-4-5",
-        name="Claude Sonnet 4.5",
-        provider="anthropic",
-        api_key_env="ANTHROPIC_API_KEY",
-        description="Balanced performance",
-    ),
-    "claude-opus": ModelConfig(
-        id="anthropic:claude-opus-4-5",
-        name="Claude Opus 4.5",
-        provider="anthropic",
-        api_key_env="ANTHROPIC_API_KEY",
-        description="Most capable Anthropic model",
+        description="Fast and cheap Anthropic model",
     ),
     # OpenAI
-    "gpt-5-nano": ModelConfig(
-        id="openai:gpt-5-nano",
-        name="GPT-5 Nano",
-        provider="openai",
-        api_key_env="OPENAI_API_KEY",
-        description="Fastest, most economical",
-    ),
     "gpt-5.4-nano": ModelConfig(
         id="openai:gpt-5.4-nano",
         name="GPT-5.4 Nano",
         provider="openai",
         api_key_env="OPENAI_API_KEY",
-        description="Fastest, most economical",
+        description="Cheapest GPT-5.4-class model for simple high-volume tasks",
     ),
-    "gpt-5-mini": ModelConfig(
-        id="openai:gpt-5-mini",
-        name="GPT-5 Mini",
+    "gpt-5.4-mini": ModelConfig(
+        id="openai:gpt-5.4-mini",
+        name="GPT-5.4 Mini",
         provider="openai",
         api_key_env="OPENAI_API_KEY",
-        description="Fast and capable",
-    ),
-    "gpt-5": ModelConfig(
-        id="openai:gpt-5",
-        name="GPT-5",
-        provider="openai",
-        api_key_env="OPENAI_API_KEY",
-        description="Most capable OpenAI model",
+        description="Strongest mini model for coding, computer use, and subagents",
     ),
     # Google
     "gemini-2.5-flash": ModelConfig(
@@ -97,30 +62,31 @@ MODELS: dict[str, ModelConfig] = {
         api_key_env="GOOGLE_API_KEY",
         description="Fast and capable Google model",
     ),
-    "gemini-3-flash": ModelConfig(
-        id="google_genai:gemini-3-flash-preview",
-        name="Gemini 3 Flash",
+    "gemini-3.1-flash-lite": ModelConfig(
+        id="google_genai:gemini-3.1-flash-lite-preview",
+        name="Gemini 3.1 Flash Lite",
         provider="google",
         api_key_env="GOOGLE_API_KEY",
-        description="Latest Gemini 3 Flash model",
+        description="Fastest, most cost-effective Gemini",
     ),
-    "gemini-3-pro": ModelConfig(
-        id="google_genai:gemini-3-pro-preview",
-        name="Gemini 3 Pro",
-        provider="google",
-        api_key_env="GOOGLE_API_KEY",
-        description="Most capable Gemini model",
+    # Baseten
+    "glm-5": ModelConfig(
+        id="baseten:zai-org/GLM-5",
+        name="GLM 5",
+        provider="baseten",
+        api_key_env="BASETEN_API_KEY",
+        description="Z.ai GLM 5 served via Baseten",
     ),
 }
 
-# Preferred order for default and guardrails (first available wins)
-_DEFAULT_MODEL_ORDER = ["claude-haiku", "grok-4.1-fast", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
-_GUARDRAILS_MODEL_ORDER = ["gpt-5.4-nano", "grok-4.1-fast", "claude-haiku", "gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
-_FALLBACK_CHAIN_ORDER = [
-    MODELS["claude-haiku"],
-    MODELS["grok-4.1-fast"],
-    MODELS["gpt-5-mini"],
-    MODELS["claude-sonnet"],
+# Default models for different use cases
+DEFAULT_MODEL = MODELS["gemini-3.1-flash-lite"]
+GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
+
+# Fallback chain (in order of preference)
+FALLBACK_MODELS = [
+    MODELS["gemini-2.5-flash"],
+    MODELS["claude-haiku-4.5"],
 ]
 
 # =============================================================================
@@ -130,9 +96,8 @@ _FALLBACK_CHAIN_ORDER = [
 API_KEYS = [
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
-    "OPENROUTER_API_KEY",
-    "XAI_API_KEY",
     "GOOGLE_API_KEY",
+    "BASETEN_API_KEY",
 ]
 
 for key in API_KEYS:
@@ -140,43 +105,6 @@ for key in API_KEYS:
         os.environ[key] = value.strip()
         logger.info(f"{key} configured")
 
-
-def _has_api_key(model_config: ModelConfig) -> bool:
-    """True if the model's API key env var is set (non-empty)."""
-    return bool(os.getenv(model_config.api_key_env, "").strip())
-
-
-# Only use models whose API keys are set
-def _first_available(order: list[str]) -> Optional[ModelConfig]:
-    for key in order:
-        m = MODELS[key]
-        if _has_api_key(m):
-            return m
-    return None
-
-
-def _filter_available(model_list: list[ModelConfig]) -> list[ModelConfig]:
-    return [m for m in model_list if _has_api_key(m)]
-
-
-# Resolve default and guardrails from configured providers only
-_resolved_default = _first_available(_DEFAULT_MODEL_ORDER)
-if _resolved_default is None:
-    raise RuntimeError(
-        "No LLM API key is set. Set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, XAI_API_KEY, GOOGLE_API_KEY. "
-        "See .env.example for details."
-    )
-DEFAULT_MODEL = _resolved_default
-
-_resolved_guardrails = _first_available(_GUARDRAILS_MODEL_ORDER)
-GUARDRAILS_MODEL = _resolved_guardrails if _resolved_guardrails is not None else DEFAULT_MODEL
-if _resolved_guardrails is None:
-    logger.info(f"No separate guardrails key; using default model for guardrails: {GUARDRAILS_MODEL.name}")
-
-FALLBACK_MODELS = _filter_available(_FALLBACK_CHAIN_ORDER)
-if not FALLBACK_MODELS:
-    FALLBACK_MODELS = [DEFAULT_MODEL]
-    logger.info("Fallback chain has only one model (no other API keys configured)")
 
 # =============================================================================
 # Model Initialization
@@ -191,14 +119,6 @@ configurable_model = init_chat_model(
     configurable_fields=("model",),
 )
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
-
-# Anthropic-optimized model with caching (only if Anthropic key is set)
-anthropic_configurable_model = None
-if _has_api_key(MODELS["claude-sonnet"]):
-    anthropic_configurable_model = init_chat_model(
-        model=MODELS["claude-sonnet"].id,
-        configurable_fields=("model",),
-    )
 
 # =============================================================================
 # Middleware
@@ -222,7 +142,6 @@ __all__ = [
     "ModelConfig",
     # Configurable models
     "configurable_model",
-    "anthropic_configurable_model",
     # Middleware
     "model_retry_middleware",
     "model_fallback_middleware",

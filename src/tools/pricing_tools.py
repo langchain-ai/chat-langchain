@@ -56,7 +56,7 @@ async def _fetch_pricing_uncached() -> str:
 async def fetch_langchain_pricing() -> str:
     """ALWAYS use this tool for ANY question about LangChain pricing, plans, or trace limits.
 
-    DO NOT use SearchDocsByLangChain for pricing questions — it does not have current pricing data.
+    DO NOT use docs search for pricing questions — it does not have current pricing data.
 
     Triggers: "how many traces", "plus plan", "developer plan", "enterprise plan",
     "how much does", "pricing", "cost", "seats", "quota", "pay-as-you-go", "fleet runs",

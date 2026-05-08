@@ -1,7 +1,7 @@
 # Pylon Knowledge Base Tools
 # Tools:
 #   - search_support_articles
-#   - get_article_content
+#   - get_support_article_content
 import json
 import logging
 import os
@@ -287,10 +287,12 @@ def search_support_articles(collections: str = "all") -> str:
 
 
 @tool
-def get_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific support article.
+def get_support_article_content(article_id: str) -> str:
+    """Fetch the full HTML content of a specific Pylon support article.
 
     Uses cached articles from search_support_articles to avoid redundant API calls.
+    This only accepts article IDs returned by search_support_articles; do not pass
+    docs.langchain.com URLs or paths.
 
     Args:
         article_id: The article ID from search_support_articles
@@ -353,3 +355,8 @@ Content:
     except Exception as e:
         # Catch-all for unexpected errors
         return f"Unexpected error: {str(e)}"
+
+
+# Backwards-compatible Python import alias. The tool name exposed to the model is
+# get_support_article_content, which avoids confusion with official docs pages.
+get_article_content = get_support_article_content

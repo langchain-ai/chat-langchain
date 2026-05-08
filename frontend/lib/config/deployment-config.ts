@@ -23,9 +23,9 @@ export const CONFIG_STORAGE = {
 // =============================================================================
 
 interface ModelConfig {
-  id: string // e.g., "xai:grok-4-1-fast-non-reasoning"
+  id: string // e.g., "google_genai:gemini-3.1-flash-lite-preview"
   name: string // Display name
-  provider: "xai" | "anthropic" | "openai" | "openrouter" | "google" | "baseten"
+  provider: "openai" | "google" | "baseten"
   description?: string
 }
 
@@ -34,47 +34,17 @@ interface ModelConfig {
  * Keys are short names, values contain full configuration
  */
 export const MODELS = {
-  "grok-4.1-fast": {
-    id: "xai:grok-4-1-fast-non-reasoning",
-    name: "Grok 4.1 Fast",
-    provider: "xai",
-    description: "Fast, optimized for tool calling",
-  },
-  "claude-sonnet-4.6": {
-    id: "anthropic:claude-sonnet-4-6",
-    name: "Claude Sonnet 4.6",
-    provider: "anthropic",
-    description: "Latest, most capable Sonnet",
-  },
-  "gpt-5.4-nano": {
-    id: "openai:gpt-5.4-nano",
-    name: "GPT-5.4 Nano",
-    provider: "openai",
-    description: "Cheapest GPT-5.4-class model for simple high-volume tasks",
-  },
   "gpt-5.4-mini": {
     id: "openai:gpt-5.4-mini",
     name: "GPT-5.4 Mini",
     provider: "openai",
     description: "Strongest mini model for coding, computer use, and subagents",
   },
-  "gemini-2.5-flash": {
-    id: "google_genai:gemini-2.5-flash",
-    name: "Gemini 2.5 Flash",
-    provider: "google",
-    description: "Fast and capable Google model",
-  },
   "gemini-3.1-flash-lite": {
     id: "google_genai:gemini-3.1-flash-lite-preview",
     name: "Gemini 3.1 Flash Lite",
     provider: "google",
     description: "Fastest, most cost-effective Gemini",
-  },
-  "gemini-3-pro": {
-    id: "google_genai:gemini-3-pro-preview",
-    name: "Gemini 3 Pro",
-    provider: "google",
-    description: "Most capable Gemini model",
   },
   "glm-5": {
     id: "baseten:zai-org/GLM-5",

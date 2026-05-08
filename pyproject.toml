@@ -15,13 +15,14 @@ dependencies = [
     "langgraph>=1.0.0a4",
     "langgraph-prebuilt>=0.7.0a2",
     "langchain-openai>=0.3.0",
-    "langchain-xai>=0.2.0",
     "langchain-google-genai>=4.0.0",
+    "langchain-baseten>=0.2.0,<0.3.0",
     "python-dotenv>=1.0.1",
     "requests>=2.32.0",
     "httpx>=0.27.0",
     "rapidfuzz>=3.0.0",
     "fastapi>=0.136.1",
+    "langchain-mcp-adapters>=0.2.2",
 ]
 
 

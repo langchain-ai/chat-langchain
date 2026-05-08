@@ -12,10 +12,10 @@ from src.agent.config import (
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.prompts.docs_agent_prompt import docs_agent_prompt
-from src.tools.docs_tools import SearchDocsByLangChain
 from src.tools.link_check_tools import check_links
+from src.tools.mcp_tools import mcp_docs_tools
 from src.tools.pricing_tools import fetch_langchain_pricing
-from src.tools.pylon_tools import get_article_content, search_support_articles
+from src.tools.pylon_tools import get_support_article_content, search_support_articles
 
 # Set up logging for this module
 logger = logging.getLogger(__name__)
@@ -28,24 +28,32 @@ guardrails_middleware = GuardrailsMiddleware(
 )
 logger.info(f"Guardrails middleware using {GUARDRAILS_MODEL.name}")
 
+docs_agent_tools = [
+    *mcp_docs_tools,
+    search_support_articles,
+    get_support_article_content,
+    fetch_langchain_pricing,
+    check_links,
+]
+
+docs_agent_middleware = [
+    guardrails_middleware,
+    model_retry_middleware,
+    model_fallback_middleware,
+]
+
 docs_agent = create_agent(
     model=configurable_model,
-    tools=[
-        SearchDocsByLangChain,
-        search_support_articles,
-        get_article_content,
-        fetch_langchain_pricing,
-        check_links,
-    ],
+    tools=docs_agent_tools,
     system_prompt=docs_agent_prompt,
-    middleware=[
-        guardrails_middleware,
-        model_retry_middleware,
-        model_fallback_middleware,
-    ],
+    middleware=docs_agent_middleware,
 )
+docs_agent.tools = docs_agent_tools
+docs_agent.middleware = docs_agent_middleware
 
 if _revision_id := os.environ.get("LANGCHAIN_REVISION_ID"):
     docs_agent = docs_agent.with_config(
         {"metadata": {"LANGSMITH_AGENT_VERSION": _revision_id}}
     )
+    docs_agent.tools = docs_agent_tools
+    docs_agent.middleware = docs_agent_middleware
