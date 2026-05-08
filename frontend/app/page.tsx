@@ -1,12 +1,10 @@
 "use client"
 
 import { Suspense, useState, useEffect, useRef } from "react"
-import { useSession } from "next-auth/react"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { ChatInterface } from "@/components/chat/chat-interface"
-import { SignInModal } from "@/components/auth/sign-in-modal"
 import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-dialog"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
@@ -18,7 +16,6 @@ import {
   getAllowedAgents,
   getDefaultModel,
   getDefaultAgent,
-  isAuthRequired,
   CONFIG_STORAGE,
   type ModelOption,
   type AgentType,
@@ -31,7 +28,6 @@ function DashboardContent() {
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
-  const { data: session, status } = useSession()
 
   // Track newly created threads that haven't been initialized in backend yet
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
@@ -379,19 +375,13 @@ function DashboardContent() {
     },
   ])
 
-  // Show sign-in modal if auth is required and user is not authenticated
-  const showSignInModal = isAuthRequired() && status !== "loading" && !session
-
   return (
     <>
-      <SignInModal open={showSignInModal} />
       <KeyboardShortcutsDialog
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
       <div className="flex h-screen bg-background">
-      {/* Only show sidebar when user is authenticated or auth is not required */}
-      {!showSignInModal && (
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -401,7 +391,6 @@ function DashboardContent() {
           onDeleteThread={handleDeleteThread}
           isLoading={threadsLoading}
         />
-      )}
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header
           showToolCalls={showToolCalls}

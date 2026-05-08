@@ -21,14 +21,6 @@ LANGSMITH_BASE_URL = os.getenv("LANGSMITH_BASE_URL", "https://api.smith.langchai
 # Demo workspace API key — feedback is mirrored here alongside the primary workspace
 LANGSMITH_DEMO_API_KEY = os.getenv("LANGSMITH_DEMO_API_KEY", "")
 
-# LangSmith organization and project IDs for constructing private trace URLs
-# These are used to build URLs like: https://smith.langchain.com/o/{org_id}/projects/p/{project_id}?peek={run_id}
-LANGSMITH_ORG_ID = os.getenv("LANGSMITH_ORG_ID")
-LANGSMITH_PROJECT_ID = os.getenv("LANGSMITH_PROJECT_ID")
-
-# Deployment environment: 'internal' uses private URLs, 'external' uses public share URLs
-DEPLOYMENT_ENV = os.getenv("DEPLOYMENT_ENV", "external")
-
 # Primary client (singleton)
 _langsmith_client: Optional[LangSmithClient] = None
 
@@ -181,51 +173,15 @@ async def read_run(runId: str):
 
 @router.post("/runs/{runId}/share")
 async def share_run(runId: str):
-    """Generate a trace URL for a LangSmith run.
-
-    Behavior depends on DEPLOYMENT_ENV:
-    - 'internal': Creates a private trace URL (requires LangSmith authentication)
-      - Keeps sensitive data secure by NOT creating public share links
-      - Requires LANGSMITH_ORG_ID environment variable
-    - 'external': Creates a public share URL via LangSmith API
-      - Anyone with the link can view the trace (no authentication required)
-      - Good for public-facing deployments
-
-    Environment variables:
-    - DEPLOYMENT_ENV: 'internal' or 'external' (default: 'external')
-    - LANGSMITH_ORG_ID: Required for internal deployments
-    - LANGSMITH_PROJECT_ID: Required for internal deployments (UUID of your LangSmith project)
-    """
-    # External deployment: use public share URLs (default behavior)
-    if DEPLOYMENT_ENV == "external":
-        try:
-            client = get_langsmith_client()
-            share_url = await asyncio.to_thread(client.share_run, runId)
-            return {"shareUrl": share_url}
-        except Exception as e:
-            if "not found" in str(e).lower() or "404" in str(e):
-                raise HTTPException(
-                    status_code=404,
-                    detail="Run not found yet - may still be processing",
-                )
-            raise HTTPException(status_code=500, detail=str(e))
-
-    # Internal deployment: construct private trace URL
-    if not LANGSMITH_ORG_ID:
-        raise HTTPException(
-            status_code=500,
-            detail="LANGSMITH_ORG_ID environment variable required for internal deployments",
-        )
-
-    # Construct private trace URL
-    # Format: https://smith.langchain.com/o/{org_id}/projects/p/{project_id}?peek={run_id}&peeked_trace={run_id}
-    base_url = "https://smith.langchain.com"
-
-    if LANGSMITH_PROJECT_ID:
-        # Link to specific project
-        trace_url = f"{base_url}/o/{LANGSMITH_ORG_ID}/projects/p/{LANGSMITH_PROJECT_ID}?peek={runId}&peeked_trace={runId}"
-    else:
-        # Fallback: Link to organization
-        trace_url = f"{base_url}/o/{LANGSMITH_ORG_ID}?peek={runId}&peeked_trace={runId}"
-
-    return {"shareUrl": trace_url}
+    """Create a public share URL for a LangSmith run."""
+    try:
+        client = get_langsmith_client()
+        share_url = await asyncio.to_thread(client.share_run, runId)
+        return {"shareUrl": share_url}
+    except Exception as e:
+        if "not found" in str(e).lower() or "404" in str(e):
+            raise HTTPException(
+                status_code=404,
+                detail="Run not found yet - may still be processing",
+            )
+        raise HTTPException(status_code=500, detail=str(e))

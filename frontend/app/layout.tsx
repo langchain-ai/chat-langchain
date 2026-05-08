@@ -3,7 +3,6 @@ import { Inter, Inconsolata } from "next/font/google";
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import Script from "next/script";
 import "./globals.css";
-import { SessionProvider } from "@/components/auth/session-provider";
 import { SegmentProvider } from "@/components/providers/segment-provider";
 
 const inter = Inter({
@@ -59,13 +58,11 @@ analytics.page();
         className={`${inter.variable} ${inconsolata.variable} antialiased`}
         suppressHydrationWarning
       >
-        <SessionProvider>
-          <SegmentProvider>
-            <NuqsAdapter>
-              {children}
-            </NuqsAdapter>
-          </SegmentProvider>
-        </SessionProvider>
+        <SegmentProvider>
+          <NuqsAdapter>
+            {children}
+          </NuqsAdapter>
+        </SegmentProvider>
       </body>
     </html>
   );

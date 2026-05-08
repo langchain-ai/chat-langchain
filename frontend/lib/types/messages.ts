@@ -35,7 +35,7 @@ export interface Message {
 
   // LangSmith tracing
   runId?: string
-  shareUrl?: string // LangSmith trace URL (private for internal, public share for external)
+  shareUrl?: string // Public LangSmith trace share URL
   usageMetadata?: UsageMetadata
 
   // User feedback

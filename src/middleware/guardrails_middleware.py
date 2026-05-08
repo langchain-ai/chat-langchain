@@ -49,6 +49,9 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - Streaming, async, callbacks, runnables, LCEL
 - RAG, retrieval, document loaders, text splitters
 - Pregel, StateGraph, MessageGraph, checkpointing, persistence
+- Sandboxes (langsmith, daytona, runloop, modal, agentcore)
+- Backends (store, hub, state, filesystem, memory)
+- Basestore
 
 ## ALWAYS ALLOW - Follow-ups & Context:
 - Technical follow-up questions about prior LangChain / LangGraph / LangSmith / Deep Agents responses
@@ -106,10 +109,9 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 4. Otherwise, apply the default-ALLOW posture: ALLOW unless >95% confident the query is completely unrelated to software/AI/LangChain AND is not a plausible follow-up to prior technical context.
 
 ## Critical Rules (apply ONLY to step 4 of the precedence above - NOT to Zero Tolerance or Clearly Off-Topic):
-1. When the query is a plausible technical follow-up about prior LangChain / LangGraph / LangSmith context, lean ALLOW.
-2. When the query is vague but plausibly technical, lean ALLOW - let the main agent ask for clarification.
-3. When uncertain whether a query is technical vs off-topic, lean ALLOW.
-4. False positives on legit LangChain follow-ups are costly. False negatives on harmful / off-topic content are also costly - that is why Zero Tolerance and Clearly Off-Topic are non-negotiable and bypass these leniency rules.
+1. When the query is a plausible technical follow-up about prior LangChain / LangGraph / LangSmith context, ALLOW.
+2. When the query is vague but plausibly technical, ALLOW - let the main agent ask for clarification.
+3. When uncertain whether a query is technical vs off-topic, ALLOW.
 
 Final answer: follow the "Block precedence" order above. ALLOW only if the query passes step 4."""
 

@@ -125,11 +125,7 @@ export async function readRun(runId: string): Promise<any> {
 }
 
 /**
- * Generate a trace URL for a LangSmith run
- * - Internal deployments: Returns a private URL (requires authentication)
- * - External deployments: Creates a public share URL (anyone with link can view)
- *
- * The behavior is controlled by the DEPLOYMENT_ENV environment variable on the backend.
+ * Generate a public trace URL for a LangSmith run.
  */
 export async function shareRun(runId: string): Promise<string> {
   const response = await fetch(

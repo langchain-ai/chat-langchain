@@ -1,10 +1,8 @@
 /**
- * Deployment Configuration
+ * Public Chat LangChain Configuration
  *
- * This file manages configuration differences between internal and external deployments.
- *
- * - Internal: Full access for team use (all models, all agents, Google OAuth protected)
- * - External: Locked down for customer-facing use (limited models, docs_agent only, no auth)
+ * This frontend is public-only: docs_agent, anonymous browser identity,
+ * and the public model allowlist.
  */
 
 // =============================================================================
@@ -80,12 +78,6 @@ export const AGENTS = {
 export type AgentKey = keyof typeof AGENTS
 export type AgentType = (typeof AGENTS)[AgentKey]["id"]
 
-// =============================================================================
-// Deployment Configuration
-// =============================================================================
-
-export type DeploymentEnv = "internal" | "external"
-
 interface DeploymentConfig {
   models: ModelKey[]
   agents: AgentKey[]
@@ -94,34 +86,20 @@ interface DeploymentConfig {
   requiresAuth: boolean
 }
 
-const DEPLOYMENTS: Record<DeploymentEnv, DeploymentConfig> = {
-  external: {
-    models: ["gpt-5.4-mini", "gemini-3.1-flash-lite", "glm-5"],
-    agents: ["docs"],
-    defaultModel: "gemini-3.1-flash-lite",
-    defaultAgent: "docs",
-    requiresAuth: false,
-  },
-  internal: {
-    models: ["gpt-5.4-mini", "gemini-3.1-flash-lite", "glm-5"],
-    agents: ["docs"],
-    defaultModel: "gemini-3.1-flash-lite",
-    defaultAgent: "docs",
-    requiresAuth: false,
-  },
+const DEPLOYMENT: DeploymentConfig = {
+  models: ["gpt-5.4-mini", "gemini-3.1-flash-lite", "glm-5"],
+  agents: ["docs"],
+  defaultModel: "gemini-3.1-flash-lite",
+  defaultAgent: "docs",
+  requiresAuth: false,
 }
 
 // =============================================================================
 // Core Functions
 // =============================================================================
 
-export function getDeploymentEnv(): DeploymentEnv {
-  const env = process.env.NEXT_PUBLIC_DEPLOYMENT_ENV
-  return env === "internal" ? "internal" : "external"
-}
-
 export function getDeploymentConfig(): DeploymentConfig {
-  return DEPLOYMENTS[getDeploymentEnv()]
+  return DEPLOYMENT
 }
 
 // =============================================================================

@@ -5,61 +5,26 @@
  */
 
 /**
- * Get LangGraph API URL based on deployment environment and local/remote preference.
- * 
- * Supports both local and remote deployments for internal and external environments:
- * - NEXT_PUBLIC_USE_LOCAL_DEPLOYMENT=true → uses local URLs (default: false)
- * - Internal deployment → uses INTERNAL_LOCAL or INTERNAL_REMOTE
- * - External deployment → uses EXTERNAL_LOCAL or EXTERNAL_REMOTE
- * 
- * Environment variables:
- * - NEXT_PUBLIC_LANGGRAPH_API_URL_INTERNAL_LOCAL (default: http://127.0.0.1:2024)
- * - NEXT_PUBLIC_LANGGRAPH_API_URL_INTERNAL_REMOTE
- * - NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL_LOCAL (default: http://127.0.0.1:2024)
- * - NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL_REMOTE
- * - NEXT_PUBLIC_USE_LOCAL_DEPLOYMENT (default: false)
+ * Get the public Chat LangChain LangGraph API URL.
+ *
+ * NEXT_PUBLIC_LANGGRAPH_API_URL points to the public docs-agent deployment.
  */
 function getLangGraphApiUrl(): string {
-  const deploymentEnv = process.env.NEXT_PUBLIC_DEPLOYMENT_ENV || "external"
-  const useLocal = process.env.NEXT_PUBLIC_USE_LOCAL_DEPLOYMENT !== 'false'
+  const url =
+    process.env.NEXT_PUBLIC_LANGGRAPH_API_URL ||
+    (process.env.NODE_ENV === "development" ? "http://127.0.0.1:2024" : undefined)
 
-  if (deploymentEnv === "external") {
-    // External deployment
-    const url = useLocal
-      ? process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL_LOCAL || 'http://127.0.0.1:2024'
-      : process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL_REMOTE || process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL || 'http://127.0.0.1:2024'
-    
-    if (!url) {
-      throw new Error(
-        useLocal
-          ? 'NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL_LOCAL is not defined for external local deployment'
-          : 'NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL_REMOTE is not defined for external remote deployment'
-      )
-    }
-    // Only log in development, never in production
-    if (process.env.NODE_ENV === 'development') {
-      console.info(`[LangGraph] External ${useLocal ? 'local' : 'remote'} deployment → routing to:`, url)
-    }
-    return url
-  } else {
-    // Internal deployment (default)
-    const url = useLocal
-      ? process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_INTERNAL_LOCAL || 'http://127.0.0.1:2024'
-      : process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_INTERNAL_REMOTE || process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_INTERNAL || 'http://127.0.0.1:2024'
-    
-    if (!url) {
-      throw new Error(
-        useLocal
-          ? 'NEXT_PUBLIC_LANGGRAPH_API_URL_INTERNAL_LOCAL is not defined for internal local deployment'
-          : 'NEXT_PUBLIC_LANGGRAPH_API_URL_INTERNAL_REMOTE is not defined for internal remote deployment'
-      )
-    }
-    // Only log in development, never in production
-    if (process.env.NODE_ENV === 'development') {
-      console.info(`[LangGraph] Internal ${useLocal ? 'local' : 'remote'} deployment → routing to:`, url)
-    }
-    return url
+  if (!url) {
+    throw new Error(
+      "NEXT_PUBLIC_LANGGRAPH_API_URL is not defined for public Chat LangChain"
+    )
   }
+
+  if (process.env.NODE_ENV === "development") {
+    console.info("[LangGraph] Public deployment routing to:", url)
+  }
+
+  return url
 }
 
 export const LANGGRAPH_API_URL = getLangGraphApiUrl()

@@ -31,7 +31,7 @@ export function createLangGraphClient(userId: string | undefined): Client {
     Authorization: `Bearer ${userId}`,
   }
 
-  // Auth key for deployments that require it (e.g. jewel internal)
+  // Optional public app key for deployments that set LANGGRAPH_AUTH_SECRET.
   const authKey = process.env.NEXT_PUBLIC_LANGGRAPH_AUTH_KEY
   if (authKey) {
     headers["X-Auth-Key"] = authKey

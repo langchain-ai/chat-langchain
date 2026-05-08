@@ -19,9 +19,8 @@ async def authenticate(
 ) -> Auth.types.MinimalUserDict:
     """Validate requests and extract user identity.
 
-    If LANGGRAPH_AUTH_SECRET is set (e.g. jewel internal deployment),
-    requires X-Auth-Key header to match. If not set (e.g. chat-langchain
-    public deployment), allows all requests through.
+    If LANGGRAPH_AUTH_SECRET is set, requires X-Auth-Key header to match.
+    If not set, allows public requests through.
 
     User identity is always extracted from Authorization: Bearer <user_id>.
     """
@@ -72,11 +71,16 @@ async def add_owner(ctx: Auth.types.AuthContext, value: dict):
 
 
 @auth.on.threads.update
-async def block_updates(ctx: Auth.types.AuthContext, value: dict):
-    """Tag threads with their owner and restrict access."""
+async def update_owner_metadata(ctx: Auth.types.AuthContext, value: dict):
+    """Allow users to update metadata only on their own threads."""
     if is_studio_user(ctx.user):
         return {}
-    raise Auth.exceptions.HTTPException(403, "Thread updates not permitted")
+
+    user_id = ctx.user.identity
+    metadata = value.setdefault("metadata", {})
+    metadata["user_id"] = user_id
+
+    return {"user_id": user_id}
 
 
 @auth.on.threads.create_run

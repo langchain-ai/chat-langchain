@@ -151,11 +151,9 @@ export function useStreamHandler({
   userName,
 }: UseStreamHandlerProps): UseStreamHandlerReturn {
   /**
-   * Generates a LangSmith trace URL.
-   * - Internal deployments: Returns a private URL (requires authentication)
-   * - External deployments: Creates a public share URL (anyone with link can view)
+   * Generates a public LangSmith trace URL.
    *
-   * Implements light retry logic for external deployments where run may not be immediately available.
+   * Implements light retry logic because run metadata may not be immediately available.
    *
    * @param runId - LangSmith run ID
    * @param messageId - Message ID to update with trace URL
