@@ -689,15 +689,17 @@ export function useStreamHandler({
                   stepDesc = `Listing directory (public+private): ${args.path || "root"}`
                 }
                 // Docs tools
-                else if (args.query && msg.name === "SearchDocsByLangChain") {
+                else if (args.query && msg.name === "search_docs_by_lang_chain") {
                   const query = args.query.length > 40 ? args.query.substring(0, 40) + "..." : args.query
                   stepDesc = `Searching documentation for "${query}"`
+                } else if (msg.name === "query_docs_filesystem_docs_by_lang_chain") {
+                  stepDesc = "Reading documentation"
                 }
                 // Pylon tools
                 else if (args.collections && msg.name === "search_support_articles") {
                   stepDesc = `Searching support articles (${args.collections})`
-                } else if (args.article_id && msg.name === "get_article_content") {
-                  stepDesc = `Fetching support article content`
+                } else if (args.article_id && msg.name === "get_support_article_content") {
+                  stepDesc = "Reading support articles"
                 }
               }
 

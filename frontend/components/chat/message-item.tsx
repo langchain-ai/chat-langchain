@@ -540,28 +540,20 @@ export const MessageItem = memo(function MessageItem({
               </div>
 
               {/* Metadata in bottom right of message box */}
-              {!message.isThinking && message.runId && (message.shareUrl || message.usageMetadata?.total_tokens || message.thinkingDuration) && (
+              {!message.isThinking && message.runId && (
                 <div className="flex items-center justify-end gap-2 mt-3 text-xs text-white font-mono font-medium">
-                  <>
-                    {message.thinkingDuration && (
+                  {/* Check if all metadata is loaded - use != null to handle 0 values */}
+                  {message.thinkingDuration && message.usageMetadata?.total_tokens && message.usageMetadata?.total_cost != null && message.shareUrl ? (
+                    <>
                       <span>{(message.thinkingDuration / 1000).toFixed(1)}s</span>
-                    )}
-                    {message.thinkingDuration && (message.usageMetadata?.total_tokens || message.shareUrl) && (
                       <span>•</span>
-                    )}
-                    {message.usageMetadata?.total_tokens && (
                       <span>{(message.usageMetadata.total_tokens / 1000).toFixed(1)}k tokens</span>
-                    )}
-                    {message.usageMetadata?.total_tokens &&
-                      typeof message.usageMetadata.total_cost === "number" &&
-                      message.usageMetadata.total_cost > 0 && (
-                      <>
-                        <span>•</span>
-                        <span>${message.usageMetadata.total_cost.toFixed(4)}</span>
-                      </>
+                      {message.usageMetadata.total_cost > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>${message.usageMetadata.total_cost.toFixed(4)}</span>
+                        </>
                       )}
-                    {message.usageMetadata?.total_tokens && message.shareUrl && <span>•</span>}
-                    {message.shareUrl && (
                       <a
                         href={message.shareUrl}
                         target="_blank"
@@ -572,8 +564,25 @@ export const MessageItem = memo(function MessageItem({
                         View trace
                         <ExternalLink className="h-2.5 w-2.5" />
                       </a>
-                    )}
-                  </>
+                    </>
+                  ) : (
+                    <span className="font-sans font-medium inline-flex items-center gap-0 relative">
+                      <span className="thinking-text-base">Loading Trace</span>
+                      <span className="inline-flex thinking-text-base">
+                        <span className="animate-bounce-dot" style={{ animationDelay: '1.3s' }}>.</span>
+                        <span className="animate-bounce-dot" style={{ animationDelay: '1.45s' }}>.</span>
+                        <span className="animate-bounce-dot" style={{ animationDelay: '1.6s' }}>.</span>
+                      </span>
+                      <span className="thinking-gradient-overlay" aria-hidden="true">
+                        <span>Loading Trace</span>
+                        <span className="inline-flex">
+                          <span className="animate-bounce-dot" style={{ animationDelay: '1.3s' }}>.</span>
+                          <span className="animate-bounce-dot" style={{ animationDelay: '1.45s' }}>.</span>
+                          <span className="animate-bounce-dot" style={{ animationDelay: '1.6s' }}>.</span>
+                        </span>
+                      </span>
+                    </span>
+                  )}
                 </div>
               )}
 
