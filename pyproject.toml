@@ -23,6 +23,7 @@ dependencies = [
     "rapidfuzz>=3.0.0",
     "fastapi>=0.136.1",
     "langchain-mcp-adapters>=0.2.2",
+    "langsmith>=0.8.3",
 ]
 
 

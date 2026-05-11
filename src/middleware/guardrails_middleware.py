@@ -1,6 +1,7 @@
 # Lenient guardrails middleware to filter only egregious misuse
 import asyncio
 import logging
+import os
 import random
 from typing import Any, Literal
 from typing_extensions import NotRequired
@@ -10,12 +11,22 @@ from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langgraph.runtime import Runtime
 import langsmith as ls
+from langsmith import Client
 
 logger = logging.getLogger(__name__)
 
 # Dataset configuration for guardrails evaluation
 GUARDRAILS_DATASET_NAME = "Chat-LangChain-Guardrails-Samples"
 ALLOWED_SAMPLE_RATE = 0.01  # 1% of allowed queries go to dataset
+_USE_STAGING = (
+    os.getenv("LANGSMITH_HOST_PROJECT_NAME") == "immanuel-chat-langchain-test"
+    or os.getenv("LANGSMITH_ENV") == "dev"
+)
+_GUARDRAILS_PROMPT_HUB_NAME = (
+    "public-chat-langchain-guardrails-test:staging"
+    if _USE_STAGING
+    else "public-chat-langchain-guardrails-test:production"
+)
 
 # Cache for dataset ID to avoid repeated lookups
 _dataset_id_cache: str | None = None
@@ -35,7 +46,7 @@ class GuardrailsState(AgentState):
     off_topic_query: NotRequired[bool]
 
 
-_GUARDRAILS_SYSTEM_PROMPT = """You are a lenient content filter for a LangChain documentation assistant.
+_LOCAL_GUARDRAILS_SYSTEM_PROMPT = """You are a lenient content filter for a LangChain documentation assistant.
 
 YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is completely unrelated AND NOT a follow-up to previous context.
 
@@ -51,7 +62,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - Pregel, StateGraph, MessageGraph, checkpointing, persistence
 - Sandboxes (langsmith, daytona, runloop, modal, agentcore)
 - Backends (store, hub, state, filesystem, memory)
-- Basestore
+- Basestore, context hub, prompt hub
 
 ## ALWAYS ALLOW - Follow-ups & Context:
 - Technical follow-up questions about prior LangChain / LangGraph / LangSmith / Deep Agents responses
@@ -114,6 +125,27 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 3. When uncertain whether a query is technical vs off-topic, ALLOW.
 
 Final answer: follow the "Block precedence" order above. ALLOW only if the query passes step 4."""
+
+_langsmith_client = Client()
+try:
+    _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
+    _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.invoke({"messages": []}).messages[
+        0
+    ].content
+    guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
+        "lc_hub_commit_hash"
+    )
+    guardrails_prompt_source = f"hub:{_GUARDRAILS_PROMPT_HUB_NAME}"
+    logger.info(
+        f"Loaded guardrails prompt from hub: {_GUARDRAILS_PROMPT_HUB_NAME} @ {(guardrails_prompt_commit or '')[:8]}"
+    )
+except Exception:
+    logger.warning(
+        f"Failed to pull guardrails prompt from hub ({_GUARDRAILS_PROMPT_HUB_NAME}), falling back to local file"
+    )
+    _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
+    guardrails_prompt_commit = None
+    guardrails_prompt_source = "local:src/middleware/guardrails_middleware.py"
 
 
 _REJECTION_SYSTEM_PROMPT = """You are a helpful LangChain documentation assistant explaining your scope limitations.
