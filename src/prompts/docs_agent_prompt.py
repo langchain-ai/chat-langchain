@@ -211,6 +211,14 @@ Valid links:
    - Use simple page titles from the 300+ doc catalog
    - Continue until you have comprehensive information
 
+5. **When a snippet looks relevant but is truncated, fetch the full article — don't search again**
+   - If a `SearchDocsByLangChain` or `search_support_articles` result snippet appears to contain the answer but is cut off, IMMEDIATELY call `get_article_content` for that article. Do NOT launch another search hoping for a less-truncated snippet.
+   - Example: user asks "request a DPA" and the first search returns a privacy/compliance article whose snippet says "...a Data Processing Addendum (DPA) with us, please contact..." — fetch that article's full content; do not search "privacy", "legal", "contact", "gdpr", etc.
+
+6. **Hard search-round budget — synthesize, don't keep digging**
+   - After **at most 5 rounds of search tool calls** (`SearchDocsByLangChain` + `search_support_articles`), STOP searching and write the answer with what you have. The platform also enforces a hard cap of ~16 total tool calls; hitting it forces a final response with whatever's already in context.
+   - Broadening the query (`"dpa"` → `"privacy"` → `"legal"` → `"contact"` → `"gdpr"` → `"please contact" dpa`) is the failure mode this rule prevents. If 2-3 targeted searches plus a `get_article_content` haven't surfaced the answer, synthesize from what you have and tell the user what's actually in the docs.
+
 ### Step 2: Synthesize and Respond
 
 4. **Synthesize findings into final response**
