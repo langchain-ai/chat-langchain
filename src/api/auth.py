@@ -9,6 +9,9 @@ from src.utils.prompt_provenance import get_prompt_provenance
 
 auth = Auth()
 
+MAX_RECURSION_LIMIT = 100
+
+
 def _get_auth_secret() -> str | None:
     """Optional auth secret. If set, X-Auth-Key header is required on all requests."""
     return os.getenv("LANGGRAPH_AUTH_SECRET")
@@ -135,10 +138,21 @@ async def block_modify_assistants(
 def validate_inputs(input: dict | None, command: dict | None):
     if command:
         raise Auth.exceptions.HTTPException(422, "Command not accepted")
+    if input is None:
+        raise Auth.exceptions.HTTPException(422, "Input is required")
+    if not isinstance(input, dict):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized input: {type(input)}"
+        )
     if not input:
-        return
-    messages = input.get("messages") or []
+        raise Auth.exceptions.HTTPException(422, "Input is required")
+
+    messages = input.get("messages")
+    if messages is None:
+        raise Auth.exceptions.HTTPException(422, "Messages are required")
     if isinstance(messages, str):
+        if not messages.strip():
+            raise Auth.exceptions.HTTPException(422, "Message content is required")
         return
     if not isinstance(messages, list):
         raise Auth.exceptions.HTTPException(
@@ -150,12 +164,25 @@ def validate_inputs(input: dict | None, command: dict | None):
         )
     msg = messages[0]
     if isinstance(msg, str):
+        if not msg.strip():
+            raise Auth.exceptions.HTTPException(422, "Message content is required")
         return
+    if not isinstance(msg, dict):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized message input: {type(msg)}"
+        )
     role = msg.get("role") or msg.get("type")
     if role not in ("user", "human"):
         raise Auth.exceptions.HTTPException(
             422, f"Only user messages accepted. Got role {role}"
         )
+    content = msg.get("content")
+    if content is None:
+        raise Auth.exceptions.HTTPException(422, "Message content is required")
+    if isinstance(content, str) and not content.strip():
+        raise Auth.exceptions.HTTPException(422, "Message content is required")
+    if isinstance(content, list) and not content:
+        raise Auth.exceptions.HTTPException(422, "Message content is required")
 
 
 def validate_config(config: dict | None):
@@ -166,6 +193,8 @@ def validate_config(config: dict | None):
         raise Auth.exceptions.HTTPException(
             422, f"Unrecognized config input: {type(config)}"
         )
+
+    cap_recursion_limit(config)
 
     configurable = config.get("configurable") or {}
     if not isinstance(configurable, dict):
@@ -188,3 +217,22 @@ def validate_config(config: dict | None):
         raise Auth.exceptions.HTTPException(
             422, f"Model is not allowed: {requested_model}"
         )
+
+
+def cap_recursion_limit(config: dict):
+    recursion_limit = config.get("recursion_limit")
+    if isinstance(recursion_limit, bool) or recursion_limit is None:
+        return
+
+    if isinstance(recursion_limit, (int, float)):
+        if recursion_limit > MAX_RECURSION_LIMIT:
+            config["recursion_limit"] = MAX_RECURSION_LIMIT
+        return
+
+    if isinstance(recursion_limit, str):
+        try:
+            parsed_limit = int(recursion_limit)
+        except ValueError:
+            return
+        if parsed_limit > MAX_RECURSION_LIMIT:
+            config["recursion_limit"] = MAX_RECURSION_LIMIT
