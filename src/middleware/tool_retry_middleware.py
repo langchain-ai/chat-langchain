@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import re
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
@@ -16,12 +17,9 @@ NO_RESULTS_MARKERS = (
     "no result found",
 )
 
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
 RETRYABLE_ERROR_MARKERS = (
-    "429",
-    "500",
-    "502",
-    "503",
-    "504",
     "bad gateway",
     "connection error",
     "connection reset",
@@ -58,12 +56,38 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
     def _error_text(self, error: Exception) -> str:
         return str(error) or error.__class__.__name__
 
+    def _status_code(self, error: Exception) -> int | None:
+        status_code = getattr(error, "status_code", None)
+        if isinstance(status_code, int):
+            return status_code
+
+        response = getattr(error, "response", None)
+        response_status = getattr(response, "status_code", None)
+        if isinstance(response_status, int):
+            return response_status
+
+        text = self._error_text(error)
+        status_match = re.search(
+            r"\b(?:HTTP|status(?:\s+code)?|error\s+code)[:= ]+"
+            r"(429|500|502|503|504)\b",
+            text,
+            re.IGNORECASE,
+        )
+        if status_match:
+            return int(status_match.group(1))
+
+        return None
+
     def _is_no_results(self, error: Exception) -> bool:
         text = self._error_text(error).lower()
         return any(marker in text for marker in NO_RESULTS_MARKERS)
 
     def _is_retryable(self, error: Exception) -> bool:
         text = self._error_text(error).lower()
+        status_code = self._status_code(error)
+        if status_code in RETRYABLE_STATUS_CODES:
+            return True
+
         return any(marker in text for marker in RETRYABLE_ERROR_MARKERS)
 
     def _tool_message(

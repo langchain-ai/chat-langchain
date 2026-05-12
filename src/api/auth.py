@@ -176,6 +176,10 @@ def validate_config(config: dict | None):
     requested_model = configurable.get("model")
     if requested_model is None:
         return
+    if not isinstance(requested_model, str):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized model input: {type(requested_model)}"
+        )
 
     if requested_model == DEFAULT_MODEL.id:
         return
