@@ -221,18 +221,13 @@ def validate_config(config: dict | None):
 
 def cap_recursion_limit(config: dict):
     recursion_limit = config.get("recursion_limit")
-    if isinstance(recursion_limit, bool) or recursion_limit is None:
+    if recursion_limit is None:
         return
 
-    if isinstance(recursion_limit, (int, float)):
-        if recursion_limit > MAX_RECURSION_LIMIT:
-            config["recursion_limit"] = MAX_RECURSION_LIMIT
-        return
+    if isinstance(recursion_limit, bool) or not isinstance(recursion_limit, int):
+        raise Auth.exceptions.HTTPException(
+            422, "recursion_limit must be an integer"
+        )
 
-    if isinstance(recursion_limit, str):
-        try:
-            parsed_limit = int(recursion_limit)
-        except ValueError:
-            return
-        if parsed_limit > MAX_RECURSION_LIMIT:
-            config["recursion_limit"] = MAX_RECURSION_LIMIT
+    if recursion_limit > MAX_RECURSION_LIMIT:
+        config["recursion_limit"] = MAX_RECURSION_LIMIT
