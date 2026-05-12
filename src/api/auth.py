@@ -4,6 +4,7 @@ import os
 from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
 
+from src.agent.config import DEFAULT_MODEL, PUBLIC_MODEL_IDS
 from src.utils.prompt_provenance import get_prompt_provenance
 
 auth = Auth()
@@ -105,6 +106,7 @@ async def enrich_run_metadata(
         for key, val in get_prompt_provenance(graph_id).items():
             metadata.setdefault(key, val)
     validate_inputs(value["kwargs"].get("input"), value["kwargs"].get("command"))
+    validate_config(value["kwargs"].get("config") or value.get("config"))
 
 
 @auth.on.assistants(actions=["create", "update", "delete"])
@@ -153,4 +155,32 @@ def validate_inputs(input: dict | None, command: dict | None):
     if role not in ("user", "human"):
         raise Auth.exceptions.HTTPException(
             422, f"Only user messages accepted. Got role {role}"
+        )
+
+
+def validate_config(config: dict | None):
+    """Validate user-controlled run config before it reaches the graph."""
+    if not config:
+        return
+    if not isinstance(config, dict):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized config input: {type(config)}"
+        )
+
+    configurable = config.get("configurable") or {}
+    if not isinstance(configurable, dict):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized configurable input: {type(configurable)}"
+        )
+
+    requested_model = configurable.get("model")
+    if requested_model is None:
+        return
+
+    if requested_model == DEFAULT_MODEL.id:
+        return
+
+    if requested_model not in PUBLIC_MODEL_IDS:
+        raise Auth.exceptions.HTTPException(
+            422, f"Model is not allowed: {requested_model}"
         )

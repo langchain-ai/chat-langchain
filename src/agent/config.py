@@ -9,6 +9,7 @@ from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 
 from src.middleware.retry_middleware import ModelRetryMiddleware
+from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
 dotenv.load_dotenv()
 
@@ -83,6 +84,15 @@ MODELS: dict[str, ModelConfig] = {
 DEFAULT_MODEL = MODELS["gemini-3.1-flash-lite"]
 GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
 
+# Models public API callers are allowed to select. This mirrors the frontend
+# deployment allowlist; backend-only guardrails/fallback models stay excluded.
+PUBLIC_MODEL_KEYS = [
+    "gpt-5.4-mini",
+    "gemini-3.1-flash-lite",
+    "glm-5",
+]
+PUBLIC_MODEL_IDS = {MODELS[key].id for key in PUBLIC_MODEL_KEYS}
+
 # Fallback chain (in order of preference)
 FALLBACK_MODELS = [
     MODELS["gemini-2.5-flash"],
@@ -125,6 +135,7 @@ logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 # =============================================================================
 
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
+tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
@@ -139,11 +150,14 @@ __all__ = [
     "DEFAULT_MODEL",
     "GUARDRAILS_MODEL",
     "FALLBACK_MODELS",
+    "PUBLIC_MODEL_IDS",
+    "PUBLIC_MODEL_KEYS",
     "ModelConfig",
     # Configurable models
     "configurable_model",
     # Middleware
     "model_retry_middleware",
+    "tool_retry_middleware",
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",

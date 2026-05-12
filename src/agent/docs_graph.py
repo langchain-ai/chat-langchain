@@ -10,6 +10,7 @@ from src.agent.config import (
     configurable_model,
     model_fallback_middleware,
     model_retry_middleware,
+    tool_retry_middleware,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.guardrails_middleware import (
@@ -69,6 +70,7 @@ docs_agent_tools = [
 
 docs_agent_middleware = [
     guardrails_middleware,
+    tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
 ]
