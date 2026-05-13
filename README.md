@@ -62,6 +62,7 @@ cp .env.example .env
 | `MINTLIFY_API_KEY` | Mintlify API key for docs search |
 | `PYLON_API_KEY` | Pylon API key for support KB |
 | `PYLON_KB_ID` | Pylon knowledge base ID for support articles |
+| `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
 
 ### Running Locally
 

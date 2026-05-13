@@ -27,6 +27,11 @@ from src.tools.pylon_tools import get_support_article_content, search_support_ar
 logger = logging.getLogger(__name__)
 logger.info("Docs agent module loaded")
 
+_USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 _USE_STAGING = (
     os.getenv("LANGSMITH_HOST_PROJECT_NAME") == "immanuel-chat-langchain-test"
     or os.getenv("LANGSMITH_ENV") == "dev"
@@ -36,22 +41,29 @@ _PROMPT_HUB_NAME = (
     if _USE_STAGING
     else "public-chat-langchain-test:production"
 )
-_langsmith_client = Client()
-try:
-    _prompt_template = _langsmith_client.pull_prompt(_PROMPT_HUB_NAME)
-    docs_agent_prompt = _prompt_template.invoke({"messages": []}).messages[0].content
-    prompt_commit = (_prompt_template.metadata or {}).get("lc_hub_commit_hash")
-    prompt_source = f"hub:{_PROMPT_HUB_NAME}"
-    logger.info(
-        f"Loaded prompt from hub: {_PROMPT_HUB_NAME} @ {(prompt_commit or '')[:8]}"
-    )
-except Exception:
-    logger.warning(
-        f"Failed to pull prompt from hub ({_PROMPT_HUB_NAME}), falling back to local file"
-    )
+
+if _USE_LOCAL_PROMPTS:
     docs_agent_prompt = _local_prompt
     prompt_commit = None
     prompt_source = "local:src/prompts/docs_agent_prompt.py"
+    logger.info("Using local docs prompt because USE_LOCAL_PROMPTS is enabled")
+else:
+    _langsmith_client = Client()
+    try:
+        _prompt_template = _langsmith_client.pull_prompt(_PROMPT_HUB_NAME)
+        docs_agent_prompt = _prompt_template.invoke({"messages": []}).messages[0].content
+        prompt_commit = (_prompt_template.metadata or {}).get("lc_hub_commit_hash")
+        prompt_source = f"hub:{_PROMPT_HUB_NAME}"
+        logger.info(
+            f"Loaded prompt from hub: {_PROMPT_HUB_NAME} @ {(prompt_commit or '')[:8]}"
+        )
+    except Exception:
+        logger.warning(
+            f"Failed to pull prompt from hub ({_PROMPT_HUB_NAME}), falling back to local file"
+        )
+        docs_agent_prompt = _local_prompt
+        prompt_commit = None
+        prompt_source = "local:src/prompts/docs_agent_prompt.py"
 
 # Guardrails middleware ensures users only ask LangChain-related questions
 guardrails_middleware = GuardrailsMiddleware(

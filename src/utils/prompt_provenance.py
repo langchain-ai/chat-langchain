@@ -6,6 +6,11 @@ from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
+_USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 _USE_STAGING = (
     os.getenv("LANGSMITH_HOST_PROJECT_NAME") == "immanuel-chat-langchain-test"
     or os.getenv("LANGSMITH_ENV") == "dev"
@@ -42,6 +47,12 @@ def _resolve_hub_provenance(hub_name: str) -> tuple[str, str | None]:
 
 def get_prompt_provenance(graph_id: str) -> dict[str, str]:
     """Return prompt provenance for a graph_id."""
+    if _USE_LOCAL_PROMPTS and graph_id == "docs_agent":
+        return {
+            "prompt_source": "local:src/prompts/docs_agent_prompt.py",
+            "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
+        }
+
     if graph_id in _HUB_PROMPTS:
         source, commit = _resolve_hub_provenance(_HUB_PROMPTS[graph_id])
         guardrails_source, guardrails_commit = _resolve_hub_provenance(

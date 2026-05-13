@@ -79,6 +79,30 @@ function getBackoffDelay(attempt: number): number {
   return RETRY_CONFIG.baseDelay * Math.pow(2, attempt)
 }
 
+function describeToolStep(name: string, args: Record<string, any> = {}): string {
+  if (args.query && name === "search_docs_by_lang_chain") {
+    const query = args.query.length > 40 ? args.query.substring(0, 40) + "..." : args.query
+    return `Searching documentation for "${query}"`
+  }
+  if (name === "query_docs_filesystem_docs_by_lang_chain") {
+    return "Reading documentation"
+  }
+  if (args.collections && name === "search_support_articles") {
+    return `Searching support articles (${args.collections})`
+  }
+  if (args.article_id && name === "get_support_article_content") {
+    return "Reading support articles"
+  }
+  if (name === "fetch_langchain_pricing") {
+    return "Fetching LangChain pricing"
+  }
+  if (name === "check_links") {
+    return "Checking documentation links"
+  }
+
+  return name
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -637,81 +661,16 @@ export function useStreamHandler({
                   hasNewSteps = true
                 }
               }
-              // Skip regular tools - they'll be shown individually below
-            }
-          })
-        }
 
-        // Track tool executions with clear context
-        if (data?.tools?.messages && Array.isArray(data.tools.messages)) {
-          data.tools.messages.forEach((msg: any) => {
-            if (msg.name && msg.name !== "task") {
-              // Find the tool call to get args for context
-              const toolCall = assistantToolCalls.find((tc: any) => tc.id === msg.tool_call_id)
-
-              let stepDesc = msg.name
-
-              // Add descriptive context from tool args
-              if (toolCall?.args && Object.keys(toolCall.args).length > 0) {
-                const args = toolCall.args
-
-                // Codebase tools (old naming)
-                if (args.file_path && msg.name === "read_codebase_file") {
-                  const path = args.file_path.length > 50 ? "..." + args.file_path.slice(-50) : args.file_path
-                  stepDesc = `Reading ${path}`
-                } else if (args.pattern && msg.name === "search") {
-                  const pattern = args.pattern.length > 40 ? args.pattern.substring(0, 40) + "..." : args.pattern
-                  const location = args.path ? ` in ${args.path}` : ""
-                  stepDesc = `Searching codebase for "${pattern}"${location}`
-                } else if (args.path && msg.name === "list_directory") {
-                  stepDesc = `Listing directory ${args.path || "root"}`
-                }
-                // Public code tools
-                else if (args.file_path && msg.name === "read_public_file") {
-                  const path = args.file_path.length > 50 ? "..." + args.file_path.slice(-50) : args.file_path
-                  stepDesc = `Reading public file: ${path}`
-                } else if (args.pattern && msg.name === "search_public_code") {
-                  const pattern = args.pattern.length > 40 ? args.pattern.substring(0, 40) + "..." : args.pattern
-                  const location = args.path ? ` in ${args.path}` : ""
-                  stepDesc = `Searching public code for "${pattern}"${location}`
-                } else if (args.path && msg.name === "list_public_directory") {
-                  stepDesc = `Listing public directory: ${args.path || "root"}`
-                }
-                // Full access code tools
-                else if (args.file_path && msg.name === "read_all_files") {
-                  const path = args.file_path.length > 50 ? "..." + args.file_path.slice(-50) : args.file_path
-                  stepDesc = `Reading file (public+private): ${path}`
-                } else if (args.pattern && msg.name === "search_all_code") {
-                  const pattern = args.pattern.length > 40 ? args.pattern.substring(0, 40) + "..." : args.pattern
-                  const location = args.path ? ` in ${args.path}` : ""
-                  stepDesc = `Searching all code for "${pattern}"${location}`
-                } else if (args.path && msg.name === "list_all_directories") {
-                  stepDesc = `Listing directory (public+private): ${args.path || "root"}`
-                }
-                // Docs tools
-                else if (args.query && msg.name === "search_docs_by_lang_chain") {
-                  const query = args.query.length > 40 ? args.query.substring(0, 40) + "..." : args.query
-                  stepDesc = `Searching documentation for "${query}"`
-                } else if (msg.name === "query_docs_filesystem_docs_by_lang_chain") {
-                  stepDesc = "Reading documentation"
-                }
-                // Pylon tools
-                else if (args.collections && msg.name === "search_support_articles") {
-                  stepDesc = `Searching support articles (${args.collections})`
-                } else if (args.article_id && msg.name === "get_support_article_content") {
-                  stepDesc = "Reading support articles"
-                }
-              }
-
-              // Use tool_call_id to check if already tracked
-              const alreadyExists = msg.tool_call_id
-                ? thinkingSteps.some((s) => s.includes(msg.tool_call_id))
-                : thinkingSteps.includes(stepDesc)
-
-              if (!alreadyExists) {
-                thinkingSteps.push(stepDesc)
-                hasNewSteps = true
-              }
+              msg.tool_calls
+                .filter((tc: any) => tc.name !== "task")
+                .forEach((toolCall: any) => {
+                  const stepDesc = describeToolStep(toolCall.name, toolCall.args || {})
+                  if (!thinkingSteps.includes(stepDesc)) {
+                    thinkingSteps.push(stepDesc)
+                    hasNewSteps = true
+                  }
+                })
             }
           })
         }
