@@ -102,6 +102,13 @@ async def enrich_run_metadata(
             f"Only docs_agent runs are allowed to set source_type. Got {value['assistant_id']}",
         )
 
+    config = value["kwargs"].get("config") or value.get("config") or {}
+    config_metadata = config.get("metadata") if isinstance(config, dict) else None
+    if isinstance(config_metadata, dict):
+        config_source_type = config_metadata.get("source_type")
+        if isinstance(config_source_type, str) and config_source_type:
+            metadata.setdefault("source_type", config_source_type)
+
     metadata.setdefault("source_type", "Chat-LangChain")
 
     graph_id = metadata.get("graph_id") or value.get("assistant_id")
