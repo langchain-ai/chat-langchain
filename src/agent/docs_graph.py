@@ -17,6 +17,7 @@ from src.middleware.guardrails_middleware import (
     guardrails_prompt_commit,
     guardrails_prompt_source,
 )
+from src.middleware.url_scrub_middleware import UrlScrubMiddleware
 from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.mcp_tools import mcp_docs_tools
@@ -73,6 +74,9 @@ docs_agent_middleware = [
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
+    # Defense-in-depth: strip fabricated docs.langchain.com/docs/... URLs from
+    # the final assistant message even if the prompt-level guard fails.
+    UrlScrubMiddleware(),
 ]
 
 docs_agent = create_agent(
