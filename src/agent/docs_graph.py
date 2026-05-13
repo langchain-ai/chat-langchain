@@ -12,6 +12,7 @@ from src.agent.config import (
     model_retry_middleware,
     tool_retry_middleware,
 )
+from src.middleware.dedupe_tool_calls_middleware import DedupeToolCallsMiddleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.guardrails_middleware import (
     guardrails_prompt_commit,
@@ -68,8 +69,13 @@ docs_agent_tools = [
     check_links,
 ]
 
+# Dedupe must run BEFORE tool_retry so duplicate signatures are short-circuited
+# before any retry attempts; otherwise we'd retry a call we already made.
+dedupe_tool_calls_middleware = DedupeToolCallsMiddleware()
+
 docs_agent_middleware = [
     guardrails_middleware,
+    dedupe_tool_calls_middleware,
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
