@@ -25,6 +25,7 @@ DEFAULT_CORS_ORIGINS: list[str] = [
     "http://127.0.0.1:3001",
     "https://smith.langchain.com",
     "https://chat.langchain.com",
+    "https://support.langchain.com",
     "https://reference.langchain.com",
     "https://chat-lang-chain-v2.vercel.app",
     "https://chat-langchain-alpha.vercel.app",
