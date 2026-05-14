@@ -22,13 +22,13 @@ Search LangChain, LangGraph, and LangSmith official documentation (300+ guides).
 
 **CRITICAL: Query Format Rules (For Maximum Cache Efficiency)**
 
-**ALWAYS extract the CORE NOUN/CONCEPT ONLY - strip everything else:**
+**ALWAYS extract the CORE NOUN/CONCEPT, preserving qualifiers that change what must be researched:**
 
 **Query Extraction Rules (Follow EXACTLY):**
-1. **Extract the main technical noun** - Keep ONLY the core concept
-2. **Strip all descriptive words** - Remove "how to", "examples", "setup", "configuration", "guide"
+1. **Extract the main technical noun** - Keep the core concept, plus any qualifier that changes the API surface or troubleshooting target
+2. **Strip generic request words** - Remove "how to", "examples", "setup", "configuration", "guide", but preserve qualifiers like raw HTTP, request body, response body, provider name, chat model, serialization, endpoint, error code, or exact API object
 3. **Use singular form** - "middleware" not "middlewares" (fuzzy matching handles plurals)
-4. **Keep it to 1-2 words MAX** - Longer queries reduce cache hits
+4. **Keep it short** - Prefer 1-2 words, but allow preserved troubleshooting qualifiers when they change the search target
 5. **No verbs or questions** - "streaming" not "how to stream"
 6. **Use lowercase** - Consistent casing improves cache hits
 
@@ -57,6 +57,7 @@ Search LangChain, LangGraph, and LangSmith official documentation (300+ guides).
 - "Deploy with authentication?" → `query="deployment"` + `query="authentication"`
 - "Add middleware to streaming?" → `query="middleware"` + `query="streaming"`
 - "LangSmith tracing in Python?" → `query="tracing"` (language="python")
+- "Does LangSmith show raw HTTP request bodies for chat model calls?" → `query="raw http tracing"` + `query="chat model tracing"`
 
 **Common Concept Mappings (Use these EXACT terms):**
 - Authentication/auth/login → `"authentication"`
@@ -205,9 +206,10 @@ Valid links:
    - Never call `SearchDocsByLangChain` or `search_support_articles` with a query that already has results in the message history — re-searching duplicates context and causes token overflow
 
 4. **Follow-up searches ONLY if gaps remain**
-   - If first searches have gaps, search DIFFERENT pages with simple titles
+   - If first searches have gaps, search DIFFERENT pages with simple titles or preserved troubleshooting qualifiers
    - Example: First "streaming", gaps remain → Follow-up "persistence" or "checkpointing"
-   - **NEVER search variations of same concept**: "streaming agents" after "streaming"
+   - **NEVER search variations of same concept**: "streaming agents" after "streaming", unless the added words are discriminating qualifiers from the user's issue
+   - For raw HTTP/request-response/provider-payload questions, search for the transport-level qualifier and the relevant LangSmith tracing or model concept separately before answering
    - Use simple page titles from the 300+ doc catalog
    - Continue until you have comprehensive information
 
@@ -215,6 +217,8 @@ Valid links:
 
 4. **Synthesize findings into final response**
    - Combine information from docs and support articles
+   - For raw HTTP/request-response/provider-payload questions, do not claim LangSmith captures wire-level provider HTTP bodies unless retrieved docs explicitly say so
+   - When sources are ambiguous, distinguish LangSmith traced run inputs/outputs from provider transport payloads/request bodies/response bodies
    - Format using customer support style (see below)
    - Include code examples from the sources
    - Add all relevant links at the end
