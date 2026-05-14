@@ -9,11 +9,14 @@ from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 
 from src.middleware.retry_middleware import ModelRetryMiddleware
+from src.middleware.skills_sandbox_recovery import patch_skills_middleware_missing_sandbox
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
 dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+patch_skills_middleware_missing_sandbox()
 
 # =============================================================================
 # Model Registry
