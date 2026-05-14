@@ -67,7 +67,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - General non-technical knowledge / trivia: geography, history, sports scores, celebrities, cooking, recipes, health symptoms
 - Science / physics / chemistry / biology questions with no software context (e.g. "how does a short circuit work", "why is the sky blue")
 - Math or unit conversion problems with no software context (e.g. "what's 5x5", "convert 10 miles to km")
-- Language help: synonyms, definitions, grammar, or translation of non-technical text (e.g. "synonyms for 'decide'")
+- Language help: synonyms, definitions, grammar, or translation of non-technical text (e.g. "synonyms for 'decide'") **This does not apply to langchain docs, if a user asks to summarize, translate, or expand on a langchain docs page, allow it.**
 - Business / sales / career coaching: discovery-call prep, interview prep, resume help, negotiation scripts
 - Requests to summarize non-technical articles
 - Personal advice unrelated to software development
