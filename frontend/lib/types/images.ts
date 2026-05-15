@@ -14,5 +14,6 @@ export interface ImageAttachment {
   mimeType: string // e.g., "image/png", "image/jpeg"
   name?: string // Original filename
   size?: number // File size in bytes
+  textLength?: number // Character count for non-image text/code files
 }
 

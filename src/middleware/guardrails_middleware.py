@@ -139,12 +139,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         except Exception as e:
             logger.warning(f"Failed to add query to dataset: {e}")
 
-    async def _generate_rejection_message(self, content: str) -> AIMessage:
+    async def _generate_rejection_message(self, content) -> AIMessage:
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
             HumanMessage(
-                content=f"The user asked: {content}\n\nGenerate a brief, friendly response explaining this is outside your scope."
+                content=self._build_rejection_content(content)
             ),
         ]
 
@@ -171,11 +171,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if hasattr(last_message, "content")
             else str(last_message)
         )
-        query_preview = (
-            last_content[:100]
-            if isinstance(last_content, str)
-            else str(last_content)[:100]
-        )
+        safe_last_content = self._content_to_safe_text(last_content)
+        query_preview = safe_last_content[:100]
 
         # One classifier, every turn. Covers topic relevance + zero-tolerance
         # categories (NSFW, fiction, harmful-use-case, prompt-extraction,
@@ -196,7 +193,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Sample to dataset for evaluation (100% blocked, 10% allowed)
         if decision == "BLOCKED" or random.random() < ALLOWED_SAMPLE_RATE:
             asyncio.create_task(
-                self._add_to_dataset(last_content, decision, explanation, query_preview)
+                self._add_to_dataset(
+                    safe_last_content,
+                    decision,
+                    explanation,
+                    query_preview,
+                )
             )
 
         # Handle allowed queries
@@ -224,6 +226,95 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             "off_topic_query": True,
             "jump_to": "end",
         }
+
+    def _content_to_safe_text(self, content) -> str:
+        """Convert multimodal content to text without leaking encoded media."""
+        if isinstance(content, str):
+            return content
+
+        if not isinstance(content, list):
+            return str(content)
+
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+                continue
+
+            if not isinstance(block, dict):
+                continue
+
+            block_type = block.get("type")
+            if block_type == "text" and isinstance(block.get("text"), str):
+                parts.append(block["text"])
+            elif block_type in ("image_url", "input_image"):
+                parts.append("[image attached]")
+            elif block_type:
+                parts.append(f"[{block_type} attached]")
+
+        return " ".join(part for part in parts if part).strip()
+
+    def _build_rejection_content(self, content) -> str | list:
+        """Build rejection prompt while preserving images for vision-capable models."""
+        instruction = (
+            "The user asked the following request. Consider both the text and any "
+            "attached images, then generate a brief, friendly response explaining "
+            "this is outside your scope."
+        )
+
+        if not isinstance(content, list):
+            return f"{instruction}\n\nUser request: {content}"
+
+        blocks: list[Any] = [{"type": "text", "text": instruction}]
+        for block in content:
+            if isinstance(block, str):
+                blocks.append({"type": "text", "text": block})
+            elif isinstance(block, dict):
+                blocks.append(block)
+
+        blocks.append(
+            {
+                "type": "text",
+                "text": (
+                    "Generate a brief, friendly response explaining this is outside "
+                    "your scope."
+                ),
+            }
+        )
+        return blocks
+
+    def _content_has_media(self, content) -> bool:
+        """Return whether content contains non-text multimodal blocks."""
+        if not isinstance(content, list):
+            return False
+
+        return any(
+            isinstance(block, dict) and block.get("type") not in (None, "text")
+            for block in content
+        )
+
+    def _build_guardrails_content(self, content, context_section: str) -> str | list:
+        """Build classifier input while preserving image blocks for vision models."""
+        instruction = (
+            "Classify this user query for the LangChain documentation assistant. "
+            "Consider both the text and any attached images. "
+            "Return both the decision and one concise sentence explaining why."
+        )
+
+        if context_section:
+            instruction += context_section
+
+        if not isinstance(content, list):
+            return f"{instruction}\n\nUser query: {content}"
+
+        blocks: list[Any] = [{"type": "text", "text": instruction}]
+        for block in content:
+            if isinstance(block, str):
+                blocks.append({"type": "text", "text": block})
+            elif isinstance(block, dict):
+                blocks.append(block)
+
+        return blocks
 
     def _extract_message_text(self, msg) -> str | None:
         """Extract plain text content from a message."""
@@ -253,14 +344,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             GuardrailsDecision, or None if classification failed
         """
         # Extract the current query (last human message)
+        current_message = None
         current_query = None
         for msg in reversed(messages):
             if isinstance(msg, HumanMessage):
+                current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query:
+                if current_query or self._content_has_media(getattr(msg, "content", None)):
                     break
 
-        if not current_query:
+        if current_message is None or (
+            not current_query
+            and not self._content_has_media(getattr(current_message, "content", None))
+        ):
             return GuardrailsDecision(
                 decision="ALLOWED",
                 explanation="No human query was available to classify.",
@@ -283,13 +379,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 + "\n".join(f"- {q}" for q in recent)
             )
 
+        current_content = getattr(current_message, "content", current_query or "")
         prompt = [
             SystemMessage(content=_GUARDRAILS_SYSTEM_PROMPT),
             HumanMessage(
-                content=(
-                    f"Classify this query: {current_query}{context_section}\n\n"
-                    "Return both the decision and one concise sentence explaining why."
-                )
+                content=self._build_guardrails_content(current_content, context_section)
             ),
         ]
 

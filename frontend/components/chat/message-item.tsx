@@ -8,6 +8,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { ThinkingTimer } from "./animations/thinking-timer"
 import { AnimatedThinking } from "./animations/animated-thinking"
 import type { Message } from "@/lib/types"
+import { INPUT_TOO_LONG_MESSAGE, MAX_INPUT_CHARS } from "@/lib/constants/features"
 import { useState, useMemo, useEffect, useCallback, memo, useRef } from "react"
 import Image from "next/image"
 
@@ -222,28 +223,78 @@ export const MessageItem = memo(function MessageItem({
   setFeedbackComment,
 }: MessageItemProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const [editContent, setEditContent] = useState(message.content)
+  const [editContent, setEditContent] = useState(message.content.slice(0, MAX_INPUT_CHARS))
+  const [editError, setEditError] = useState<string | null>(null)
   const prevContentRef = useRef(message.content)
 
   // Sync editContent when message.content changes (e.g., during streaming)
   useEffect(() => {
     if (!isEditing && message.content !== prevContentRef.current) {
-      setEditContent(message.content)
+      setEditContent(message.content.slice(0, MAX_INPUT_CHARS))
       prevContentRef.current = message.content
     }
   }, [message.content, isEditing])
+
+  const setLimitedEditContent = useCallback((value: string) => {
+    if (value.length > MAX_INPUT_CHARS) {
+      setEditError(INPUT_TOO_LONG_MESSAGE)
+      setEditContent(value.slice(0, MAX_INPUT_CHARS))
+      return
+    }
+
+    setEditError(null)
+    setEditContent(value)
+  }, [])
+
+  const handleStartEdit = useCallback(() => {
+    const cappedContent = message.content.slice(0, MAX_INPUT_CHARS)
+    setEditContent(cappedContent)
+    setEditError(message.content.length > MAX_INPUT_CHARS ? INPUT_TOO_LONG_MESSAGE : null)
+    setIsEditing(true)
+  }, [message.content])
 
   const handleSaveEdit = useCallback(() => {
     if (editContent.trim() && onEditAndRerun) {
       onEditAndRerun(message.id, editContent.trim())
       setIsEditing(false)
+      setEditError(null)
     }
   }, [editContent, onEditAndRerun, message.id])
 
   const handleCancelEdit = useCallback(() => {
-    setEditContent(message.content)
+    setEditContent(message.content.slice(0, MAX_INPUT_CHARS))
+    setEditError(null)
     setIsEditing(false)
   }, [message.content])
+
+  const handleEditBeforeInput = useCallback((e: React.FormEvent<HTMLTextAreaElement>) => {
+    const nativeEvent = e.nativeEvent as InputEvent
+    const insertedText = nativeEvent.data
+    if (!insertedText) return
+
+    const target = e.currentTarget
+    const selectionLength = target.selectionEnd - target.selectionStart
+    const nextLength = target.value.length - selectionLength + insertedText.length
+
+    if (nextLength > MAX_INPUT_CHARS) {
+      e.preventDefault()
+      setEditError(INPUT_TOO_LONG_MESSAGE)
+    }
+  }, [])
+
+  const handleEditPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedText = e.clipboardData?.getData("text") ?? ""
+    if (!pastedText) return
+
+    const target = e.currentTarget
+    const selectionLength = target.selectionEnd - target.selectionStart
+    const nextLength = target.value.length - selectionLength + pastedText.length
+
+    if (nextLength > MAX_INPUT_CHARS) {
+      e.preventDefault()
+      setEditError(INPUT_TOO_LONG_MESSAGE)
+    }
+  }, [])
 
   // Track code block index to generate stable IDs during streaming
   const codeBlockIndexRef = useRef(0)
@@ -416,25 +467,35 @@ export const MessageItem = memo(function MessageItem({
 
           {message.role === "user" ? (
             isEditing ? (
-              <Textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                className="min-h-[80px] text-sm"
-                autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSaveEdit()
-                    } else if (e.key === "Escape") {
-                      handleCancelEdit()
-                    }
-                  }}
-                  onBlur={handleCancelEdit}
-                  onFocus={(e) => {
-                    // Select all text on focus for easier editing
-                    e.target.select()
-                  }}
-              />
+              <div>
+                <Textarea
+                  value={editContent}
+                  onChange={(e) => setLimitedEditContent(e.target.value)}
+                  onBeforeInput={handleEditBeforeInput}
+                  onPaste={handleEditPaste}
+                  maxLength={MAX_INPUT_CHARS}
+                  className="min-h-[80px] text-sm"
+                  autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSaveEdit()
+                      } else if (e.key === "Escape") {
+                        handleCancelEdit()
+                      }
+                    }}
+                    onBlur={handleCancelEdit}
+                    onFocus={(e) => {
+                      // Select all text on focus for easier editing
+                      e.target.select()
+                    }}
+                />
+                {editError && (
+                  <div className="mt-1 text-xs text-destructive">
+                    {editError}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="space-y-2">
                 {/* File attachments - uniform grid layout */}
@@ -510,7 +571,7 @@ export const MessageItem = memo(function MessageItem({
                 {message.content && (
                   <p
                     className="text-sm leading-relaxed whitespace-pre-wrap break-words cursor-pointer rounded px-2 py-1 -mx-2 -my-1 transition-colors overflow-wrap break-word"
-                    onClick={() => onEditAndRerun && setIsEditing(true)}
+                    onClick={() => onEditAndRerun && handleStartEdit()}
                     title="Click to edit and rerun from here"
                   >
                     {String(message.content || "")}

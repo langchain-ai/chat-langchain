@@ -10,10 +10,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { FilePreviewGrid } from "./features/file-preview-grid"
 import { VoiceInputButton } from "./features/voice-input-button"
 import type { ImageAttachment } from "@/lib/types"
+import { MAX_INPUT_CHARS } from "@/lib/constants/features"
 
 interface ChatInputProps {
   input: string
   onInputChange: (value: string) => void
+  onBeforeInput: (e: React.FormEvent<HTMLTextAreaElement>) => void
   onSend: () => void
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   isLoading: boolean
@@ -24,11 +26,12 @@ interface ChatInputProps {
   // File upload
   attachedFiles: ImageAttachment[]
   uploadError: string | null
+  inputError: string | null
   isDragging: boolean
   onDragOver: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent) => void
-  onPaste: (e: React.ClipboardEvent) => void
+  onPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onRemoveFile: (fileId: string) => void
   onFileButtonClick: (e: React.MouseEvent) => void
   fileInputRef: React.RefObject<HTMLInputElement>
@@ -52,6 +55,7 @@ interface ChatInputProps {
 export function ChatInput({
   input,
   onInputChange,
+  onBeforeInput,
   onSend,
   onKeyDown,
   isLoading,
@@ -60,6 +64,7 @@ export function ChatInput({
   userId,
   attachedFiles,
   uploadError,
+  inputError,
   isDragging,
   onDragOver,
   onDragLeave,
@@ -189,8 +194,10 @@ export function ChatInput({
                     ref={textareaRef}
                     value={input}
                     onChange={(e) => onInputChange(e.target.value)}
+                    onBeforeInput={onBeforeInput}
                     onKeyDown={onKeyDown}
                     onPaste={onPaste}
+                    maxLength={MAX_INPUT_CHARS}
                     placeholder={
                       !userId
                         ? "Initializing..."
@@ -236,6 +243,12 @@ export function ChatInput({
               </div>
             </div>
           </div>
+
+          {inputError && (
+            <div className="mt-1 px-2 text-xs text-destructive">
+              {inputError}
+            </div>
+          )}
 
           {/* Simple help text - hidden on mobile */}
           <div className="hidden sm:flex items-center justify-between mt-1 px-2">

@@ -6,7 +6,7 @@
  */
 
 import { useReducer, useCallback } from "react"
-import { STORAGE_KEYS } from "../../constants/features"
+import { MAX_INPUT_CHARS, STORAGE_KEYS } from "../../constants/features"
 
 // ============================================================================
 // Types
@@ -139,7 +139,7 @@ function chatUIReducer(state: ChatUIState, action: ChatUIAction): ChatUIState {
 export function useChatState(threadId: string) {
   // Initialize input from localStorage if available
   const initialInput = typeof window !== 'undefined'
-    ? localStorage.getItem(`${STORAGE_KEYS.DRAFT_PREFIX}${threadId}`) || ''
+    ? (localStorage.getItem(`${STORAGE_KEYS.DRAFT_PREFIX}${threadId}`) || '').slice(0, MAX_INPUT_CHARS)
     : ''
 
   const [state, dispatch] = useReducer(chatUIReducer, {
@@ -157,12 +157,13 @@ export function useChatState(threadId: string) {
    * Set input with localStorage persistence.
    */
   const setInput = useCallback((value: string) => {
-    dispatch({ type: 'SET_INPUT', payload: value })
+    const cappedValue = value.slice(0, MAX_INPUT_CHARS)
+    dispatch({ type: 'SET_INPUT', payload: cappedValue })
 
     // Auto-save draft to localStorage
     if (typeof window !== 'undefined') {
-      if (value) {
-        localStorage.setItem(`${STORAGE_KEYS.DRAFT_PREFIX}${threadId}`, value)
+      if (cappedValue) {
+        localStorage.setItem(`${STORAGE_KEYS.DRAFT_PREFIX}${threadId}`, cappedValue)
       } else {
         localStorage.removeItem(`${STORAGE_KEYS.DRAFT_PREFIX}${threadId}`)
       }

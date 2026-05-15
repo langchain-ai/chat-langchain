@@ -22,6 +22,7 @@ import { FilePreviewGrid } from "./file-preview-grid"
 import { VoiceInputButton } from "./voice-input-button"
 import type { ImageAttachment } from "@/lib/types"
 import type { AgentConfig } from "@/components/layout/agent-settings"
+import { MAX_INPUT_CHARS } from "@/lib/constants/features"
 import {
   getAllowedModels,
   getModelDisplayName,
@@ -31,6 +32,7 @@ import {
 interface WelcomeScreenProps {
   input: string
   onInputChange: (value: string) => void
+  onBeforeInput: (e: React.FormEvent<HTMLTextAreaElement>) => void
   onSend: () => void
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   isLoading: boolean
@@ -41,11 +43,12 @@ interface WelcomeScreenProps {
   // File upload
   attachedFiles: ImageAttachment[]
   uploadError: string | null
+  inputError: string | null
   isDragging: boolean
   onDragOver: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent) => void
-  onPaste: (e: React.ClipboardEvent) => void
+  onPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onRemoveFile: (fileId: string) => void
   onFileButtonClick: (e: React.MouseEvent) => void
   fileInputRef: React.RefObject<HTMLInputElement>
@@ -70,6 +73,7 @@ interface WelcomeScreenProps {
 export function WelcomeScreen({
   input,
   onInputChange,
+  onBeforeInput,
   onSend,
   onKeyDown,
   isLoading,
@@ -78,6 +82,7 @@ export function WelcomeScreen({
   userId,
   attachedFiles,
   uploadError,
+  inputError,
   isDragging,
   onDragOver,
   onDragLeave,
@@ -196,8 +201,10 @@ export function WelcomeScreen({
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => onInputChange(e.target.value)}
+                onBeforeInput={onBeforeInput}
                 onKeyDown={onKeyDown}
                 onPaste={onPaste}
+                maxLength={MAX_INPUT_CHARS}
                 placeholder={userId ? "Ask me anything about LangChain..." : "Initializing..."}
                 className="relative z-10 min-h-[48px] max-h-[240px] resize-none bg-transparent border-0 w-full px-3 py-3 text-base leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
                 disabled={isLoading || !userId}
@@ -235,6 +242,12 @@ export function WelcomeScreen({
               )}
             </div>
           </div>
+
+          {inputError && (
+            <div className="mt-2 px-2 text-sm text-destructive">
+              {inputError}
+            </div>
+          )}
 
           {/* Model selector dropdown - positioned underneath chatbox in bottom left */}
           {agentConfig && onAgentConfigChange && (

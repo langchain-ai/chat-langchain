@@ -15,6 +15,7 @@ import { WelcomeScreen } from "./features/welcome-screen"
 import { ChatInput } from "./chat-input"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
+import { INPUT_TOO_LONG_MESSAGE, MAX_INPUT_CHARS } from "@/lib/constants/features"
 
 // Enhanced scrollbar styles with smooth transitions
 const scrollbarStyles = `
@@ -85,6 +86,8 @@ export function ChatInterface({
 
   // UI state with reducer
   const { state: uiState, dispatch: uiDispatch, setInput } = useChatState(threadId)
+  const [inputError, setInputError] = useState<string | null>(null)
+  const inputLengthRef = useRef(uiState.input.length)
 
   // File upload state
   const {
@@ -98,7 +101,13 @@ export function ChatInterface({
     handleDragLeave,
     removeFile,
     clearFiles,
-  } = useFileUpload()
+  } = useFileUpload({
+    getInputLength: () => inputLengthRef.current,
+  })
+  const attachedTextLength = attachedFiles.reduce((total, file) => {
+    if (file.mimeType?.startsWith('image/')) return total
+    return total + (file.textLength ?? 0)
+  }, 0)
 
   // Message queue for sending while AI is responding
   const messageQueueRef = useRef<QueuedMessage[]>([])
@@ -107,6 +116,18 @@ export function ChatInterface({
 
   // Track the "base" input text (before voice input started + finalized transcripts)
   const baseInputRef = useRef(uiState.input)
+
+  const setLimitedInput = useCallback((value: string) => {
+    const maxInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLength)
+    if (value.length > maxInputLength) {
+      setInputError(INPUT_TOO_LONG_MESSAGE)
+      setInput(value.slice(0, maxInputLength))
+      return
+    }
+
+    setInputError(null)
+    setInput(value)
+  }, [attachedTextLength, setInput])
 
   // Voice input - append transcribed text to current input
   const {
@@ -119,8 +140,13 @@ export function ChatInterface({
     onTranscript: (text) => {
       // When final transcript comes in, add it to the base and update input
       const newBase = baseInputRef.current ? `${baseInputRef.current} ${text}` : text
-      baseInputRef.current = newBase
-      setInput(newBase)
+      const maxInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLength)
+      const cappedBase = newBase.slice(0, maxInputLength)
+      baseInputRef.current = cappedBase
+      if (newBase.length > maxInputLength) {
+        setInputError(INPUT_TOO_LONG_MESSAGE)
+      }
+      setInput(cappedBase)
     },
   })
 
@@ -137,6 +163,9 @@ export function ChatInterface({
   const displayInput = isVoiceListening && interimTranscript
     ? (baseInputRef.current ? `${baseInputRef.current} ${interimTranscript}` : interimTranscript)
     : uiState.input
+  const maxDisplayInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLength)
+  const cappedDisplayInput = displayInput.slice(0, maxDisplayInputLength)
+  inputLengthRef.current = cappedDisplayInput.length
 
   // Custom toggle that captures current input as base when starting
   const toggleVoiceListening = useCallback(() => {
@@ -244,12 +273,12 @@ export function ChatInterface({
 
     const draft = localStorage.getItem(`draft-${threadId}`)
     if (draft) {
-      setInput(draft)
+      setLimitedInput(draft)
     } else {
       // Clear input when switching to thread with no draft
-      setInput('')
+      setLimitedInput('')
     }
-  }, [threadId, initialMessage, uiState.hasAutoSent, setInput])
+  }, [threadId, initialMessage, uiState.hasAutoSent, setLimitedInput])
 
   // Track if we've sent a message on the current thread to skip unnecessary reloads
   const hasSentMessageRef = useRef<string | null>(null)
@@ -623,11 +652,15 @@ export function ChatInterface({
     }
 
     uiDispatch({ type: 'SET_AUTO_SENT', payload: true })
+    const cappedMessage = trimmedMessage.slice(0, MAX_INPUT_CHARS)
+    if (trimmedMessage.length > MAX_INPUT_CHARS) {
+      setInputError(INPUT_TOO_LONG_MESSAGE)
+    }
 
     if (autoSend) {
-      const userMessage = createUserMessage(trimmedMessage)
+      const userMessage = createUserMessage(cappedMessage)
       setMessages((prev) => [...prev, userMessage])
-      processMessage(trimmedMessage, [], userMessage)
+      processMessage(cappedMessage, [], userMessage)
         .then(() => onInitialMessageSent?.())
         .catch((error) => {
           console.error('Failed to auto-send initial message:', error)
@@ -635,9 +668,9 @@ export function ChatInterface({
         })
     } else {
       // Just populate input (existing behavior for ticket page, etc.)
-      setInput(trimmedMessage)
+      setLimitedInput(trimmedMessage)
     }
-  }, [initialMessage, autoSend, uiState.hasAutoSent, uiState.isLoadingThread, userId, client, setInput, uiDispatch, processMessage, onInitialMessageSent])
+  }, [initialMessage, autoSend, uiState.hasAutoSent, uiState.isLoadingThread, userId, client, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent])
 
   const handleSend = useCallback(async () => {
     if (!uiState.input.trim() && attachedFiles.length === 0) {
@@ -658,6 +691,7 @@ export function ChatInterface({
 
     // Clear input and files immediately
     setInput("")
+    setInputError(null)
     clearFiles()
 
     // If currently loading, queue the message (don't show in chat yet)
@@ -782,6 +816,38 @@ export function ChatInterface({
     }
   }, [])
 
+  const handleInputBeforeInput = useCallback((e: React.FormEvent<HTMLTextAreaElement>) => {
+    const nativeEvent = e.nativeEvent as InputEvent
+    const insertedText = nativeEvent.data
+    if (!insertedText) return
+
+    const target = e.currentTarget
+    const selectionLength = target.selectionEnd - target.selectionStart
+    const nextLength = target.value.length - selectionLength + insertedText.length
+
+    if (nextLength + attachedTextLength > MAX_INPUT_CHARS) {
+      e.preventDefault()
+      setInputError(INPUT_TOO_LONG_MESSAGE)
+    }
+  }, [attachedTextLength])
+
+  const handleInputPaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedText = e.clipboardData?.getData("text") ?? ""
+    if (pastedText) {
+      const target = e.currentTarget
+      const selectionLength = target.selectionEnd - target.selectionStart
+      const nextLength = target.value.length - selectionLength + pastedText.length
+
+      if (nextLength + attachedTextLength > MAX_INPUT_CHARS) {
+        e.preventDefault()
+        setInputError(INPUT_TOO_LONG_MESSAGE)
+        return
+      }
+    }
+
+    await handlePaste(e)
+  }, [attachedTextLength, handlePaste])
+
   // ============================================================================
   // Computed Values
   // ============================================================================
@@ -816,8 +882,9 @@ export function ChatInterface({
 
         {isNewChat ? (
           <WelcomeScreen
-            input={displayInput}
-            onInputChange={setInput}
+            input={cappedDisplayInput}
+            onInputChange={setLimitedInput}
+            onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
             isLoading={uiState.isLoading}
@@ -826,11 +893,12 @@ export function ChatInterface({
             userId={userId}
             attachedFiles={attachedFiles}
             uploadError={uploadError}
+            inputError={inputError}
             isDragging={isDragging}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onPaste={handlePaste}
+            onPaste={handleInputPaste}
             onRemoveFile={removeFile}
             onFileButtonClick={handleFileButtonClick}
             fileInputRef={fileInputRef}
@@ -845,8 +913,9 @@ export function ChatInterface({
           />
         ) : (
           <ChatInput
-            input={displayInput}
-            onInputChange={setInput}
+            input={cappedDisplayInput}
+            onInputChange={setLimitedInput}
+            onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
             isLoading={uiState.isLoading}
@@ -855,11 +924,12 @@ export function ChatInterface({
             userId={userId}
             attachedFiles={attachedFiles}
             uploadError={uploadError}
+            inputError={inputError}
             isDragging={isDragging}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onPaste={handlePaste}
+            onPaste={handleInputPaste}
             onRemoveFile={removeFile}
             onFileButtonClick={handleFileButtonClick}
             fileInputRef={fileInputRef}

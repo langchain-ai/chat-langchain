@@ -10,6 +10,7 @@ from src.utils.prompt_provenance import get_prompt_provenance
 auth = Auth()
 
 MAX_RECURSION_LIMIT = 100
+MAX_MESSAGE_CHARS = 20_000
 
 
 def _get_auth_secret() -> str | None:
@@ -160,6 +161,7 @@ def validate_inputs(input: dict | None, command: dict | None):
     if isinstance(messages, str):
         if not messages.strip():
             raise Auth.exceptions.HTTPException(422, "Message content is required")
+        input["messages"] = messages[:MAX_MESSAGE_CHARS]
         return
     if not isinstance(messages, list):
         raise Auth.exceptions.HTTPException(
@@ -173,6 +175,7 @@ def validate_inputs(input: dict | None, command: dict | None):
     if isinstance(msg, str):
         if not msg.strip():
             raise Auth.exceptions.HTTPException(422, "Message content is required")
+        messages[0] = msg[:MAX_MESSAGE_CHARS]
         return
     if not isinstance(msg, dict):
         raise Auth.exceptions.HTTPException(
@@ -190,6 +193,39 @@ def validate_inputs(input: dict | None, command: dict | None):
         raise Auth.exceptions.HTTPException(422, "Message content is required")
     if isinstance(content, list) and not content:
         raise Auth.exceptions.HTTPException(422, "Message content is required")
+    msg["content"] = truncate_message_content(content)
+
+
+def truncate_message_content(content):
+    """Trim user-provided text while preserving non-text content blocks."""
+    if isinstance(content, str):
+        return content[:MAX_MESSAGE_CHARS]
+
+    if not isinstance(content, list):
+        return content
+
+    remaining = MAX_MESSAGE_CHARS
+    truncated = []
+    for block in content:
+        if isinstance(block, str):
+            text = block[:remaining]
+            truncated.append(text)
+            remaining -= len(text)
+            continue
+
+        if (
+            isinstance(block, dict)
+            and block.get("type") == "text"
+            and isinstance(block.get("text"), str)
+        ):
+            text = block["text"][:remaining]
+            truncated.append({**block, "text": text})
+            remaining -= len(text)
+            continue
+
+        truncated.append(block)
+
+    return truncated
 
 
 def validate_config(config: dict | None):
