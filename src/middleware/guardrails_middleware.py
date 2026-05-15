@@ -4,18 +4,23 @@ import logging
 import os
 import random
 from typing import Any, Literal
-from typing_extensions import NotRequired
-from pydantic import BaseModel, Field
+
+import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
-import langsmith as ls
 from langsmith import Client
+from pydantic import BaseModel, Field
+from typing_extensions import NotRequired
 
 from src.prompts.guardrails_prompts import (
     fallback_rejection_message as _FALLBACK_REJECTION_MESSAGE,
+)
+from src.prompts.guardrails_prompts import (
     guardrails_system_prompt as _LOCAL_GUARDRAILS_SYSTEM_PROMPT,
+)
+from src.prompts.guardrails_prompts import (
     rejection_system_prompt as _REJECTION_SYSTEM_PROMPT,
 )
 
@@ -24,6 +29,9 @@ logger = logging.getLogger(__name__)
 # Dataset configuration for guardrails evaluation
 GUARDRAILS_DATASET_NAME = "Chat-LangChain-Guardrails-Samples"
 ALLOWED_SAMPLE_RATE = 0.01  # 1% of allowed queries go to dataset
+GUARDRAILS_MAX_RETRIES = 2
+GUARDRAILS_TIMEOUT_SECONDS = 10
+GUARDRAILS_FAILURE_MESSAGE = "something went wrong, please try again"
 _USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
     "1",
     "true",
@@ -55,6 +63,12 @@ class GuardrailsDecision(BaseModel):
             "Do not include hidden chain-of-thought."
         )
     )
+
+
+class GuardrailsClassificationError(Exception):
+    """Raised when guardrails classification fails after retries."""
+
+    pass
 
 
 class GuardrailsState(AgentState):
@@ -149,7 +163,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ]
 
         try:
-            response = await self.llm.ainvoke(prompt)
+            response = await asyncio.wait_for(
+                self.llm.ainvoke(prompt),
+                timeout=GUARDRAILS_TIMEOUT_SECONDS,
+            )
             return AIMessage(content=response.content)
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")
@@ -179,10 +196,15 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # social-pressure). The prompt's lenient follow-up rules keep legit
         # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
         # while zero-tolerance bullets override the default ALLOW.
-        guardrails_decision = await self._classify_query(messages)
-        if guardrails_decision is None:
-            # Classification failed - allow query through (fail-open)
-            return None
+        try:
+            guardrails_decision = await self._classify_query(messages)
+        except GuardrailsClassificationError:
+            logger.error("Guardrails check failed after retries; stopping run.")
+            return {
+                "messages": [AIMessage(content=GUARDRAILS_FAILURE_MESSAGE)],
+                "off_topic_query": False,
+                "jump_to": "end",
+            }
 
         decision = guardrails_decision.decision
         explanation = guardrails_decision.explanation
@@ -337,11 +359,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
-    async def _classify_query(self, messages: list) -> GuardrailsDecision | None:
+    async def _classify_query(self, messages: list) -> GuardrailsDecision:
         """Classify query as ALLOWED or BLOCKED.
 
-        Returns:
-            GuardrailsDecision, or None if classification failed
+        Raises:
+            GuardrailsClassificationError: If classification fails after retries.
         """
         # Extract the current query (last human message)
         current_message = None
@@ -389,16 +411,38 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             ),
         ]
 
-        try:
-            structured_llm = self.llm.with_structured_output(GuardrailsDecision)
-            result: GuardrailsDecision = await structured_llm.ainvoke(
-                prompt, config={"callbacks": [], "tags": ["guardrails"]}
-            )
-            return result
-        except Exception as e:
-            logger.error(f"Error in guardrails classification: {e}")
-            logger.info("Guardrails check failed, allowing query through...")
-            return None
+        structured_llm = self.llm.with_structured_output(GuardrailsDecision)
+        last_exception: Exception | None = None
+
+        for attempt in range(GUARDRAILS_MAX_RETRIES + 1):
+            try:
+                result: GuardrailsDecision = await asyncio.wait_for(
+                    structured_llm.ainvoke(
+                        prompt, config={"callbacks": [], "tags": ["guardrails"]}
+                    ),
+                    timeout=GUARDRAILS_TIMEOUT_SECONDS,
+                )
+                return result
+            except Exception as e:
+                last_exception = e
+                if attempt < GUARDRAILS_MAX_RETRIES:
+                    logger.warning(
+                        "Guardrails classification failed attempt %s/%s: %s. Retrying...",
+                        attempt + 1,
+                        GUARDRAILS_MAX_RETRIES + 1,
+                        e,
+                    )
+                    continue
+
+                logger.error(
+                    "Guardrails classification failed after %s attempts: %s",
+                    GUARDRAILS_MAX_RETRIES + 1,
+                    e,
+                )
+
+        raise GuardrailsClassificationError(
+            f"Guardrails classification failed after retries: {last_exception}"
+        )
 
     def _track_decision_metadata(self, decision: GuardrailsDecision) -> None:
         """Add guardrails decision to LangSmith run metadata."""
@@ -411,4 +455,4 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             pass  # Silently ignore if run tree is not available
 
 
-__all__ = ["GuardrailsMiddleware"]
+__all__ = ["GuardrailsMiddleware", "GuardrailsClassificationError"]

@@ -15,7 +15,12 @@ import { WelcomeScreen } from "./features/welcome-screen"
 import { ChatInput } from "./chat-input"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
-import { INPUT_TOO_LONG_MESSAGE, MAX_INPUT_CHARS } from "@/lib/constants/features"
+import {
+  IMAGE_UNSUPPORTED_MODEL_MESSAGE,
+  INPUT_TOO_LONG_MESSAGE,
+  MAX_INPUT_CHARS,
+} from "@/lib/constants/features"
+import { MODELS } from "@/lib/config/deployment-config"
 
 // Enhanced scrollbar styles with smooth transitions
 const scrollbarStyles = `
@@ -101,13 +106,17 @@ export function ChatInterface({
     handleDragLeave,
     removeFile,
     clearFiles,
+    setUploadError,
   } = useFileUpload({
     getInputLength: () => inputLengthRef.current,
+    disableImageUploads: agentConfig?.model === MODELS["glm-5"].id,
   })
   const attachedTextLength = attachedFiles.reduce((total, file) => {
     if (file.mimeType?.startsWith('image/')) return total
     return total + (file.textLength ?? 0)
   }, 0)
+  const attachedTextLengthRef = useRef(attachedTextLength)
+  attachedTextLengthRef.current = attachedTextLength
 
   // Message queue for sending while AI is responding
   const messageQueueRef = useRef<QueuedMessage[]>([])
@@ -118,7 +127,7 @@ export function ChatInterface({
   const baseInputRef = useRef(uiState.input)
 
   const setLimitedInput = useCallback((value: string) => {
-    const maxInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLength)
+    const maxInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLengthRef.current)
     if (value.length > maxInputLength) {
       setInputError(INPUT_TOO_LONG_MESSAGE)
       setInput(value.slice(0, maxInputLength))
@@ -127,7 +136,7 @@ export function ChatInterface({
 
     setInputError(null)
     setInput(value)
-  }, [attachedTextLength, setInput])
+  }, [setInput])
 
   // Voice input - append transcribed text to current input
   const {
@@ -681,6 +690,14 @@ export function ChatInterface({
       return
     }
 
+    if (
+      agentConfig?.model === MODELS["glm-5"].id &&
+      attachedFiles.some((file) => file.mimeType?.startsWith('image/'))
+    ) {
+      setUploadError(IMAGE_UNSUPPORTED_MODEL_MESSAGE)
+      return
+    }
+
     const userMessage = createUserMessage(uiState.input)
     if (attachedFiles.length > 0) {
       userMessage.images = attachedFiles
@@ -714,7 +731,7 @@ export function ChatInterface({
     if (messageQueueRef.current.length > 0) {
       processQueue()
     }
-  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, setInput, clearFiles, processMessage, processQueue])
+  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, agentConfig?.model, setInput, setUploadError, clearFiles, processMessage, processQueue])
 
   const handleStop = useCallback(async () => {
     console.log('User requested stop')

@@ -4,13 +4,15 @@ import os
 from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
 
-from src.agent.config import DEFAULT_MODEL, PUBLIC_MODEL_IDS
+from src.agent.config import DEFAULT_MODEL, MODELS, PUBLIC_MODEL_IDS
 from src.utils.prompt_provenance import get_prompt_provenance
 
 auth = Auth()
 
 MAX_RECURSION_LIMIT = 100
 MAX_MESSAGE_CHARS = 50_000
+IMAGE_UNSUPPORTED_MODEL_IDS = {MODELS["glm-5"].id}
+UNSUPPORTED_IMAGE_MODEL_MESSAGE = "Selected model does not support image uploads"
 
 
 def _get_auth_secret() -> str | None:
@@ -116,8 +118,13 @@ async def enrich_run_metadata(
     if graph_id:
         for key, val in get_prompt_provenance(graph_id).items():
             metadata.setdefault(key, val)
-    validate_inputs(value["kwargs"].get("input"), value["kwargs"].get("command"))
-    validate_config(value["kwargs"].get("config") or value.get("config"))
+    input_has_image = validate_inputs(
+        value["kwargs"].get("input"), value["kwargs"].get("command")
+    )
+    validate_config(
+        value["kwargs"].get("config") or value.get("config"),
+        input_has_image=input_has_image,
+    )
 
 
 @auth.on.assistants(actions=["create", "update", "delete"])
@@ -143,7 +150,7 @@ async def block_modify_assistants(
     return {"user_id": user_id}
 
 
-def validate_inputs(input: dict | None, command: dict | None):
+def validate_inputs(input: dict | None, command: dict | None) -> bool:
     if command:
         raise Auth.exceptions.HTTPException(422, "Command not accepted")
     if input is None:
@@ -162,7 +169,7 @@ def validate_inputs(input: dict | None, command: dict | None):
         if not messages.strip():
             raise Auth.exceptions.HTTPException(422, "Message content is required")
         input["messages"] = messages[:MAX_MESSAGE_CHARS]
-        return
+        return False
     if not isinstance(messages, list):
         raise Auth.exceptions.HTTPException(
             422, f"Unrecognized messages input: {type(messages)}"
@@ -176,7 +183,7 @@ def validate_inputs(input: dict | None, command: dict | None):
         if not msg.strip():
             raise Auth.exceptions.HTTPException(422, "Message content is required")
         messages[0] = msg[:MAX_MESSAGE_CHARS]
-        return
+        return False
     if not isinstance(msg, dict):
         raise Auth.exceptions.HTTPException(
             422, f"Unrecognized message input: {type(msg)}"
@@ -194,6 +201,7 @@ def validate_inputs(input: dict | None, command: dict | None):
     if isinstance(content, list) and not content:
         raise Auth.exceptions.HTTPException(422, "Message content is required")
     msg["content"] = truncate_message_content(content)
+    return content_has_image(msg["content"])
 
 
 def truncate_message_content(content):
@@ -228,7 +236,30 @@ def truncate_message_content(content):
     return truncated
 
 
-def validate_config(config: dict | None):
+def content_has_image(content) -> bool:
+    """Return whether message content contains an image block."""
+    if not isinstance(content, list):
+        return False
+
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+
+        block_type = block.get("type")
+        if block_type in ("image", "image_url"):
+            return True
+
+        mime_type = block.get("mime_type") or block.get("mimeType")
+        if isinstance(mime_type, str) and mime_type.startswith("image/"):
+            return True
+
+        if "image_url" in block:
+            return True
+
+    return False
+
+
+def validate_config(config: dict | None, *, input_has_image: bool = False):
     """Validate user-controlled run config before it reaches the graph."""
     if not config:
         return
@@ -260,6 +291,9 @@ def validate_config(config: dict | None):
         raise Auth.exceptions.HTTPException(
             422, f"Model is not allowed: {requested_model}"
         )
+
+    if input_has_image and requested_model in IMAGE_UNSUPPORTED_MODEL_IDS:
+        raise Auth.exceptions.HTTPException(422, UNSUPPORTED_IMAGE_MODEL_MESSAGE)
 
 
 def cap_recursion_limit(config: dict):
