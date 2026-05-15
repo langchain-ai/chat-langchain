@@ -364,16 +364,18 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
-        for msg in messages[:-1]:  # Exclude current message
+        for msg in reversed(messages[:-1]):  # Exclude current message
             if isinstance(msg, HumanMessage):
                 text = self._extract_message_text(msg)
                 if text:
                     prior_queries.append(text[:200])  # Truncate for brevity
+                    if len(prior_queries) == 3:
+                        break
 
         # Build the classification prompt
         context_section = ""
         if prior_queries:
-            recent = prior_queries[-3:]  # Last 3 prior queries
+            recent = list(reversed(prior_queries))  # Restore chronological order.
             context_section = (
                 "\n\nPrevious questions in this conversation:\n"
                 + "\n".join(f"- {q}" for q in recent)

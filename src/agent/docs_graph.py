@@ -3,9 +3,11 @@ import logging
 import os
 
 from langchain.agents import create_agent
+from langchain.agents.middleware import SummarizationMiddleware
 from langsmith import Client
 
 from src.agent.config import (
+    DEFAULT_MODEL,
     GUARDRAILS_MODEL,
     configurable_model,
     model_fallback_middleware,
@@ -18,6 +20,7 @@ from src.middleware.guardrails_middleware import (
     guardrails_prompt_source,
 )
 from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
+from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.mcp_tools import mcp_docs_tools
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -72,6 +75,17 @@ guardrails_middleware = GuardrailsMiddleware(
 )
 logger.info(f"Guardrails middleware using {GUARDRAILS_MODEL.name}")
 
+context_summary_middleware = SummarizationMiddleware(
+    model=DEFAULT_MODEL.id,
+    trigger=("tokens", 130_000),
+    keep=("tokens", 30_000),
+    summary_prompt=context_summary_prompt,
+    trim_tokens_to_summarize=None,
+)
+logger.info(
+    "Context summarization enabled at 130k tokens, preserving latest 30k tokens"
+)
+
 docs_agent_tools = [
     *mcp_docs_tools,
     search_support_articles,
@@ -82,6 +96,7 @@ docs_agent_tools = [
 
 docs_agent_middleware = [
     guardrails_middleware,
+    context_summary_middleware,
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,

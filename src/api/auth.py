@@ -10,7 +10,7 @@ from src.utils.prompt_provenance import get_prompt_provenance
 auth = Auth()
 
 MAX_RECURSION_LIMIT = 100
-MAX_MESSAGE_CHARS = 20_000
+MAX_MESSAGE_CHARS = 50_000
 
 
 def _get_auth_secret() -> str | None:

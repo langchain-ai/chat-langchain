@@ -8,7 +8,7 @@ export const THREAD_FETCH_LIMIT = 100
 
 export const DEFAULT_TITLE_MAX_LENGTH = 60
 
-export const MAX_INPUT_CHARS = 20_000
+export const MAX_INPUT_CHARS = 50_000
 
 export const INPUT_TOO_LONG_MESSAGE = "input is too long, try sending separate messages."
 
