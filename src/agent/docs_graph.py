@@ -17,6 +17,7 @@ from src.middleware.guardrails_middleware import (
     guardrails_prompt_commit,
     guardrails_prompt_source,
 )
+from src.middleware.input_size_middleware import InputSizeMiddleware
 from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.mcp_tools import mcp_docs_tools
@@ -80,8 +81,13 @@ docs_agent_tools = [
     check_links,
 ]
 
+# Input-size middleware short-circuits oversized single-turn pastes before any
+# LLM calls happen, capping per-turn prompt tokens to a sane envelope.
+input_size_middleware = InputSizeMiddleware()
+
 docs_agent_middleware = [
     guardrails_middleware,
+    input_size_middleware,
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
