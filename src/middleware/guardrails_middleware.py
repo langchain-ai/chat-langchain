@@ -11,8 +11,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
 from langsmith import Client
-from pydantic import BaseModel, Field
-from typing_extensions import NotRequired
+from typing_extensions import NotRequired, TypedDict
 
 from src.prompts.guardrails_prompts import (
     fallback_rejection_message as _FALLBACK_REJECTION_MESSAGE,
@@ -51,18 +50,11 @@ _GUARDRAILS_PROMPT_HUB_NAME = (
 _dataset_id_cache: str | None = None
 
 
-class GuardrailsDecision(BaseModel):
+class GuardrailsDecision(TypedDict):
     """Structured output for guardrails decision."""
 
-    decision: Literal["ALLOWED", "BLOCKED"] = Field(
-        description="Whether the query should be ALLOWED or BLOCKED"
-    )
-    explanation: str = Field(
-        description=(
-            "One concise sentence explaining the policy reason for the decision. "
-            "Do not include hidden chain-of-thought."
-        )
-    )
+    decision: Literal["ALLOWED", "BLOCKED"]
+    explanation: str
 
 
 class GuardrailsClassificationError(Exception):
@@ -206,8 +198,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 "jump_to": "end",
             }
 
-        decision = guardrails_decision.decision
-        explanation = guardrails_decision.explanation
+        decision = guardrails_decision["decision"]
+        explanation = guardrails_decision["explanation"]
 
         # Track in LangSmith metadata
         self._track_decision_metadata(guardrails_decision)
@@ -379,10 +371,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return GuardrailsDecision(
-                decision="ALLOWED",
-                explanation="No human query was available to classify.",
-            )
+            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
@@ -449,8 +438,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         try:
             run_tree = ls.get_current_run_tree()
             if run_tree:
-                run_tree.metadata["guardrails_result"] = decision.decision
-                run_tree.metadata["guardrails_explanation"] = decision.explanation
+                run_tree.metadata["guardrails_result"] = decision["decision"]
+                run_tree.metadata["guardrails_explanation"] = decision["explanation"]
         except Exception:
             pass  # Silently ignore if run tree is not available
 
