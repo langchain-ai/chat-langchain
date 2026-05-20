@@ -77,13 +77,13 @@ logger.info(f"Guardrails middleware using {GUARDRAILS_MODEL.name}")
 
 context_summary_middleware = SummarizationMiddleware(
     model=DEFAULT_MODEL.id,
-    trigger=("tokens", 130_000),
+    trigger=("tokens", 60_000),
     keep=("tokens", 30_000),
     summary_prompt=context_summary_prompt,
     trim_tokens_to_summarize=None,
 )
 logger.info(
-    "Context summarization enabled at 130k tokens, preserving latest 30k tokens"
+    "Context summarization enabled at 60k tokens, preserving latest 30k tokens"
 )
 
 docs_agent_tools = [
