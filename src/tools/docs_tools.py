@@ -2,7 +2,6 @@
 # Tools:
 #   - SearchDocsByLangChain
 
-import json
 import logging
 import os
 import time
@@ -306,10 +305,11 @@ def SearchDocsByLangChain(
                 time.sleep(0.5)
 
     logger.error(f"Docs search failed after {MAX_RETRIES} attempts: {last_error}")
-    return json.dumps({
-        "error": "Documentation search unavailable",
-        "message": f"Search failed after {MAX_RETRIES} attempts.",
-        "query": query,
-        "suggestion": "Check https://docs.langchain.com directly.",
-        "details": str(last_error)[:100],
-    })
+    # Surface as an exception so the agent framework wraps it as ToolMessage(status="error"),
+    # which the LLM can distinguish from a normal successful tool result. Returning a JSON
+    # error blob here looks like a successful result to the agent and leads it to fabricate
+    # docs.langchain.com URLs from parametric knowledge when retrieval has actually failed.
+    raise RuntimeError(
+        f"SearchDocsByLangChain unavailable after {MAX_RETRIES} attempts for query={query!r}: "
+        f"{str(last_error)[:200]}"
+    )

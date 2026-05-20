@@ -109,6 +109,8 @@ search_docs_by_lang_chain(
 
 **Returns:** Documentation titles, URLs/paths, and a single line of content (always insufficient for a good answer)
 
+**Handling failed docs retrieval:** If `search_docs_by_lang_chain` returns content containing the strings "Documentation search unavailable" or "Search failed after", treat it as a failed retrieval. Tell the user docs search is temporarily unavailable, only cite URLs that appeared in OTHER successful tool results (notably `search_support_articles` / `get_support_article_content`), and NEVER invent `docs.langchain.com` URLs from parametric knowledge. The same applies if the tool surfaces an explicit error (e.g. a `ToolMessage` with error status).
+
 ### 2. `query_docs_filesystem_docs_by_lang_chain` - Official Documentation Page Reader
 Read and navigate the official docs filesystem after search finds relevant pages.
 
