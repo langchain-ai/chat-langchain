@@ -120,8 +120,11 @@ for key in API_KEYS:
 # Model Initialization
 # =============================================================================
 
-# Retry configuration
-MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+# Retry configuration. Up to 3 retries with exponential backoff (1s, 2s, 4s
+# + jitter) for transient upstream provider errors (Anthropic 5xx/529,
+# Google 429/5xx, OpenAI 5xx, etc). 4xx other than 429 are NOT retried -- see
+# src/middleware/retry_middleware.py for the classification rules.
+MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "3"))
 
 # Primary configurable model (can be switched at runtime)
 configurable_model = init_chat_model(
