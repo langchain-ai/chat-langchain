@@ -295,7 +295,11 @@ def get_support_article_content(article_id: str) -> str:
     docs.langchain.com URLs or paths.
 
     Args:
-        article_id: The article ID from search_support_articles
+        article_id: The UUID `id` field returned by search_support_articles, e.g.
+            "c00cd962-bfcb-432f-a4d3-6f2202e7c8f6". Do NOT pass the human-readable
+            identifier-slug segment of the article URL (e.g.
+            "5762076496-rotating-a-langgraph-deployment-api-key-self-hosted") —
+            that is part of the URL, not the article_id this tool accepts.
 
     Returns:
         Article content with only: id, title, url, collection, content

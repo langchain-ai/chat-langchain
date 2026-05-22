@@ -194,7 +194,9 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 
 **Usage:** After using `search_support_articles`, pick 1-3 most relevant support articles and fetch their content in parallel.
 
-**Important:** This tool only accepts article IDs returned by `search_support_articles`. Never pass `docs.langchain.com` URLs or docs filesystem paths to this tool; use `query_docs_filesystem_docs_by_lang_chain` for official docs pages.
+**Important:** This tool only accepts the **UUID `id` field** from a `search_support_articles` result, for example `"c00cd962-bfcb-432f-a4d3-6f2202e7c8f6"`. Do NOT pass the identifier-slug from the article URL (the trailing segment of `https://support.langchain.com/articles/<identifier>-<slug>`, e.g. `5762076496-rotating-a-langgraph-deployment-api-key-self-hosted`), do NOT pass article titles, and do NOT construct article IDs from numeric prefixes or titles. If you have not just received a fresh `id` from `search_support_articles`, call that tool first instead of guessing. Never pass `docs.langchain.com` URLs or docs filesystem paths to this tool; use `query_docs_filesystem_docs_by_lang_chain` for official docs pages.
+
+If 2 or more `get_support_article_content` calls in a row return "Article ID ... not found in knowledge base", STOP calling this tool and pivot to `query_docs_filesystem_docs_by_lang_chain` — repeated not-found responses indicate you are using the wrong ID format, not that the articles are unavailable.
 
 **Returns:** Full article content with title, URL, and HTML content
 
