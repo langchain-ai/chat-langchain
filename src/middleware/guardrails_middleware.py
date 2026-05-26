@@ -1,4 +1,5 @@
-# Lenient guardrails middleware to filter only egregious misuse
+"""Lenient guardrails middleware to filter only egregious misuse."""
+
 import asyncio
 import logging
 import os
@@ -30,7 +31,6 @@ GUARDRAILS_DATASET_NAME = "Chat-LangChain-Guardrails-Samples"
 ALLOWED_SAMPLE_RATE = 0.01  # 1% of allowed queries go to dataset
 GUARDRAILS_MAX_RETRIES = 2
 GUARDRAILS_TIMEOUT_SECONDS = 10
-GUARDRAILS_FAILURE_MESSAGE = "something went wrong, please try again"
 _USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
     "1",
     "true",
@@ -102,15 +102,35 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
     state_schema = GuardrailsState
 
-    def __init__(self, model: str | None = None, block_off_topic: bool = True):
+    def __init__(
+        self,
+        model: str | None = None,
+        fallback_model: str | None = None,
+        block_off_topic: bool = True,
+    ):
+        """Initialize guardrails with a primary classifier and fallback model."""
         super().__init__()
         if model is None:
-            from src.agent.config import GUARDRAILS_MODEL
+            from src.agent.config import DEFAULT_MODEL, GUARDRAILS_MODEL
 
             model = GUARDRAILS_MODEL.id
+            fallback_model = fallback_model or DEFAULT_MODEL.id
+        elif fallback_model is None:
+            from src.agent.config import DEFAULT_MODEL
+
+            fallback_model = DEFAULT_MODEL.id
+
         self.llm = init_chat_model(model=model, temperature=0)
+        self.classifier_llms = [(model, self.llm)]
+        if fallback_model != model:
+            self.classifier_llms.append(
+                (fallback_model, init_chat_model(model=fallback_model, temperature=0))
+            )
         self.block_off_topic = block_off_topic
-        logger.info(f"GuardrailsMiddleware initialized with model: {model}")
+        logger.info(
+            "GuardrailsMiddleware initialized with model chain: %s",
+            " -> ".join(model_name for model_name, _ in self.classifier_llms),
+        )
 
     async def _add_to_dataset(
         self, query: str, result: str, explanation: str, preview: str
@@ -191,12 +211,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         try:
             guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
-            logger.error("Guardrails check failed after retries; stopping run.")
-            return {
-                "messages": [AIMessage(content=GUARDRAILS_FAILURE_MESSAGE)],
-                "off_topic_query": False,
-                "jump_to": "end",
-            }
+            logger.error("Guardrails check failed after retries; allowing query.")
+            return {"off_topic_query": False}
 
         decision = guardrails_decision["decision"]
         explanation = guardrails_decision["explanation"]
@@ -400,34 +416,53 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             ),
         ]
 
-        structured_llm = self.llm.with_structured_output(GuardrailsDecision)
         last_exception: Exception | None = None
 
-        for attempt in range(GUARDRAILS_MAX_RETRIES + 1):
-            try:
-                result: GuardrailsDecision = await asyncio.wait_for(
-                    structured_llm.ainvoke(
-                        prompt, config={"callbacks": [], "tags": ["guardrails"]}
-                    ),
-                    timeout=GUARDRAILS_TIMEOUT_SECONDS,
-                )
-                return result
-            except Exception as e:
-                last_exception = e
-                if attempt < GUARDRAILS_MAX_RETRIES:
-                    logger.warning(
-                        "Guardrails classification failed attempt %s/%s: %s. Retrying...",
-                        attempt + 1,
-                        GUARDRAILS_MAX_RETRIES + 1,
-                        e,
-                    )
-                    continue
+        for model_index, (model_name, llm) in enumerate(self.classifier_llms):
+            structured_llm = llm.with_structured_output(GuardrailsDecision)
 
-                logger.error(
-                    "Guardrails classification failed after %s attempts: %s",
-                    GUARDRAILS_MAX_RETRIES + 1,
-                    e,
-                )
+            for attempt in range(GUARDRAILS_MAX_RETRIES + 1):
+                try:
+                    result: GuardrailsDecision = await asyncio.wait_for(
+                        structured_llm.ainvoke(
+                            prompt, config={"callbacks": [], "tags": ["guardrails"]}
+                        ),
+                        timeout=GUARDRAILS_TIMEOUT_SECONDS,
+                    )
+                    if model_index > 0:
+                        logger.info(
+                            "Guardrails classification succeeded with fallback model: %s",
+                            model_name,
+                        )
+                    return result
+                except Exception as e:
+                    last_exception = e
+                    if attempt < GUARDRAILS_MAX_RETRIES:
+                        logger.warning(
+                            "Guardrails classification failed with %s attempt %s/%s: %s. Retrying...",
+                            model_name,
+                            attempt + 1,
+                            GUARDRAILS_MAX_RETRIES + 1,
+                            e,
+                        )
+                        continue
+
+                    if model_index < len(self.classifier_llms) - 1:
+                        next_model = self.classifier_llms[model_index + 1][0]
+                        logger.error(
+                            "Guardrails classification failed with %s after %s attempts: %s. Falling back to %s.",
+                            model_name,
+                            GUARDRAILS_MAX_RETRIES + 1,
+                            e,
+                            next_model,
+                        )
+                    else:
+                        logger.error(
+                            "Guardrails classification failed with %s after %s attempts: %s",
+                            model_name,
+                            GUARDRAILS_MAX_RETRIES + 1,
+                            e,
+                        )
 
         raise GuardrailsClassificationError(
             f"Guardrails classification failed after retries: {last_exception}"

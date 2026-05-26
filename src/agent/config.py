@@ -1,14 +1,19 @@
-# Shared configuration for all agents (models, middleware, API keys)
+"""Shared configuration for all agents."""
+
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
+from langchain_core.runnables import Runnable, RunnableLambda
 
-from src.middleware.retry_middleware import ModelRetryMiddleware
+from src.middleware.retry_middleware import (
+    RETRYABLE_FINISH_REASONS,
+    MalformedResponseError,
+    ModelRetryMiddleware,
+)
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
 dotenv.load_dotenv()
@@ -22,11 +27,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ModelConfig:
+    """Configuration for a supported chat model."""
+
     id: str  # e.g., "google_genai:gemini-3.1-flash-lite"
     name: str  # Display name, e.g., "Gemini 3.1 Flash Lite"
     provider: str  # e.g., "google", "openai", "baseten"
     api_key_env: str  # Environment variable for API key
-    description: Optional[str] = None
+    description: str | None = None
 
 
 # All backend-supported models. This intentionally mirrors the frontend's
@@ -130,6 +137,30 @@ configurable_model = init_chat_model(
 )
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
+
+def _raise_for_retryable_finish_reason(response: object) -> object:
+    metadata = getattr(response, "response_metadata", None) or {}
+    finish_reason = metadata.get("finish_reason", "")
+    if finish_reason in RETRYABLE_FINISH_REASONS:
+        raise MalformedResponseError(f"Model returned {finish_reason}")
+    return response
+
+
+def _init_retrying_model(model: str) -> Runnable:
+    return (
+        init_chat_model(model=model) | RunnableLambda(_raise_for_retryable_finish_reason)
+    ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
+
+
+def init_retry_fallback_model(model: str) -> Runnable:
+    """Initialize a model runnable with the shared retry and fallback policy."""
+    primary_model = _init_retrying_model(model)
+    fallback_models = [_init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS]
+    return primary_model.with_fallbacks(fallback_models)
+
+
+summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
+
 # =============================================================================
 # Middleware
 # =============================================================================
@@ -155,6 +186,8 @@ __all__ = [
     "ModelConfig",
     # Configurable models
     "configurable_model",
+    "init_retry_fallback_model",
+    "summarization_model",
     # Middleware
     "model_retry_middleware",
     "tool_retry_middleware",
