@@ -158,7 +158,7 @@ interface UseStreamHandlerReturn {
  *   client: langGraphClient,
  *   threadId: "thread-123",
  *   setMessages: setMessages,
- *   agentConfig: { model: "google_genai:gemini-3.1-flash-lite-preview", agentType: "docs_agent" }
+ *   agentConfig: { model: "google_genai:gemini-3.1-flash-lite", agentType: "docs_agent" }
  * })
  *
  * await processStream("What is LangChain?", "msg-456")

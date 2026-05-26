@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ModelConfig:
-    id: str  # e.g., "google_genai:gemini-3.1-flash-lite-preview"
+    id: str  # e.g., "google_genai:gemini-3.1-flash-lite"
     name: str  # Display name, e.g., "Gemini 3.1 Flash Lite"
     provider: str  # e.g., "google", "openai", "baseten"
     api_key_env: str  # Environment variable for API key
@@ -64,7 +64,7 @@ MODELS: dict[str, ModelConfig] = {
         description="Fast and capable Google model",
     ),
     "gemini-3.1-flash-lite": ModelConfig(
-        id="google_genai:gemini-3.1-flash-lite-preview",
+        id="google_genai:gemini-3.1-flash-lite",
         name="Gemini 3.1 Flash Lite",
         provider="google",
         api_key_env="GOOGLE_API_KEY",
