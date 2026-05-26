@@ -13,7 +13,7 @@
 export const CONFIG_STORAGE = {
   key: "agent-config",
   versionKey: "agent-config-version",
-  version: "0.5",
+  version: "0.6",
 } as const
 
 // =============================================================================
@@ -21,7 +21,7 @@ export const CONFIG_STORAGE = {
 // =============================================================================
 
 interface ModelConfig {
-  id: string // e.g., "google_genai:gemini-3.1-flash-lite-preview"
+  id: string // e.g., "google_genai:gemini-3.1-flash-lite"
   name: string // Display name
   provider: "openai" | "google" | "baseten"
   description?: string
@@ -39,7 +39,7 @@ export const MODELS = {
     description: "Strongest mini model for coding, computer use, and subagents",
   },
   "gemini-3.1-flash-lite": {
-    id: "google_genai:gemini-3.1-flash-lite-preview",
+    id: "google_genai:gemini-3.1-flash-lite",
     name: "Gemini 3.1 Flash Lite",
     provider: "google",
     description: "Fastest, most cost-effective Gemini",
