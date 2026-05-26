@@ -1,9 +1,9 @@
-# Docs agent for LangChain customer service with docs and knowledge base tools
+"""Docs agent for LangChain customer service with docs and knowledge base tools."""
+
 import logging
 import os
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import SummarizationMiddleware
 from langsmith import Client
 
 from src.agent.config import (
@@ -12,15 +12,17 @@ from src.agent.config import (
     configurable_model,
     model_fallback_middleware,
     model_retry_middleware,
+    summarization_model,
     tool_retry_middleware,
 )
-from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.guardrails_middleware import (
+    GuardrailsMiddleware,
     guardrails_prompt_commit,
     guardrails_prompt_source,
 )
-from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
+from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
+from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.mcp_tools import mcp_docs_tools
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -71,12 +73,14 @@ else:
 # Guardrails middleware ensures users only ask LangChain-related questions
 guardrails_middleware = GuardrailsMiddleware(
     model=GUARDRAILS_MODEL.id,
+    fallback_model=DEFAULT_MODEL.id,
     block_off_topic=True,
 )
 logger.info(f"Guardrails middleware using {GUARDRAILS_MODEL.name}")
 
-context_summary_middleware = SummarizationMiddleware(
+context_summary_middleware = CustomSummarizationMiddleware(
     model=DEFAULT_MODEL.id,
+    summary_model=summarization_model,
     trigger=("tokens", 130_000),
     keep=("tokens", 30_000),
     summary_prompt=context_summary_prompt,
