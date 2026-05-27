@@ -70,6 +70,12 @@ interface QueuedMessage {
   userMessage: Message
 }
 
+interface ActiveRun {
+  runId?: string
+  assistantMessageId: string
+  cancelRequested?: boolean
+}
+
 export function ChatInterface({
   showToolCalls = false,
   threadId,
@@ -191,6 +197,7 @@ export function ChatInterface({
 
   // Create a ref to control stream interruption
   const shouldInterruptRef = useRef(false)
+  const activeRunRef = useRef<ActiveRun | null>(null)
 
   // File input ref for triggering file selection
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -238,6 +245,17 @@ export function ChatInterface({
     [userId]
   )
 
+  const handleRunCreated = useCallback((runId: string) => {
+    if (!activeRunRef.current) return
+    activeRunRef.current.runId = runId
+
+    if (activeRunRef.current.cancelRequested && client) {
+      void client.runs.cancel(threadId, runId).catch((error) => {
+        console.warn("Unable to cancel LangGraph run:", error)
+      })
+    }
+  }, [client, threadId])
+
   // ============================================================================
   // Custom Hooks
   // ============================================================================
@@ -248,6 +266,7 @@ export function ChatInterface({
     setMessages,
     agentConfig,
     shouldInterruptRef,
+    onRunCreated: handleRunCreated,
     userId,
     userEmail,
     userName,
@@ -598,6 +617,7 @@ export function ChatInterface({
 
     try {
       const assistantMessageId = generateMessageId()
+      activeRunRef.current = { assistantMessageId }
       const { assistantContent } = await processStream(content, assistantMessageId, files)
 
       if (onThreadUpdate && assistantContent) {
@@ -607,6 +627,9 @@ export function ChatInterface({
         onThreadUpdate(threadId, title, truncate(assistantContent, 100), undefined, messageCount)
       }
     } catch (error) {
+      if (activeRunRef.current?.cancelRequested) {
+        return
+      }
       console.error("Error streaming from LangGraph:", error)
       const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to connect to the agent"}`)
       errorMessage.role = "assistant"
@@ -617,6 +640,7 @@ export function ChatInterface({
         onThreadUpdate(threadId, customTitle || truncate(userMessage.content, 60) || "New conversation", truncate(errorMessage.content, 100), undefined, messageCount)
       }
     } finally {
+      activeRunRef.current = null
       uiDispatch({ type: 'FINISH_SEND' })
     }
   }, [threadId, onThreadUpdate, processStream, messages, customTitle, uiDispatch])
@@ -737,7 +761,19 @@ export function ChatInterface({
     console.log('User requested stop')
     uiDispatch({ type: 'SET_STOPPING', payload: true })
     shouldInterruptRef.current = true
-  }, [uiDispatch])
+    const activeRun = activeRunRef.current
+    if (!activeRun) return
+
+    activeRun.cancelRequested = true
+
+    if (client && activeRun.runId) {
+      try {
+        await client.runs.cancel(threadId, activeRun.runId)
+      } catch (error) {
+        console.warn("Unable to cancel LangGraph run:", error)
+      }
+    }
+  }, [client, threadId, uiDispatch])
 
   const handleRegenerate = useCallback(async () => {
     if (uiState.isLoading || uiState.isRegenerating) return
@@ -752,6 +788,7 @@ export function ChatInterface({
 
     try {
       const assistantMessageId = generateMessageId()
+      activeRunRef.current = { assistantMessageId }
       const { assistantContent } = await processStream(lastUserMessage.content, assistantMessageId)
 
       if (onThreadUpdate && assistantContent) {
@@ -761,11 +798,15 @@ export function ChatInterface({
         onThreadUpdate(threadId, title, truncate(assistantContent, 100), undefined, messageCount)
       }
     } catch (error) {
+      if (activeRunRef.current?.cancelRequested) {
+        return
+      }
       console.error("Error regenerating:", error)
       const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to regenerate response"}`)
       errorMessage.role = "assistant"
       setMessages((prev) => [...prev, errorMessage])
     } finally {
+      activeRunRef.current = null
       uiDispatch({ type: 'FINISH_REGENERATE' })
     }
   }, [uiState.isLoading, uiState.isRegenerating, messages, processStream, onThreadUpdate, threadId, uiDispatch])
@@ -791,6 +832,7 @@ export function ChatInterface({
     try {
       const assistantMessageId = generateMessageId()
       console.log('Rerunning from edited message with assistantMessageId:', assistantMessageId)
+      activeRunRef.current = { assistantMessageId }
       const { assistantContent } = await processStream(newContent, assistantMessageId)
 
       if (onThreadUpdate && assistantContent) {
@@ -800,11 +842,15 @@ export function ChatInterface({
         onThreadUpdate(threadId, title, truncate(assistantContent, 100), undefined, messageCount)
       }
     } catch (error) {
+      if (activeRunRef.current?.cancelRequested) {
+        return
+      }
       console.error("Error rerunning from edit:", error)
       const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to rerun from edit"}`)
       errorMessage.role = "assistant"
       setMessages((prev) => [...prev, errorMessage])
     } finally {
+      activeRunRef.current = null
       uiDispatch({ type: 'SET_LOADING', payload: false })
       uiDispatch({ type: 'SET_STOPPING', payload: false })
     }

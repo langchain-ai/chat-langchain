@@ -116,6 +116,7 @@ interface UseStreamHandlerProps {
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   agentConfig?: AgentConfig
   shouldInterruptRef?: React.MutableRefObject<boolean>
+  onRunCreated?: (runId: string) => void
   userId?: string | null
   userEmail?: string | null
   userName?: string | null
@@ -170,6 +171,7 @@ export function useStreamHandler({
   setMessages,
   agentConfig,
   shouldInterruptRef,
+  onRunCreated,
   userId,
   userEmail,
   userName,
@@ -446,6 +448,12 @@ export function useStreamHandler({
         streamMode: ["values", "updates", "messages"],
         streamSubgraphs: true,
         ifNotExists: "create",
+        onRunCreated: (metadata: { run_id?: string }) => {
+          if (metadata.run_id) {
+            runId = metadata.run_id
+            onRunCreated?.(metadata.run_id)
+          }
+        },
       })
 
       // Initialize from existing message data if resuming
@@ -867,7 +875,7 @@ export function useStreamHandler({
     }
 
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, agentConfig, fetchUsageMetadata, generateShareLink, userId, userEmail, userName])
+  }, [client, threadId, setMessages, agentConfig, fetchUsageMetadata, generateShareLink, onRunCreated, userId, userEmail, userName])
 
   return { processStream }
 }
