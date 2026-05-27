@@ -4,7 +4,7 @@
     "docs_agent": "./src/agent/docs_graph.py:docs_agent"
   },
   "env": ".env",
-  "auth": { "path": "./src/api/auth.py:auth", "disable_studio_auth": true },
+  "auth": { "path": "./src/api/auth.py:auth", "disable_studio_auth": false },
   "http": { "app": "./src/api/server.py:app" },
   "image_distro": "wolfi",
   "config": {
