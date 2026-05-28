@@ -35,6 +35,14 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - Short/vague questions that plausibly relate to the prior technical context
 - Questions with typos in LangChain terminology
 
+## ALWAYS ALLOW - In-domain phrasings that look unfamiliar:
+- LangGraph state-history / time-travel / checkpoint navigation questions, including across subgraphs (e.g. "how can I time travel to a node in a subgraph?"). `time travel`, `subgraph`, `state history`, and `checkpoint` are documented LangGraph concepts - do NOT treat them as generic/off-topic.
+- Requests to interpret, translate, summarize, or explain a sentence the user pasted from any `docs.langchain.com` page (including when paired with a `Note: viewing docs.langchain.com/...` page-context hint). Interpreting docs IS the agent's job, in any language.
+- Requests to explain a code snippet that imports from, references, or quotes symbols from `langchain*`, `langgraph*`, `langsmith*`, or `deepagents*` (e.g. `from langchain.agents.middleware import before_agent, AgentState`, `@before_agent`, `create_agent(...)`, `StateGraph`). These quote real APIs - ALLOW.
+
+## HARD RULE - Force ALLOWED:
+If the user message contains an `import` / `from ... import` statement referencing a `langchain*`, `langgraph*`, `langsmith*`, or `deepagents*` package, OR references / quotes content from a `docs.langchain.com` URL surfaced via the page-context hint, classify as ALLOWED regardless of the question's surface phrasing or language.
+
 ## ALWAYS ALLOW - Technical & Development:
 - API keys, environment variables, configuration
 - Error messages, stack traces, debugging
