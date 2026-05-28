@@ -21,6 +21,7 @@ from src.middleware.guardrails_middleware import (
     guardrails_prompt_source,
 )
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
+from src.middleware.tool_choice_middleware import ForceDocSearchMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
 from src.tools.link_check_tools import check_links
@@ -98,9 +99,12 @@ docs_agent_tools = [
     check_links,
 ]
 
+force_doc_search_middleware = ForceDocSearchMiddleware()
+
 docs_agent_middleware = [
     guardrails_middleware,
     context_summary_middleware,
+    force_doc_search_middleware,
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
