@@ -50,7 +50,6 @@ export function Header({ showToolCalls = false, onToggleToolCalls, onNewChat, ag
     const error = searchParams.get("auth_error")
     if (!error) return
 
-    const description = searchParams.get("auth_error_description")
     const lastProvider =
       typeof window === "undefined" ? null : localStorage.getItem("lastAuthProvider")
     const githubConflictMessage =
@@ -59,7 +58,7 @@ export function Header({ showToolCalls = false, onToggleToolCalls, onNewChat, ag
     setAuthError(
       lastProvider === "github"
         ? githubConflictMessage
-        : description || "Sign in failed. Please try another sign-in method."
+        : "Sign in failed. Please try another sign-in method."
     )
     sessionStorage.removeItem(AUTH_MODAL_DISMISSED_KEY)
     setShowAuthModal(true)

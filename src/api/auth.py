@@ -264,7 +264,7 @@ async def enrich_run_metadata(
     user_id = _get_user_field(ctx.user, "identity")
     if not isinstance(user_id, str) or not user_id:
         raise Auth.exceptions.HTTPException(401, "Invalid authenticated user")
-    metadata.setdefault("user_id", user_id)
+    metadata["user_id"] = user_id
     return {"user_id": user_id}
 
 
