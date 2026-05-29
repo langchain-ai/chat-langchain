@@ -11,15 +11,12 @@ export async function GET(request: NextRequest) {
   const origin = requestUrl.origin
 
   if (oauthError) {
-    console.error("OAuth provider returned an error:", {
-      error: oauthError,
-      description: oauthErrorDescription,
+    console.error("OAuth provider returned an error", {
+      hasError: Boolean(oauthError),
+      hasDescription: Boolean(oauthErrorDescription),
     })
     const redirectUrl = new URL(origin)
-    redirectUrl.searchParams.set("auth_error", oauthError)
-    if (oauthErrorDescription) {
-      redirectUrl.searchParams.set("auth_error_description", oauthErrorDescription)
-    }
+    redirectUrl.searchParams.set("auth_error", "oauth_failed")
     return NextResponse.redirect(redirectUrl)
   }
 
@@ -56,16 +53,19 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (error) {
-      console.error("Failed to exchange code for session:", error)
+      console.error("Failed to exchange code for session", {
+        hasMessage: Boolean(error.message),
+      })
       const redirectUrl = new URL(origin)
       redirectUrl.searchParams.set("auth_error", "auth_failed")
-      redirectUrl.searchParams.set("auth_error_description", error.message)
       return NextResponse.redirect(redirectUrl)
     }
 
     return NextResponse.redirect(origin)
   } catch (error) {
-    console.error("Unexpected error in OAuth callback:", error)
+    console.error("Unexpected error in OAuth callback", {
+      isError: error instanceof Error,
+    })
     return NextResponse.redirect(`${origin}?auth_error=unexpected_error`)
   }
 }
