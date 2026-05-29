@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useUserId } from "@/lib/hooks/auth/use-user-id";
+import { useAuth } from "@/lib/auth";
 
 // Declare analytics global type
 declare global {
@@ -17,6 +18,7 @@ declare global {
  */
 export function SegmentProvider({ children }: { children: React.ReactNode }) {
   const userId = useUserId(); // Uses existing langgraph-user-id logic
+  const { user } = useAuth();
 
   useEffect(() => {
     // Wait for Segment to load and user ID to be ready
@@ -26,14 +28,15 @@ export function SegmentProvider({ children }: { children: React.ReactNode }) {
 
     window.analytics.identify(userId, {
       deployment: "public",
-      userType: "anonymous",
+      userType: user ? "authenticated" : "anonymous",
+      email: user?.email,
     });
 
     window.analytics.page({
       deployment: "public",
     });
 
-  }, [userId]);
+  }, [userId, user]);
 
   return <>{children}</>;
 }

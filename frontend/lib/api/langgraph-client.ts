@@ -2,7 +2,7 @@
  * LangGraph Client Factory
  *
  * Creates authenticated LangGraph SDK clients for API requests.
- * All clients include Authorization header with user ID for backend auth.
+ * All clients include Authorization header with a verifiable backend credential.
  */
 
 import { Client } from "@langchain/langgraph-sdk"
@@ -11,24 +11,24 @@ import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
 /**
  * Create a LangGraph client instance with authentication.
  *
- * @param userId - User ID for Authorization header (required - backend enforces auth)
- * @throws Error if userId is not provided
+ * @param authToken - Supabase access token, guest token, or legacy user ID.
+ * @throws Error if authToken is not provided
  *
  * @example
  * ```typescript
- * const client = createLangGraphClient(userId)
+ * const client = createLangGraphClient(authToken)
  * const threads = await client.threads.search({ metadata: { user_id: userId } })
  * ```
  */
-export function createLangGraphClient(userId: string | undefined): Client {
-  if (!userId) {
+export function createLangGraphClient(authToken: string | undefined): Client {
+  if (!authToken) {
     throw new Error(
-      "User ID required for authentication. Ensure user is logged in before making requests."
+      "Auth token required for LangGraph requests. Ensure auth has loaded before making requests."
     )
   }
 
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${userId}`,
+    Authorization: `Bearer ${authToken}`,
   }
 
   // Optional public app key for deployments that set LANGGRAPH_AUTH_SECRET.

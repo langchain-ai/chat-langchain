@@ -20,6 +20,10 @@ import { createLangGraphClient } from "../../api/langgraph-client"
 
 import { THREAD_FETCH_LIMIT } from "../../constants/features"
 
+function hasThreadState(thread: { values?: Record<string, any> }): boolean {
+  return Boolean(thread.values && Object.keys(thread.values).length > 0)
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -70,18 +74,32 @@ export interface Thread {
  * - Optimistic updates for instant UI feedback
  * - Server-side storage via LangGraph
  *
- * @param userId - The current user's ID (browser-specific)
+ * @param userId - The current user's thread owner ID.
+ * @param authToken - Credential used to authenticate LangGraph requests.
  * @returns Thread management functions and state
  */
-export function useThreads(userId: string | undefined) {
+interface UseThreadsOptions {
+  threadIds?: string[]
+}
+
+export function useThreads(
+  userId: string | undefined,
+  authToken?: string,
+  options: UseThreadsOptions = {}
+) {
   const [isLoading, setIsLoading] = useState(false)
   const [threads, setThreads] = useState<Thread[]>([])
+  const threadIdsKey = options.threadIds?.join(",") ?? null
 
   // Auto-load threads when user ID becomes available
   useEffect(() => {
-    if (typeof window === 'undefined' || !userId) return
+    if (typeof window === 'undefined') return
+    if (!userId || !authToken) {
+      setThreads([])
+      return
+    }
     getUserThreads(userId)
-  }, [userId])
+  }, [userId, authToken, threadIdsKey])
 
   // ==========================================================================
   // Thread Fetching
@@ -99,32 +117,33 @@ export function useThreads(userId: string | undefined) {
       setIsLoading(true)
     }
     try {
-      const client = createLangGraphClient(id)
+      const client = createLangGraphClient(authToken)
 
       logger.info('Fetching threads for user:', id)
-      const userThreads = (await client.threads.search({
-        metadata: {
-          user_id: id,
-        },
-        limit: THREAD_FETCH_LIMIT,
-      })) as any[] as Thread[]
+      const userThreads = options.threadIds
+        ? await Promise.all(
+            options.threadIds.map(async (threadId) => {
+              try {
+                return (await client.threads.get(threadId)) as any as Thread
+              } catch (error: any) {
+                if (error?.status === 404 || error?.message?.includes('404')) {
+                  logger.debug(`Thread ${threadId} not found (404)`)
+                  return null
+                }
+                throw error
+              }
+            })
+          ).then((results) => results.filter((thread): thread is Thread => Boolean(thread)))
+        : ((await client.threads.search({
+            metadata: {
+              user_id: id,
+            },
+            limit: THREAD_FETCH_LIMIT,
+          })) as any[] as Thread[])
 
       logger.info('Fetched threads:', userThreads.length)
 
-      if (userThreads.length > 0) {
-        // Keep the last thread even if empty (user might be actively using it)
-        const lastThread = userThreads[0]
-        const otherThreads = userThreads.slice(1)
-
-        // Filter out empty threads (no messages) except the most recent one
-        const filteredThreads = otherThreads.filter(
-          (thread) => thread.values && Object.keys(thread.values).length > 0,
-        )
-
-        setThreads([lastThread, ...filteredThreads])
-      } else {
-        setThreads([])
-      }
+      setThreads(userThreads.filter(hasThreadState))
     } catch (error) {
       logger.error('Error fetching threads:', error)
       setThreads([])
@@ -143,7 +162,7 @@ export function useThreads(userId: string | undefined) {
    */
   const getThreadById = async (id: string): Promise<Thread | null> => {
     try {
-      const client = createLangGraphClient(userId)
+      const client = createLangGraphClient(authToken)
       const thread = (await client.threads.get(id)) as any as Thread
       return thread
     } catch (error: any) {
@@ -197,7 +216,7 @@ export function useThreads(userId: string | undefined) {
         }
       })
 
-      const client = createLangGraphClient(userId)
+      const client = createLangGraphClient(authToken)
 
       // Get current thread to merge metadata
       const currentThread = await client.threads.get(threadId) as any as Thread
@@ -258,7 +277,7 @@ export function useThreads(userId: string | undefined) {
     id: string,
     onDeleteCurrent?: () => void
   ): Promise<void> => {
-    if (!userId) {
+    if (!userId || !authToken) {
       throw new Error("User ID not found")
     }
 
@@ -271,7 +290,7 @@ export function useThreads(userId: string | undefined) {
     })
 
     try {
-      const client = createLangGraphClient(userId)
+      const client = createLangGraphClient(authToken)
       await client.threads.delete(id)
       logger.info('Thread deleted:', id)
 

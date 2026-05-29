@@ -2,19 +2,19 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { ClientProfile } from "@/lib/hooks"
-import { Client } from "@langchain/langgraph-sdk"
 import { readRun, shareRun } from "@/lib/api/langsmith"
 import type { Message, ImageAttachment } from "@/lib/types"
 import { createUserMessage, generateMessageId, extractTextFromContent } from "@/lib/utils/chat"
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
-import { useUserId } from "@/lib/hooks/auth"
+import { useAuth } from "@/lib/auth"
 import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
 import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
 import { ChatInput } from "./chat-input"
 import type { AgentConfig } from "@/components/layout/agent-settings"
-import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
+import { createLangGraphClient } from "@/lib/api/langgraph-client"
+import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import {
   IMAGE_UNSUPPORTED_MODEL_MESSAGE,
   INPUT_TOO_LONG_MESSAGE,
@@ -50,6 +50,8 @@ const scrollbarStyles = `
 interface ChatInterfaceProps {
   showToolCalls?: boolean
   threadId: string
+  userId: string | null
+  authToken: string | null
   onThreadUpdate?: (threadId: string, title: string, lastMessage: string, client?: ClientProfile, messageCount?: number) => void
   onThreadNotFound?: () => void
   agentConfig?: AgentConfig
@@ -79,6 +81,8 @@ interface ActiveRun {
 export function ChatInterface({
   showToolCalls = false,
   threadId,
+  userId,
+  authToken,
   onThreadUpdate,
   onThreadNotFound,
   initialMessage,
@@ -213,36 +217,28 @@ export function ChatInterface({
   // ============================================================================
 
   // Get user information for tracking in LangSmith
-  const userId = useUserId()
+  const { user } = useAuth()
 
-  // Create stable client instance with user authentication
-  // Recreate when userId changes to update auth headers
+  // Create stable client instance with the current thread owner's credential.
   const client = useMemo(() => {
-    if (!userId) {
-      // Don't create client until userId is available
-      // This prevents creating a client without auth headers
+    if (!authToken) {
       return null
     }
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${userId}`,
-    }
-
-    return new Client({
-      apiUrl: LANGGRAPH_API_URL,
-      apiKey: LANGSMITH_API_KEY,
-      defaultHeaders: headers,
-    })
-  }, [userId])
+    return createLangGraphClient(authToken)
+  }, [authToken])
 
   // Memoize user metadata to prevent unnecessary re-renders
   const userEmail = useMemo(
-    () => userId || null,
-    [userId]
+    () => user?.email || userId || null,
+    [user?.email, userId]
   )
   const userName = useMemo(
-    () => (userId ? `User ${userId.slice(0, 8)}` : null),
-    [userId]
+    () =>
+      user?.user_metadata?.full_name ||
+      user?.email ||
+      (userId ? `Guest ${userId.slice(0, 8)}` : null),
+    [user?.email, user?.user_metadata?.full_name, userId]
   )
 
   const handleRunCreated = useCallback((runId: string) => {

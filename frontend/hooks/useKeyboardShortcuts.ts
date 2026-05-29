@@ -86,7 +86,10 @@ const matchesShortcut = (
   event: KeyboardEvent,
   shortcut: KeyboardShortcut
 ): boolean => {
-  const keyMatches = event.key.toLowerCase() === shortcut.key.toLowerCase()
+  const key = event.key
+  if (typeof key !== 'string') return false
+
+  const keyMatches = key.toLowerCase() === shortcut.key.toLowerCase()
   const metaMatches = shortcut.metaKey ? (event.metaKey || event.ctrlKey) : !event.metaKey && !event.ctrlKey
   const shiftMatches = shortcut.shiftKey ? event.shiftKey : !event.shiftKey
   const altMatches = shortcut.altKey ? event.altKey : !event.altKey
@@ -110,7 +113,7 @@ export const useKeyboardShortcuts = (
       // Block shortcuts without modifiers when typing (except Escape)
       if (isInputElement(event.target)) {
         const hasModifier = event.metaKey || event.ctrlKey
-        const isEscape = event.key.toLowerCase() === 'escape'
+        const isEscape = event.key?.toLowerCase?.() === 'escape'
         if (!hasModifier && !isEscape) {
           return
         }
