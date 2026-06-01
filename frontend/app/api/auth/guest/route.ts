@@ -1,13 +1,86 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
 
 const COOKIE_NAME = "chat_langchain_guest"
 const TOKEN_PREFIX = "guest"
 const TOKEN_TTL_SECONDS = 60 * 60
 const COOKIE_TTL_SECONDS = 60 * 60 * 24 * 30
+const GUEST_AUTH_MAX_REQUESTS = Number(
+  process.env.GUEST_AUTH_RATE_LIMIT_MAX_REQUESTS ?? 10
+)
+const GUEST_AUTH_WINDOW_MS = Number(
+  process.env.GUEST_AUTH_RATE_LIMIT_WINDOW_MS ?? 60_000
+)
+const GUEST_AUTH_COOLDOWN_MS = Number(
+  process.env.GUEST_AUTH_RATE_LIMIT_COOLDOWN_MS ?? 60_000
+)
 
 export const runtime = "nodejs"
+
+interface RateLimitEntry {
+  timestamps: number[]
+  blockedUntil: number
+}
+
+const rateLimitEntries = new Map<string, RateLimitEntry>()
+
+function getClientIp(request: NextRequest): string {
+  const forwardedFor = request.headers.get("x-forwarded-for")
+  if (forwardedFor) return forwardedFor.split(",")[0]?.trim() || "unknown"
+  return request.headers.get("x-real-ip") || "unknown"
+}
+
+function checkGuestAuthRateLimit(request: NextRequest): NextResponse | null {
+  const now = Date.now()
+  const ip = getClientIp(request)
+  let entry = rateLimitEntries.get(ip)
+
+  if (!entry) {
+    entry = { timestamps: [], blockedUntil: 0 }
+    rateLimitEntries.set(ip, entry)
+  }
+
+  if (entry.blockedUntil > now) {
+    const retryAfter = Math.ceil((entry.blockedUntil - now) / 1000)
+    return rateLimitBlockedResponse(retryAfter)
+  }
+
+  if (entry.blockedUntil > 0) {
+    entry.blockedUntil = 0
+    entry.timestamps = []
+  }
+
+  const cutoff = now - GUEST_AUTH_WINDOW_MS
+  entry.timestamps = entry.timestamps.filter((timestamp) => timestamp > cutoff)
+
+  if (entry.timestamps.length >= GUEST_AUTH_MAX_REQUESTS) {
+    entry.blockedUntil = now + GUEST_AUTH_COOLDOWN_MS
+    return rateLimitBlockedResponse(Math.ceil(GUEST_AUTH_COOLDOWN_MS / 1000))
+  }
+
+  entry.timestamps.push(now)
+  return null
+}
+
+function rateLimitBlockedResponse(retryAfter: number): NextResponse {
+  return NextResponse.json(
+    {
+      error: "Too many requests. Please slow down and try again later.",
+      retry_after: retryAfter,
+    },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(retryAfter),
+        "X-RateLimit-Limit": String(GUEST_AUTH_MAX_REQUESTS),
+        "X-RateLimit-Remaining": "0",
+        "X-RateLimit-Reset": String(retryAfter),
+      },
+    }
+  )
+}
 
 function getSecret(): string {
   const secret = process.env.GUEST_AUTH_SECRET
@@ -77,7 +150,10 @@ function verifyGuestToken(token: string): string | null {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const rateLimitResponse = checkGuestAuthRateLimit(request)
+  if (rateLimitResponse) return rateLimitResponse
+
   let guestId: string | null = null
   const cookieStore = await cookies()
   const existingToken = cookieStore.get(COOKIE_NAME)?.value
