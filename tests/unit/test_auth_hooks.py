@@ -7,6 +7,7 @@ import pytest
 
 from src.api.auth import (
     _check_rate_limit,
+    _get_client_ip,
     _reset_rate_limit_for_tests,
     enrich_run_metadata,
     update_owner_metadata,
@@ -65,6 +66,23 @@ def test_backend_rate_limit_uses_independent_ip_buckets():
         _check_rate_limit({"x-forwarded-for": "1.2.3.4"}, now=1000 + i)
 
     _check_rate_limit({"x-forwarded-for": "5.6.7.8"}, now=1020)
+
+
+def test_backend_rate_limit_extracts_ip_from_byte_headers():
+    """LangGraph may inject request headers as dict[bytes, bytes]."""
+    headers = {b"x-forwarded-for": b"1.2.3.4, 5.6.7.8"}
+
+    assert _get_client_ip(headers) == "1.2.3.4"
+
+
+def test_backend_rate_limit_uses_independent_byte_header_ip_buckets():
+    """Byte header keys should not collapse all callers into the unknown bucket."""
+    _reset_rate_limit_for_tests()
+
+    for i in range(20):
+        _check_rate_limit({b"x-forwarded-for": b"1.2.3.4"}, now=1000 + i)
+
+    _check_rate_limit({b"x-forwarded-for": b"5.6.7.8"}, now=1020)
 
 
 def test_backend_rate_limit_window_expires_old_requests():

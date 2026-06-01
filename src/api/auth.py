@@ -43,10 +43,16 @@ def _extract_bearer_token(authorization: str | None) -> str | None:
     return authorization.strip()
 
 
+def _header_to_str(value: Any) -> str:
+    if isinstance(value, bytes):
+        return value.decode("latin-1")
+    return str(value)
+
+
 def _get_header(headers: dict, name: str) -> str | None:
     for key, value in headers.items():
-        if str(key).lower() == name:
-            return str(value)
+        if _header_to_str(key).lower() == name:
+            return _header_to_str(value)
     return None
 
 
