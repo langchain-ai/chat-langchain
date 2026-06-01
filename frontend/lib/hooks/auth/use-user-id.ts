@@ -27,6 +27,13 @@ interface LangGraphAuthState extends GuestAuthState {
   authToken: string | null
 }
 
+class GuestAuthRateLimitError extends Error {
+  constructor() {
+    super('Guest authentication was rate limited')
+    this.name = 'GuestAuthRateLimitError'
+  }
+}
+
 export function getOrCreateGuestUserId(): string | null {
   if (typeof window === 'undefined') return null
 
@@ -106,6 +113,9 @@ export function useGuestAuth(): GuestAuthState {
           method: 'POST',
           credentials: 'same-origin',
         })
+        if (response.status === 429) {
+          throw new GuestAuthRateLimitError()
+        }
         if (!response.ok) {
           throw new Error('Failed to create guest session')
         }
@@ -126,6 +136,18 @@ export function useGuestAuth(): GuestAuthState {
           })
         }
       } catch (error) {
+        if (error instanceof GuestAuthRateLimitError) {
+          console.warn('[Auth] Guest authentication rate limited; not switching identity')
+          if (!cancelled) {
+            setGuestAuth({
+              guestUserId: null,
+              guestToken: null,
+              loading: false,
+            })
+          }
+          return
+        }
+
         console.warn(
           '[Auth] Falling back to legacy guest user ID auth:',
           error

@@ -24,6 +24,31 @@ function hasThreadState(thread: { values?: Record<string, any> }): boolean {
   return Boolean(thread.values && Object.keys(thread.values).length > 0)
 }
 
+function getErrorStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null
+  const candidates = [
+    (error as { status?: unknown }).status,
+    (error as { statusCode?: unknown }).statusCode,
+    (error as { response?: { status?: unknown } }).response?.status,
+    (error as { cause?: { status?: unknown } }).cause?.status,
+  ]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "number") return candidate
+    if (typeof candidate === "string") {
+      const parsed = Number(candidate)
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+
+  return null
+}
+
+function isHttpStatusError(error: unknown, status: number): boolean {
+  if (getErrorStatus(error) === status) return true
+  return error instanceof Error && error.message.includes(String(status))
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -125,8 +150,8 @@ export function useThreads(
             options.threadIds.map(async (threadId) => {
               try {
                 return (await client.threads.get(threadId)) as any as Thread
-              } catch (error: any) {
-                if (error?.status === 404 || error?.message?.includes('404')) {
+              } catch (error) {
+                if (isHttpStatusError(error, 404)) {
                   logger.debug(`Thread ${threadId} not found (404)`)
                   return null
                 }
@@ -165,9 +190,9 @@ export function useThreads(
       const client = createLangGraphClient(authToken)
       const thread = (await client.threads.get(id)) as any as Thread
       return thread
-    } catch (error: any) {
+    } catch (error) {
       // Silently handle 404 errors (thread doesn't exist or was deleted)
-      if (error?.status === 404 || error?.message?.includes('404')) {
+      if (isHttpStatusError(error, 404)) {
         logger.debug(`Thread ${id} not found (404)`)
         return null
       }
@@ -231,9 +256,9 @@ export function useThreads(
       })
 
       // Don't refetch - the optimistic update already handled the UI
-    } catch (error: any) {
+    } catch (error) {
       // Silently handle 404 errors (thread doesn't exist or was deleted)
-      if (error?.status === 404 || error?.message?.includes('404')) {
+      if (isHttpStatusError(error, 404)) {
         logger.debug(`Thread ${threadId} not found for metadata update (404)`)
         return
       }
@@ -301,9 +326,9 @@ export function useThreads(
 
       // Refetch silently to ensure consistency (no loader flash since we already optimistically updated)
       await getUserThreads(userId, true)
-    } catch (error: any) {
+    } catch (error) {
       // Silently handle 404 errors (thread already deleted)
-      if (error?.status === 404 || error?.message?.includes('404')) {
+      if (isHttpStatusError(error, 404)) {
         logger.debug(`Thread ${id} already deleted (404)`)
         return
       }
