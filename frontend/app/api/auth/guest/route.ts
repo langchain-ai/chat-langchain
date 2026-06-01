@@ -151,9 +151,6 @@ function verifyGuestToken(token: string): string | null {
 }
 
 export async function POST(request: NextRequest) {
-  const rateLimitResponse = checkGuestAuthRateLimit(request)
-  if (rateLimitResponse) return rateLimitResponse
-
   let guestId: string | null = null
   const cookieStore = await cookies()
   const existingToken = cookieStore.get(COOKIE_NAME)?.value
@@ -162,6 +159,9 @@ export async function POST(request: NextRequest) {
   }
 
   if (!guestId) {
+    const rateLimitResponse = checkGuestAuthRateLimit(request)
+    if (rateLimitResponse) return rateLimitResponse
+
     guestId = `user-${randomUUID()}`
   }
 

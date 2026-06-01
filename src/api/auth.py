@@ -22,6 +22,11 @@ MAX_MESSAGE_CHARS = 50_000
 IMAGE_UNSUPPORTED_MODEL_IDS = {MODELS["glm-5"].id}
 UNSUPPORTED_IMAGE_MODEL_MESSAGE = "Selected model does not support image uploads"
 GUEST_TOKEN_PREFIX = "guest."
+RATE_LIMIT_MAX_REQUESTS = int(os.getenv("BACKEND_RATE_LIMIT_MAX_REQUESTS", "20"))
+RATE_LIMIT_WINDOW_SECONDS = float(os.getenv("BACKEND_RATE_LIMIT_WINDOW_SECONDS", "60"))
+RATE_LIMIT_EVICTION_INTERVAL_SECONDS = 5 * 60
+_rate_limit_entries: dict[str, list[float]] = {}
+_last_rate_limit_eviction = 0.0
 
 
 def _get_user_field(user: Any, field: str) -> Any:
@@ -36,6 +41,73 @@ def _extract_bearer_token(authorization: str | None) -> str | None:
     if authorization.lower().startswith("bearer "):
         return authorization.split(" ", 1)[1].strip()
     return authorization.strip()
+
+
+def _get_header(headers: dict, name: str) -> str | None:
+    for key, value in headers.items():
+        if str(key).lower() == name:
+            return str(value)
+    return None
+
+
+def _get_client_ip(headers: dict) -> str:
+    forwarded_for = _get_header(headers, "x-forwarded-for")
+    if forwarded_for:
+        ip = forwarded_for.split(",", 1)[0].strip()
+        if ip:
+            return ip[:128]
+
+    real_ip = _get_header(headers, "x-real-ip")
+    if real_ip:
+        ip = real_ip.strip()
+        if ip:
+            return ip[:128]
+
+    return "unknown"
+
+
+def _evict_stale_rate_limit_entries(now: float) -> None:
+    global _last_rate_limit_eviction
+    if now - _last_rate_limit_eviction < RATE_LIMIT_EVICTION_INTERVAL_SECONDS:
+        return
+
+    _last_rate_limit_eviction = now
+    cutoff = now - RATE_LIMIT_WINDOW_SECONDS
+    for ip, timestamps in list(_rate_limit_entries.items()):
+        fresh = [timestamp for timestamp in timestamps if timestamp > cutoff]
+        if fresh:
+            _rate_limit_entries[ip] = fresh
+        else:
+            del _rate_limit_entries[ip]
+
+
+def _check_rate_limit(headers: dict, now: float | None = None) -> None:
+    _check_rate_limit_for_ip(_get_client_ip(headers), now)
+
+
+def _check_rate_limit_for_ip(ip: str, now: float | None = None) -> None:
+    now = time.time() if now is None else now
+    _evict_stale_rate_limit_entries(now)
+
+    cutoff = now - RATE_LIMIT_WINDOW_SECONDS
+    timestamps = [
+        timestamp for timestamp in _rate_limit_entries.get(ip, []) if timestamp > cutoff
+    ]
+
+    if len(timestamps) >= RATE_LIMIT_MAX_REQUESTS:
+        _rate_limit_entries[ip] = timestamps
+        raise Auth.exceptions.HTTPException(
+            status_code=429, detail="Too many requests"
+        )
+
+    timestamps.append(now)
+    _rate_limit_entries[ip] = timestamps
+
+
+def _reset_rate_limit_for_tests() -> None:
+    global _last_rate_limit_eviction
+    _rate_limit_entries.clear()
+    _last_rate_limit_eviction = 0.0
 
 
 def _base64url_decode(value: str) -> bytes:
@@ -158,12 +230,14 @@ async def authenticate(
             status_code=401, detail="Authentication required"
         )
 
+    client_ip = _get_client_ip(headers)
     guest_identity = _verify_guest_token(token)
     if guest_identity:
         return {
             "identity": guest_identity,
             "is_authenticated": True,
             "auth_type": "guest",
+            "client_ip": client_ip,
         }
 
     supabase_identity = await _verify_supabase_token(token)
@@ -172,6 +246,7 @@ async def authenticate(
             "identity": supabase_identity,
             "is_authenticated": True,
             "auth_type": "supabase",
+            "client_ip": client_ip,
         }
 
     legacy_identity = _legacy_identity(token)
@@ -180,6 +255,7 @@ async def authenticate(
             "identity": legacy_identity,
             "is_authenticated": True,
             "auth_type": "legacy",
+            "client_ip": client_ip,
         }
 
     raise Auth.exceptions.HTTPException(status_code=401, detail="Invalid token")
@@ -264,6 +340,9 @@ async def enrich_run_metadata(
     user_id = _get_user_field(ctx.user, "identity")
     if not isinstance(user_id, str) or not user_id:
         raise Auth.exceptions.HTTPException(401, "Invalid authenticated user")
+    client_ip = _get_user_field(ctx.user, "client_ip")
+    _check_rate_limit_for_ip(client_ip if isinstance(client_ip, str) else "unknown")
+
     metadata["user_id"] = user_id
     return {"user_id": user_id}
 
