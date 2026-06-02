@@ -20,10 +20,40 @@ import pytest
 
 from src.tools.link_check_tools import (
     LinkCheckResult,
+    _check_single_url,
     _check_urls_async,
     _format_results,
     check_links,
 )
+
+
+class _FakeStreamResponse:
+    """Minimal async streaming response for _check_single_url tests."""
+
+    def __init__(self, url: str, status_code: int, content: str):
+        self.url = url
+        self.status_code = status_code
+        self._content = content
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):  # noqa: ANN001
+        return None
+
+    async def aiter_text(self):
+        yield self._content
+
+
+class _FakeStreamingClient:
+    """Minimal client that exercises the soft-404 streaming path."""
+
+    def __init__(self, content: str, status_code: int = 200):
+        self.content = content
+        self.status_code = status_code
+
+    def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
+        return _FakeStreamResponse(url, self.status_code, self.content)
 
 
 # ---------------------------------------------------------------------------
@@ -198,3 +228,31 @@ async def test_check_links_async_invalid_url_format():
 
     assert "0/1 valid" in result
     assert "Invalid URL format" in result
+
+
+@pytest.mark.asyncio
+async def test_support_article_not_found_is_invalid_soft_404():
+    """Support articles can return HTTP 200 while rendering an article-not-found page."""
+    result = await _check_single_url(
+        _FakeStreamingClient("<html><body><div>Article Not Found</div></body></html>"),
+        "https://support.langchain.com/hc/en-us/articles/missing-article",
+        timeout=1.0,
+    )
+
+    assert not result.valid
+    assert result.status_code == 200
+    assert result.error == "Soft 404: Page shows 'not found' content"
+
+
+@pytest.mark.asyncio
+async def test_support_article_normal_content_is_valid():
+    """Normal support article content should still be treated as valid."""
+    result = await _check_single_url(
+        _FakeStreamingClient("<html><body><div>Useful support article</div></body></html>"),
+        "https://support.langchain.com/hc/en-us/articles/existing-article",
+        timeout=1.0,
+    )
+
+    assert result.valid
+    assert result.status_code == 200
+    assert result.error is None

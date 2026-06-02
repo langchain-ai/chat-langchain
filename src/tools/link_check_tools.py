@@ -17,7 +17,12 @@ USER_AGENT = "LangChain-LinkChecker/1.0"
 CONTENT_CHECK_BYTES = 8192  # Only read first 8KB for soft 404 detection
 
 # Domains known to have soft 404s (return 200 with "not found" content)
-SOFT_404_DOMAINS = {"docs.langchain.com", "python.langchain.com", "js.langchain.com"}
+SOFT_404_DOMAINS = {
+    "docs.langchain.com",
+    "python.langchain.com",
+    "js.langchain.com",
+    "support.langchain.com",
+}
 
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
@@ -53,6 +58,9 @@ def _needs_soft_404_check(url: str) -> bool:
 
 def _is_soft_404(content: str) -> bool:
     """Detect soft 404 pages that return HTTP 200 but show 'not found' content."""
+    if "Article Not Found" in content:
+        return True
+
     title_match = re.search(r'<title>(.*?)</title>', content, re.IGNORECASE)
     if title_match:
         title = title_match.group(1).lower()
