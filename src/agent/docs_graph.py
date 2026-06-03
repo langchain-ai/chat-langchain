@@ -20,6 +20,7 @@ from src.middleware.guardrails_middleware import (
     guardrails_prompt_commit,
     guardrails_prompt_source,
 )
+from src.middleware.no_match_loop_middleware import NoMatchLoopGuardMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
@@ -98,9 +99,12 @@ docs_agent_tools = [
     check_links,
 ]
 
+no_match_loop_guard_middleware = NoMatchLoopGuardMiddleware()
+
 docs_agent_middleware = [
     guardrails_middleware,
     context_summary_middleware,
+    no_match_loop_guard_middleware,
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
