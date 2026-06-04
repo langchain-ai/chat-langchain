@@ -8,6 +8,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { trackEvent } from "@/components/providers/segment-provider"
 import { useAuth, type OAuthProvider } from "@/lib/auth"
 
 interface AuthModalProps {
@@ -19,9 +20,11 @@ interface AuthModalProps {
 const LANGSMITH_SIGN_UP_URL = "https://smith.langchain.com/?mode=sign_up"
 const LANGSMITH_FORGOT_PASSWORD_URL =
   "https://smith.langchain.com/?mode=forgotten_password"
+const SIGN_UP_CLICK_TRACKED_KEY = "chat-langchain-sign-up-click-tracked"
 
 export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) {
   const {
+    user,
     signIn,
     signInWithEmail,
     isConfigured,
@@ -99,6 +102,14 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
     } finally {
       setIsEmailLoading(false)
     }
+  }
+
+  const handleSignUpClick = () => {
+    if (user || typeof window === "undefined") return
+    if (localStorage.getItem(SIGN_UP_CLICK_TRACKED_KEY)) return
+
+    trackEvent("Auth Sign Up Clicked", { location: "auth_modal" })
+    localStorage.setItem(SIGN_UP_CLICK_TRACKED_KEY, "true")
   }
 
   return (
@@ -240,6 +251,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
               href={LANGSMITH_SIGN_UP_URL}
               target="_blank"
               rel="noreferrer"
+              onClick={handleSignUpClick}
               className="font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
             >
               Sign up
