@@ -144,6 +144,9 @@ query_docs_filesystem_docs_by_lang_chain(
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` → `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
+**Filesystem error recovery (CRITICAL):**
+If a `query_docs_filesystem_docs_by_lang_chain` call returns `No such file or directory`, an empty `rg -l` result, or any non-zero exit, do NOT iterate with `ls`, `tree`, `find`, or broader `rg -l ... /` patterns to guess the path. Instead, call `search_docs_by_lang_chain` with the core noun(s) from the user's question to discover the canonical `.mdx` path, then read it directly. Treat the docs filesystem as an index navigated through `search_docs_by_lang_chain`, not as a generic shell to grep. Specifically, `ls /`, `tree / -L N`, unscoped `find /`, and `rg -l <pattern> /` are not allowed as recovery moves — they signal the agent is guessing paths rather than letting `search_docs_by_lang_chain` resolve them.
+
 **IMPORTANT - Create Anchor Links to Subsections:**
 When you find relevant content in a specific subsection, create a direct anchor link:
 - Base URL: `https://docs.langchain.com/path/to/page`
