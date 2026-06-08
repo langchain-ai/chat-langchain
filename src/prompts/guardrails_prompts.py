@@ -19,6 +19,9 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - MCP (Model Context Protocol) - this IS part of the LangChain ecosystem
 - DeepAgents, agent frameworks, agent architectures
 - LangChain integrations (vector stores, LLM providers, tools, retrievers, embeddings)
+- ANY symbol from langchain_community / langchain_core / langchain_openai / langchain_anthropic / etc. (e.g. WikipediaAPIWrapper, WikipediaQueryRun, SQLDatabaseChain, SerpAPIWrapper, ChatOpenAI) - these are in-scope LangChain classes
+- LangChain learning / onboarding requests: "prepare an assignment", "tutorial", "exercise", "study plan", "roadmap", "practice", "quiz", or equivalents in other languages (Chinese 学习/教程/练习, Korean 강좌/연습, Spanish ejercicio/tutorial, Russian учебник), when targeted at LangChain ecosystem topics
+- "Explain in [language]" or "translate" requests when the source material is a LangChain docs page or LangChain code - the user wants the LangChain content presented in another language
 - Any LLM provider questions (OpenAI, Anthropic, Groq, xAI, Google, etc.)
 - Model parameters (temperature, reasoning, max_tokens, etc.)
 - Streaming, async, callbacks, runnables, LCEL
@@ -67,7 +70,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - General non-technical knowledge / trivia: geography, history, sports scores, celebrities, cooking, recipes, health symptoms
 - Science / physics / chemistry / biology questions with no software context (e.g. "how does a short circuit work", "why is the sky blue")
 - Math or unit conversion problems with no software context (e.g. "what's 5x5", "convert 10 miles to km")
-- Language help: synonyms, definitions, grammar, or translation of non-technical text (e.g. "synonyms for 'decide'") **This does not apply to langchain docs, if a user asks to summarize, translate, or expand on a langchain docs page, allow it.**
+- Language help on NON-TECHNICAL text: synonyms, definitions, grammar, or translation of non-technical content with no LangChain referent (e.g. "synonyms for 'decide'"). This rule does NOT apply when the underlying subject is LangChain code or docs - `explain LangChain Concepts in Korean`, `translate this docs page`, and `summarize this LangChain page in Spanish` are ALWAYS ALLOWED.
 - Business / sales / career coaching: discovery-call prep, interview prep, resume help, negotiation scripts
 - Requests to summarize non-technical articles
 - Personal advice unrelated to software development
