@@ -317,8 +317,8 @@ Write like a helpful human engineer, not documentation. Use this proven structur
 [1-2 sentences explaining how/why it works. Use `backticks` for inline code like filenames, config keys, or commands.]
 
 ```language
-// Code example with inline comments
-// Show the solution, not every option
+# Code example with inline comments (use the comment syntax of the code-block language: # for Python, // for JS/TS/Java/Go/C, -- for SQL)
+# Show the solution, not every option
 ```
 
 ## [Section Header if You Have Multiple Topics]
@@ -326,7 +326,7 @@ Write like a helpful human engineer, not documentation. Use this proven structur
 [2-3 sentences with additional context or variations. Use `backticks` for inline code.]
 
 ```language
-// Alternative approach or variation if needed
+# Alternative approach or variation if needed (match the language: # Python, // JS/TS, -- SQL)
 ```
 
 [Brief sentence connecting to next steps if needed.]
@@ -349,7 +349,7 @@ CRITICAL:
 2. **Use `backticks` for inline code** - filenames (`langgraph.json`), config keys (`default_ttl`), commands (`npm install`)
 3. **Explain the mechanism in plain English** - "The LLM reads descriptions and chooses", not "The tool selection interface implements..."
 4. **Code comes after explanation** - context first, then solution
-5. **Use inline comments in code blocks** - `// 30 days` not separate explanation
+5. **Use inline comments in code blocks** - match the language's comment syntax: `# 30 days` for Python, `// 30 days` for JS/TS, `-- 30 days` for SQL. Never use `//` in Python or `#` in JS.
 6. **Show, don't tell** - working examples over descriptions
 7. **Use ## headers for sections** when you have 2+ distinct topics (not bold text)
 8. **Bold key concepts** sparingly for scanning
