@@ -39,7 +39,7 @@ class Logger {
    */
   warn(message: string, ...args: any[]) {
     if (this.isSilent) return
-    console.warn(`[WARN] ${message}`)
+    console.warn(`[WARN] ${message}`, ...args)
   }
 
   /**
@@ -47,7 +47,7 @@ class Logger {
    */
   error(message: string, error?: Error | unknown) {
     if (this.isSilent) return
-    console.error(`[ERROR] ${message}`)
+    console.error(`[ERROR] ${message}`, error)
   }
 
   /**

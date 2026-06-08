@@ -4,6 +4,7 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import Script from "next/script";
 import "./globals.css";
 import { SegmentProvider } from "@/components/providers/segment-provider";
+import { AuthProvider } from "@/lib/auth";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -58,11 +59,13 @@ analytics.page();
         className={`${inter.variable} ${inconsolata.variable} antialiased`}
         suppressHydrationWarning
       >
-        <SegmentProvider>
-          <NuqsAdapter>
-            {children}
-          </NuqsAdapter>
-        </SegmentProvider>
+        <AuthProvider>
+          <SegmentProvider>
+            <NuqsAdapter>
+              {children}
+            </NuqsAdapter>
+          </SegmentProvider>
+        </AuthProvider>
       </body>
     </html>
   );

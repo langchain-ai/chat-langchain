@@ -1,13 +1,18 @@
 "use client"
 
-import { Suspense, useState, useEffect, useRef } from "react"
+import { Suspense, useState, useEffect, useMemo, useRef } from "react"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { ChatInterface } from "@/components/chat/chat-interface"
 import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-dialog"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
-import { useUserId, useClientProfile } from "@/lib/hooks/auth"
+import {
+  addStoredGuestThreadId,
+  getStoredGuestThreadIds,
+  removeStoredGuestThreadId,
+} from "@/lib/hooks/threads/guest-thread-storage"
+import { useLangGraphAuth, useClientProfile } from "@/lib/hooks/auth"
 import { resolveClientProfile } from "@/lib/config/client-config"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import { generateQuickTitle, generateThreadTitle } from "@/lib/utils/string"
@@ -38,8 +43,26 @@ function DashboardContent() {
   // Support ?q=... for auto-sending a prompt on page load
   const [initialPrompt, setInitialPrompt] = useQueryState("q")
 
-  // Get browser-specific user ID
-  const userId = useUserId()
+  // Resolve the current thread owner identity and credential.
+  const {
+    userId,
+    authToken,
+    guestUserId,
+    guestToken,
+    loading: langGraphAuthLoading,
+  } = useLangGraphAuth()
+  const shouldLoadGuestThreads = Boolean(
+    userId && guestUserId && guestToken && userId !== guestUserId
+  )
+  const isCurrentUserGuest = Boolean(userId && guestUserId && userId === guestUserId)
+  const [selectedThreadOwner, setSelectedThreadOwner] = useState<{
+    threadId: string
+    ownerId: string | null
+  } | null>(null)
+  const [guestThreadIds, setGuestThreadIds] = useState<string[]>(() =>
+    typeof window === "undefined" ? [] : getStoredGuestThreadIds()
+  )
+  const previousUserIdRef = useRef<string | null>(null)
 
   // Load agent config from localStorage on mount
   const [agentConfig, setAgentConfig] = useState<AgentConfig>(() => {
@@ -77,12 +100,119 @@ function DashboardContent() {
 
   // Load threads from LangGraph backend
   const {
-    threads,
-    isLoading: threadsLoading,
-    updateThreadMetadata,
-    deleteThread,
-    addOptimisticThread,
-  } = useThreads(userId || undefined)
+    threads: primaryThreads,
+    isLoading: primaryThreadsLoading,
+    updateThreadMetadata: updatePrimaryThreadMetadata,
+    deleteThread: deletePrimaryThread,
+    addOptimisticThread: addPrimaryOptimisticThread,
+  } = useThreads(userId || undefined, authToken || undefined, {
+    threadIds: isCurrentUserGuest ? guestThreadIds : undefined,
+  })
+  const {
+    threads: guestThreads,
+    isLoading: guestThreadsLoading,
+    updateThreadMetadata: updateGuestThreadMetadata,
+    deleteThread: deleteGuestThread,
+    addOptimisticThread: addGuestOptimisticThread,
+  } = useThreads(
+    shouldLoadGuestThreads ? guestUserId || undefined : undefined,
+    shouldLoadGuestThreads ? guestToken || undefined : undefined,
+    { threadIds: guestThreadIds }
+  )
+
+  const threads = useMemo(() => {
+    const byId = new Map<string, typeof primaryThreads[number]>()
+
+    for (const thread of guestThreads) {
+      byId.set(thread.thread_id, thread)
+    }
+    for (const thread of primaryThreads) {
+      byId.set(thread.thread_id, thread)
+    }
+
+    return Array.from(byId.values()).sort((a, b) => {
+      const aTime = new Date(a.updated_at || a.created_at).getTime()
+      const bTime = new Date(b.updated_at || b.created_at).getTime()
+      return bTime - aTime
+    })
+  }, [guestThreads, primaryThreads])
+
+  const threadsLoading = primaryThreadsLoading || guestThreadsLoading
+
+  useEffect(() => {
+    if (!threadId) return
+
+    const selectedThread = threads.find((thread) => thread.thread_id === threadId)
+    const ownerId = selectedThread?.metadata?.user_id
+    if (!ownerId) return
+
+    setSelectedThreadOwner((current) => {
+      if (current?.threadId === threadId && current.ownerId === ownerId) {
+        return current
+      }
+      return { threadId, ownerId }
+    })
+  }, [threadId, threads])
+
+  const currentThreadOwnerId = useMemo(() => {
+    if (selectedThreadOwner?.threadId === threadId) {
+      return selectedThreadOwner.ownerId
+    }
+
+    const selectedThread = threads.find((thread) => thread.thread_id === threadId)
+    return selectedThread?.metadata?.user_id || userId
+  }, [selectedThreadOwner, threadId, threads, userId])
+
+  const currentThreadAuthToken = useMemo(() => {
+    if (
+      currentThreadOwnerId &&
+      guestUserId &&
+      currentThreadOwnerId === guestUserId
+    ) {
+      return guestToken
+    }
+    if (currentThreadOwnerId && currentThreadOwnerId === userId) {
+      return authToken
+    }
+    if (!currentThreadOwnerId) {
+      return authToken
+    }
+    return null
+  }, [authToken, currentThreadOwnerId, guestToken, guestUserId, userId])
+
+  useEffect(() => {
+    if (!threadId || !userId || langGraphAuthLoading || currentThreadAuthToken) {
+      return
+    }
+
+    const newThreadId = crypto.randomUUID()
+    setNewThreads(prev => new Set(prev).add(newThreadId))
+    setSelectedThreadOwner({ threadId: newThreadId, ownerId: userId })
+    setThreadId(newThreadId)
+  }, [currentThreadAuthToken, langGraphAuthLoading, threadId, setThreadId, userId])
+
+  useEffect(() => {
+    if (langGraphAuthLoading || !userId) {
+      return
+    }
+
+    const previousUserId = previousUserIdRef.current
+    previousUserIdRef.current = userId
+
+    if (!previousUserId || previousUserId === userId || !threadId) {
+      return
+    }
+
+    const newThreadId = crypto.randomUUID()
+    setNewThreads(prev => new Set(prev).add(newThreadId))
+    setSelectedThreadOwner({ threadId: newThreadId, ownerId: userId })
+    setThreadId(newThreadId)
+  }, [
+    langGraphAuthLoading,
+    setThreadId,
+    threadId,
+    userId,
+  ])
 
   const { clientProfile } = useClientProfile()
 
@@ -93,35 +223,41 @@ function DashboardContent() {
     // Mark this thread as new (doesn't exist in backend yet)
     setNewThreads(prev => new Set(prev).add(newThreadId))
 
-    // Immediately add "Untitled" thread to sidebar
-    if (userId) {
-      addOptimisticThread({
-        thread_id: newThreadId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        metadata: {
-          user_id: userId,
-          title: "Untitled",
-          lastMessage: "",
-          client: resolveClientProfile(clientProfile),
-        },
-      })
-    }
-
+    setSelectedThreadOwner({ threadId: newThreadId, ownerId: userId })
     setThreadId(newThreadId)
   }
 
   // Switch to an existing thread
   const handleSelectThread = (selectedThreadId: string) => {
+    const selectedThread = threads.find(
+      (thread) => thread.thread_id === selectedThreadId
+    )
+    setSelectedThreadOwner({
+      threadId: selectedThreadId,
+      ownerId: selectedThread?.metadata?.user_id || userId,
+    })
     setThreadId(selectedThreadId)
   }
 
   // Delete a thread
   const handleDeleteThread = (threadIdToDelete: string) => {
-    deleteThread(threadIdToDelete, () => {
+    const threadOwnerId =
+      threads.find((thread) => thread.thread_id === threadIdToDelete)?.metadata
+        ?.user_id || userId
+    const deleteForOwner =
+      shouldLoadGuestThreads && threadOwnerId === guestUserId
+        ? deleteGuestThread
+        : deletePrimaryThread
+
+    if (threadOwnerId === guestUserId || threadOwnerId?.startsWith("user-")) {
+      setGuestThreadIds(removeStoredGuestThreadId(threadIdToDelete))
+    }
+
+    deleteForOwner(threadIdToDelete, () => {
       // If deleting current thread, create a new one
       if (threadIdToDelete === threadId) {
         const newThreadId = crypto.randomUUID()
+        setSelectedThreadOwner({ threadId: newThreadId, ownerId: userId })
         setThreadId(newThreadId)
       }
     })
@@ -137,21 +273,7 @@ function DashboardContent() {
     // Mark this thread as new (doesn't exist in backend yet)
     setNewThreads(prev => new Set(prev).add(newThreadId))
 
-    // Add to sidebar optimistically
-    if (userId) {
-      addOptimisticThread({
-        thread_id: newThreadId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        metadata: {
-          user_id: userId,
-          title: "Untitled",
-          lastMessage: "",
-          client: resolveClientProfile(clientProfile),
-        },
-      })
-    }
-
+    setSelectedThreadOwner({ threadId: newThreadId, ownerId: userId })
     setThreadId(newThreadId)
   }
 
@@ -163,7 +285,23 @@ function DashboardContent() {
     client?: ClientProfile,
     messageCount?: number, // Track how many messages are in the thread
   ) => {
-    if (!userId) return
+    const ownerId = currentThreadOwnerId || userId
+    if (!ownerId) return
+
+    const isGuestOwnedThread =
+      Boolean(guestUserId && guestUserId === ownerId) || ownerId.startsWith("user-")
+    const isGuestThread =
+      shouldLoadGuestThreads && isGuestOwnedThread && userId !== ownerId
+    const updateThreadForOwner = isGuestThread
+      ? updateGuestThreadMetadata
+      : updatePrimaryThreadMetadata
+    const addOptimisticThreadForOwner = isGuestThread
+      ? addGuestOptimisticThread
+      : addPrimaryOptimisticThread
+
+    if (isGuestOwnedThread) {
+      setGuestThreadIds(addStoredGuestThreadId(threadId))
+    }
 
     // Clear the new thread flag once the thread has been initialized (first message sent)
     if (newThreads.has(threadId)) {
@@ -188,12 +326,12 @@ function DashboardContent() {
 
       if (!existingThread) {
         // Thread doesn't exist at all - add it with "Untitled"
-        addOptimisticThread({
+        addOptimisticThreadForOwner({
           thread_id: threadId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           metadata: {
-            user_id: userId,
+            user_id: ownerId,
             title: "Untitled",
             lastMessage,
             client: resolvedClient,
@@ -202,8 +340,8 @@ function DashboardContent() {
       }
 
       // Update last message immediately (keep "Untitled" for now)
-      await updateThreadMetadata(threadId, {
-        user_id: userId,
+      await updateThreadForOwner(threadId, {
+        user_id: ownerId,
         lastMessage,
         client: resolvedClient,
       })
@@ -215,8 +353,8 @@ function DashboardContent() {
       }).then((aiTitle) => {
         if (aiTitle.length > 0) {
           console.log('Setting AI title:', aiTitle)
-          updateThreadMetadata(threadId, {
-            user_id: userId,
+          updateThreadForOwner(threadId, {
+            user_id: ownerId,
             title: aiTitle,
             lastMessage,
             client: resolvedClient,
@@ -226,8 +364,8 @@ function DashboardContent() {
         console.error('Failed to generate AI title:', error)
         // Fallback to quick title if AI fails
         const quickTitle = generateQuickTitle(title)
-        updateThreadMetadata(threadId, {
-          user_id: userId,
+        updateThreadForOwner(threadId, {
+          user_id: ownerId,
           title: quickTitle,
           lastMessage,
           client: resolvedClient,
@@ -238,8 +376,8 @@ function DashboardContent() {
       console.log(`Regenerating AI title at message ${messageCount}`)
 
       // Update last message immediately
-      await updateThreadMetadata(threadId, {
-        user_id: userId,
+      await updateThreadForOwner(threadId, {
+        user_id: ownerId,
         lastMessage,
         client: resolvedClient,
       })
@@ -251,8 +389,8 @@ function DashboardContent() {
       }).then((aiTitle) => {
         if (aiTitle.length > 0) {
           console.log('Updated title at message', messageCount, '→', aiTitle)
-          updateThreadMetadata(threadId, {
-            user_id: userId,
+          updateThreadForOwner(threadId, {
+            user_id: ownerId,
             title: aiTitle,
             lastMessage,
             client: resolvedClient,
@@ -263,8 +401,8 @@ function DashboardContent() {
       })
     } else {
       // Regular update: Just update last message, keep existing title
-      await updateThreadMetadata(threadId, {
-        user_id: userId,
+      await updateThreadForOwner(threadId, {
+        user_id: ownerId,
         lastMessage,
         client: resolvedClient,
       })
@@ -275,12 +413,15 @@ function DashboardContent() {
   // Also create a new thread if ?q= is present (always start fresh for prompt links)
   const hasProcessedPromptRef = useRef(false)
   useEffect(() => {
+    if (!userId) return
+
     // Validate and process ?q= param - create fresh thread for prompt links
     const trimmedPrompt = initialPrompt?.trim()
     if (trimmedPrompt && !hasProcessedPromptRef.current) {
       hasProcessedPromptRef.current = true
       const newThreadId = crypto.randomUUID()
       setNewThreads(prev => new Set(prev).add(newThreadId))
+      setSelectedThreadOwner({ threadId: newThreadId, ownerId: userId })
       setThreadId(newThreadId)
       return
     }
@@ -289,9 +430,15 @@ function DashboardContent() {
     if (!threadId) {
       const newThreadId = crypto.randomUUID()
       setNewThreads(prev => new Set(prev).add(newThreadId))
+      setSelectedThreadOwner({ threadId: newThreadId, ownerId: userId })
       setThreadId(newThreadId)
     }
-  }, [threadId, setThreadId, initialPrompt])
+  }, [
+    threadId,
+    setThreadId,
+    initialPrompt,
+    userId,
+  ])
 
   // Cycle to next model
   const handleCycleModel = () => {
@@ -405,9 +552,11 @@ function DashboardContent() {
         />
         {threadId && (
           <ChatInterface
-            key={threadId}
+            key={`${threadId}:${currentThreadOwnerId || ""}`}
             showToolCalls={showToolCalls}
             threadId={threadId}
+            userId={currentThreadOwnerId}
+            authToken={currentThreadAuthToken}
             onThreadUpdate={handleThreadUpdate}
             onThreadNotFound={handleThreadNotFound}
             agentConfig={agentConfig}

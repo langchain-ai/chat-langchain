@@ -1,6 +1,14 @@
 # Authentication and authorization for LangGraph deployment
+import base64
+import binascii
+import hashlib
+import hmac
+import json
 import os
+import time
+from typing import Any
 
+import httpx
 from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
 
@@ -13,11 +21,203 @@ MAX_RECURSION_LIMIT = 100
 MAX_MESSAGE_CHARS = 50_000
 IMAGE_UNSUPPORTED_MODEL_IDS = {MODELS["glm-5"].id}
 UNSUPPORTED_IMAGE_MODEL_MESSAGE = "Selected model does not support image uploads"
+GUEST_TOKEN_PREFIX = "guest."
+RATE_LIMIT_MAX_REQUESTS = int(os.getenv("BACKEND_RATE_LIMIT_MAX_REQUESTS", "20"))
+RATE_LIMIT_WINDOW_SECONDS = float(os.getenv("BACKEND_RATE_LIMIT_WINDOW_SECONDS", "60"))
+RATE_LIMIT_EVICTION_INTERVAL_SECONDS = 5 * 60
+_rate_limit_entries: dict[str, list[float]] = {}
+_last_rate_limit_eviction = 0.0
 
 
-def _get_auth_secret() -> str | None:
-    """Optional auth secret. If set, X-Auth-Key header is required on all requests."""
-    return os.getenv("LANGGRAPH_AUTH_SECRET")
+def _get_user_field(user: Any, field: str) -> Any:
+    if isinstance(user, dict):
+        return user.get(field)
+    return getattr(user, field, None)
+
+
+def _extract_bearer_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    if authorization.lower().startswith("bearer "):
+        return authorization.split(" ", 1)[1].strip()
+    return authorization.strip()
+
+
+def _header_to_str(value: Any) -> str:
+    if isinstance(value, bytes):
+        return value.decode("latin-1")
+    return str(value)
+
+
+def _get_header(headers: dict, name: str) -> str | None:
+    for key, value in headers.items():
+        if _header_to_str(key).lower() == name:
+            return _header_to_str(value)
+    return None
+
+
+def _get_client_ip(headers: dict) -> str:
+    forwarded_for = _get_header(headers, "x-forwarded-for")
+    if forwarded_for:
+        ip = forwarded_for.split(",", 1)[0].strip()
+        if ip:
+            return ip[:128]
+
+    real_ip = _get_header(headers, "x-real-ip")
+    if real_ip:
+        ip = real_ip.strip()
+        if ip:
+            return ip[:128]
+
+    return "unknown"
+
+
+def _evict_stale_rate_limit_entries(now: float) -> None:
+    global _last_rate_limit_eviction
+    if now - _last_rate_limit_eviction < RATE_LIMIT_EVICTION_INTERVAL_SECONDS:
+        return
+
+    _last_rate_limit_eviction = now
+    cutoff = now - RATE_LIMIT_WINDOW_SECONDS
+    for ip, timestamps in list(_rate_limit_entries.items()):
+        fresh = [timestamp for timestamp in timestamps if timestamp > cutoff]
+        if fresh:
+            _rate_limit_entries[ip] = fresh
+        else:
+            del _rate_limit_entries[ip]
+
+
+def _check_rate_limit(headers: dict, now: float | None = None) -> None:
+    _check_rate_limit_for_ip(_get_client_ip(headers), now)
+
+
+def _check_rate_limit_for_ip(ip: str, now: float | None = None) -> None:
+    now = time.time() if now is None else now
+    _evict_stale_rate_limit_entries(now)
+
+    cutoff = now - RATE_LIMIT_WINDOW_SECONDS
+    timestamps = [
+        timestamp for timestamp in _rate_limit_entries.get(ip, []) if timestamp > cutoff
+    ]
+
+    if len(timestamps) >= RATE_LIMIT_MAX_REQUESTS:
+        _rate_limit_entries[ip] = timestamps
+        raise Auth.exceptions.HTTPException(
+            status_code=429, detail="Too many requests"
+        )
+
+    timestamps.append(now)
+    _rate_limit_entries[ip] = timestamps
+
+
+def _reset_rate_limit_for_tests() -> None:
+    global _last_rate_limit_eviction
+    _rate_limit_entries.clear()
+    _last_rate_limit_eviction = 0.0
+
+
+def _base64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(f"{value}{padding}")
+
+
+def _verify_guest_token(token: str) -> str | None:
+    """Return the guest identity from a server-signed guest token."""
+    secret = os.getenv("GUEST_AUTH_SECRET")
+    if not secret or not token.startswith(GUEST_TOKEN_PREFIX):
+        return None
+
+    try:
+        _, payload_b64, signature_b64 = token.split(".", 2)
+    except ValueError:
+        return None
+
+    expected = hmac.new(
+        secret.encode(),
+        payload_b64.encode(),
+        hashlib.sha256,
+    ).digest()
+
+    try:
+        actual = _base64url_decode(signature_b64)
+    except (binascii.Error, ValueError):
+        return None
+
+    if not hmac.compare_digest(expected, actual):
+        return None
+
+    try:
+        payload = json.loads(_base64url_decode(payload_b64))
+    except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+
+    if payload.get("typ") != "guest":
+        return None
+    if not isinstance(payload.get("exp"), (int, float)) or payload["exp"] < time.time():
+        return None
+
+    guest_id = payload.get("sub")
+    if not isinstance(guest_id, str) or not guest_id.startswith("user-"):
+        return None
+    return guest_id
+
+
+def _supabase_config() -> tuple[str | None, str | None]:
+    return (
+        os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL"),
+        os.getenv("SUPABASE_ANON_KEY") or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    )
+
+
+async def _verify_supabase_token(token: str) -> str | None:
+    """Return the authenticated user email from a Supabase access token."""
+    supabase_url, supabase_anon_key = _supabase_config()
+    if not supabase_url or not supabase_anon_key:
+        return None
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                f"{supabase_url.rstrip('/')}/auth/v1/user",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "apikey": supabase_anon_key,
+                },
+            )
+    except httpx.HTTPError:
+        return None
+
+    if response.status_code != 200:
+        return None
+
+    try:
+        user: dict[str, Any] = response.json()
+    except json.JSONDecodeError:
+        return None
+
+    email = user.get("email")
+    user_id = user.get("id")
+    if isinstance(email, str) and email:
+        return email
+    if isinstance(user_id, str) and user_id:
+        return f"auth:{user_id}"
+    return None
+
+
+def _allow_legacy_auth() -> bool:
+    return os.getenv("ALLOW_LEGACY_USER_ID_AUTH", "true").lower() not in {
+        "0",
+        "false",
+        "no",
+    }
+
+
+def _legacy_identity(token: str) -> str | None:
+    if not _allow_legacy_auth():
+        return None
+    if token.startswith("user-") or "@" in token:
+        return token
+    return None
 
 
 @auth.authenticate
@@ -26,34 +226,45 @@ async def authenticate(
 ) -> Auth.types.MinimalUserDict:
     """Validate requests and extract user identity.
 
-    If LANGGRAPH_AUTH_SECRET is set, requires X-Auth-Key header to match.
-    If not set, allows public requests through.
-
-    User identity is always extracted from Authorization: Bearer <user_id>.
+    Real LangGraph Studio users are supplied by LangGraph itself and handled in
+    authorization callbacks with is_studio_user(). Public API callers must
+    present a Supabase token, a signed guest token, or a temporary legacy raw ID.
     """
-    # If auth secret is configured, validate X-Auth-Key header
-    auth_secret = _get_auth_secret()
-    if auth_secret:
-        auth_key = headers.get(b"x-auth-key") or headers.get("x-auth-key")
-        if not auth_key:
-            raise Auth.exceptions.HTTPException(
-                status_code=401, detail="Authentication required"
-            )
-        key = auth_key.decode() if isinstance(auth_key, bytes) else auth_key
-        if key != auth_secret:
-            raise Auth.exceptions.HTTPException(
-                status_code=401, detail="Invalid auth key"
-            )
+    token = _extract_bearer_token(authorization)
+    if not token:
+        raise Auth.exceptions.HTTPException(
+            status_code=401, detail="Authentication required"
+        )
 
-    # Extract user identity from Authorization header
-    if not authorization:
-        return {"identity": "studio-user"}
+    client_ip = _get_client_ip(headers)
+    guest_identity = _verify_guest_token(token)
+    if guest_identity:
+        return {
+            "identity": guest_identity,
+            "is_authenticated": True,
+            "auth_type": "guest",
+            "client_ip": client_ip,
+        }
 
-    user_id = authorization
-    if authorization.lower().startswith("bearer "):
-        user_id = authorization.split(" ", 1)[1]
+    supabase_identity = await _verify_supabase_token(token)
+    if supabase_identity:
+        return {
+            "identity": supabase_identity,
+            "is_authenticated": True,
+            "auth_type": "supabase",
+            "client_ip": client_ip,
+        }
 
-    return {"identity": user_id or "anonymous", "is_authenticated": True}
+    legacy_identity = _legacy_identity(token)
+    if legacy_identity:
+        return {
+            "identity": legacy_identity,
+            "is_authenticated": True,
+            "auth_type": "legacy",
+            "client_ip": client_ip,
+        }
+
+    raise Auth.exceptions.HTTPException(status_code=401, detail="Invalid token")
 
 
 # Default block
@@ -70,7 +281,9 @@ async def add_owner(ctx: Auth.types.AuthContext, value: dict):
     if is_studio_user(ctx.user):
         return {}
 
-    user_id = ctx.user.identity
+    user_id = _get_user_field(ctx.user, "identity")
+    if not isinstance(user_id, str) or not user_id:
+        raise Auth.exceptions.HTTPException(401, "Invalid authenticated user")
     metadata = value.setdefault("metadata", {})
     metadata["user_id"] = user_id
 
@@ -83,7 +296,9 @@ async def update_owner_metadata(ctx: Auth.types.AuthContext, value: dict):
     if is_studio_user(ctx.user):
         return {}
 
-    user_id = ctx.user.identity
+    user_id = _get_user_field(ctx.user, "identity")
+    if not isinstance(user_id, str) or not user_id:
+        raise Auth.exceptions.HTTPException(401, "Invalid authenticated user")
     metadata = value.setdefault("metadata", {})
     metadata["user_id"] = user_id
 
@@ -125,6 +340,17 @@ async def enrich_run_metadata(
         value["kwargs"].get("config") or value.get("config"),
         input_has_image=input_has_image,
     )
+    if is_studio_user(ctx.user):
+        return {}
+
+    user_id = _get_user_field(ctx.user, "identity")
+    if not isinstance(user_id, str) or not user_id:
+        raise Auth.exceptions.HTTPException(401, "Invalid authenticated user")
+    client_ip = _get_user_field(ctx.user, "client_ip")
+    _check_rate_limit_for_ip(client_ip if isinstance(client_ip, str) else "unknown")
+
+    metadata["user_id"] = user_id
+    return {"user_id": user_id}
 
 
 @auth.on.assistants(actions=["create", "update", "delete"])
@@ -143,7 +369,9 @@ async def block_modify_assistants(
     if is_studio_user(ctx.user):
         return {}
 
-    user_id = ctx.user.identity
+    user_id = _get_user_field(ctx.user, "identity")
+    if not isinstance(user_id, str) or not user_id:
+        raise Auth.exceptions.HTTPException(401, "Invalid authenticated user")
     metadata = value.setdefault("metadata", {})
     metadata["user_id"] = user_id
 
