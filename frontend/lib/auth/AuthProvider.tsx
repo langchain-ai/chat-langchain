@@ -14,6 +14,7 @@ import {
   getStoredAuthRegion,
   getSupabaseClient,
   isSupabaseAuthConfigured,
+  signOutAllSupabaseClients,
   setStoredAuthRegion,
 } from "./supabase"
 
@@ -143,6 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(
     async (provider: OAuthProvider) => {
       const client = requireClient()
+      setStoredAuthRegion(authRegion)
       const { error } = await client.auth.signInWithOAuth({
         provider,
         options: {
@@ -161,6 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
       const client = requireClient()
+      setStoredAuthRegion(authRegion)
       const { error } = await client.auth.signInWithPassword({
         email,
         password,
@@ -168,24 +171,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw new Error(`Sign in failed: ${error.message}`)
     },
-    [requireClient]
+    [authRegion, requireClient]
   )
 
   const signOut = useCallback(async () => {
-    const client = getSupabaseClient(authRegion)
-    if (!client) {
-      setUser(null)
-      setSession(null)
-      return
-    }
-
-    const { error } = await client.auth.signOut()
-    if (error && error.message !== "Auth session missing!") {
-      throw new Error(`Sign out failed: ${error.message}`)
-    }
+    await signOutAllSupabaseClients()
     setUser(null)
     setSession(null)
-  }, [authRegion])
+  }, [])
 
   return (
     <AuthContext.Provider
