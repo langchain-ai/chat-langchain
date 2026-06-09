@@ -55,7 +55,7 @@ export const getStoredAuthRegion = (): AuthRegion => {
   if (typeof window === "undefined") return getDefaultAuthRegion()
 
   const storedRegion = window.localStorage.getItem(AUTH_REGION_STORAGE_KEY)
-  if (isAuthRegion(storedRegion)) {
+  if (isAuthRegion(storedRegion) && isSupabaseAuthConfigured(storedRegion)) {
     return storedRegion
   }
 

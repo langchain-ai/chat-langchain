@@ -59,8 +59,10 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
     signInWithEmail,
     isConfigured,
     authRegion,
+    availableAuthRegions,
     setAuthRegion,
   } = useAuth()
+  const isDiscordSupportedRegion = authRegion !== "apac" && authRegion !== "aws"
   const [loadingProvider, setLoadingProvider] =
     useState<OAuthProvider | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -165,19 +167,28 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="center" className="min-w-[220px]">
-                {(Object.keys(REGION_OPTIONS) as AuthRegion[]).map((region) => (
-                  <DropdownMenuItem
-                    key={region}
-                    onClick={() => setAuthRegion(region)}
-                    className="flex items-center gap-2 cursor-pointer text-sm"
-                  >
-                    <RegionIcon region={region} />
-                    <span>{REGION_OPTIONS[region].label}</span>
-                    <span className="text-muted-foreground text-xs ml-auto">
-                      {REGION_OPTIONS[region].location}
-                    </span>
-                  </DropdownMenuItem>
-                ))}
+                {(Object.keys(REGION_OPTIONS) as AuthRegion[]).map((region) => {
+                  const isRegionConfigured = availableAuthRegions.includes(region)
+
+                  return (
+                    <DropdownMenuItem
+                      key={region}
+                      disabled={!isRegionConfigured}
+                      onClick={() => {
+                        if (isRegionConfigured) setAuthRegion(region)
+                      }}
+                      className="flex items-center gap-2 cursor-pointer text-sm data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50"
+                    >
+                      <RegionIcon region={region} />
+                      <span>{REGION_OPTIONS[region].label}</span>
+                      <span className="text-muted-foreground text-xs ml-auto">
+                        {isRegionConfigured
+                          ? REGION_OPTIONS[region].location
+                          : "Not configured"}
+                      </span>
+                    </DropdownMenuItem>
+                  )
+                })}
                 <DropdownMenuSeparator />
                 <div className="px-2 py-1.5">
                   <a
@@ -240,13 +251,15 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
               disabled={!isConfigured || !!loadingProvider}
               onClick={handleOAuthSignIn}
             />
-            <AuthProviderButton
-              provider="discord"
-              loadingProvider={loadingProvider}
-              lastUsedProvider={lastUsedProvider}
-              disabled={!isConfigured || !!loadingProvider}
-              onClick={handleOAuthSignIn}
-            />
+            {isDiscordSupportedRegion && (
+              <AuthProviderButton
+                provider="discord"
+                loadingProvider={loadingProvider}
+                lastUsedProvider={lastUsedProvider}
+                disabled={!isConfigured || !!loadingProvider}
+                onClick={handleOAuthSignIn}
+              />
+            )}
           </div>
 
           <div className="flex items-center gap-4 -mb-1">
