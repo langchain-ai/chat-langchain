@@ -45,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isConfigured = isSupabaseAuthConfigured(authRegion)
 
   const setAuthRegion = useCallback((region: AuthRegion) => {
+    if (!isSupabaseAuthConfigured(region)) return
     setStoredAuthRegion(region)
     setAuthRegionState(region)
     setUser(null)
