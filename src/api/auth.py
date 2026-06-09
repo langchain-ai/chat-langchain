@@ -215,7 +215,7 @@ def _allow_legacy_auth() -> bool:
 def _legacy_identity(token: str) -> str | None:
     if not _allow_legacy_auth():
         return None
-    if token.startswith("user-") or "@" in token:
+    if token.startswith("user-") or token.startswith("polly-") or "@" in token:
         return token
     return None
 

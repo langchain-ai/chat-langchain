@@ -8,6 +8,7 @@ import pytest
 from src.api.auth import (
     _check_rate_limit,
     _get_client_ip,
+    _legacy_identity,
     _reset_rate_limit_for_tests,
     enrich_run_metadata,
     update_owner_metadata,
@@ -42,6 +43,29 @@ def test_create_run_returns_owner_filter_and_run_metadata():
     assert filters == {"user_id": "user@example.com"}
     assert value["metadata"]["user_id"] == "user@example.com"
     assert value["metadata"]["source_type"] == "Chat-LangChain"
+
+
+def test_legacy_auth_allows_polly_ids(monkeypatch):
+    """Polly's temporary raw ID prefix should work during legacy migration."""
+    monkeypatch.setenv("ALLOW_LEGACY_USER_ID_AUTH", "true")
+    polly_id = "polly-f8cd79e3-68b6-4227-92d8-cae7488e41bf"
+
+    assert _legacy_identity(polly_id) == polly_id
+
+
+def test_legacy_auth_uses_polly_prefix(monkeypatch):
+    """Polly legacy IDs should be checked like user IDs: by prefix only."""
+    monkeypatch.setenv("ALLOW_LEGACY_USER_ID_AUTH", "true")
+
+    assert _legacy_identity("polly") is None
+    assert _legacy_identity("polly-not-a-uuid") == "polly-not-a-uuid"
+
+
+def test_legacy_auth_rejects_polly_ids_when_disabled(monkeypatch):
+    """The Polly compatibility path should turn off with legacy auth."""
+    monkeypatch.setenv("ALLOW_LEGACY_USER_ID_AUTH", "false")
+
+    assert _legacy_identity("polly-f8cd79e3-68b6-4227-92d8-cae7488e41bf") is None
 
 
 def test_backend_rate_limit_blocks_twenty_first_request_for_same_ip():
