@@ -105,6 +105,7 @@ export const getSupabaseClient = (
     auth: {
       storageKey: getSupabaseAuthStorageKey(region),
     },
+    isSingleton: false,
   })
   clients.set(region, client)
   return client
