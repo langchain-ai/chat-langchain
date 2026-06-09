@@ -9,8 +9,12 @@ import {
 } from "react"
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js"
 import {
+  type AuthRegion,
+  getAvailableAuthRegions,
+  getStoredAuthRegion,
   getSupabaseClient,
   isSupabaseAuthConfigured,
+  setStoredAuthRegion,
 } from "./supabase"
 
 export type OAuthProvider = "google" | "github" | "discord"
@@ -20,6 +24,9 @@ interface AuthContextType {
   session: Session | null
   loading: boolean
   isConfigured: boolean
+  authRegion: AuthRegion
+  availableAuthRegions: AuthRegion[]
+  setAuthRegion: (region: AuthRegion) => void
   signIn: (provider: OAuthProvider) => Promise<void>
   signInWithEmail: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
@@ -28,46 +35,78 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [authRegion, setAuthRegionState] = useState<AuthRegion>(() =>
+    getStoredAuthRegion()
+  )
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
-  const isConfigured = isSupabaseAuthConfigured()
+  const availableAuthRegions = getAvailableAuthRegions()
+  const isConfigured = isSupabaseAuthConfigured(authRegion)
+
+  const setAuthRegion = useCallback((region: AuthRegion) => {
+    if (!isSupabaseAuthConfigured(region)) return
+    setStoredAuthRegion(region)
+    setAuthRegionState(region)
+    setUser(null)
+    setSession(null)
+    setLoading(true)
+  }, [])
 
   useEffect(() => {
+    let cancelled = false
     const checkSession = async () => {
       if (!isConfigured) {
-        setUser(null)
-        setSession(null)
-        setLoading(false)
+        if (!cancelled) {
+          setUser(null)
+          setSession(null)
+          setLoading(false)
+        }
         return
       }
 
-      const client = getSupabaseClient()
+      const client = getSupabaseClient(authRegion)
       if (!client) {
-        setLoading(false)
+        if (!cancelled) {
+          setUser(null)
+          setSession(null)
+          setLoading(false)
+        }
         return
       }
 
+      setLoading(true)
       try {
         const {
           data: { session },
         } = await client.auth.getSession()
-        setSession(session ?? null)
-        setUser(session?.user ?? null)
+        if (!cancelled) {
+          setSession(session ?? null)
+          setUser(session?.user ?? null)
+        }
       } catch {
         // Session check failed, user remains null
+        if (!cancelled) {
+          setUser(null)
+          setSession(null)
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
     void checkSession()
-  }, [isConfigured])
+    return () => {
+      cancelled = true
+    }
+  }, [authRegion, isConfigured])
 
   useEffect(() => {
     if (!isConfigured) return
 
-    const client = getSupabaseClient()
+    const client = getSupabaseClient(authRegion)
     if (!client) return
 
     const {
@@ -91,15 +130,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     )
 
     return () => subscription.unsubscribe()
-  }, [isConfigured])
+  }, [authRegion, isConfigured])
 
   const requireClient = useCallback(() => {
-    const client = getSupabaseClient()
+    const client = getSupabaseClient(authRegion)
     if (!client) {
-      throw new Error("Supabase auth is not configured")
+      throw new Error(`Supabase auth is not configured for ${authRegion}`)
     }
     return client
-  }, [])
+  }, [authRegion])
 
   const signIn = useCallback(
     async (provider: OAuthProvider) => {
@@ -107,7 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await client.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback?region=${authRegion}`,
           ...(provider === "google" && {
             queryParams: { prompt: "select_account" },
           }),
@@ -116,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw new Error(`Sign in failed: ${error.message}`)
     },
-    [requireClient]
+    [authRegion, requireClient]
   )
 
   const signInWithEmail = useCallback(
@@ -133,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const signOut = useCallback(async () => {
-    const client = getSupabaseClient()
+    const client = getSupabaseClient(authRegion)
     if (!client) {
       setUser(null)
       setSession(null)
@@ -146,7 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setUser(null)
     setSession(null)
-  }, [])
+  }, [authRegion])
 
   return (
     <AuthContext.Provider
@@ -155,6 +194,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         session,
         loading,
         isConfigured,
+        authRegion,
+        availableAuthRegions,
+        setAuthRegion,
         signIn,
         signInWithEmail,
         signOut,

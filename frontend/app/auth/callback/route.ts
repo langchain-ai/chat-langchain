@@ -3,6 +3,40 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+type AuthRegion = "us" | "eu" | "apac" | "aws"
+
+function isAuthRegion(value: string | null): value is AuthRegion {
+  return value === "us" || value === "eu" || value === "apac" || value === "aws"
+}
+
+function getSupabaseCredentials(region: AuthRegion): {
+  url?: string
+  key?: string
+} {
+  if (region === "eu") {
+    return {
+      url: process.env.NEXT_PUBLIC_SUPABASE_EU_URL,
+      key: process.env.NEXT_PUBLIC_SUPABASE_EU_ANON_KEY,
+    }
+  }
+  if (region === "apac") {
+    return {
+      url: process.env.NEXT_PUBLIC_SUPABASE_APAC_URL,
+      key: process.env.NEXT_PUBLIC_SUPABASE_APAC_ANON_KEY,
+    }
+  }
+  if (region === "aws") {
+    return {
+      url: process.env.NEXT_PUBLIC_SUPABASE_AWS_URL,
+      key: process.env.NEXT_PUBLIC_SUPABASE_AWS_ANON_KEY,
+    }
+  }
+  return {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  }
+}
+
 function redirectWithAuthError(origin: string, errorCode: string): NextResponse {
   const redirectUrl = new URL(origin)
   redirectUrl.searchParams.set("auth_error", errorCode)
@@ -15,6 +49,8 @@ export async function GET(request: NextRequest) {
   const oauthError = requestUrl.searchParams.get("error")
   const oauthErrorDescription = requestUrl.searchParams.get("error_description")
   const origin = requestUrl.origin
+  const requestedRegion = requestUrl.searchParams.get("region")
+  const region: AuthRegion = isAuthRegion(requestedRegion) ? requestedRegion : "us"
 
   if (oauthError) {
     console.error("OAuth provider returned an error", {
@@ -29,10 +65,9 @@ export async function GET(request: NextRequest) {
     return redirectWithAuthError(origin, "missing_code")
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const { url, key } = getSupabaseCredentials(region)
   if (!url || !key) {
-    console.error("Supabase credentials are not configured")
+    console.error("Supabase credentials are not configured", { region })
     return redirectWithAuthError(origin, "auth_not_configured")
   }
 

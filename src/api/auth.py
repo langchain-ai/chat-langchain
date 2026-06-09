@@ -22,6 +22,7 @@ MAX_MESSAGE_CHARS = 50_000
 IMAGE_UNSUPPORTED_MODEL_IDS = {MODELS["glm-5"].id}
 UNSUPPORTED_IMAGE_MODEL_MESSAGE = "Selected model does not support image uploads"
 GUEST_TOKEN_PREFIX = "guest."
+AUTH_REGIONS = ("us", "eu", "apac", "aws")
 RATE_LIMIT_MAX_REQUESTS = int(os.getenv("BACKEND_RATE_LIMIT_MAX_REQUESTS", "20"))
 RATE_LIMIT_WINDOW_SECONDS = float(os.getenv("BACKEND_RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_EVICTION_INTERVAL_SECONDS = 5 * 60
@@ -162,19 +163,44 @@ def _verify_guest_token(token: str) -> str | None:
     return guest_id
 
 
-def _supabase_config() -> tuple[str | None, str | None]:
+def _supabase_config_for_region(region: str) -> tuple[str | None, str | None]:
+    if region == "eu":
+        return (
+            os.getenv("SUPABASE_EU_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_EU_URL"),
+            os.getenv("SUPABASE_EU_ANON_KEY")
+            or os.getenv("NEXT_PUBLIC_SUPABASE_EU_ANON_KEY"),
+        )
+    if region == "apac":
+        return (
+            os.getenv("SUPABASE_APAC_URL")
+            or os.getenv("NEXT_PUBLIC_SUPABASE_APAC_URL"),
+            os.getenv("SUPABASE_APAC_ANON_KEY")
+            or os.getenv("NEXT_PUBLIC_SUPABASE_APAC_ANON_KEY"),
+        )
+    if region == "aws":
+        return (
+            os.getenv("SUPABASE_AWS_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_AWS_URL"),
+            os.getenv("SUPABASE_AWS_ANON_KEY")
+            or os.getenv("NEXT_PUBLIC_SUPABASE_AWS_ANON_KEY"),
+        )
     return (
         os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL"),
         os.getenv("SUPABASE_ANON_KEY") or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
     )
 
 
-async def _verify_supabase_token(token: str) -> str | None:
-    """Return the authenticated user email from a Supabase access token."""
-    supabase_url, supabase_anon_key = _supabase_config()
-    if not supabase_url or not supabase_anon_key:
-        return None
+def _configured_supabase_regions() -> list[tuple[str, str, str]]:
+    configs = []
+    for region in AUTH_REGIONS:
+        url, anon_key = _supabase_config_for_region(region)
+        if url and anon_key:
+            configs.append((region, url, anon_key))
+    return configs
 
+
+async def _verify_supabase_token_for_project(
+    token: str, supabase_url: str, supabase_anon_key: str
+) -> str | None:
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
@@ -201,6 +227,35 @@ async def _verify_supabase_token(token: str) -> str | None:
         return email
     if isinstance(user_id, str) and user_id:
         return f"auth:{user_id}"
+    return None
+
+
+async def _verify_supabase_token(
+    token: str, selected_region: str | None = None
+) -> str | None:
+    """Return the authenticated user email from a Supabase access token."""
+    configs = _configured_supabase_regions()
+    if not configs:
+        return None
+
+    if selected_region:
+        selected_config = next(
+            (config for config in configs if config[0] == selected_region),
+            None,
+        )
+        if not selected_config:
+            return None
+        _, supabase_url, supabase_anon_key = selected_config
+        return await _verify_supabase_token_for_project(
+            token, supabase_url, supabase_anon_key
+        )
+
+    for _, supabase_url, supabase_anon_key in configs:
+        identity = await _verify_supabase_token_for_project(
+            token, supabase_url, supabase_anon_key
+        )
+        if identity:
+            return identity
     return None
 
 
@@ -246,7 +301,10 @@ async def authenticate(
             "client_ip": client_ip,
         }
 
-    supabase_identity = await _verify_supabase_token(token)
+    selected_region = _get_header(headers, "x-supabase-region")
+    if selected_region not in AUTH_REGIONS:
+        selected_region = None
+    supabase_identity = await _verify_supabase_token(token, selected_region)
     if supabase_identity:
         return {
             "identity": supabase_identity,
