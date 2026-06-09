@@ -13,6 +13,7 @@ export const AUTH_REGION_LABELS: Record<AuthRegion, string> = {
 }
 
 const AUTH_REGION_STORAGE_KEY = "chat-langchain-auth-region"
+const SUPABASE_AUTH_STORAGE_KEY_PREFIX = "chat-langchain-supabase-auth"
 
 const supabaseConfigs: Record<AuthRegion, { url?: string; anonKey?: string }> = {
   us: {
@@ -67,6 +68,9 @@ export const setStoredAuthRegion = (region: AuthRegion): void => {
   window.localStorage.setItem(AUTH_REGION_STORAGE_KEY, region)
 }
 
+export const getSupabaseAuthStorageKey = (region: AuthRegion): string =>
+  `${SUPABASE_AUTH_STORAGE_KEY_PREFIX}-${region}`
+
 export const getSupabaseClient = (
   region: AuthRegion = getStoredAuthRegion()
 ): SupabaseClient | null => {
@@ -79,7 +83,25 @@ export const getSupabaseClient = (
     return null
   }
 
-  const client = createBrowserClient(config.url, config.anonKey)
+  const client = createBrowserClient(config.url, config.anonKey, {
+    auth: {
+      storageKey: getSupabaseAuthStorageKey(region),
+    },
+  })
   clients.set(region, client)
   return client
+}
+
+export async function signOutAllSupabaseClients(): Promise<void> {
+  await Promise.all(
+    getAvailableAuthRegions().map(async (region) => {
+      const client = getSupabaseClient(region)
+      if (!client) return
+
+      const { error } = await client.auth.signOut()
+      if (error && error.message !== "Auth session missing!") {
+        throw new Error(`Sign out failed for ${region}: ${error.message}`)
+      }
+    })
+  )
 }

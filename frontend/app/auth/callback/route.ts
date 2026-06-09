@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 type AuthRegion = "us" | "eu" | "apac" | "aws"
+const SUPABASE_AUTH_STORAGE_KEY_PREFIX = "chat-langchain-supabase-auth"
 
 function isAuthRegion(value: string | null): value is AuthRegion {
   return value === "us" || value === "eu" || value === "apac" || value === "aws"
@@ -43,6 +44,10 @@ function redirectWithAuthError(origin: string, errorCode: string): NextResponse 
   return NextResponse.redirect(redirectUrl)
 }
 
+function getSupabaseAuthStorageKey(region: AuthRegion): string {
+  return `${SUPABASE_AUTH_STORAGE_KEY_PREFIX}-${region}`
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get("code")
@@ -74,6 +79,9 @@ export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies()
     const supabase = createServerClient(url, key, {
+      auth: {
+        storageKey: getSupabaseAuthStorageKey(region),
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll()
