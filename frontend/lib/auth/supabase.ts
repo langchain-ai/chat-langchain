@@ -71,6 +71,24 @@ export const setStoredAuthRegion = (region: AuthRegion): void => {
 export const getSupabaseAuthStorageKey = (region: AuthRegion): string =>
   `${SUPABASE_AUTH_STORAGE_KEY_PREFIX}-${region}`
 
+function clearSupabaseAuthStorage(): void {
+  if (typeof window === "undefined") return
+
+  for (const key of Object.keys(window.localStorage)) {
+    if (key.startsWith(SUPABASE_AUTH_STORAGE_KEY_PREFIX)) {
+      window.localStorage.removeItem(key)
+    }
+  }
+
+  document.cookie
+    .split(";")
+    .map((cookie) => cookie.trim().split("=", 1)[0])
+    .filter((name) => name.startsWith(SUPABASE_AUTH_STORAGE_KEY_PREFIX))
+    .forEach((name) => {
+      document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`
+    })
+}
+
 export const getSupabaseClient = (
   region: AuthRegion = getStoredAuthRegion()
 ): SupabaseClient | null => {
@@ -104,4 +122,5 @@ export async function signOutAllSupabaseClients(): Promise<void> {
       }
     })
   )
+  clearSupabaseAuthStorage()
 }
