@@ -1,16 +1,23 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Eye, EyeOff } from "lucide-react"
+import { ChevronDown, Eye, EyeOff } from "lucide-react"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { trackEvent } from "@/components/providers/segment-provider"
 import { useAuth, type OAuthProvider } from "@/lib/auth"
-import { AUTH_REGION_LABELS, type AuthRegion } from "@/lib/auth/supabase"
+import type { AuthRegion } from "@/lib/auth/supabase"
 
 interface AuthModalProps {
   open: boolean
@@ -18,10 +25,32 @@ interface AuthModalProps {
   initialError?: string | null
 }
 
-const LANGSMITH_SIGN_UP_URL = "https://smith.langchain.com/?mode=sign_up"
-const LANGSMITH_FORGOT_PASSWORD_URL =
-  "https://smith.langchain.com/?mode=forgotten_password"
+const LANGSMITH_REGION_URLS: Record<AuthRegion, string> = {
+  us: "https://smith.langchain.com",
+  eu: "https://eu.smith.langchain.com",
+  apac: "https://apac.smith.langchain.com",
+  aws: "https://aws.smith.langchain.com",
+}
+
+const REGION_OPTIONS: Record<AuthRegion, { label: string; location: string }> = {
+  us: { label: "US", location: "Central" },
+  eu: { label: "EU", location: "West" },
+  apac: { label: "APAC", location: "Asia Pacific" },
+  aws: { label: "AWS US", location: "East" },
+}
+
+const getLangSmithAuthUrl = (
+  region: AuthRegion,
+  mode: "sign_up" | "forgotten_password"
+) => `${LANGSMITH_REGION_URLS[region]}/?mode=${mode}`
+
 const SIGN_UP_CLICK_TRACKED_KEY = "chat-langchain-sign-up-click-tracked"
+
+function RegionIcon({ region }: { region: AuthRegion }) {
+  if (region === "us" || region === "aws") return <span className="text-sm">🇺🇸</span>
+  if (region === "eu") return <span className="text-sm">🇪🇺</span>
+  return <span className="text-sm">🇦🇺</span>
+}
 
 export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) {
   const {
@@ -30,7 +59,6 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
     signInWithEmail,
     isConfigured,
     authRegion,
-    availableAuthRegions,
     setAuthRegion,
   } = useAuth()
   const [loadingProvider, setLoadingProvider] =
@@ -119,6 +147,54 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="min-w-[90vw] sm:min-w-[550px] sm:max-w-[600px] px-8 sm:px-12 py-8 rounded-3xl">
+        {Object.keys(REGION_OPTIONS).length > 1 && (
+          <div className="flex justify-center mb-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="group inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs outline-none transition-colors hover:bg-muted/50 data-[state=open]:bg-muted/50">
+                <span className="flex items-center gap-1.5">
+                  <span className="font-medium text-muted-foreground text-xs">
+                    Data Region
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <RegionIcon region={authRegion} />
+                    <span className="font-medium text-xs">
+                      {REGION_OPTIONS[authRegion].label}
+                    </span>
+                  </span>
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="min-w-[220px]">
+                {(Object.keys(REGION_OPTIONS) as AuthRegion[]).map((region) => (
+                  <DropdownMenuItem
+                    key={region}
+                    onClick={() => setAuthRegion(region)}
+                    className="flex items-center gap-2 cursor-pointer text-sm"
+                  >
+                    <RegionIcon region={region} />
+                    <span>{REGION_OPTIONS[region].label}</span>
+                    <span className="text-muted-foreground text-xs ml-auto">
+                      {REGION_OPTIONS[region].location}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5">
+                  <a
+                    href="https://docs.langchain.com/langsmith/regions-faq"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Learn more about regions
+                  </a>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+
         <DialogTitle className="mb-5 text-center text-2xl font-medium leading-tight">
           Log in with your LangSmith account
         </DialogTitle>
@@ -140,30 +216,6 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
             <div className="rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
               Login is not configured for the selected region. You can continue
               as a guest.
-            </div>
-          )}
-
-          {availableAuthRegions.length > 1 && (
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="auth-region" className="text-sm font-medium">
-                Login region
-              </label>
-              <select
-                id="auth-region"
-                value={authRegion}
-                onChange={(event) => setAuthRegion(event.target.value as AuthRegion)}
-                disabled={!!loadingProvider || isEmailLoading}
-                className="h-12 rounded-full border border-border bg-transparent px-4 text-sm outline-none transition-all hover:border-muted-foreground focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {availableAuthRegions.map((region) => (
-                  <option key={region} value={region}>
-                    {AUTH_REGION_LABELS[region]}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground">
-                Choose the LangSmith region where your account was created.
-              </p>
             </div>
           )}
 
@@ -254,7 +306,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
             </div>
             <div className="flex justify-center">
               <a
-                href={LANGSMITH_FORGOT_PASSWORD_URL}
+                href={getLangSmithAuthUrl(authRegion, "forgotten_password")}
                 target="_blank"
                 rel="noreferrer"
                 className="text-xs font-semibold text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
@@ -276,7 +328,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
           <div className="flex items-center justify-center gap-1.5 text-xs">
             <span>Don't have an account?</span>
             <a
-              href={LANGSMITH_SIGN_UP_URL}
+              href={getLangSmithAuthUrl(authRegion, "sign_up")}
               target="_blank"
               rel="noreferrer"
               onClick={handleSignUpClick}

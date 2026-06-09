@@ -3,10 +3,10 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-type AuthRegion = "us" | "eu" | "apac"
+type AuthRegion = "us" | "eu" | "apac" | "aws"
 
 function isAuthRegion(value: string | null): value is AuthRegion {
-  return value === "us" || value === "eu" || value === "apac"
+  return value === "us" || value === "eu" || value === "apac" || value === "aws"
 }
 
 function getSupabaseCredentials(region: AuthRegion): {
@@ -23,6 +23,12 @@ function getSupabaseCredentials(region: AuthRegion): {
     return {
       url: process.env.NEXT_PUBLIC_SUPABASE_APAC_URL,
       key: process.env.NEXT_PUBLIC_SUPABASE_APAC_ANON_KEY,
+    }
+  }
+  if (region === "aws") {
+    return {
+      url: process.env.NEXT_PUBLIC_SUPABASE_AWS_URL,
+      key: process.env.NEXT_PUBLIC_SUPABASE_AWS_ANON_KEY,
     }
   }
   return {

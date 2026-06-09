@@ -3,12 +3,13 @@
 import { createBrowserClient } from "@supabase/ssr"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-export type AuthRegion = "us" | "eu" | "apac"
+export type AuthRegion = "us" | "eu" | "apac" | "aws"
 
 export const AUTH_REGION_LABELS: Record<AuthRegion, string> = {
   us: "US",
   eu: "EU",
   apac: "APAC",
+  aws: "AWS US",
 }
 
 const AUTH_REGION_STORAGE_KEY = "chat-langchain-auth-region"
@@ -26,12 +27,16 @@ const supabaseConfigs: Record<AuthRegion, { url?: string; anonKey?: string }> = 
     url: process.env.NEXT_PUBLIC_SUPABASE_APAC_URL,
     anonKey: process.env.NEXT_PUBLIC_SUPABASE_APAC_ANON_KEY,
   },
+  aws: {
+    url: process.env.NEXT_PUBLIC_SUPABASE_AWS_URL,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_AWS_ANON_KEY,
+  },
 }
 
 const clients = new Map<AuthRegion, SupabaseClient>()
 
 export const isAuthRegion = (value: string | null | undefined): value is AuthRegion =>
-  value === "us" || value === "eu" || value === "apac"
+  value === "us" || value === "eu" || value === "apac" || value === "aws"
 
 export const isSupabaseAuthConfigured = (region: AuthRegion = "us"): boolean => {
   const config = supabaseConfigs[region]
@@ -50,7 +55,7 @@ export const getStoredAuthRegion = (): AuthRegion => {
   if (typeof window === "undefined") return getDefaultAuthRegion()
 
   const storedRegion = window.localStorage.getItem(AUTH_REGION_STORAGE_KEY)
-  if (isAuthRegion(storedRegion) && isSupabaseAuthConfigured(storedRegion)) {
+  if (isAuthRegion(storedRegion)) {
     return storedRegion
   }
 

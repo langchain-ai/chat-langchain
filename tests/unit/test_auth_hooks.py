@@ -77,6 +77,8 @@ def test_supabase_config_supports_regional_projects(monkeypatch):
     monkeypatch.setenv("SUPABASE_EU_ANON_KEY", "eu-anon")
     monkeypatch.setenv("SUPABASE_APAC_URL", "https://apac.example.supabase.co")
     monkeypatch.setenv("SUPABASE_APAC_ANON_KEY", "apac-anon")
+    monkeypatch.setenv("SUPABASE_AWS_URL", "https://aws.example.supabase.co")
+    monkeypatch.setenv("SUPABASE_AWS_ANON_KEY", "aws-anon")
 
     assert _supabase_config_for_region("us") == (
         "https://us.example.supabase.co",
@@ -90,10 +92,15 @@ def test_supabase_config_supports_regional_projects(monkeypatch):
         "https://apac.example.supabase.co",
         "apac-anon",
     )
+    assert _supabase_config_for_region("aws") == (
+        "https://aws.example.supabase.co",
+        "aws-anon",
+    )
     assert _configured_supabase_regions() == [
         ("us", "https://us.example.supabase.co", "us-anon"),
         ("eu", "https://eu.example.supabase.co", "eu-anon"),
         ("apac", "https://apac.example.supabase.co", "apac-anon"),
+        ("aws", "https://aws.example.supabase.co", "aws-anon"),
     ]
 
 

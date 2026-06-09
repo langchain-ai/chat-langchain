@@ -22,7 +22,7 @@ MAX_MESSAGE_CHARS = 50_000
 IMAGE_UNSUPPORTED_MODEL_IDS = {MODELS["glm-5"].id}
 UNSUPPORTED_IMAGE_MODEL_MESSAGE = "Selected model does not support image uploads"
 GUEST_TOKEN_PREFIX = "guest."
-AUTH_REGIONS = ("us", "eu", "apac")
+AUTH_REGIONS = ("us", "eu", "apac", "aws")
 RATE_LIMIT_MAX_REQUESTS = int(os.getenv("BACKEND_RATE_LIMIT_MAX_REQUESTS", "20"))
 RATE_LIMIT_WINDOW_SECONDS = float(os.getenv("BACKEND_RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_EVICTION_INTERVAL_SECONDS = 5 * 60
@@ -176,6 +176,12 @@ def _supabase_config_for_region(region: str) -> tuple[str | None, str | None]:
             or os.getenv("NEXT_PUBLIC_SUPABASE_APAC_URL"),
             os.getenv("SUPABASE_APAC_ANON_KEY")
             or os.getenv("NEXT_PUBLIC_SUPABASE_APAC_ANON_KEY"),
+        )
+    if region == "aws":
+        return (
+            os.getenv("SUPABASE_AWS_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_AWS_URL"),
+            os.getenv("SUPABASE_AWS_ANON_KEY")
+            or os.getenv("NEXT_PUBLIC_SUPABASE_AWS_ANON_KEY"),
         )
     return (
         os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL"),
