@@ -7,9 +7,11 @@ import pytest
 
 from src.api.auth import (
     _check_rate_limit,
+    _configured_supabase_regions,
     _get_client_ip,
     _legacy_identity,
     _reset_rate_limit_for_tests,
+    _supabase_config_for_region,
     enrich_run_metadata,
     update_owner_metadata,
 )
@@ -66,6 +68,33 @@ def test_legacy_auth_rejects_polly_ids_when_disabled(monkeypatch):
     monkeypatch.setenv("ALLOW_LEGACY_USER_ID_AUTH", "false")
 
     assert _legacy_identity("polly-f8cd79e3-68b6-4227-92d8-cae7488e41bf") is None
+
+
+def test_supabase_config_supports_regional_projects(monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "https://us.example.supabase.co")
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "us-anon")
+    monkeypatch.setenv("SUPABASE_EU_URL", "https://eu.example.supabase.co")
+    monkeypatch.setenv("SUPABASE_EU_ANON_KEY", "eu-anon")
+    monkeypatch.setenv("SUPABASE_APAC_URL", "https://apac.example.supabase.co")
+    monkeypatch.setenv("SUPABASE_APAC_ANON_KEY", "apac-anon")
+
+    assert _supabase_config_for_region("us") == (
+        "https://us.example.supabase.co",
+        "us-anon",
+    )
+    assert _supabase_config_for_region("eu") == (
+        "https://eu.example.supabase.co",
+        "eu-anon",
+    )
+    assert _supabase_config_for_region("apac") == (
+        "https://apac.example.supabase.co",
+        "apac-anon",
+    )
+    assert _configured_supabase_regions() == [
+        ("us", "https://us.example.supabase.co", "us-anon"),
+        ("eu", "https://eu.example.supabase.co", "eu-anon"),
+        ("apac", "https://apac.example.supabase.co", "apac-anon"),
+    ]
 
 
 def test_backend_rate_limit_blocks_twenty_first_request_for_same_ip():

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { trackEvent } from "@/components/providers/segment-provider"
 import { useAuth, type OAuthProvider } from "@/lib/auth"
+import { AUTH_REGION_LABELS, type AuthRegion } from "@/lib/auth/supabase"
 
 interface AuthModalProps {
   open: boolean
@@ -28,6 +29,9 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
     signIn,
     signInWithEmail,
     isConfigured,
+    authRegion,
+    availableAuthRegions,
+    setAuthRegion,
   } = useAuth()
   const [loadingProvider, setLoadingProvider] =
     useState<OAuthProvider | null>(null)
@@ -134,8 +138,32 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
 
           {!isConfigured && (
             <div className="rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-              Login is not configured for this environment. You can continue as
-              a guest.
+              Login is not configured for the selected region. You can continue
+              as a guest.
+            </div>
+          )}
+
+          {availableAuthRegions.length > 1 && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="auth-region" className="text-sm font-medium">
+                Login region
+              </label>
+              <select
+                id="auth-region"
+                value={authRegion}
+                onChange={(event) => setAuthRegion(event.target.value as AuthRegion)}
+                disabled={!!loadingProvider || isEmailLoading}
+                className="h-12 rounded-full border border-border bg-transparent px-4 text-sm outline-none transition-all hover:border-muted-foreground focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {availableAuthRegions.map((region) => (
+                  <option key={region} value={region}>
+                    {AUTH_REGION_LABELS[region]}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Choose the LangSmith region where your account was created.
+              </p>
             </div>
           )}
 

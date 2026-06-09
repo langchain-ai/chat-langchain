@@ -8,7 +8,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@/lib/auth'
+import { useAuth, type AuthRegion } from '@/lib/auth'
 
 // ============================================================================
 // Constants
@@ -25,6 +25,7 @@ interface GuestAuthState {
 interface LangGraphAuthState extends GuestAuthState {
   userId: string | null
   authToken: string | null
+  authRegion: AuthRegion
 }
 
 class GuestAuthRateLimitError extends Error {
@@ -174,7 +175,7 @@ export function useGuestAuth(): GuestAuthState {
 }
 
 export function useLangGraphAuth(): LangGraphAuthState {
-  const { user, session, loading: authLoading } = useAuth()
+  const { user, session, loading: authLoading, authRegion } = useAuth()
   const { guestUserId, guestToken, loading: guestLoading } = useGuestAuth()
   const signedInUserId = user?.email ?? null
   const signedInToken = session?.access_token ?? null
@@ -182,6 +183,7 @@ export function useLangGraphAuth(): LangGraphAuthState {
   return {
     userId: signedInUserId || guestUserId,
     authToken: signedInToken || guestToken,
+    authRegion,
     guestUserId,
     guestToken,
     loading: authLoading || (!signedInUserId && guestLoading),

@@ -47,6 +47,7 @@ function DashboardContent() {
   const {
     userId,
     authToken,
+    authRegion,
     guestUserId,
     guestToken,
     loading: langGraphAuthLoading,
@@ -107,6 +108,7 @@ function DashboardContent() {
     addOptimisticThread: addPrimaryOptimisticThread,
   } = useThreads(userId || undefined, authToken || undefined, {
     threadIds: isCurrentUserGuest ? guestThreadIds : undefined,
+    authRegion,
   })
   const {
     threads: guestThreads,
@@ -117,7 +119,7 @@ function DashboardContent() {
   } = useThreads(
     shouldLoadGuestThreads ? guestUserId || undefined : undefined,
     shouldLoadGuestThreads ? guestToken || undefined : undefined,
-    { threadIds: guestThreadIds }
+    { threadIds: guestThreadIds, authRegion }
   )
 
   const threads = useMemo(() => {
@@ -557,6 +559,7 @@ function DashboardContent() {
             threadId={threadId}
             userId={currentThreadOwnerId}
             authToken={currentThreadAuthToken}
+            authRegion={authRegion}
             onThreadUpdate={handleThreadUpdate}
             onThreadNotFound={handleThreadNotFound}
             agentConfig={agentConfig}

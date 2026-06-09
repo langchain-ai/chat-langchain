@@ -13,6 +13,7 @@
 import { useState, useEffect } from "react"
 import { logger } from "../../utils/logger"
 import { createLangGraphClient } from "../../api/langgraph-client"
+import type { AuthRegion } from "../../auth"
 
 // ============================================================================
 // Constants
@@ -105,6 +106,7 @@ export interface Thread {
  */
 interface UseThreadsOptions {
   threadIds?: string[]
+  authRegion?: AuthRegion
 }
 
 export function useThreads(
@@ -115,6 +117,7 @@ export function useThreads(
   const [isLoading, setIsLoading] = useState(false)
   const [threads, setThreads] = useState<Thread[]>([])
   const threadIdsKey = options.threadIds?.join(",") ?? null
+  const authRegion = options.authRegion
 
   // Auto-load threads when user ID becomes available
   useEffect(() => {
@@ -124,7 +127,7 @@ export function useThreads(
       return
     }
     getUserThreads(userId)
-  }, [userId, authToken, threadIdsKey])
+  }, [userId, authToken, threadIdsKey, authRegion])
 
   // ==========================================================================
   // Thread Fetching
@@ -142,7 +145,7 @@ export function useThreads(
       setIsLoading(true)
     }
     try {
-      const client = createLangGraphClient(authToken)
+      const client = createLangGraphClient(authToken, authRegion)
 
       logger.info('Fetching threads for user:', id)
       const userThreads = options.threadIds
@@ -187,7 +190,7 @@ export function useThreads(
    */
   const getThreadById = async (id: string): Promise<Thread | null> => {
     try {
-      const client = createLangGraphClient(authToken)
+      const client = createLangGraphClient(authToken, authRegion)
       const thread = (await client.threads.get(id)) as any as Thread
       return thread
     } catch (error) {
@@ -241,7 +244,7 @@ export function useThreads(
         }
       })
 
-      const client = createLangGraphClient(authToken)
+      const client = createLangGraphClient(authToken, authRegion)
 
       // Get current thread to merge metadata
       const currentThread = await client.threads.get(threadId) as any as Thread
@@ -315,7 +318,7 @@ export function useThreads(
     })
 
     try {
-      const client = createLangGraphClient(authToken)
+      const client = createLangGraphClient(authToken, authRegion)
       await client.threads.delete(id)
       logger.info('Thread deleted:', id)
 

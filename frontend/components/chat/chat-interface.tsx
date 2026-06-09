@@ -8,6 +8,7 @@ import { createUserMessage, generateMessageId, extractTextFromContent } from "@/
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
 import { useAuth } from "@/lib/auth"
+import type { AuthRegion } from "@/lib/auth"
 import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
 import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
@@ -52,6 +53,7 @@ interface ChatInterfaceProps {
   threadId: string
   userId: string | null
   authToken: string | null
+  authRegion?: AuthRegion
   onThreadUpdate?: (threadId: string, title: string, lastMessage: string, client?: ClientProfile, messageCount?: number) => void
   onThreadNotFound?: () => void
   agentConfig?: AgentConfig
@@ -83,6 +85,7 @@ export function ChatInterface({
   threadId,
   userId,
   authToken,
+  authRegion,
   onThreadUpdate,
   onThreadNotFound,
   initialMessage,
@@ -225,8 +228,8 @@ export function ChatInterface({
       return null
     }
 
-    return createLangGraphClient(authToken)
-  }, [authToken])
+    return createLangGraphClient(authToken, authRegion)
+  }, [authRegion, authToken])
 
   // Memoize user metadata to prevent unnecessary re-renders
   const userEmail = useMemo(
