@@ -15,6 +15,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.completion_guard_middleware import EnsureCompletionMiddleware
 from src.middleware.guardrails_middleware import (
     GuardrailsMiddleware,
     guardrails_prompt_commit,
@@ -103,6 +104,7 @@ docs_agent_middleware = [
     context_summary_middleware,
     tool_retry_middleware,
     model_retry_middleware,
+    EnsureCompletionMiddleware(),
     model_fallback_middleware,
 ]
 
