@@ -10,6 +10,7 @@ from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
     configurable_model,
+    content_normalization_middleware,
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
@@ -102,6 +103,7 @@ docs_agent_middleware = [
     guardrails_middleware,
     context_summary_middleware,
     tool_retry_middleware,
+    content_normalization_middleware,
     model_retry_middleware,
     model_fallback_middleware,
 ]
