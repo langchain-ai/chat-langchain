@@ -270,6 +270,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
+   - **Unknown product / CLI / binary names**: If the user names a CLI tool, binary, slash command, or config-file path (e.g. `dcode`, `opencode`, `~/.deepagents/config.toml`) and (a) `search_docs_by_lang_chain` returns no matching page for that exact term AND (b) reading the top candidate `.mdx` files with `query_docs_filesystem_docs_by_lang_chain` does not surface that term, you MUST decline rather than infer a specification. Do NOT invent binary names, flags, slash commands, JSON/TOML config schemas, or `docs.langchain.com/...` URLs for an undocumented tool. Reply: "I couldn't find documentation for `<term>` in the LangChain / LangGraph / LangSmith / Deep Agents docs. Could you share where you saw this referenced?" This rule overrides the customer-support response format — a clarifying decline is required, not a code block.
    - From support article results, select 1-3 relevant article IDs and call `get_support_article_content` for them in parallel
 
 4. **STOP and synthesize**
