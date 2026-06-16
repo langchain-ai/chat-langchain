@@ -556,17 +556,8 @@ def validate_config(config: dict | None):
             422, f"Unrecognized configurable input: {type(configurable)}"
         )
 
-    requested_model = configurable.pop("model", None)
-    if requested_model is not None and not isinstance(requested_model, str):
-        raise Auth.exceptions.HTTPException(
-            422, f"Unrecognized model input: {type(requested_model)}"
-        )
-
-    model_provider = configurable.pop("model_provider", None)
-    if model_provider is not None and not isinstance(model_provider, str):
-        raise Auth.exceptions.HTTPException(
-            422, f"Unrecognized model_provider input: {type(model_provider)}"
-        )
+    configurable.pop("model", None)
+    configurable.pop("model_provider", None)
 
 
 def cap_recursion_limit(config: dict):
