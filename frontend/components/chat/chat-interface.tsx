@@ -13,15 +13,12 @@ import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
 import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
 import { ChatInput } from "./chat-input"
-import type { AgentConfig } from "@/components/layout/agent-settings"
 import { createLangGraphClient } from "@/lib/api/langgraph-client"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import {
-  IMAGE_UNSUPPORTED_MODEL_MESSAGE,
   INPUT_TOO_LONG_MESSAGE,
   MAX_INPUT_CHARS,
 } from "@/lib/constants/features"
-import { MODELS } from "@/lib/config/deployment-config"
 
 // Enhanced scrollbar styles with smooth transitions
 const scrollbarStyles = `
@@ -56,8 +53,6 @@ interface ChatInterfaceProps {
   authRegion?: AuthRegion
   onThreadUpdate?: (threadId: string, title: string, lastMessage: string, client?: ClientProfile, messageCount?: number) => void
   onThreadNotFound?: () => void
-  agentConfig?: AgentConfig
-  onAgentConfigChange?: (config: AgentConfig) => void
   isNewThread?: boolean
   customTitle?: string | null
   /** Pre-fill or auto-send a message. Use with autoSend to control behavior. */
@@ -90,8 +85,6 @@ export function ChatInterface({
   onThreadNotFound,
   initialMessage,
   customTitle,
-  agentConfig,
-  onAgentConfigChange,
   isNewThread = false,
   autoSend = false,
   onInitialMessageSent,
@@ -119,10 +112,8 @@ export function ChatInterface({
     handleDragLeave,
     removeFile,
     clearFiles,
-    setUploadError,
   } = useFileUpload({
     getInputLength: () => inputLengthRef.current,
-    disableImageUploads: agentConfig?.model === MODELS["glm-5"].id,
   })
   const attachedTextLength = attachedFiles.reduce((total, file) => {
     if (file.mimeType?.startsWith('image/')) return total
@@ -263,7 +254,6 @@ export function ChatInterface({
     client,
     threadId,
     setMessages,
-    agentConfig,
     shouldInterruptRef,
     onRunCreated: handleRunCreated,
     userId,
@@ -713,14 +703,6 @@ export function ChatInterface({
       return
     }
 
-    if (
-      agentConfig?.model === MODELS["glm-5"].id &&
-      attachedFiles.some((file) => file.mimeType?.startsWith('image/'))
-    ) {
-      setUploadError(IMAGE_UNSUPPORTED_MODEL_MESSAGE)
-      return
-    }
-
     const userMessage = createUserMessage(uiState.input)
     if (attachedFiles.length > 0) {
       userMessage.images = attachedFiles
@@ -754,7 +736,7 @@ export function ChatInterface({
     if (messageQueueRef.current.length > 0) {
       processQueue()
     }
-  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, agentConfig?.model, setInput, setUploadError, clearFiles, processMessage, processQueue])
+  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, setInput, clearFiles, processMessage, processQueue])
 
   const handleStop = useCallback(async () => {
     console.log('User requested stop')
@@ -970,8 +952,6 @@ export function ChatInterface({
             isVoiceSupported={isVoiceSupported}
             onVoiceToggle={toggleVoiceListening}
             voiceError={voiceError}
-            agentConfig={agentConfig}
-            onAgentConfigChange={onAgentConfigChange}
           />
         ) : (
           <ChatInput

@@ -11,23 +11,10 @@ import React from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { FilePreviewGrid } from "./file-preview-grid"
 import { VoiceInputButton } from "./voice-input-button"
 import type { ImageAttachment } from "@/lib/types"
-import type { AgentConfig } from "@/components/layout/agent-settings"
 import { MAX_INPUT_CHARS } from "@/lib/constants/features"
-import {
-  getAllowedModels,
-  getModelDisplayName,
-  type ModelOption,
-} from "@/lib/config/deployment-config"
 
 interface WelcomeScreenProps {
   input: string
@@ -61,9 +48,6 @@ interface WelcomeScreenProps {
   onVoiceToggle?: () => void
   voiceError?: string | null
 
-  // Agent configuration
-  agentConfig?: AgentConfig
-  onAgentConfigChange?: (config: AgentConfig) => void
 }
 
 /**
@@ -97,17 +81,7 @@ export function WelcomeScreen({
   isVoiceSupported,
   onVoiceToggle,
   voiceError,
-  agentConfig,
-  onAgentConfigChange,
 }: WelcomeScreenProps) {
-  const allowedModels = getAllowedModels()
-
-  const handleModelChange = (model: string) => {
-    if (agentConfig && onAgentConfigChange) {
-      onAgentConfigChange({ ...agentConfig, model })
-    }
-  }
-
   return (
     <div className="absolute inset-0 flex items-center justify-center px-3 sm:px-4">
       <div className="w-full max-w-3xl -mt-10 sm:-mt-20">
@@ -249,23 +223,6 @@ export function WelcomeScreen({
             </div>
           )}
 
-          {/* Model selector dropdown - positioned underneath chatbox in bottom left */}
-          {agentConfig && onAgentConfigChange && (
-            <div className="flex justify-start mt-2 px-2">
-              <Select value={agentConfig.model} onValueChange={handleModelChange}>
-                <SelectTrigger className="h-8 text-sm border-0 bg-transparent hover:bg-muted/50 px-2 gap-1 w-auto">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {allowedModels.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {getModelDisplayName(model as ModelOption)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
       </div>
     </div>

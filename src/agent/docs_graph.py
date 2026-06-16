@@ -9,7 +9,7 @@ from langsmith import Client
 from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
-    configurable_model,
+    default_model,
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
@@ -107,7 +107,7 @@ docs_agent_middleware = [
 ]
 
 docs_agent = create_agent(
-    model=configurable_model,
+    model=default_model,
     tools=docs_agent_tools,
     system_prompt=docs_agent_prompt,
     middleware=docs_agent_middleware,

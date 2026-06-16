@@ -12,15 +12,12 @@ import httpx
 from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
 
-from src.agent.config import DEFAULT_MODEL, MODELS, PUBLIC_MODEL_IDS
 from src.utils.prompt_provenance import get_prompt_provenance
 
 auth = Auth()
 
 MAX_RECURSION_LIMIT = 100
 MAX_MESSAGE_CHARS = 50_000
-IMAGE_UNSUPPORTED_MODEL_IDS = {MODELS["glm-5"].id}
-UNSUPPORTED_IMAGE_MODEL_MESSAGE = "Selected model does not support image uploads"
 GUEST_TOKEN_PREFIX = "guest."
 AUTH_REGIONS = ("us", "eu", "apac", "aws")
 RATE_LIMIT_MAX_REQUESTS = int(os.getenv("BACKEND_RATE_LIMIT_MAX_REQUESTS", "20"))
@@ -391,13 +388,10 @@ async def enrich_run_metadata(
     if graph_id:
         for key, val in get_prompt_provenance(graph_id).items():
             metadata.setdefault(key, val)
-    input_has_image = validate_inputs(
+    validate_inputs(
         value["kwargs"].get("input"), value["kwargs"].get("command")
     )
-    validate_config(
-        value["kwargs"].get("config") or value.get("config"),
-        input_has_image=input_has_image,
-    )
+    validate_config(value["kwargs"].get("config") or value.get("config"))
     if is_studio_user(ctx.user):
         return {}
 
@@ -545,7 +539,7 @@ def content_has_image(content) -> bool:
     return False
 
 
-def validate_config(config: dict | None, *, input_has_image: bool = False):
+def validate_config(config: dict | None):
     """Validate user-controlled run config before it reaches the graph."""
     if not config:
         return
@@ -562,24 +556,8 @@ def validate_config(config: dict | None, *, input_has_image: bool = False):
             422, f"Unrecognized configurable input: {type(configurable)}"
         )
 
-    requested_model = configurable.get("model")
-    if requested_model is None:
-        return
-    if not isinstance(requested_model, str):
-        raise Auth.exceptions.HTTPException(
-            422, f"Unrecognized model input: {type(requested_model)}"
-        )
-
-    if requested_model == DEFAULT_MODEL.id:
-        return
-
-    if requested_model not in PUBLIC_MODEL_IDS:
-        raise Auth.exceptions.HTTPException(
-            422, f"Model is not allowed: {requested_model}"
-        )
-
-    if input_has_image and requested_model in IMAGE_UNSUPPORTED_MODEL_IDS:
-        raise Auth.exceptions.HTTPException(422, UNSUPPORTED_IMAGE_MODEL_MESSAGE)
+    configurable.pop("model", None)
+    configurable.pop("model_provider", None)
 
 
 def cap_recursion_limit(config: dict):

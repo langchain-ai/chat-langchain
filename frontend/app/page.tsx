@@ -14,25 +14,13 @@ import {
 } from "@/lib/hooks/threads/guest-thread-storage"
 import { useLangGraphAuth, useClientProfile } from "@/lib/hooks/auth"
 import { resolveClientProfile } from "@/lib/config/client-config"
-import type { AgentConfig } from "@/components/layout/agent-settings"
 import { generateQuickTitle, generateThreadTitle } from "@/lib/utils/string"
-import {
-  getAllowedModels,
-  getAllowedAgents,
-  getDefaultModel,
-  getDefaultAgent,
-  CONFIG_STORAGE,
-  type ModelOption,
-  type AgentType,
-} from "@/lib/config/deployment-config"
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 
 function DashboardContent() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showToolCalls, setShowToolCalls] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
-  const [showSettingsDialog, setShowSettingsDialog] = useState(false)
-  const [forceShowTooltip, setForceShowTooltip] = useState(0)
 
   // Track newly created threads that haven't been initialized in backend yet
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
@@ -64,40 +52,6 @@ function DashboardContent() {
     typeof window === "undefined" ? [] : getStoredGuestThreadIds()
   )
   const previousUserIdRef = useRef<string | null>(null)
-
-  // Load agent config from localStorage on mount
-  const [agentConfig, setAgentConfig] = useState<AgentConfig>(() => {
-    if (typeof window !== 'undefined') {
-      // Check config version - reset if outdated
-      const savedVersion = localStorage.getItem(CONFIG_STORAGE.versionKey)
-      if (savedVersion !== CONFIG_STORAGE.version) {
-        // Version mismatch - clear old config and set new version
-        localStorage.removeItem(CONFIG_STORAGE.key)
-        localStorage.setItem(CONFIG_STORAGE.versionKey, CONFIG_STORAGE.version)
-        console.log(`Config version updated to ${CONFIG_STORAGE.version}, resetting to defaults`)
-      } else {
-        const saved = localStorage.getItem(CONFIG_STORAGE.key)
-        if (saved) {
-          try {
-            return JSON.parse(saved)
-          } catch (e) {
-            console.error('Failed to parse saved agent config:', e)
-          }
-        }
-      }
-    }
-    // Default config
-    return {
-      model: getDefaultModel(),
-      recursionLimit: 100,
-      agentType: getDefaultAgent(),
-    }
-  })
-
-  // Save agent config to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem(CONFIG_STORAGE.key, JSON.stringify(agentConfig))
-  }, [agentConfig])
 
   // Load threads from LangGraph backend
   const {
@@ -442,30 +396,6 @@ function DashboardContent() {
     userId,
   ])
 
-  // Cycle to next model
-  const handleCycleModel = () => {
-    const models = getAllowedModels()
-    const currentIndex = models.indexOf(agentConfig.model as ModelOption)
-    const nextIndex = (currentIndex + 1) % models.length
-    const nextModel = models[nextIndex]
-    setAgentConfig({ ...agentConfig, model: nextModel })
-
-    // Trigger the existing tooltip to show
-    setForceShowTooltip(prev => prev + 1)
-  }
-
-  // Cycle to next agent
-  const handleCycleAgent = () => {
-    const agents = getAllowedAgents()
-    const currentIndex = agents.indexOf(agentConfig.agentType as AgentType)
-    const nextIndex = (currentIndex + 1) % agents.length
-    const nextAgent = agents[nextIndex]
-    setAgentConfig({ ...agentConfig, agentType: nextAgent })
-
-    // Trigger the existing tooltip to show
-    setForceShowTooltip(prev => prev + 1)
-  }
-
   // Keyboard shortcuts
   useKeyboardShortcuts([
     {
@@ -495,33 +425,6 @@ function DashboardContent() {
       },
       handler: handleNewChat,
     },
-    {
-      shortcut: {
-        key: 's',
-        metaKey: true,
-        description: 'Toggle settings',
-        category: 'Navigation',
-      },
-      handler: () => setShowSettingsDialog(!showSettingsDialog),
-    },
-    {
-      shortcut: {
-        key: 'j',
-        metaKey: true,
-        description: 'Switch model',
-        category: 'Model & Agent',
-      },
-      handler: handleCycleModel,
-    },
-    {
-      shortcut: {
-        key: 'k',
-        metaKey: true,
-        description: 'Switch agent',
-        category: 'Model & Agent',
-      },
-      handler: handleCycleAgent,
-    },
   ])
 
   return (
@@ -542,15 +445,7 @@ function DashboardContent() {
         />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header
-          showToolCalls={showToolCalls}
-          onToggleToolCalls={() => setShowToolCalls(!showToolCalls)}
           onNewChat={handleNewChat}
-          agentConfig={agentConfig}
-          onAgentConfigChange={setAgentConfig}
-          onShowShortcuts={() => setShowShortcutsDialog(true)}
-          forceShowTooltip={forceShowTooltip}
-          showSettingsDialog={showSettingsDialog}
-          onSettingsDialogChange={setShowSettingsDialog}
         />
         {threadId && (
           <ChatInterface
@@ -562,8 +457,6 @@ function DashboardContent() {
             authRegion={authRegion}
             onThreadUpdate={handleThreadUpdate}
             onThreadNotFound={handleThreadNotFound}
-            agentConfig={agentConfig}
-            onAgentConfigChange={setAgentConfig}
             isNewThread={newThreads.has(threadId)}
             initialMessage={initialPrompt}
             autoSend={!!initialPrompt}

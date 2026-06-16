@@ -36,8 +36,7 @@ class ModelConfig:
     description: str | None = None
 
 
-# All backend-supported models. This intentionally mirrors the frontend's
-# selectable model IDs plus Jewel's guardrails/fallback models.
+# Backend-supported models.
 MODELS: dict[str, ModelConfig] = {
     # Anthropic
     "claude-haiku-4.5": ModelConfig(
@@ -55,21 +54,7 @@ MODELS: dict[str, ModelConfig] = {
         api_key_env="OPENAI_API_KEY",
         description="Cheapest GPT-5.4-class model for simple high-volume tasks",
     ),
-    "gpt-5.4-mini": ModelConfig(
-        id="openai:gpt-5.4-mini",
-        name="GPT-5.4 Mini",
-        provider="openai",
-        api_key_env="OPENAI_API_KEY",
-        description="Strongest mini model for coding, computer use, and subagents",
-    ),
     # Google
-    "gemini-2.5-flash": ModelConfig(
-        id="google_genai:gemini-2.5-flash",
-        name="Gemini 2.5 Flash",
-        provider="google",
-        api_key_env="GOOGLE_API_KEY",
-        description="Fast and capable Google model",
-    ),
     "gemini-3.1-flash-lite": ModelConfig(
         id="google_genai:gemini-3.1-flash-lite",
         name="Gemini 3.1 Flash Lite",
@@ -77,32 +62,15 @@ MODELS: dict[str, ModelConfig] = {
         api_key_env="GOOGLE_API_KEY",
         description="Fastest, most cost-effective Gemini",
     ),
-    # Baseten
-    "glm-5": ModelConfig(
-        id="baseten:zai-org/GLM-5",
-        name="GLM 5",
-        provider="baseten",
-        api_key_env="BASETEN_API_KEY",
-        description="Z.ai GLM 5 served via Baseten",
-    ),
 }
 
 # Default models for different use cases
 DEFAULT_MODEL = MODELS["gemini-3.1-flash-lite"]
 GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
 
-# Models public API callers are allowed to select. This mirrors the frontend
-# deployment allowlist; backend-only guardrails/fallback models stay excluded.
-PUBLIC_MODEL_KEYS = [
-    "gpt-5.4-mini",
-    "gemini-3.1-flash-lite",
-    "glm-5",
-]
-PUBLIC_MODEL_IDS = {MODELS[key].id for key in PUBLIC_MODEL_KEYS}
-
 # Fallback chain (in order of preference)
 FALLBACK_MODELS = [
-    MODELS["gemini-2.5-flash"],
+    MODELS["gpt-5.4-nano"],
     MODELS["claude-haiku-4.5"],
 ]
 
@@ -114,7 +82,6 @@ API_KEYS = [
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "GOOGLE_API_KEY",
-    "BASETEN_API_KEY",
 ]
 
 for key in API_KEYS:
@@ -130,11 +97,8 @@ for key in API_KEYS:
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
-# Primary configurable model (can be switched at runtime)
-configurable_model = init_chat_model(
-    model=DEFAULT_MODEL.id,
-    configurable_fields=("model",),
-)
+# Primary model. Public callers cannot switch this at runtime.
+default_model = init_chat_model(model=DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -181,11 +145,9 @@ __all__ = [
     "DEFAULT_MODEL",
     "GUARDRAILS_MODEL",
     "FALLBACK_MODELS",
-    "PUBLIC_MODEL_IDS",
-    "PUBLIC_MODEL_KEYS",
     "ModelConfig",
-    # Configurable models
-    "configurable_model",
+    # Models
+    "default_model",
     "init_retry_fallback_model",
     "summarization_model",
     # Middleware
