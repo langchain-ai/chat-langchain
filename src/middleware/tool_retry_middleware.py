@@ -17,6 +17,10 @@ NO_RESULTS_MARKERS = (
     "no result found",
 )
 
+# Sentinel content some dynamically-bound tools leak on error; left as-is the
+# LLM reads "nothing" as a successful empty result and fabricates confirmations.
+EMPTY_ERROR_CONTENT_MARKERS = ("", "nothing", "none", "null")
+
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 RETRYABLE_ERROR_MARKERS = (
@@ -94,12 +98,33 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         self,
         request: ToolCallRequest,
         content: str,
+        status: str = "success",
     ) -> ToolMessage:
         return ToolMessage(
             content=content,
             name=self._tool_name(request),
             tool_call_id=self._tool_call_id(request),
+            status=status,
         )
+
+    def _normalize_error_message(self, message: ToolMessage) -> ToolMessage:
+        """Rewrite ambiguous error ToolMessages so the LLM cannot read them as success."""
+        if getattr(message, "status", None) != "error":
+            return message
+
+        content = message.content
+        text = content if isinstance(content, str) else ""
+        stripped = text.strip().lower()
+        tool_name = getattr(message, "name", None) or "tool"
+
+        if stripped in EMPTY_ERROR_CONTENT_MARKERS:
+            message.content = (
+                f"[TOOL ERROR] {tool_name} failed: no error detail returned "
+                "\u2014 the action did NOT complete."
+            )
+        elif not stripped.startswith("[tool error]"):
+            message.content = f"[TOOL ERROR] {text}"
+        return message
 
     def _final_error_content(
         self,
@@ -117,7 +142,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
             ),
             "details": self._error_text(error)[:160],
         }
-        return json.dumps(payload)
+        return f"[TOOL ERROR] {json.dumps(payload)}"
 
     async def awrap_tool_call(
         self,
@@ -128,7 +153,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await handler(request)
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
@@ -165,11 +190,20 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                 return self._tool_message(
                     request,
                     self._final_error_content(request, error),
+                    status="error",
                 )
+            else:
+                if isinstance(result, ToolMessage):
+                    return self._normalize_error_message(result)
+                return result
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request,
+            self._final_error_content(request, last_error),
+            status="error",
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]
