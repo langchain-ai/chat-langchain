@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { LogOut } from "lucide-react"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
-import { AgentSettings, type AgentConfig } from "./agent-settings"
 import { AuthModal } from "@/components/auth/AuthModal"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -20,18 +19,10 @@ import { useAuth } from "@/lib/auth"
 const AUTH_MODAL_DISMISSED_KEY = "chat-langchain-auth-modal-dismissed"
 
 interface HeaderProps {
-  showToolCalls?: boolean
-  onToggleToolCalls?: () => void
   onNewChat?: () => void
-  agentConfig?: AgentConfig
-  onAgentConfigChange?: (config: AgentConfig) => void
-  onShowShortcuts?: () => void
-  forceShowTooltip?: number
-  showSettingsDialog?: boolean
-  onSettingsDialogChange?: (open: boolean) => void
 }
 
-export function Header({ showToolCalls = false, onToggleToolCalls, onNewChat, agentConfig, onAgentConfigChange, onShowShortcuts, forceShowTooltip, showSettingsDialog, onSettingsDialogChange }: HeaderProps) {
+export function Header({ onNewChat }: HeaderProps) {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const { user, loading, signOut } = useAuth()
@@ -94,16 +85,6 @@ export function Header({ showToolCalls = false, onToggleToolCalls, onNewChat, ag
           </div>
 
           <div className="flex items-center gap-3">
-            {agentConfig && onAgentConfigChange && (
-              <AgentSettings
-                config={agentConfig}
-                onConfigChange={onAgentConfigChange}
-                onShowShortcuts={onShowShortcuts}
-                forceShowTooltip={forceShowTooltip}
-                open={showSettingsDialog}
-                onOpenChange={onSettingsDialogChange}
-              />
-            )}
             {!loading && !user && (
               <button
                 type="button"

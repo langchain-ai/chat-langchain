@@ -161,26 +161,6 @@ export const useAvailableShortcuts = (): Record<string, KeyboardShortcut[]> => {
       description: 'Create new chat',
       category: 'Navigation',
     },
-    {
-      key: 's',
-      metaKey: true,
-      description: 'Toggle settings',
-      category: 'Navigation',
-    },
-
-    // Model & Agent
-    {
-      key: 'j',
-      metaKey: true,
-      description: 'Cycle to next model',
-      category: 'Model & Agent',
-    },
-    {
-      key: 'k',
-      metaKey: true,
-      description: 'Cycle to next agent',
-      category: 'Model & Agent',
-    },
   ]
 
   // Group by category

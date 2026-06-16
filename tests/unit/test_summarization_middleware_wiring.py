@@ -7,6 +7,11 @@ from src.prompts.context_summary_prompt import context_summary_prompt
 
 def test_summarization_middleware_uses_retrying_fallback_model():
     """Summarization should use the default model plus shared retry/fallback policy."""
+    assert [model.id for model in config.FALLBACK_MODELS] == [
+        "openai:gpt-5.4-nano",
+        "anthropic:claude-haiku-4-5-20251001",
+    ]
+
     middleware = CustomSummarizationMiddleware(
         model=config.DEFAULT_MODEL.id,
         summary_model=config.summarization_model,

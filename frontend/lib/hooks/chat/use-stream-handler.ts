@@ -35,9 +35,7 @@ import {
   ensureMessageExists,
   updateMessageInList,
 } from "../../utils/chat"
-import type { AgentConfig } from "@/components/layout/agent-settings"
 import { shareRun, readRun } from "../../api/langsmith"
-import { getModelProvider, getDefaultModel, type ModelOption } from "../../config/deployment-config"
 
 // ============================================================================
 // Constants
@@ -114,7 +112,6 @@ interface UseStreamHandlerProps {
   client: Client | null
   threadId: string
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
-  agentConfig?: AgentConfig
   shouldInterruptRef?: React.MutableRefObject<boolean>
   onRunCreated?: (runId: string) => void
   userId?: string | null
@@ -149,7 +146,6 @@ interface UseStreamHandlerReturn {
  * @param client - LangGraph SDK client instance
  * @param threadId - ID of the conversation thread
  * @param setMessages - State setter for messages array
- * @param agentConfig - Optional agent configuration (model, recursion limit, agent type)
  * @param shouldInterruptRef - Optional ref to signal stream interruption
  * @returns Object containing processStream function
  *
@@ -158,8 +154,7 @@ interface UseStreamHandlerReturn {
  * const { processStream } = useStreamHandler({
  *   client: langGraphClient,
  *   threadId: "thread-123",
- *   setMessages: setMessages,
- *   agentConfig: { model: "google_genai:gemini-3.1-flash-lite", agentType: "docs_agent" }
+ *   setMessages: setMessages
  * })
  *
  * await processStream("What is LangChain?", "msg-456")
@@ -169,7 +164,6 @@ export function useStreamHandler({
   client,
   threadId,
   setMessages,
-  agentConfig,
   shouldInterruptRef,
   onRunCreated,
   userId,
@@ -412,17 +406,14 @@ export function useStreamHandler({
         messages: [{ role: "user", content: messageContent }],
       }
 
-      const model = (agentConfig?.model ?? getDefaultModel()) as ModelOption
-      const recursionLimit = agentConfig?.recursionLimit ?? 100
-      const modelProvider = getModelProvider(model)
+      const recursionLimit = 100
 
       let assistantContent = ""
       let assistantToolCalls: ToolCall[] = []
       let runId: string | undefined = undefined
       let hasSeenNewResponse = false
 
-      const agentType = agentConfig?.agentType ?? "docs_agent"
-      const repos = agentConfig?.repos ?? []
+      const agentType = "docs_agent"
 
       // Trace metadata for LangSmith observability
       const traceMetadata = {
@@ -439,11 +430,6 @@ export function useStreamHandler({
           recursion_limit: recursionLimit,
           tags: ["Chat-LangChain", agentType],
           metadata: traceMetadata,
-          configurable: {
-            model: model,
-            model_provider: modelProvider,
-            ...(repos.length > 0 && { repos }),
-          },
         } as any,
         streamMode: ["values", "updates", "messages"],
         streamSubgraphs: true,
@@ -875,7 +861,7 @@ export function useStreamHandler({
     }
 
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, agentConfig, fetchUsageMetadata, generateShareLink, onRunCreated, userId, userEmail, userName])
+  }, [client, threadId, setMessages, fetchUsageMetadata, generateShareLink, onRunCreated, userId, userEmail, userName])
 
   return { processStream }
 }
