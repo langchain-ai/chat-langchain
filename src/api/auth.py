@@ -13,6 +13,17 @@ from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
 
 from src.utils.prompt_provenance import get_prompt_provenance
+from src.utils.trace_metadata import build_trace_metadata
+
+
+def _deployment_environment() -> str | None:
+    """Return the trace `environment` tag from deployment env vars."""
+    env = (
+        os.getenv("LANGSMITH_ENV")
+        or os.getenv("LANGSMITH_HOST_PROJECT_NAME")
+        or os.getenv("ENVIRONMENT")
+    )
+    return env or None
 
 auth = Auth()
 
@@ -385,8 +396,10 @@ async def enrich_run_metadata(
     metadata.setdefault("source_type", "Chat-LangChain")
 
     graph_id = metadata.get("graph_id") or value.get("assistant_id")
+    provenance: dict[str, str] = {}
     if graph_id:
-        for key, val in get_prompt_provenance(graph_id).items():
+        provenance = get_prompt_provenance(graph_id)
+        for key, val in provenance.items():
             metadata.setdefault(key, val)
     validate_inputs(
         value["kwargs"].get("input"), value["kwargs"].get("command")
@@ -402,6 +415,21 @@ async def enrich_run_metadata(
     _check_rate_limit_for_ip(client_ip if isinstance(client_ip, str) else "unknown")
 
     metadata["user_id"] = user_id
+
+    thread_id = value.get("thread_id")
+    trace_metadata = build_trace_metadata(
+        user_id=user_id,
+        source_type=metadata["source_type"],
+        thread_id=str(thread_id) if thread_id is not None else None,
+        environment=_deployment_environment(),
+        graph_id=str(graph_id) if graph_id is not None else None,
+        prompt_source=provenance.get("prompt_source"),
+        prompt_commit=provenance.get("prompt_commit"),
+        guardrails_prompt_source=provenance.get("guardrails_prompt_source"),
+        guardrails_prompt_commit=provenance.get("guardrails_prompt_commit"),
+    )
+    for key, val in trace_metadata.items():
+        metadata.setdefault(key, val)
     return {"user_id": user_id}
 
 

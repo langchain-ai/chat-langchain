@@ -29,6 +29,10 @@ def build_trace_metadata(
     # Source context
     source_type: SourceType = "Chat-LangChain",
     channel_id: str | None = None,
+    # Thread context
+    thread_id: str | None = None,
+    # Deployment context
+    environment: str | None = None,
     # Ticket context (Pylon)
     ticket_id: str | None = None,
     ticket_number: str | int | None = None,
@@ -41,6 +45,9 @@ def build_trace_metadata(
     prompt_source: str | None = None,
     # Prompt Hub commit hash (None when using local fallback)
     prompt_commit: str | None = None,
+    # Guardrails prompt provenance
+    guardrails_prompt_source: str | None = None,
+    guardrails_prompt_commit: str | None = None,
     # Additional fields
     **extra,
 ) -> dict:
@@ -52,6 +59,8 @@ def build_trace_metadata(
         "user_name": user_name,
         "user_org": user_org,
         "channel_id": channel_id,
+        "thread_id": thread_id,
+        "environment": environment,
         "ticket_id": ticket_id,
         "ticket_number": str(ticket_number) if ticket_number is not None else None,
         "ticket_priority": ticket_priority,
@@ -60,6 +69,8 @@ def build_trace_metadata(
         "graph_id": graph_id,
         "prompt_source": prompt_source,
         "prompt_commit": prompt_commit,
+        "guardrails_prompt_source": guardrails_prompt_source,
+        "guardrails_prompt_commit": guardrails_prompt_commit,
     }
 
     for key, value in optional.items():
