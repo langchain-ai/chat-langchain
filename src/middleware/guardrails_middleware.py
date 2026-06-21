@@ -389,6 +389,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ):
             return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
 
+        # Truncate query for classification to avoid exceeding model token limits.
+        # Without this, inputs >1M tokens cause the guardrails LLM call to fail
+        # with INVALID_ARGUMENT, and the except block below returns None (fail-open).
+        _MAX_QUERY_CHARS_FOR_CLASSIFICATION = 10_000
+        if len(current_query) > _MAX_QUERY_CHARS_FOR_CLASSIFICATION:
+            current_query = current_query[:_MAX_QUERY_CHARS_FOR_CLASSIFICATION]
+
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
         for msg in reversed(messages[:-1]):  # Exclude current message
