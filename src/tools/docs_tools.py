@@ -206,10 +206,29 @@ def _track_docs_for_langsmith(urls: list[str]) -> None:
         pass
 
 
-def _format_search_results(results: list[dict[str, Any]]) -> str:
+def _format_search_results(
+    results: list[dict[str, Any]],
+    language: str = DEFAULT_LANGUAGE,
+) -> str:
     """Format search results into readable text."""
     if not results:
         return "No results found."
+
+    # Mintlify falls back to other-language pages when the requested language
+    # has no coverage for a topic, instead of returning empty. Drop those here
+    # so the agent never sees a cross-language URL it might cite or transpose.
+    if language in ("python", "javascript"):
+        wrong = "/oss/javascript/" if language == "python" else "/oss/python/"
+        results = [
+            r for r in results
+            if wrong not in (r.get("link") or r.get("path") or "")
+        ]
+        if not results:
+            return (
+                f"No {language}-language documentation found for this query. "
+                f"The Mintlify index may not yet have a {language} page for this topic — "
+                f"try a more specific query, or tell the user the topic is not yet documented in {language}."
+            )
 
     formatted = []
     urls = []
@@ -266,7 +285,7 @@ def _search_docs_api(
             raise ValueError(f"Mintlify API error: {error}")
         data = []
 
-    return _format_search_results(data)
+    return _format_search_results(data, language=language or DEFAULT_LANGUAGE)
 
 
 @tool
