@@ -2,10 +2,13 @@
 # Tools:
 #   - SearchDocsByLangChain
 
+import asyncio
 import json
 import logging
 import os
+import threading
 import time
+import weakref
 from typing import Any
 
 import requests
@@ -43,6 +46,39 @@ ABBREVIATIONS = {
 }
 
 _cache = RedisCache(ttl_seconds=CACHE_TTL_SECONDS, max_entries=CACHE_MAX_ENTRIES)
+
+# Per-invocation deduplication: tracks (normalized_query|page_size|language) tuples already
+# searched within the current agent invocation.
+#
+# Design: use asyncio.current_task() as the key in a WeakKeyDictionary so that state is
+# automatically released when the task completes. When running outside an async context
+# (sync unit tests, WSGI, etc.) fall back to a threading.local store that callers can
+# reset between invocations.
+#
+# Using asyncio.Task objects as keys is safe because:
+# - Each new agent .invoke() / .astream() call runs inside a distinct Task.
+# - Tasks are alive for the entire duration of the call, so the WeakKeyDictionary
+#   entry persists for exactly as long as the invocation.
+# - copy_context() calls (used internally by LangChain) do NOT create new Tasks, so
+#   all tool executions within one agent turn share the same task → same dedup set.
+_task_searched: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_thread_searched: threading.local = threading.local()
+
+
+def _get_searched_set() -> set:
+    """Return the set of already-searched keys for the current invocation context."""
+    try:
+        task = asyncio.current_task()
+        if task is not None:
+            if task not in _task_searched:
+                _task_searched[task] = set()
+            return _task_searched[task]
+    except RuntimeError:
+        pass
+    # Sync fallback (no running event loop)
+    if not hasattr(_thread_searched, "keys"):
+        _thread_searched.keys = set()
+    return _thread_searched.keys
 
 
 def _normalize_query(query: str) -> str:
@@ -288,6 +324,20 @@ def SearchDocsByLangChain(
         Formatted results with title, link, and content for each match.
     """
     page_size = max(1, min(page_size, MAX_PAGE_SIZE))
+
+    # Code-level deduplication: if this (query, page_size, language) combo has already
+    # been searched in the current agent invocation, return an "already retrieved" message
+    # instead of hitting the API or cache again.
+    normalized = _normalize_query(query)
+    dedup_key = f"{normalized}|{page_size}|{language}"
+    searched = _get_searched_set()
+    if dedup_key in searched:
+        logger.debug(f"Dedup: skipping already-searched query '{query}'")
+        return (
+            f"[Already retrieved] Results for '{query}' are already in your "
+            "conversation context — use them instead of re-searching."
+        )
+    searched.add(dedup_key)
 
     cached = _get_from_cache_fuzzy(query, page_size, language)
     if cached is not None:
