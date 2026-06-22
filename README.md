@@ -1,3 +1,4 @@
+<!-- Chat LangChain: a documentation assistant built with LangGraph. -->
 # Chat LangChain
 
 > A simple documentation assistant built with LangGraph.
