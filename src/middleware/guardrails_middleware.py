@@ -179,7 +179,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 self.llm.ainvoke(prompt),
                 timeout=GUARDRAILS_TIMEOUT_SECONDS,
             )
-            return AIMessage(content=response.content)
+            return AIMessage(id=response.id, content=response.content)
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")
             return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
