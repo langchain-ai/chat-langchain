@@ -1,5 +1,8 @@
 """Custom middleware for LangChain agents."""
 
+from src.middleware.credential_redaction_middleware import (
+    CredentialRedactionMiddleware,
+)
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.retry_middleware import ModelRetryMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
@@ -10,4 +13,5 @@ __all__ = [
     "CustomSummarizationMiddleware",
     "ToolRetryMiddleware",
     "GuardrailsMiddleware",
+    "CredentialRedactionMiddleware",
 ]

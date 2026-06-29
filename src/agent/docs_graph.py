@@ -15,6 +15,9 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.credential_redaction_middleware import (
+    CredentialRedactionMiddleware,
+)
 from src.middleware.guardrails_middleware import (
     GuardrailsMiddleware,
     guardrails_prompt_commit,
@@ -70,6 +73,10 @@ else:
         prompt_commit = None
         prompt_source = "local:src/prompts/docs_agent_prompt.py"
 
+# Credential redaction runs before guardrails so the classifier never sees raw secrets.
+credential_redaction_middleware = CredentialRedactionMiddleware()
+logger.info("Credential redaction middleware enabled (input-side)")
+
 # Guardrails middleware ensures users only ask LangChain-related questions
 guardrails_middleware = GuardrailsMiddleware(
     model=GUARDRAILS_MODEL.id,
@@ -99,6 +106,7 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
+    credential_redaction_middleware,
     guardrails_middleware,
     context_summary_middleware,
     tool_retry_middleware,
