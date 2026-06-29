@@ -15,6 +15,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.graceful_error_middleware import GracefulErrorMiddleware
 from src.middleware.guardrails_middleware import (
     GuardrailsMiddleware,
     guardrails_prompt_commit,
@@ -98,7 +99,13 @@ docs_agent_tools = [
     check_links,
 ]
 
+graceful_error_middleware = GracefulErrorMiddleware()
+
+# GracefulErrorMiddleware is first so it composes as the outermost layer and
+# can convert exceptions raised by any inner middleware (retry, fallback, etc.)
+# into a user-visible AIMessage instead of an empty assistant turn.
 docs_agent_middleware = [
+    graceful_error_middleware,
     guardrails_middleware,
     context_summary_middleware,
     tool_retry_middleware,
@@ -111,7 +118,7 @@ docs_agent = create_agent(
     tools=docs_agent_tools,
     system_prompt=docs_agent_prompt,
     middleware=docs_agent_middleware,
-)
+).with_config({"recursion_limit": 40})
 
 _prompt_metadata: dict[str, str] = {
     "prompt_source": prompt_source,
