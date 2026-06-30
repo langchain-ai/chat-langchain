@@ -354,6 +354,10 @@ export function useStreamHandler({
           const isImage = file.mimeType?.startsWith('image/')
 
           if (isImage) {
+            if (!file.base64) {
+              console.warn(`Skipping image ${file.name}: empty base64 payload`)
+              continue
+            }
             // Image files: send as base64 image_url
             contentBlocks.push({
               type: "image_url",
