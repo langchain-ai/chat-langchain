@@ -97,8 +97,18 @@ for key in API_KEYS:
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
+
+def _langsmith_model_metadata(model: str) -> dict[str, str]:
+    provider, separator, model_name = model.partition(":")
+    if not separator:
+        return {"ls_model_name": model}
+    return {"ls_provider": provider, "ls_model_name": model_name}
+
+
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(model=DEFAULT_MODEL.id).with_config(
+    metadata=_langsmith_model_metadata(DEFAULT_MODEL.id)
+)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -111,15 +121,20 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 
 def _init_retrying_model(model: str) -> Runnable:
+    model_runnable = init_chat_model(model=model).with_config(
+        metadata=_langsmith_model_metadata(model)
+    )
     return (
-        init_chat_model(model=model) | RunnableLambda(_raise_for_retryable_finish_reason)
+        model_runnable | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
 
 def init_retry_fallback_model(model: str) -> Runnable:
     """Initialize a model runnable with the shared retry and fallback policy."""
     primary_model = _init_retrying_model(model)
-    fallback_models = [_init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS]
+    fallback_models = [
+        _init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS
+    ]
     return primary_model.with_fallbacks(fallback_models)
 
 

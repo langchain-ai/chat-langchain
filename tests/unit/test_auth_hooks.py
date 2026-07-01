@@ -29,11 +29,13 @@ def test_thread_update_stamps_authenticated_user_id():
     assert value["metadata"]["title"] == "Existing title"
 
 
-def test_create_run_returns_owner_filter_and_run_metadata():
+def test_create_run_returns_owner_filter_and_run_metadata(monkeypatch):
     """Run creation should be scoped to the authenticated thread owner."""
+    monkeypatch.setenv("LANGSMITH_ENV", "dev")
     ctx = SimpleNamespace(user={"identity": "user@example.com"})
     value = {
         "assistant_id": "docs_agent",
+        "thread_id": "thread-123",
         "kwargs": {
             "input": {"messages": [{"role": "user", "content": "hello"}]},
             "config": {},
@@ -44,7 +46,11 @@ def test_create_run_returns_owner_filter_and_run_metadata():
 
     assert filters == {"user_id": "user@example.com"}
     assert value["metadata"]["user_id"] == "user@example.com"
+    assert value["metadata"]["thread_id"] == "thread-123"
+    assert value["metadata"]["environment"] == "dev"
     assert value["metadata"]["source_type"] == "Chat-LangChain"
+    assert value["metadata"]["agent_name"] == "docs_agent"
+    assert value["metadata"]["workflow_name"] == "docs_agent"
 
 
 def test_legacy_auth_allows_polly_ids(monkeypatch):

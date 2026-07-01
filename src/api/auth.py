@@ -23,6 +23,8 @@ AUTH_REGIONS = ("us", "eu", "apac", "aws")
 RATE_LIMIT_MAX_REQUESTS = int(os.getenv("BACKEND_RATE_LIMIT_MAX_REQUESTS", "20"))
 RATE_LIMIT_WINDOW_SECONDS = float(os.getenv("BACKEND_RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_EVICTION_INTERVAL_SECONDS = 5 * 60
+DOCS_AGENT_ID = "docs_agent"
+DOCS_AGENT_ASSISTANT_UUID = "bd5caeca-2e94-56a2-abb7-20aa1c78d5c8"
 _rate_limit_entries: dict[str, list[float]] = {}
 _last_rate_limit_eviction = 0.0
 
@@ -70,6 +72,25 @@ def _get_client_ip(headers: dict) -> str:
     return "unknown"
 
 
+def _runtime_environment() -> str:
+    return (
+        os.getenv("LANGSMITH_ENV")
+        or os.getenv("LANGSMITH_DEPLOYMENT_ENV")
+        or os.getenv("ENVIRONMENT")
+        or os.getenv("ENV")
+        or "production"
+    )
+
+
+def _run_thread_id(value: dict, config: dict | None) -> str | None:
+    thread_id = value.get("thread_id") or value.get("threadId")
+    if not thread_id and isinstance(config, dict):
+        configurable = config.get("configurable") or {}
+        if isinstance(configurable, dict):
+            thread_id = configurable.get("thread_id") or configurable.get("threadId")
+    return str(thread_id) if thread_id else None
+
+
 def _evict_stale_rate_limit_entries(now: float) -> None:
     global _last_rate_limit_eviction
     if now - _last_rate_limit_eviction < RATE_LIMIT_EVICTION_INTERVAL_SECONDS:
@@ -100,9 +121,7 @@ def _check_rate_limit_for_ip(ip: str, now: float | None = None) -> None:
 
     if len(timestamps) >= RATE_LIMIT_MAX_REQUESTS:
         _rate_limit_entries[ip] = timestamps
-        raise Auth.exceptions.HTTPException(
-            status_code=429, detail="Too many requests"
-        )
+        raise Auth.exceptions.HTTPException(status_code=429, detail="Too many requests")
 
     timestamps.append(now)
     _rate_limit_entries[ip] = timestamps
@@ -367,15 +386,21 @@ async def enrich_run_metadata(
     """Inject public Chat LangChain metadata into the root run."""
     metadata = value.setdefault("metadata", {})
     if (
-        value["assistant_id"] != "docs_agent"
-        and str(value["assistant_id"]) != "bd5caeca-2e94-56a2-abb7-20aa1c78d5c8"
+        value["assistant_id"] != DOCS_AGENT_ID
+        and str(value["assistant_id"]) != DOCS_AGENT_ASSISTANT_UUID
     ):
         raise Auth.exceptions.HTTPException(
             403,
-            f"Only docs_agent runs are allowed to set source_type. Got {value['assistant_id']}",
+            "Only docs_agent runs are allowed to set source_type. "
+            f"Got {value['assistant_id']}",
         )
 
     config = value["kwargs"].get("config") or value.get("config") or {}
+    if thread_id := _run_thread_id(value, config):
+        metadata.setdefault("thread_id", thread_id)
+    metadata.setdefault("environment", _runtime_environment())
+    metadata.setdefault("agent_name", DOCS_AGENT_ID)
+    metadata.setdefault("workflow_name", DOCS_AGENT_ID)
     config_metadata = config.get("metadata") if isinstance(config, dict) else None
     if isinstance(config_metadata, dict):
         config_source_type = config_metadata.get("source_type")
@@ -388,9 +413,7 @@ async def enrich_run_metadata(
     if graph_id:
         for key, val in get_prompt_provenance(graph_id).items():
             metadata.setdefault(key, val)
-    validate_inputs(
-        value["kwargs"].get("input"), value["kwargs"].get("command")
-    )
+    validate_inputs(value["kwargs"].get("input"), value["kwargs"].get("command"))
     validate_config(value["kwargs"].get("config") or value.get("config"))
     if is_studio_user(ctx.user):
         return {}
@@ -436,9 +459,7 @@ def validate_inputs(input: dict | None, command: dict | None) -> bool:
     if input is None:
         raise Auth.exceptions.HTTPException(422, "Input is required")
     if not isinstance(input, dict):
-        raise Auth.exceptions.HTTPException(
-            422, f"Unrecognized input: {type(input)}"
-        )
+        raise Auth.exceptions.HTTPException(422, f"Unrecognized input: {type(input)}")
     if not input:
         raise Auth.exceptions.HTTPException(422, "Input is required")
 
@@ -566,9 +587,7 @@ def cap_recursion_limit(config: dict):
         return
 
     if isinstance(recursion_limit, bool) or not isinstance(recursion_limit, int):
-        raise Auth.exceptions.HTTPException(
-            422, "recursion_limit must be an integer"
-        )
+        raise Auth.exceptions.HTTPException(422, "recursion_limit must be an integer")
 
     if recursion_limit > MAX_RECURSION_LIMIT:
         config["recursion_limit"] = MAX_RECURSION_LIMIT
