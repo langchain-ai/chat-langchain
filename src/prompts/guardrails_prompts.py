@@ -13,6 +13,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - Any terminology that you are not aware of, allow the agent to search the docs since it might be a relevant feature, even if it is unrelated to langchain
 - Anything that could be relevant in the right context, allow the agent to search the docs since it might be a relevant within the langchain ecosystem
 - Any standalone term, or proper noun referring to a specific thing (like in the question: "what is x?") allow the agent to search the docs since "x" might be a relevant concept in the langchain ecosystem
+- Translation requests for langchain docs or requests to explain a concept in a different language (pay attention to whether the user is viewing langchain docs and determine if they are referring to the docs in their request)
 
 ## ALWAYS ALLOW - Core Topics:
 - LangChain, LangGraph, LangSmith, Fleet (features, APIs, concepts, troubleshooting)
@@ -34,6 +35,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - Clarification questions on a previous technical answer
 - Short/vague questions that plausibly relate to the prior technical context
 - Questions with typos in LangChain terminology
+- Any high level / general questions about any of the core topics (like: "what is langchain in one sentence")
 
 ## ALWAYS ALLOW - Technical & Development:
 - API keys, environment variables, configuration
