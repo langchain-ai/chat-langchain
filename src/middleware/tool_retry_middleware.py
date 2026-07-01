@@ -82,6 +82,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         text = self._error_text(error).lower()
         return any(marker in text for marker in NO_RESULTS_MARKERS)
 
+    def _is_invalid_tool_name(self, error: Exception) -> bool:
+        return "is not a valid tool" in self._error_text(error).lower()
+
     def _is_retryable(self, error: Exception) -> bool:
         text = self._error_text(error).lower()
         status_code = self._status_code(error)
@@ -139,6 +142,17 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                         tool_name,
                     )
                     return self._tool_message(request, "No results found.")
+
+                if self._is_invalid_tool_name(error):
+                    logger.warning(
+                        "Model invoked unknown tool %s; returning corrective ToolMessage",
+                        tool_name,
+                    )
+                    return self._tool_message(
+                        request,
+                        self._error_text(error)
+                        + " Do not retry the same invalid name; pick a valid tool from the list above.",
+                    )
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
                     delay = self.initial_delay * (
