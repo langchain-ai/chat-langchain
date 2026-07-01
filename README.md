@@ -1,6 +1,6 @@
 # Chat LangChain
 
-> A simple documentation assistant built with LangGraph.
+> A documentation assistant deployed as a Managed Deep Agent.
 
 [![LangGraph](https://img.shields.io/badge/Built%20with-LangGraph-blue)](https://langchain-ai.github.io/langgraph/)
 [![Python](https://img.shields.io/badge/Python-3.11+-green)](https://python.org)
@@ -10,7 +10,7 @@
 
 This is a documentation assistant agent that helps answer questions about LangChain, LangGraph, and LangSmith. It demonstrates how to build a production-ready agent using:
 
-- **LangGraph** - For agent orchestration and state management
+- **Managed Deep Agents** - For managed deployment and runtime wiring
 - **LangChain Agents** - For agent creation with middleware support
 - **Guardrails** - To keep conversations on-topic
 
@@ -41,7 +41,7 @@ cd chat-langchain
 uv sync
 
 # Or with pip
-pip install -e . "langgraph-cli[inmem]"
+pip install -e .
 ```
 
 ### Configuration
@@ -55,28 +55,26 @@ cp .env.example .env
 
 #### Required Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | Anthropic API key (or use another provider) |
-| `MINTLIFY_API_URL` | Mintlify API base URL for docs search (e.g. `https://api-dsc.mintlify.com/v1/search/docs.langchain.com`) |
-| `MINTLIFY_API_KEY` | Mintlify API key for docs search |
-| `PYLON_API_KEY` | Pylon API key for support KB |
-| `PYLON_KB_ID` | Pylon knowledge base ID for support articles |
-| `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
+| Variable            | Description                                                                                              |
+| ------------------- | -------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | Anthropic API key (or use another provider)                                                              |
+| `MINTLIFY_API_URL`  | Mintlify API base URL for docs search (e.g. `https://api-dsc.mintlify.com/v1/search/docs.langchain.com`) |
+| `MINTLIFY_API_KEY`  | Mintlify API key for docs search                                                                         |
+| `PYLON_API_KEY`     | Pylon API key for support KB                                                                             |
+| `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                                             |
+| `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts                  |
 
 ### Running Locally
 
 #### Backend
 
 ```bash
-# Start LangGraph development server
-uv run langgraph dev
+# Build the Managed Deep Agent bundle
+uv run mda dev .
 
 # Or with pip
-langgraph dev
+mda dev .
 ```
-
-Open LangGraph Studio: <https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024>
 
 #### Frontend
 
@@ -86,14 +84,19 @@ npm ci
 npm run dev:local
 ```
 
-The frontend expects the LangGraph server at `http://127.0.0.1:2024` by default. If you want trace sharing from the UI, set `LANGSMITH_API_KEY` in `frontend/.env.local`.
+The frontend still expects the existing LangGraph-style API shape. Updating it
+to invoke Managed Deep Agents directly is follow-up work.
 
 ## Project Structure
 
 ```txt
+├── agent.py                    # Managed Deep Agent entrypoint
+├── instructions.md             # Managed Deep Agent system prompt
+├── connectors/
+│   └── mcp.py                  # Managed MCP connector declaration
 ├── src/
 │   ├── agent/
-│   │   ├── docs_graph.py      # Main docs agent
+│   │   ├── docs_graph.py      # Legacy LangGraph agent module retained for now
 │   │   └── config.py          # Model configuration
 │   ├── tools/
 │   │   ├── docs_tools.py      # Documentation search
@@ -105,7 +108,6 @@ The frontend expects the LangGraph server at `http://127.0.0.1:2024` by default.
 │       ├── guardrails_middleware.py
 │       └── retry_middleware.py
 ├── frontend/                  # Next.js public chat UI
-├── langgraph.json             # LangGraph configuration
 └── pyproject.toml             # Python project config
 ```
 
@@ -121,12 +123,22 @@ The agent uses a docs-first research strategy:
 
 ## Deployment
 
-### LangGraph Cloud
+### Managed Deep Agents
 
-1. Push to GitHub
-2. Connect repository in [LangSmith](https://smith.langchain.com/)
-3. Configure environment variables
-4. Deploy
+```bash
+mda deploy .
+```
+
+Known follow-up work before fully replacing the previous LangGraph Deployment:
+
+- Custom `auth` from the removed `langgraph.json` is intentionally not wired
+  while Managed Deep Agents identity support is being designed.
+- Custom `http` routes are not part of the managed agent. The frontend still
+  needs replacements for title generation, LangSmith feedback proxying, trace
+  read/share proxying, and cache metrics/admin routes.
+- `image_distro` was deployment-image-specific and is not relevant to Managed
+  Deep Agent users.
+- `checkpointer` is managed by the Managed Deep Agents runtime.
 
 ## Resources
 
