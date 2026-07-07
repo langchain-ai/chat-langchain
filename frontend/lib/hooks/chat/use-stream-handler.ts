@@ -422,7 +422,9 @@ export function useStreamHandler({
       let runId: string | undefined = undefined
       let hasSeenNewResponse = false
 
-      const agentType = "docs_agent"
+      // Managed Deep Agents compiles the project to a single graph named
+      // "agent" (see the generated langgraph.json). This must match that graph id.
+      const agentType = "agent"
 
       // Trace metadata for LangSmith observability
       const traceMetadata = {
