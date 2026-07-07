@@ -21,6 +21,7 @@ expands at request time, so no secret is baked into the build.
 from __future__ import annotations
 
 import os
+from urllib.parse import urlparse
 
 from managed_deepagents import define_identity, providers
 
@@ -35,6 +36,15 @@ _REGION_ENV: dict[str, tuple[str, str]] = {
 }
 
 
+def _supabase_project_ref(base: str) -> str | None:
+    """Extract the Supabase project ref from a standard project URL."""
+    hostname = urlparse(base).hostname
+    suffix = ".supabase.co"
+    if hostname and hostname.endswith(suffix):
+        return hostname[: -len(suffix)]
+    return None
+
+
 def _supabase_regions() -> dict[str, dict[str, str]]:
     """Build the region map from configured env, mirroring the old handler.
 
@@ -45,6 +55,13 @@ def _supabase_regions() -> dict[str, dict[str, str]]:
     for region, (url_env, key_env) in _REGION_ENV.items():
         base = os.environ.get(url_env)
         if base:
+            project_ref = _supabase_project_ref(base)
+            if project_ref:
+                regions[region] = {
+                    "project_ref": project_ref,
+                    "anon_key": "${" + key_env + "}",
+                }
+                continue
             regions[region] = {
                 "url": f"{base.rstrip('/')}/auth/v1/user",
                 "anon_key": "${" + key_env + "}",
@@ -56,13 +73,29 @@ def _providers() -> list[dict]:
     entries: list[dict] = []
     regions = _supabase_regions()
     if regions:
-        entries.append(
-            providers.supabase(
-                introspect=True,
-                region_header="x-supabase-region",
-                regions=regions,
+        # The JWT auth gate matches providers by token issuer. For the common
+        # single-project case, use the project ref so MDA emits issuer + JWKS.
+        if len(regions) == 1:
+            region_config = next(iter(regions.values()))
+            project_ref = region_config.get("project_ref")
+            if project_ref:
+                entries.append(providers.supabase(project_ref=project_ref))
+            else:
+                entries.append(
+                    providers.supabase(
+                        introspect=True,
+                        region_header="x-supabase-region",
+                        regions=regions,
+                    )
+                )
+        else:
+            entries.append(
+                providers.supabase(
+                    introspect=True,
+                    region_header="x-supabase-region",
+                    regions=regions,
+                )
             )
-        )
     # Anonymous visitors: MDA issues + verifies signed guest tokens itself
     # (POST /identity/guest), replacing the frontend guest-token route.
     entries.append(providers.guest(ttl="24h", actor_prefix="guest:"))

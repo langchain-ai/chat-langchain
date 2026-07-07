@@ -17,6 +17,13 @@ import { logger } from "../utils/logger"
 const CAPABILITY_FEEDBACK = "langsmith:chat-feedback"
 const CAPABILITY_TRACE_VIEWER = "langsmith:trace-viewer"
 
+type ThumbFeedback = "positive" | "negative"
+
+const THUMB_FEEDBACK_SCORES: Record<ThumbFeedback, number> = {
+  positive: 1,
+  negative: 0,
+}
+
 export interface LangSmithAuth {
   token: string | null | undefined
   region?: string | null
@@ -86,24 +93,27 @@ async function callCapability<T>(
 export async function createOrUpdateFeedback(
   params: {
     runId: string
-    score: "positive" | "negative"
+    score: ThumbFeedback
     comment?: string
     feedbackId?: string
   },
   auth: LangSmithAuth
 ): Promise<{ id: string }> {
+  const score = THUMB_FEEDBACK_SCORES[params.score]
   const body = params.feedbackId
     ? {
         action: "update",
         feedback_id: params.feedbackId,
-        score: params.score,
+        score,
+        value: params.score,
         comment: params.comment,
       }
     : {
         action: "create",
         run_id: params.runId,
         key: FEEDBACK_KEY,
-        score: params.score,
+        score,
+        value: params.score,
         comment: params.comment,
       }
 

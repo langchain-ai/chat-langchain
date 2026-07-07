@@ -24,7 +24,7 @@ connector = langsmith.connector(
         actions=["create", "update", "delete"],
         scope="run",
         keys=["ux.thumb_vote"],
-        scores=["positive", "negative"],
+        scores=["1", "0"],
         max_comment_chars=2000,
         one_per_actor=True,
     ),
