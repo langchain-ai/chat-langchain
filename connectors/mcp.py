@@ -2,7 +2,7 @@
 
 from managed_deepagents.connectors import define_mcp_servers
 
-mcp = define_mcp_servers(
+connector = define_mcp_servers(
     prefix_tool_name_with_server_name=False,
     mcp_servers={
         "langchain-docs": {

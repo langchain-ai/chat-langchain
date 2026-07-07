@@ -259,6 +259,8 @@ export function ChatInterface({
     userId,
     userEmail,
     userName,
+    authToken,
+    authRegion,
   })
 
   const {
@@ -272,6 +274,8 @@ export function ChatInterface({
   } = useFeedback({
     messages,
     setMessages,
+    authToken,
+    authRegion,
   })
 
   // ============================================================================
@@ -481,7 +485,7 @@ export function ChatInterface({
                 let shareUrl = msg.shareUrl
 
                 if (!msg.usageMetadata) {
-                  const run = await readRun(msg.runId)
+                  const run = await readRun(msg.runId, { token: authToken, region: authRegion })
 
                   if (run) {
                     usageMetadata = {
@@ -501,7 +505,7 @@ export function ChatInterface({
 
                 if (!msg.shareUrl) {
                   try {
-                    shareUrl = await shareRun(msg.runId)
+                    shareUrl = await shareRun(msg.runId, { token: authToken, region: authRegion })
                   } catch {
                     // Share URL might not exist yet, that's ok
                   }

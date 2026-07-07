@@ -1,179 +1,105 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
 
 const COOKIE_NAME = "chat_langchain_guest"
-const TOKEN_PREFIX = "guest"
-const TOKEN_TTL_SECONDS = 60 * 60
-const COOKIE_TTL_SECONDS = 60 * 60 * 24 * 30
-const GUEST_AUTH_MAX_REQUESTS = Number(
-  process.env.GUEST_AUTH_RATE_LIMIT_MAX_REQUESTS ?? 10
-)
-const GUEST_AUTH_WINDOW_MS = Number(
-  process.env.GUEST_AUTH_RATE_LIMIT_WINDOW_MS ?? 60_000
-)
-const GUEST_AUTH_COOLDOWN_MS = Number(
-  process.env.GUEST_AUTH_RATE_LIMIT_COOLDOWN_MS ?? 60_000
-)
+
+// Public docs-agent deployment. Guest issuance is a managed, public route
+// (POST /identity/guest) served by the MDA deployment.
+const DEPLOYMENT_URL =
+  process.env.NEXT_PUBLIC_LANGGRAPH_API_URL ||
+  process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL ||
+  (process.env.NODE_ENV === "development" ? "http://127.0.0.1:2024" : undefined)
 
 export const runtime = "nodejs"
 
-interface RateLimitEntry {
-  timestamps: number[]
-  blockedUntil: number
+interface GuestClaims {
+  sub?: string
+  exp?: number
 }
 
-const rateLimitEntries = new Map<string, RateLimitEntry>()
-
-function getClientIp(request: NextRequest): string {
-  const forwardedFor = request.headers.get("x-forwarded-for")
-  if (forwardedFor) return forwardedFor.split(",")[0]?.trim() || "unknown"
-  return request.headers.get("x-real-ip") || "unknown"
-}
-
-function checkGuestAuthRateLimit(request: NextRequest): NextResponse | null {
-  const now = Date.now()
-  const ip = getClientIp(request)
-  let entry = rateLimitEntries.get(ip)
-
-  if (!entry) {
-    entry = { timestamps: [], blockedUntil: 0 }
-    rateLimitEntries.set(ip, entry)
-  }
-
-  if (entry.blockedUntil > now) {
-    const retryAfter = Math.ceil((entry.blockedUntil - now) / 1000)
-    return rateLimitBlockedResponse(retryAfter)
-  }
-
-  if (entry.blockedUntil > 0) {
-    entry.blockedUntil = 0
-    entry.timestamps = []
-  }
-
-  const cutoff = now - GUEST_AUTH_WINDOW_MS
-  entry.timestamps = entry.timestamps.filter((timestamp) => timestamp > cutoff)
-
-  if (entry.timestamps.length >= GUEST_AUTH_MAX_REQUESTS) {
-    entry.blockedUntil = now + GUEST_AUTH_COOLDOWN_MS
-    return rateLimitBlockedResponse(Math.ceil(GUEST_AUTH_COOLDOWN_MS / 1000))
-  }
-
-  entry.timestamps.push(now)
-  return null
-}
-
-function rateLimitBlockedResponse(retryAfter: number): NextResponse {
-  return NextResponse.json(
-    {
-      error: "Too many requests. Please slow down and try again later.",
-      retry_after: retryAfter,
-    },
-    {
-      status: 429,
-      headers: {
-        "Retry-After": String(retryAfter),
-        "X-RateLimit-Limit": String(GUEST_AUTH_MAX_REQUESTS),
-        "X-RateLimit-Remaining": "0",
-        "X-RateLimit-Reset": String(retryAfter),
-      },
-    }
-  )
-}
-
-function getSecret(): string {
-  const secret = process.env.GUEST_AUTH_SECRET
-  if (!secret) {
-    throw new Error("GUEST_AUTH_SECRET is not configured")
-  }
-  return secret
-}
-
-function base64UrlEncode(value: Buffer | string): string {
-  return Buffer.from(value)
-    .toString("base64")
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "")
-}
-
-function base64UrlDecode(value: string): Buffer {
-  const normalized = value.replaceAll("-", "+").replaceAll("_", "/")
-  const padding = "=".repeat((4 - (normalized.length % 4)) % 4)
-  return Buffer.from(`${normalized}${padding}`, "base64")
-}
-
-function signPayload(payload: string): string {
-  return base64UrlEncode(createHmac("sha256", getSecret()).update(payload).digest())
-}
-
-function issueGuestToken(guestId: string, ttlSeconds: number): string {
-  const now = Math.floor(Date.now() / 1000)
-  const payload = base64UrlEncode(
-    JSON.stringify({
-      typ: "guest",
-      sub: guestId,
-      iat: now,
-      exp: now + ttlSeconds,
-    })
-  )
-  return `${TOKEN_PREFIX}.${payload}.${signPayload(payload)}`
-}
-
-function verifyGuestToken(token: string): string | null {
-  const [prefix, payload, signature] = token.split(".")
-  if (prefix !== TOKEN_PREFIX || !payload || !signature) return null
-
-  const expected = signPayload(payload)
-  const expectedBuffer = Buffer.from(expected)
-  const actualBuffer = Buffer.from(signature)
-  if (
-    expectedBuffer.length !== actualBuffer.length ||
-    !timingSafeEqual(expectedBuffer, actualBuffer)
-  ) {
-    return null
-  }
-
+function decodeJwtClaims(token: string): GuestClaims | null {
+  const parts = token.split(".")
+  if (parts.length !== 3 || !parts[1]) return null
   try {
-    const decoded = JSON.parse(base64UrlDecode(payload).toString("utf8"))
-    if (decoded?.typ !== "guest") return null
-    if (typeof decoded?.exp !== "number" || decoded.exp < Date.now() / 1000) {
-      return null
-    }
-    if (typeof decoded?.sub !== "string" || !decoded.sub.startsWith("user-")) {
-      return null
-    }
-    return decoded.sub
+    const normalized = parts[1].replaceAll("-", "+").replaceAll("_", "/")
+    const padding = "=".repeat((4 - (normalized.length % 4)) % 4)
+    const json = Buffer.from(`${normalized}${padding}`, "base64").toString("utf8")
+    return JSON.parse(json) as GuestClaims
   } catch {
     return null
   }
 }
 
-export async function POST(request: NextRequest) {
-  const rateLimitResponse = checkGuestAuthRateLimit(request)
-  if (rateLimitResponse) return rateLimitResponse
+function isFresh(claims: GuestClaims | null): claims is GuestClaims & { sub: string } {
+  if (!claims || typeof claims.sub !== "string") return false
+  if (typeof claims.exp !== "number") return true
+  // Refresh a minute early so callers never receive a token that expires mid-use.
+  return claims.exp - 60 > Date.now() / 1000
+}
 
-  let guestId: string | null = null
+async function issueManagedGuestToken(): Promise<string> {
+  if (!DEPLOYMENT_URL) {
+    throw new Error("NEXT_PUBLIC_LANGGRAPH_API_URL is not configured")
+  }
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  const authKey = process.env.NEXT_PUBLIC_LANGGRAPH_AUTH_KEY
+  if (authKey) headers["X-Auth-Key"] = authKey
+
+  const response = await fetch(
+    `${DEPLOYMENT_URL.replace(/\/$/, "")}/identity/guest`,
+    { method: "POST", headers }
+  )
+  if (!response.ok) {
+    throw new Error(`Guest issuance failed with status ${response.status}`)
+  }
+
+  const data = (await response.json()) as { token?: string }
+  if (!data.token) {
+    throw new Error("Guest issuance response was missing a token")
+  }
+  return data.token
+}
+
+export async function POST() {
   const cookieStore = await cookies()
-  const existingToken = cookieStore.get(COOKIE_NAME)?.value
-  if (existingToken) {
-    guestId = verifyGuestToken(existingToken)
+
+  // Reuse the cached managed token while it is still valid so a guest keeps the
+  // same identity (and thread history) across reloads within the token's TTL.
+  const cached = cookieStore.get(COOKIE_NAME)?.value
+  const cachedClaims = cached ? decodeJwtClaims(cached) : null
+  if (cached && isFresh(cachedClaims)) {
+    return NextResponse.json({ guestId: cachedClaims.sub, token: cached })
   }
 
-  if (!guestId) {
-    guestId = `user-${randomUUID()}`
+  let token: string
+  try {
+    token = await issueManagedGuestToken()
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Guest issuance failed" },
+      { status: 502 }
+    )
   }
 
-  const cookieToken = issueGuestToken(guestId, COOKIE_TTL_SECONDS)
-  const bearerToken = issueGuestToken(guestId, TOKEN_TTL_SECONDS)
-  const response = NextResponse.json({ guestId, token: bearerToken })
-  response.cookies.set(COOKIE_NAME, cookieToken, {
+  const claims = decodeJwtClaims(token)
+  if (!claims?.sub) {
+    return NextResponse.json(
+      { error: "Guest token was missing a subject claim" },
+      { status: 502 }
+    )
+  }
+
+  const maxAge = claims.exp
+    ? Math.max(0, Math.floor(claims.exp - Date.now() / 1000))
+    : undefined
+  const response = NextResponse.json({ guestId: claims.sub, token })
+  response.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: COOKIE_TTL_SECONDS,
+    ...(maxAge !== undefined ? { maxAge } : {}),
   })
   return response
 }

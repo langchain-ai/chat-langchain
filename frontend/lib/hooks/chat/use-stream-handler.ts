@@ -21,8 +21,9 @@
  * - Implements retry logic for LangSmith API calls (run data may not be immediately available)
  */
 
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import { Client } from "@langchain/langgraph-sdk"
+import type { AuthRegion } from "@/lib/auth"
 import type {
   Message,
   ToolCall,
@@ -117,6 +118,8 @@ interface UseStreamHandlerProps {
   userId?: string | null
   userEmail?: string | null
   userName?: string | null
+  authToken: string | null
+  authRegion?: AuthRegion
 }
 
 /**
@@ -169,7 +172,13 @@ export function useStreamHandler({
   userId,
   userEmail,
   userName,
+  authToken,
+  authRegion,
 }: UseStreamHandlerProps): UseStreamHandlerReturn {
+  const langsmithAuth = useMemo(
+    () => ({ token: authToken, region: authRegion }),
+    [authToken, authRegion]
+  )
   /**
    * Generates a public LangSmith trace URL.
    *
@@ -196,7 +205,7 @@ export function useStreamHandler({
 
           try {
             console.log("[TraceURL] Calling shareRun API...")
-            const shareUrl = await shareRun(runId)
+            const shareUrl = await shareRun(runId, langsmithAuth)
 
             if (shareUrl) {
               console.log("[TraceURL] SUCCESS! Trace URL:", shareUrl)
@@ -225,7 +234,7 @@ export function useStreamHandler({
         }
       }
     },
-    [setMessages]
+    [setMessages, langsmithAuth]
   )
 
   /**
@@ -252,7 +261,7 @@ export function useStreamHandler({
 
           try {
             console.log("[UsageMetadata] Calling readRun API...")
-            const run = await readRun(runId)
+            const run = await readRun(runId, langsmithAuth)
 
             if (run) {
               const totalTokens = run.total_tokens || 0
@@ -302,7 +311,7 @@ export function useStreamHandler({
         }
       }
     },
-    [setMessages]
+    [setMessages, langsmithAuth]
   )
 
   /**
