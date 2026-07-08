@@ -101,6 +101,24 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
             tool_call_id=self._tool_call_id(request),
         )
 
+    def _is_shell_failure(
+        self,
+        request: ToolCallRequest,
+        result: ToolMessage,
+    ) -> bool:
+        if "query_docs_filesystem_docs_by_lang_chain" not in self._tool_name(request):
+            return False
+        content = result.content
+        if isinstance(content, list):
+            content = " ".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in content
+            )
+        text = str(content or "").strip()
+        if not text:
+            return True
+        return bool(re.match(r"exit:\s*[1-9][0-9]*", text))
+
     def _final_error_content(
         self,
         request: ToolCallRequest,
@@ -128,7 +146,21 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await handler(request)
+                if isinstance(result, ToolMessage) and self._is_shell_failure(
+                    request, result
+                ):
+                    logger.warning(
+                        "Tool %s returned a silent shell failure; rewriting as error",
+                        self._tool_name(request),
+                    )
+                    return self._tool_message(
+                        request,
+                        "The filesystem command failed (non-zero exit code / no "
+                        "output). Fall back to search_docs_by_lang_chain instead of "
+                        "re-issuing shell commands.",
+                    )
+                return result
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
