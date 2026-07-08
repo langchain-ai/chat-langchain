@@ -8,7 +8,7 @@
   "http": { "app": "./src/api/server.py:app" },
   "image_distro": "wolfi",
   "config": {
-    "recursion_limit": 100
+    "recursion_limit": 25
   },
   "checkpointer": {
     "ttl": {
