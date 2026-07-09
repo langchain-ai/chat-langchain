@@ -1,0 +1,126 @@
+# Manually deploy the Managed Deep Agent to a LangSmith production deployment.
+#
+# Required repository secrets:
+#   LANGSMITH_API_KEY
+#   GOOGLE_API_KEY
+#   OPENAI_API_KEY
+#   MINTLIFY_API_URL
+#   MINTLIFY_API_KEY
+#   PYLON_API_KEY
+#   PYLON_KB_ID
+#   MDA_GUEST_SIGNING_KEY
+#
+# Optional repository secrets:
+#   LANGSMITH_TENANT_ID
+#   ANTHROPIC_API_KEY
+#   BASETEN_API_KEY
+#   LANGGRAPH_AUTH_SECRET
+#   SUPABASE_URL / SUPABASE_ANON_KEY
+#   SUPABASE_EU_URL / SUPABASE_EU_ANON_KEY
+#   SUPABASE_APAC_URL / SUPABASE_APAC_ANON_KEY
+#   SUPABASE_AWS_URL / SUPABASE_AWS_ANON_KEY
+name: Deploy Production Agent
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@a02a550bdd3185dba2ebb6aa98d77047ce54ad21 # v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Write deploy environment
+        env:
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_TENANT_ID: ${{ secrets.LANGSMITH_TENANT_ID }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BASETEN_API_KEY: ${{ secrets.BASETEN_API_KEY }}
+          MINTLIFY_API_URL: ${{ secrets.MINTLIFY_API_URL }}
+          MINTLIFY_API_KEY: ${{ secrets.MINTLIFY_API_KEY }}
+          PYLON_API_KEY: ${{ secrets.PYLON_API_KEY }}
+          PYLON_KB_ID: ${{ secrets.PYLON_KB_ID }}
+          MDA_GUEST_SIGNING_KEY: ${{ secrets.MDA_GUEST_SIGNING_KEY }}
+          LANGGRAPH_AUTH_SECRET: ${{ secrets.LANGGRAPH_AUTH_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_EU_URL: ${{ secrets.SUPABASE_EU_URL }}
+          SUPABASE_EU_ANON_KEY: ${{ secrets.SUPABASE_EU_ANON_KEY }}
+          SUPABASE_APAC_URL: ${{ secrets.SUPABASE_APAC_URL }}
+          SUPABASE_APAC_ANON_KEY: ${{ secrets.SUPABASE_APAC_ANON_KEY }}
+          SUPABASE_AWS_URL: ${{ secrets.SUPABASE_AWS_URL }}
+          SUPABASE_AWS_ANON_KEY: ${{ secrets.SUPABASE_AWS_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          if [ -z "${LANGSMITH_API_KEY:-}" ]; then
+            echo "LANGSMITH_API_KEY secret is required" >&2
+            exit 1
+          fi
+          if [ -z "${GOOGLE_API_KEY:-}" ]; then
+            echo "GOOGLE_API_KEY secret is required for the default model" >&2
+            exit 1
+          fi
+
+          # mda deploy prefers project .env for auth + hosted secrets forwarding.
+          # Values are never printed; only non-empty entries are written.
+          : > .env
+          write_env() {
+            local key="$1"
+            local value="${2:-}"
+            if [ -n "$value" ]; then
+              printf '%s=%s\n' "$key" "$value" >> .env
+            fi
+          }
+
+          write_env LANGSMITH_API_KEY "$LANGSMITH_API_KEY"
+          write_env LANGSMITH_TENANT_ID "$LANGSMITH_TENANT_ID"
+          write_env GOOGLE_API_KEY "$GOOGLE_API_KEY"
+          write_env OPENAI_API_KEY "$OPENAI_API_KEY"
+          write_env ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
+          write_env BASETEN_API_KEY "$BASETEN_API_KEY"
+          write_env MINTLIFY_API_URL "$MINTLIFY_API_URL"
+          write_env MINTLIFY_API_KEY "$MINTLIFY_API_KEY"
+          write_env PYLON_API_KEY "$PYLON_API_KEY"
+          write_env PYLON_KB_ID "$PYLON_KB_ID"
+          write_env MDA_GUEST_SIGNING_KEY "$MDA_GUEST_SIGNING_KEY"
+          write_env LANGGRAPH_AUTH_SECRET "$LANGGRAPH_AUTH_SECRET"
+          write_env SUPABASE_URL "$SUPABASE_URL"
+          write_env SUPABASE_ANON_KEY "$SUPABASE_ANON_KEY"
+          write_env SUPABASE_EU_URL "$SUPABASE_EU_URL"
+          write_env SUPABASE_EU_ANON_KEY "$SUPABASE_EU_ANON_KEY"
+          write_env SUPABASE_APAC_URL "$SUPABASE_APAC_URL"
+          write_env SUPABASE_APAC_ANON_KEY "$SUPABASE_APAC_ANON_KEY"
+          write_env SUPABASE_AWS_URL "$SUPABASE_AWS_URL"
+          write_env SUPABASE_AWS_ANON_KEY "$SUPABASE_AWS_ANON_KEY"
+
+          echo "Wrote deploy .env with $(wc -l < .env | tr -d ' ') entries"
+
+      - name: Deploy Managed Deep Agent
+        run: uv run mda deploy . --deployment-type prod
