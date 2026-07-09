@@ -49,6 +49,7 @@ docs_agent_middleware = [
 ]
 
 agent = define_deep_agent(
+    name="docs_agent",
     # Keep this literal so `mda deploy` can infer the provider package and
     # preflight GOOGLE_API_KEY.
     model="google_genai:gemini-3.1-flash-lite",
