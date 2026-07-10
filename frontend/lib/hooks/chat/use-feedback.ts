@@ -1,11 +1,15 @@
 import { useState, useCallback } from "react"
 import type { Message } from "../../types"
-import { FEEDBACK_KEY } from "../../constants/features"
-import { createOrUpdateFeedback, deleteFeedback } from "../../api/langsmith"
+import {
+  createOrUpdateFeedback,
+  deleteFeedback,
+  type LangSmithAuth,
+} from "../../api/langsmith"
 
 interface UseFeedbackProps {
   messages: Message[]
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
+  auth: LangSmithAuth
 }
 
 const DEFAULT_POSITIVE_COMMENT = "User rated this as helpful"
@@ -16,7 +20,7 @@ const DEFAULT_NEGATIVE_COMMENT = "User indicated the answer wasn't satisfactory"
  * Handles creation, update, and deletion of feedback with local state management.
  * Uses server-side API routes to keep LangSmith API keys secure.
  */
-export function useFeedback({ messages, setMessages }: UseFeedbackProps) {
+export function useFeedback({ messages, setMessages, auth }: UseFeedbackProps) {
   const [feedbackComment, setFeedbackComment] = useState<{ [messageId: string]: string }>({})
   const [showCommentInput, setShowCommentInput] = useState<string | null>(null)
 
@@ -90,7 +94,7 @@ export function useFeedback({ messages, setMessages }: UseFeedbackProps) {
       // Delete from LangSmith if it exists
       if (message.feedbackId) {
         try {
-          await deleteFeedback(message.feedbackId)
+          await deleteFeedback(message.feedbackId, auth)
         } catch (error) {
           console.error("Error deleting feedback:", error)
           // Rollback on error
@@ -124,11 +128,10 @@ export function useFeedback({ messages, setMessages }: UseFeedbackProps) {
       // If update fails with 404 (feedback deleted), create new one
       const result = await createOrUpdateFeedback({
         runId: message.runId,
-        feedbackKey: FEEDBACK_KEY,
         score: feedbackType,
         comment: hasComment ? commentPayload : previousComment || undefined,
         feedbackId: feedbackId,
-      })
+      }, auth)
       feedbackId = result.id
 
       // Update state with feedback ID from server
@@ -165,7 +168,7 @@ export function useFeedback({ messages, setMessages }: UseFeedbackProps) {
         }))
       }
     }
-  }, [messages, showCommentInput, applyFeedback])
+  }, [messages, showCommentInput, applyFeedback, auth])
 
   /**
    * Submits a comment for existing feedback.

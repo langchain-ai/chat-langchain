@@ -14,19 +14,17 @@ export const truncate = (text: string, max: number): string =>
 /**
  * Thread Title Generation
  *
- * Generates concise, descriptive titles for conversation threads by calling
- * the backend API endpoint which uses Google Gemini for AI-powered titles.
+ * Generates concise, descriptive titles for conversation threads locally.
  *
- * - Backend title generation (secure, server-side API key)
- * - Heuristic-based quick titles (instant, no API call)
- * - Fallback truncation (when API is unavailable)
+ * The managed MDA deployment no longer exposes a custom `/generate-title` route;
+ * that route only performed deterministic truncation, which now runs in the
+ * browser via `truncateTitle` below (identical behavior, no network round-trip).
  */
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-import { LANGGRAPH_API_URL } from "../../constants/api"
 import { DEFAULT_TITLE_MAX_LENGTH } from "../../constants/features"
 
 const DEFAULT_MAX_LENGTH = DEFAULT_TITLE_MAX_LENGTH
@@ -41,65 +39,24 @@ interface TitleGenerationOptions {
   maxLength?: number
 }
 
-interface TitleGenerationResponse {
-  title: string
-}
-
 // ============================================================================
 // Backend API Title Generation
 // ============================================================================
 
 /**
- * Generate a smart title for a conversation thread using backend API.
- * Falls back to truncated user message if API fails or is unavailable.
+ * Generate a title for a conversation thread.
  *
- * The backend uses Google Gemini for AI-powered title generation,
- * keeping API keys secure on the server side.
+ * Runs entirely in the browser (deterministic truncation), matching what the
+ * former backend `/generate-title` route produced.
  *
  * @param options - Configuration for title generation
  * @returns A concise, descriptive title (max 60 chars by default)
  */
 export async function generateThreadTitle({
   userMessage,
-  assistantResponse,
   maxLength = DEFAULT_MAX_LENGTH,
 }: TitleGenerationOptions): Promise<string> {
-  // Fallback: use truncated message if no API URL configured
-  if (!LANGGRAPH_API_URL) {
-    console.warn("No LangGraph API URL configured, using fallback title")
-    return truncateTitle(userMessage, maxLength)
-  }
-
-  try {
-    const response = await fetch(`${LANGGRAPH_API_URL}/generate-title`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        userMessage,
-        assistantResponse,
-        maxLength,
-      }),
-    })
-
-    if (!response.ok) {
-      console.error("Title generation API error:", response.status)
-      return truncateTitle(userMessage, maxLength)
-    }
-
-    const data: TitleGenerationResponse = await response.json()
-    const generatedTitle = data.title?.trim()
-
-    if (!generatedTitle) {
-      return truncateTitle(userMessage, maxLength)
-    }
-
-    return generatedTitle
-  } catch (error) {
-    console.error("Error generating title:", error)
-    return truncateTitle(userMessage, maxLength)
-  }
+  return truncateTitle(userMessage, maxLength)
 }
 
 // ============================================================================
@@ -156,6 +113,9 @@ export function generateQuickTitle(userMessage: string): string {
  * - Capitalizes first letter
  * - Truncates to max length
  */
+/** Matches Python ``string.punctuation`` used by the old `/generate-title` route. */
+const TRAILING_PUNCTUATION = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]+$/
+
 function truncateTitle(message: string, maxLength: number): string {
   let title = message.trim()
 
@@ -164,6 +124,9 @@ function truncateTitle(message: string, maxLength: number): string {
     /^(how do i|how to|can you|please|help me with|i need help with)\s+/i,
     ""
   )
+
+  // Strip trailing punctuation (parity with former Python ``rstrip(string.punctuation)``)
+  title = title.replace(TRAILING_PUNCTUATION, "")
 
   // Capitalize first letter
   if (title) {
