@@ -15,6 +15,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.footer_enforcement_middleware import FooterEnforcementMiddleware
 from src.middleware.guardrails_middleware import (
     GuardrailsMiddleware,
     guardrails_prompt_commit,
@@ -98,9 +99,12 @@ docs_agent_tools = [
     check_links,
 ]
 
+footer_enforcement_middleware = FooterEnforcementMiddleware()
+
 docs_agent_middleware = [
     guardrails_middleware,
     context_summary_middleware,
+    footer_enforcement_middleware,
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,

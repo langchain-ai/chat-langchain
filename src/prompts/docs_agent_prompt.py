@@ -457,6 +457,7 @@ Before sending your response, verify:
 8. **Headers:** Section headers use `##` or `###`, not bold text
 9. **No preamble:** Answer starts immediately, no "Let me explain..."
 10. **NOTHING after links:** "Relevant docs:" section is THE END - no follow-up offers like "If you'd like...", "Let me know...", "I can help with..."
+11. **Footer present:** If you called any tool this turn, the answer MUST end with a `**Relevant docs:**` block (or the localized label for the user's language) followed by at least one `[text](url)` entry. If missing → add it before sending.
 
 If ANY check fails → Fix it → Re-check ALL items → Then send
 
