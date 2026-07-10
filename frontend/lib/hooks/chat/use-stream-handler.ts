@@ -35,7 +35,7 @@ import {
   ensureMessageExists,
   updateMessageInList,
 } from "../../utils/chat"
-import { shareRun, readRun, type LangSmithAuth } from "../../api/langsmith"
+import { shareRun, readRun } from "../../api/langsmith"
 
 // ============================================================================
 // Constants
@@ -117,7 +117,6 @@ interface UseStreamHandlerProps {
   userId?: string | null
   userEmail?: string | null
   userName?: string | null
-  auth: LangSmithAuth
 }
 
 /**
@@ -170,7 +169,6 @@ export function useStreamHandler({
   userId,
   userEmail,
   userName,
-  auth,
 }: UseStreamHandlerProps): UseStreamHandlerReturn {
   /**
    * Generates a public LangSmith trace URL.
@@ -198,7 +196,7 @@ export function useStreamHandler({
 
           try {
             console.log("[TraceURL] Calling shareRun API...")
-            const shareUrl = await shareRun(runId, threadId, auth)
+            const shareUrl = await shareRun(runId)
 
             if (shareUrl) {
               console.log("[TraceURL] SUCCESS! Trace URL:", shareUrl)
@@ -227,7 +225,7 @@ export function useStreamHandler({
         }
       }
     },
-    [setMessages, auth, threadId]
+    [setMessages]
   )
 
   /**
@@ -254,7 +252,7 @@ export function useStreamHandler({
 
           try {
             console.log("[UsageMetadata] Calling readRun API...")
-            const run = await readRun(runId, threadId, auth)
+            const run = await readRun(runId)
 
             if (run) {
               const totalTokens = run.total_tokens || 0
@@ -304,7 +302,7 @@ export function useStreamHandler({
         }
       }
     },
-    [setMessages, auth, threadId]
+    [setMessages]
   )
 
   /**

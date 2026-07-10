@@ -1,160 +1,123 @@
 /**
- * Client-side LangSmith wrapper.
- *
- * Calls the MDA LangSmith connector, which performs the LangSmith operation
- * server-side with the workspace key and returns an allowlisted response. The
- * browser sends only its own identity token (Supabase access token or MDA guest
- * token) and never sees LANGSMITH_API_KEY.
- *
- * Route: POST {LANGGRAPH_API_URL}/connectors/langsmith/capabilities/{id}
- *
- * Thread/run-scoped capabilities require `thread_id` in the body so MDA can
- * bind connector-HTTP identity (which has no LangGraph configurable.thread_id).
+ * Client-side LangSmith API wrapper
+ * Proxies requests through LangGraph Server to keep API keys server-side
  */
 
-import { LANGGRAPH_API_URL } from "../constants/api"
-import { FEEDBACK_KEY } from "../constants/features"
+import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "../constants/api"
 import { logger } from "../utils/logger"
-
-/** Capability ids declared in `connectors/langsmith.py`. */
-const CAPABILITY_FEEDBACK = "langsmith:chat-feedback"
-const CAPABILITY_TRACE_VIEWER = "langsmith:trace-viewer"
-
-type ThumbFeedback = "positive" | "negative"
-
-const THUMB_FEEDBACK_SCORES: Record<ThumbFeedback, number> = {
-  positive: 1,
-  negative: 0,
-}
-
-export interface LangSmithAuth {
-  token: string | null | undefined
-  region?: string | null
-}
 
 interface ApiError {
   error: string
 }
 
-function capabilityUrl(capabilityId: string): string {
+/**
+ * Get base URL for LangSmith API routes
+ * Uses LangGraph Server URL since routes are mounted there
+ */
+function getLangSmithApiUrl(): string {
+  // Remove trailing slash if present, then append /langsmith
   const baseUrl = LANGGRAPH_API_URL.replace(/\/$/, "")
-  return `${baseUrl}/connectors/langsmith/capabilities/${capabilityId}`
+  const url = `${baseUrl}/langsmith`
+
+  logger.debug('[LangSmith] API URL:', url)
+
+  return url
 }
 
-function authHeaders(auth: LangSmithAuth): Record<string, string> {
-  if (!auth.token) {
-    throw new Error(
-      "Auth token required for LangSmith connector requests. Ensure auth has loaded first."
-    )
-  }
+/**
+ * Get auth headers for LangGraph Server requests
+ * Includes API key if available (for LangGraph Server auth)
+ */
+function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${auth.token}`,
   }
-  if (auth.region) {
-    headers["X-Supabase-Region"] = auth.region
+
+  // Add API key if available (for LangGraph Server authentication)
+  // Uses same key as LangGraph client for consistency
+  if (LANGSMITH_API_KEY) {
+    headers["x-api-key"] = LANGSMITH_API_KEY
   }
-  const authKey = process.env.NEXT_PUBLIC_LANGGRAPH_AUTH_KEY
-  if (authKey) {
-    headers["X-Auth-Key"] = authKey
-  }
+
   return headers
 }
 
 /**
- * POST a capability action and return its allowlisted `data` payload.
+ * Handle API response errors consistently
  */
-async function callCapability<T>(
-  capabilityId: string,
-  body: Record<string, unknown>,
-  auth: LangSmithAuth
-): Promise<T> {
-  const response = await fetch(capabilityUrl(capabilityId), {
-    method: "POST",
-    headers: authHeaders(auth),
-    body: JSON.stringify(body),
-  })
-
+async function handleApiResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let errorMessage = `HTTP ${response.status}`
     try {
       const error: ApiError = await response.json()
       errorMessage = error.error || errorMessage
     } catch {
-      // Non-JSON error body; keep the status-based message.
+      // If JSON parsing fails, try to get text
+      try {
+        const text = await response.text()
+        errorMessage = text || errorMessage
+      } catch {
+        // Fallback to status code
+      }
     }
     throw new Error(errorMessage)
   }
-
-  const payload = (await response.json()) as { data?: T }
-  return payload.data as T
+  return response.json()
 }
 
 /**
- * Create or update thumbs feedback on a LangSmith run.
+ * Create or update feedback on a LangSmith run
  */
-export async function createOrUpdateFeedback(
-  params: {
-    runId: string
-    threadId: string
-    score: ThumbFeedback
-    comment?: string
-    feedbackId?: string
-  },
-  auth: LangSmithAuth
-): Promise<{ id: string }> {
-  const score = THUMB_FEEDBACK_SCORES[params.score]
-  const body = params.feedbackId
-    ? {
-        action: "update",
-        feedback_id: params.feedbackId,
-        thread_id: params.threadId,
-        score,
-        value: params.score,
-        comment: params.comment,
-      }
-    : {
-        action: "create",
-        run_id: params.runId,
-        thread_id: params.threadId,
-        key: FEEDBACK_KEY,
-        score,
-        value: params.score,
-        comment: params.comment,
-      }
+export async function createOrUpdateFeedback(params: {
+  runId: string
+  feedbackKey: string
+  score: "positive" | "negative"
+  comment?: string
+  feedbackId?: string
+}): Promise<{ id: string }> {
+  const response = await fetch(`${getLangSmithApiUrl()}/feedback`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      runId: params.runId,
+      feedbackKey: params.feedbackKey,
+      score: params.score,
+      comment: params.comment,
+      feedbackId: params.feedbackId,
+    }),
+  })
 
-  return callCapability<{ id: string }>(CAPABILITY_FEEDBACK, body, auth)
+  return handleApiResponse(response)
 }
 
 /**
- * Delete feedback from LangSmith.
+ * Delete feedback from LangSmith
  */
-export async function deleteFeedback(
-  feedbackId: string,
-  threadId: string,
-  auth: LangSmithAuth
-): Promise<void> {
-  await callCapability(
-    CAPABILITY_FEEDBACK,
-    { action: "delete", feedback_id: feedbackId, thread_id: threadId },
-    auth
+export async function deleteFeedback(feedbackId: string): Promise<void> {
+  const response = await fetch(
+    `${getLangSmithApiUrl()}/feedback?feedbackId=${encodeURIComponent(feedbackId)}`,
+    {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    }
   )
+
+  await handleApiResponse(response)
 }
 
 /**
- * Read a redacted run summary from LangSmith.
+ * Read run details from LangSmith
  */
-export async function readRun(
-  runId: string,
-  threadId: string,
-  auth: LangSmithAuth
-): Promise<any> {
+export async function readRun(runId: string): Promise<any> {
+  const url = `${getLangSmithApiUrl()}/runs/${encodeURIComponent(runId)}`
+  
   try {
-    return await callCapability<any>(
-      CAPABILITY_TRACE_VIEWER,
-      { action: "read", run_id: runId, thread_id: threadId },
-      auth
-    )
+    const response = await fetch(url, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    })
+
+    return handleApiResponse(response)
   } catch (error: any) {
     logger.error(`[LangSmith] Failed to fetch run ${runId}`, error)
     throw new Error(`Failed to fetch run: ${error.message || "Network error"}`)
@@ -164,15 +127,16 @@ export async function readRun(
 /**
  * Generate a public trace URL for a LangSmith run.
  */
-export async function shareRun(
-  runId: string,
-  threadId: string,
-  auth: LangSmithAuth
-): Promise<string> {
-  const data = await callCapability<{ url: string }>(
-    CAPABILITY_TRACE_VIEWER,
-    { action: "share", run_id: runId, thread_id: threadId },
-    auth
+export async function shareRun(runId: string): Promise<string> {
+  const response = await fetch(
+    `${getLangSmithApiUrl()}/runs/${encodeURIComponent(runId)}/share`,
+    {
+      method: "POST",
+      headers: getAuthHeaders(),
+    }
   )
-  return data.url
+
+  const data = await handleApiResponse<{ shareUrl: string }>(response)
+  return data.shareUrl
 }
+
