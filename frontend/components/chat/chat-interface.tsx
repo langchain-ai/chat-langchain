@@ -279,6 +279,7 @@ export function ChatInterface({
     messages,
     setMessages,
     auth: langsmithAuth,
+    threadId,
   })
 
   // ============================================================================
@@ -488,7 +489,7 @@ export function ChatInterface({
                 let shareUrl = msg.shareUrl
 
                 if (!msg.usageMetadata) {
-                  const run = await readRun(msg.runId, langsmithAuth)
+                  const run = await readRun(msg.runId, threadId, langsmithAuth)
 
                   if (run) {
                     usageMetadata = {
@@ -508,7 +509,7 @@ export function ChatInterface({
 
                 if (!msg.shareUrl) {
                   try {
-                    shareUrl = await shareRun(msg.runId, langsmithAuth)
+                    shareUrl = await shareRun(msg.runId, threadId, langsmithAuth)
                   } catch {
                     // Share URL might not exist yet, that's ok
                   }

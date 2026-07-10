@@ -10,6 +10,7 @@ interface UseFeedbackProps {
   messages: Message[]
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   auth: LangSmithAuth
+  threadId: string
 }
 
 const DEFAULT_POSITIVE_COMMENT = "User rated this as helpful"
@@ -20,7 +21,7 @@ const DEFAULT_NEGATIVE_COMMENT = "User indicated the answer wasn't satisfactory"
  * Handles creation, update, and deletion of feedback with local state management.
  * Uses server-side API routes to keep LangSmith API keys secure.
  */
-export function useFeedback({ messages, setMessages, auth }: UseFeedbackProps) {
+export function useFeedback({ messages, setMessages, auth, threadId }: UseFeedbackProps) {
   const [feedbackComment, setFeedbackComment] = useState<{ [messageId: string]: string }>({})
   const [showCommentInput, setShowCommentInput] = useState<string | null>(null)
 
@@ -94,7 +95,7 @@ export function useFeedback({ messages, setMessages, auth }: UseFeedbackProps) {
       // Delete from LangSmith if it exists
       if (message.feedbackId) {
         try {
-          await deleteFeedback(message.feedbackId, auth)
+          await deleteFeedback(message.feedbackId, threadId, auth)
         } catch (error) {
           console.error("Error deleting feedback:", error)
           // Rollback on error
@@ -128,6 +129,7 @@ export function useFeedback({ messages, setMessages, auth }: UseFeedbackProps) {
       // If update fails with 404 (feedback deleted), create new one
       const result = await createOrUpdateFeedback({
         runId: message.runId,
+        threadId,
         score: feedbackType,
         comment: hasComment ? commentPayload : previousComment || undefined,
         feedbackId: feedbackId,
@@ -168,7 +170,7 @@ export function useFeedback({ messages, setMessages, auth }: UseFeedbackProps) {
         }))
       }
     }
-  }, [messages, showCommentInput, applyFeedback, auth])
+  }, [messages, showCommentInput, applyFeedback, auth, threadId])
 
   /**
    * Submits a comment for existing feedback.

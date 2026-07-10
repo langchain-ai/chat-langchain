@@ -7,6 +7,9 @@
  * token) and never sees LANGSMITH_API_KEY.
  *
  * Route: POST {LANGGRAPH_API_URL}/connectors/langsmith/capabilities/{id}
+ *
+ * Thread/run-scoped capabilities require `thread_id` in the body so MDA can
+ * bind connector-HTTP identity (which has no LangGraph configurable.thread_id).
  */
 
 import { LANGGRAPH_API_URL } from "../constants/api"
@@ -93,6 +96,7 @@ async function callCapability<T>(
 export async function createOrUpdateFeedback(
   params: {
     runId: string
+    threadId: string
     score: ThumbFeedback
     comment?: string
     feedbackId?: string
@@ -104,6 +108,7 @@ export async function createOrUpdateFeedback(
     ? {
         action: "update",
         feedback_id: params.feedbackId,
+        thread_id: params.threadId,
         score,
         value: params.score,
         comment: params.comment,
@@ -111,6 +116,7 @@ export async function createOrUpdateFeedback(
     : {
         action: "create",
         run_id: params.runId,
+        thread_id: params.threadId,
         key: FEEDBACK_KEY,
         score,
         value: params.score,
@@ -125,11 +131,12 @@ export async function createOrUpdateFeedback(
  */
 export async function deleteFeedback(
   feedbackId: string,
+  threadId: string,
   auth: LangSmithAuth
 ): Promise<void> {
   await callCapability(
     CAPABILITY_FEEDBACK,
-    { action: "delete", feedback_id: feedbackId },
+    { action: "delete", feedback_id: feedbackId, thread_id: threadId },
     auth
   )
 }
@@ -137,11 +144,15 @@ export async function deleteFeedback(
 /**
  * Read a redacted run summary from LangSmith.
  */
-export async function readRun(runId: string, auth: LangSmithAuth): Promise<any> {
+export async function readRun(
+  runId: string,
+  threadId: string,
+  auth: LangSmithAuth
+): Promise<any> {
   try {
     return await callCapability<any>(
       CAPABILITY_TRACE_VIEWER,
-      { action: "read", run_id: runId },
+      { action: "read", run_id: runId, thread_id: threadId },
       auth
     )
   } catch (error: any) {
@@ -155,11 +166,12 @@ export async function readRun(runId: string, auth: LangSmithAuth): Promise<any> 
  */
 export async function shareRun(
   runId: string,
+  threadId: string,
   auth: LangSmithAuth
 ): Promise<string> {
   const data = await callCapability<{ url: string }>(
     CAPABILITY_TRACE_VIEWER,
-    { action: "share", run_id: runId },
+    { action: "share", run_id: runId, thread_id: threadId },
     auth
   )
   return data.url

@@ -198,7 +198,7 @@ export function useStreamHandler({
 
           try {
             console.log("[TraceURL] Calling shareRun API...")
-            const shareUrl = await shareRun(runId, auth)
+            const shareUrl = await shareRun(runId, threadId, auth)
 
             if (shareUrl) {
               console.log("[TraceURL] SUCCESS! Trace URL:", shareUrl)
@@ -227,7 +227,7 @@ export function useStreamHandler({
         }
       }
     },
-    [setMessages, auth]
+    [setMessages, auth, threadId]
   )
 
   /**
@@ -254,7 +254,7 @@ export function useStreamHandler({
 
           try {
             console.log("[UsageMetadata] Calling readRun API...")
-            const run = await readRun(runId, auth)
+            const run = await readRun(runId, threadId, auth)
 
             if (run) {
               const totalTokens = run.total_tokens || 0
@@ -304,7 +304,7 @@ export function useStreamHandler({
         }
       }
     },
-    [setMessages, auth]
+    [setMessages, auth, threadId]
   )
 
   /**
