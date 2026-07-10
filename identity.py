@@ -24,6 +24,35 @@ import os
 from urllib.parse import urlparse
 
 from managed_deepagents import define_identity, providers
+from managed_deepagents._identity_auth import ManagedAuthError
+from managed_deepagents import _validated_token as _vt
+
+
+def _install_issuer_mismatch_detail() -> None:
+    """Include the token ``iss`` and configured issuers in the 401 detail.
+
+    The stock MDA error is only ``no provider matches token issuer``, which is
+    not enough to debug frontend-vs-secret project skew after deploy.
+    """
+    original = _vt.select_provider
+
+    def select_provider_with_detail(providers, token):  # noqa: ANN001
+        try:
+            return original(providers, token)
+        except ManagedAuthError as err:
+            if err.status != 401 or "no provider matches token issuer" not in err.detail:
+                raise
+            issuer = _vt._try_unverified_issuer(token)
+            configured = [p.get("issuer") for p in providers if p.get("issuer")]
+            raise ManagedAuthError(
+                401,
+                f"no provider matches token issuer {issuer!r}; configured={configured!r}",
+            ) from err
+
+    _vt.select_provider = select_provider_with_detail
+
+
+_install_issuer_mismatch_detail()
 
 # Region label (sent by the frontend as ``x-supabase-region``) -> the env vars
 # that carry that region's Supabase project URL and anon key. Matches the
@@ -108,6 +137,9 @@ def _providers() -> list[dict]:
     # Anonymous visitors: MDA issues + verifies signed guest tokens itself
     # (POST /identity/guest), replacing the frontend guest-token route.
     entries.append(providers.guest(ttl="24h", actor_prefix="guest:"))
+    configured = [e.get("issuer") for e in entries if e.get("issuer")]
+    # Surfaces in LangSmith deploy logs so we can compare to the browser token iss.
+    print(f"[chat-langchain identity] configured token issuers: {configured}", flush=True)
     return entries
 
 
