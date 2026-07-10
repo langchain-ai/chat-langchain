@@ -123,4 +123,4 @@ jobs:
           echo "Wrote deploy .env with $(wc -l < .env | tr -d ' ') entries"
 
       - name: Deploy Managed Deep Agent
-        run: uv run mda deploy . --deployment-type prod
+        run: uv run mda deploy .
