@@ -5,17 +5,17 @@ hand-rolled ``src/api/auth.py`` handler:
 
 - ``validated_token`` ingress: the browser calls the deployment directly with its
   own Supabase access token (or an MDA-issued guest token); MDA verifies it.
-- Multi-region Supabase introspection mirrors the previous ``/auth/v1/user``
-  region routing, selecting the endpoint by the ``x-supabase-region`` header and
-  sending the region's own anon key.
+- Multi-region Supabase: one JWKS provider per project so MDA routes by token
+  ``iss`` (required when guest is also configured). Non-standard hosts fall back
+  to issuer + introspection.
 - ``threads: "actor"`` replaces the ``@auth.on.threads`` owner tagging (owner =
   the user's email, or the guest actor id).
 
 Supabase region URLs are resolved from the same environment variables the old
-handler used (``SUPABASE_URL`` / ``SUPABASE_EU_URL`` / ...). They are read at
-authoring/compile time because MDA needs the introspection URL as a literal; the
-per-region anon keys stay ``${ENV}`` placeholders that the managed runtime
-expands at request time, so no secret is baked into the build.
+handler used (``SUPABASE_URL`` / ``SUPABASE_EU_URL`` / ...). They are read when
+``identity.py`` is imported so each region's project ref/issuer is known up
+front; per-region anon keys for the introspect fallback stay ``${ENV}``
+placeholders expanded at request time.
 """
 
 from __future__ import annotations
@@ -69,31 +69,42 @@ def _supabase_regions() -> dict[str, dict[str, str]]:
     return regions
 
 
-def _supabase_introspect_provider(regions: dict[str, dict[str, str]]) -> dict:
-    """Supabase provider that routes introspection by ``x-supabase-region``."""
-    return providers.supabase(
-        introspect=True,
-        region_header="x-supabase-region",
-        regions=regions,
-    )
+def _supabase_provider(region: str, region_config: dict[str, str]) -> dict:
+    """One provider per region so MDA can route JWTs by token ``iss``.
+
+    Multi-provider selection matches ``iss`` exactly. A single introspect
+    provider with no ``issuer`` (plus guest) therefore rejects every real
+    Supabase access token with ``no provider matches token issuer``. Emit one
+    JWKS provider per project ref instead; fall back to issuer+introspect only
+    for non-standard project URLs.
+    """
+    project_ref = region_config.get("project_ref")
+    if project_ref:
+        provider = providers.supabase(project_ref=project_ref)
+        provider["id"] = f"supabase-{region}"
+        return provider
+
+    # Custom / non-supabase.co host: keep introspection, but still set issuer
+    # from the configured URL so multi-provider routing can find this entry.
+    url = region_config["url"]  # .../auth/v1/user
+    issuer = url[: -len("/user")] if url.endswith("/user") else url.rstrip("/")
+    return {
+        "id": f"supabase-{region}",
+        "issuer": issuer,
+        "introspect": {
+            "url": url,
+            "headers": {"apikey": region_config["anon_key"]},
+        },
+        "claims": {"actor": "email"},
+    }
 
 
 def _providers() -> list[dict]:
     entries: list[dict] = []
-    regions = _supabase_regions()
-    if regions:
-        # The JWT auth gate matches providers by token issuer. For the common
-        # single-project case, use the project ref so MDA emits issuer + JWKS.
-        # Multi-region (or non-standard URLs) keep header-based introspection.
-        if len(regions) == 1:
-            region_config = next(iter(regions.values()))
-            project_ref = region_config.get("project_ref")
-            if project_ref:
-                entries.append(providers.supabase(project_ref=project_ref))
-            else:
-                entries.append(_supabase_introspect_provider(regions))
-        else:
-            entries.append(_supabase_introspect_provider(regions))
+    # One entry per region/project so each token ``iss`` selects a verifier.
+    # Do not collapse multi-region into a single issuer-less introspect provider.
+    for region, region_config in _supabase_regions().items():
+        entries.append(_supabase_provider(region, region_config))
     # Anonymous visitors: MDA issues + verifies signed guest tokens itself
     # (POST /identity/guest), replacing the frontend guest-token route.
     entries.append(providers.guest(ttl="24h", actor_prefix="guest:"))
