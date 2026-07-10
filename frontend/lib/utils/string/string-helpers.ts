@@ -113,6 +113,9 @@ export function generateQuickTitle(userMessage: string): string {
  * - Capitalizes first letter
  * - Truncates to max length
  */
+/** Matches Python ``string.punctuation`` used by the old `/generate-title` route. */
+const TRAILING_PUNCTUATION = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]+$/
+
 function truncateTitle(message: string, maxLength: number): string {
   let title = message.trim()
 
@@ -121,6 +124,9 @@ function truncateTitle(message: string, maxLength: number): string {
     /^(how do i|how to|can you|please|help me with|i need help with)\s+/i,
     ""
   )
+
+  // Strip trailing punctuation (parity with former Python ``rstrip(string.punctuation)``)
+  title = title.replace(TRAILING_PUNCTUATION, "")
 
   // Capitalize first letter
   if (title) {

@@ -10,7 +10,7 @@
 
 This is a documentation assistant agent that helps answer questions about LangChain, LangGraph, and LangSmith. It demonstrates how to build a production-ready agent using:
 
-- **Managed Deep Agents** - For managed deployment and runtime wiring
+- **Managed Deep Agents** - For managed deployment, identity, and connectors
 - **LangChain Agents** - For agent creation with middleware support
 - **Guardrails** - To keep conversations on-topic
 
@@ -84,15 +84,18 @@ npm ci
 npm run dev:local
 ```
 
-The frontend still expects the existing LangGraph-style API shape. Updating it
-to invoke Managed Deep Agents directly is follow-up work.
+Point the frontend at the local MDA deployment via `NEXT_PUBLIC_LANGGRAPH_API_URL`
+(see `frontend/.env.local.example`). Auth, guest issuance, and LangSmith
+operations go through the managed identity and connector surface.
 
 ## Project Structure
 
 ```txt
 ├── agent.py                    # Managed Deep Agent entrypoint
+├── identity.py                 # MDA identity contract (Supabase + guest)
 ├── instructions.md             # Managed Deep Agent system prompt
 ├── connectors/
+│   ├── langsmith.py            # LangSmith feedback + trace connector
 │   └── mcp.py                  # Managed MCP connector declaration
 ├── src/
 │   ├── agent/
@@ -106,6 +109,7 @@ to invoke Managed Deep Agents directly is follow-up work.
 │   │   └── docs_agent_prompt.py
 │   └── middleware/
 │       ├── guardrails_middleware.py
+│       ├── ingress_guards_middleware.py
 │       └── retry_middleware.py
 ├── frontend/                  # Next.js public chat UI
 └── pyproject.toml             # Python project config
@@ -129,16 +133,16 @@ The agent uses a docs-first research strategy:
 mda deploy .
 ```
 
-Known follow-up work before fully replacing the previous LangGraph Deployment:
+What MDA owns in this deployment:
 
-- Custom `auth` from the removed `langgraph.json` is intentionally not wired
-  while Managed Deep Agents identity support is being designed.
-- Custom `http` routes are not part of the managed agent. The frontend still
-  needs replacements for title generation, LangSmith feedback proxying, trace
-  read/share proxying, and cache metrics/admin routes.
-- `image_distro` was deployment-image-specific and is not relevant to Managed
-  Deep Agent users.
-- `checkpointer` is managed by the Managed Deep Agents runtime.
+- **Identity** — `identity.py` verifies Supabase access tokens (multi-region) and
+  issues/verifies guest tokens via `POST /identity/guest`.
+- **HTTP surface** — managed ingress; no custom FastAPI app.
+- **LangSmith browser ops** — `connectors/langsmith.py` proxies feedback and
+  trace read/share so `LANGSMITH_API_KEY` never reaches the browser.
+- **Thread titles** — generated in the browser (deterministic truncation); no
+  custom `/generate-title` route.
+- **Checkpointer** — managed by the Managed Deep Agents runtime.
 
 ## Resources
 

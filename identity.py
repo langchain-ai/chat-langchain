@@ -69,33 +69,31 @@ def _supabase_regions() -> dict[str, dict[str, str]]:
     return regions
 
 
+def _supabase_introspect_provider(regions: dict[str, dict[str, str]]) -> dict:
+    """Supabase provider that routes introspection by ``x-supabase-region``."""
+    return providers.supabase(
+        introspect=True,
+        region_header="x-supabase-region",
+        regions=regions,
+    )
+
+
 def _providers() -> list[dict]:
     entries: list[dict] = []
     regions = _supabase_regions()
     if regions:
         # The JWT auth gate matches providers by token issuer. For the common
         # single-project case, use the project ref so MDA emits issuer + JWKS.
+        # Multi-region (or non-standard URLs) keep header-based introspection.
         if len(regions) == 1:
             region_config = next(iter(regions.values()))
             project_ref = region_config.get("project_ref")
             if project_ref:
                 entries.append(providers.supabase(project_ref=project_ref))
             else:
-                entries.append(
-                    providers.supabase(
-                        introspect=True,
-                        region_header="x-supabase-region",
-                        regions=regions,
-                    )
-                )
+                entries.append(_supabase_introspect_provider(regions))
         else:
-            entries.append(
-                providers.supabase(
-                    introspect=True,
-                    region_header="x-supabase-region",
-                    regions=regions,
-                )
-            )
+            entries.append(_supabase_introspect_provider(regions))
     # Anonymous visitors: MDA issues + verifies signed guest tokens itself
     # (POST /identity/guest), replacing the frontend guest-token route.
     entries.append(providers.guest(ttl="24h", actor_prefix="guest:"))

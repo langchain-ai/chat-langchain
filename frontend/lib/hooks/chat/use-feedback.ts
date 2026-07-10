@@ -1,13 +1,15 @@
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback } from "react"
 import type { Message } from "../../types"
-import { createOrUpdateFeedback, deleteFeedback } from "../../api/langsmith"
-import type { AuthRegion } from "@/lib/auth"
+import {
+  createOrUpdateFeedback,
+  deleteFeedback,
+  type LangSmithAuth,
+} from "../../api/langsmith"
 
 interface UseFeedbackProps {
   messages: Message[]
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
-  authToken: string | null
-  authRegion?: AuthRegion
+  auth: LangSmithAuth
 }
 
 const DEFAULT_POSITIVE_COMMENT = "User rated this as helpful"
@@ -18,10 +20,9 @@ const DEFAULT_NEGATIVE_COMMENT = "User indicated the answer wasn't satisfactory"
  * Handles creation, update, and deletion of feedback with local state management.
  * Uses server-side API routes to keep LangSmith API keys secure.
  */
-export function useFeedback({ messages, setMessages, authToken, authRegion }: UseFeedbackProps) {
+export function useFeedback({ messages, setMessages, auth }: UseFeedbackProps) {
   const [feedbackComment, setFeedbackComment] = useState<{ [messageId: string]: string }>({})
   const [showCommentInput, setShowCommentInput] = useState<string | null>(null)
-  const auth = useMemo(() => ({ token: authToken, region: authRegion }), [authToken, authRegion])
 
   /**
    * Applies feedback state changes to the messages array.
