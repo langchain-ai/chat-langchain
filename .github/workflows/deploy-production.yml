@@ -25,6 +25,12 @@ name: Deploy Production Agent
 
 "on":
   workflow_dispatch:
+    inputs:
+      deployment_name:
+        description: LangSmith deployment name
+        required: true
+        default: chat-langchain-external
+        type: string
 
 permissions:
   contents: read
@@ -129,4 +135,7 @@ jobs:
           echo "Wrote deploy .env with $(wc -l < .env | tr -d ' ') entries"
 
       - name: Deploy Managed Deep Agent
-        run: uv run mda deploy .
+        run: >
+          uv run mda deploy .
+          --name "${{ inputs.deployment_name }}"
+          --deployment-type prod
