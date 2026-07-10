@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { ClientProfile } from "@/lib/hooks"
-import { readRun, shareRun, type LangSmithAuth } from "@/lib/api/langsmith"
+import { readRun, shareRun } from "@/lib/api/langsmith"
 import type { Message, ImageAttachment } from "@/lib/types"
 import { createUserMessage, generateMessageId, extractTextFromContent } from "@/lib/utils/chat"
 import { truncate } from "@/lib/utils/string"
@@ -222,11 +222,6 @@ export function ChatInterface({
     return createLangGraphClient(authToken, authRegion)
   }, [authRegion, authToken])
 
-  const langsmithAuth = useMemo<LangSmithAuth>(
-    () => ({ token: authToken, region: authRegion }),
-    [authToken, authRegion]
-  )
-
   // Memoize user metadata to prevent unnecessary re-renders
   const userEmail = useMemo(
     () => user?.email || userId || null,
@@ -264,7 +259,6 @@ export function ChatInterface({
     userId,
     userEmail,
     userName,
-    auth: langsmithAuth,
   })
 
   const {
@@ -278,8 +272,6 @@ export function ChatInterface({
   } = useFeedback({
     messages,
     setMessages,
-    auth: langsmithAuth,
-    threadId,
   })
 
   // ============================================================================
@@ -489,7 +481,7 @@ export function ChatInterface({
                 let shareUrl = msg.shareUrl
 
                 if (!msg.usageMetadata) {
-                  const run = await readRun(msg.runId, threadId, langsmithAuth)
+                  const run = await readRun(msg.runId)
 
                   if (run) {
                     usageMetadata = {
@@ -509,7 +501,7 @@ export function ChatInterface({
 
                 if (!msg.shareUrl) {
                   try {
-                    shareUrl = await shareRun(msg.runId, threadId, langsmithAuth)
+                    shareUrl = await shareRun(msg.runId)
                   } catch {
                     // Share URL might not exist yet, that's ok
                   }
@@ -569,7 +561,7 @@ export function ChatInterface({
 
     // Load new thread immediately
     loadThreadHistory()
-  }, [threadId, client, uiDispatch, isNewThread, langsmithAuth])
+  }, [threadId, client, uiDispatch, isNewThread])
 
 
   // Auto-focus textarea when loading completes and userId is available
