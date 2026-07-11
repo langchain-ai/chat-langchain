@@ -2,7 +2,7 @@
 #
 # Required repository secrets:
 #   LANGSMITH_API_KEY
-#   LANGSMITH_RUNS_ENDPOINT
+#   LANGSMITH_RUNS_ENDPOINTS
 #   GOOGLE_API_KEY
 #   OPENAI_API_KEY
 #   MINTLIFY_API_URL
@@ -65,7 +65,7 @@ jobs:
       - name: Write deploy environment
         env:
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
-          LANGSMITH_RUNS_ENDPOINT: ${{ secrets.LANGSMITH_RUNS_ENDPOINT }}
+          LANGSMITH_RUNS_ENDPOINTS: ${{ secrets.LANGSMITH_RUNS_ENDPOINTS }}
           LANGSMITH_TENANT_ID: ${{ secrets.LANGSMITH_TENANT_ID }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -95,8 +95,8 @@ jobs:
             echo "LANGSMITH_API_KEY secret is required" >&2
             exit 1
           fi
-          if [ -z "${LANGSMITH_RUNS_ENDPOINT:-}" ]; then
-            echo "LANGSMITH_RUNS_ENDPOINT secret is required" >&2
+          if [ -z "${LANGSMITH_RUNS_ENDPOINTS:-}" ]; then
+            echo "LANGSMITH_RUNS_ENDPOINTS secret is required" >&2
             exit 1
           fi
           if [ -z "${GOOGLE_API_KEY:-}" ]; then
@@ -116,7 +116,7 @@ jobs:
           }
 
           write_env LANGSMITH_API_KEY "$LANGSMITH_API_KEY"
-          write_env LANGSMITH_RUNS_ENDPOINT "$LANGSMITH_RUNS_ENDPOINT"
+          write_env LANGSMITH_RUNS_ENDPOINTS "$LANGSMITH_RUNS_ENDPOINTS"
           write_env LANGSMITH_TENANT_ID "$LANGSMITH_TENANT_ID"
           write_env GOOGLE_API_KEY "$GOOGLE_API_KEY"
           write_env OPENAI_API_KEY "$OPENAI_API_KEY"
