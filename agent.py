@@ -17,6 +17,7 @@ from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_support_article_content, search_support_articles
+from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
 # The MCP docs tools are declared in connectors/mcp.py so the managed runtime
 # owns client lifecycle and appends those tools during compilation.
@@ -28,7 +29,8 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
-    # Cap oversized user input + stamp trace metadata (was auth.py).
+    # Cap oversized user input (was auth.py). Trace metadata is applied via
+    # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
     GuardrailsMiddleware(
         model=GUARDRAILS_MODEL.id,
@@ -58,4 +60,6 @@ agent = define_deep_agent(
     # The current public app does not have cross-thread user memory. Keep MDA
     # managed memory off until identity scoping is ready.
     disable_memory=True,
+    # Root-trace parity with legacy docs_graph.with_config(metadata=...).
+    metadata=build_docs_agent_trace_metadata(),
 )
