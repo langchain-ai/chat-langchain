@@ -13,6 +13,7 @@ from src.agent.config import (
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
+from src.middleware.tool_scope_middleware import ToolScopeMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -29,6 +30,11 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
+    # docs_agent is a stateless documentation Q&A assistant with no user
+    # filesystem. The deepagents harness always injects builtin filesystem +
+    # planning tools and exposes no opt-out flag, so strip them here before the
+    # model can call write_file and return a fabricated "Updated file ..." reply.
+    ToolScopeMiddleware(),
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
