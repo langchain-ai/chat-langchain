@@ -15,6 +15,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.docs_loop_guard_middleware import DocsLoopGuardMiddleware
 from src.middleware.guardrails_middleware import (
     GuardrailsMiddleware,
     guardrails_prompt_commit,
@@ -90,6 +91,9 @@ logger.info(
     "Context summarization enabled at 130k tokens, preserving latest 30k tokens"
 )
 
+# mcp_docs_tools is allowlist-filtered in src/tools/mcp_tools.py so builtin
+# filesystem scaffolding (grep, ls, ...) can never re-leak into this list when
+# the MCP server adds new tools.
 docs_agent_tools = [
     *mcp_docs_tools,
     search_support_articles,
@@ -98,9 +102,12 @@ docs_agent_tools = [
     check_links,
 ]
 
+docs_loop_guard_middleware = DocsLoopGuardMiddleware(max_consecutive=3)
+
 docs_agent_middleware = [
     guardrails_middleware,
     context_summary_middleware,
+    docs_loop_guard_middleware,
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
