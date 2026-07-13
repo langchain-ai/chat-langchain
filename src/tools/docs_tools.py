@@ -7,6 +7,8 @@ import logging
 import os
 import time
 from typing import Any
+import asyncio
+from src.tools.link_check_tools import _check_urls_async
 
 import requests
 from langchain.tools import tool
@@ -230,6 +232,12 @@ def _format_search_results(results: list[dict[str, Any]]) -> str:
             f"Link: {url}\n"
             f"Content: {content}\n"
         )
+        # Filter stale URLs using existing validator (was never called in this pipeline)
+    if urls:
+        check_results = asyncio.run(_check_urls_async(urls, timeout=5.0))
+        valid_urls = {r.url for r in check_results if r.valid}
+        urls = [u for u in urls if u in valid_urls]
+        formatted = [f for f in formatted if any(u in f for u in valid_urls)]
 
     _track_docs_for_langsmith(urls)
     return "\n---\n\n".join(formatted)
