@@ -97,8 +97,14 @@ for key in API_KEYS:
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
+# Output-token ceiling for the primary model. Long code-heavy answers were
+# hitting the provider default and returning finish_reason="length", so give
+# generations enough headroom to close their code fences. Covers the observed
+# p99 answer length from truncated ("length") traces.
+MODEL_MAX_TOKENS = int(os.getenv("MODEL_MAX_TOKENS", "16384"))
+
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(model=DEFAULT_MODEL.id, max_tokens=MODEL_MAX_TOKENS)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -112,7 +118,8 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model) | RunnableLambda(_raise_for_retryable_finish_reason)
+        init_chat_model(model=model, max_tokens=MODEL_MAX_TOKENS)
+        | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
 

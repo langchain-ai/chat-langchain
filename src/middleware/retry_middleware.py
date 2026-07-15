@@ -9,6 +9,7 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.messages import AIMessage
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,25 @@ logger = logging.getLogger(__name__)
 RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
 }
+
+# Finish reasons that indicate the model hit its output-token ceiling and the
+# assistant content is truncated (e.g. an unclosed code fence).
+LENGTH_FINISH_REASONS = {"length", "max_tokens", "MAX_TOKENS"}
+
+# Appended to a final assistant turn that was cut off so the user knows the
+# answer is incomplete rather than silently receiving a half-formed code block.
+TRUNCATION_MARKER = "\n\n*[Response was truncated. Ask me to continue.]*"
+
+# Fence used to close a code block left open by a truncated response.
+_CODE_FENCE = "```"
+
+
+def _close_unterminated_code_fence(text: str) -> str:
+    """Close a dangling triple-backtick fence so the block renders intact."""
+    if text.count(_CODE_FENCE) % 2 == 1:
+        suffix = "" if text.endswith("\n") else "\n"
+        return f"{text}{suffix}{_CODE_FENCE}"
+    return text
 
 
 class MalformedResponseError(Exception):
@@ -36,10 +56,37 @@ class ModelRetryMiddleware(AgentMiddleware):
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
 
+    def _final_ai_message(self, response: ModelResponse) -> AIMessage | None:
+        """Return the final AIMessage produced by the model, if any."""
+        if isinstance(response, AIMessage):
+            return response
+        result = getattr(response, "result", None) or []
+        for message in reversed(result):
+            if isinstance(message, AIMessage):
+                return message
+        return None
+
     def _get_finish_reason(self, response: ModelResponse) -> str:
         """Extract finish_reason from response metadata."""
         metadata = getattr(response, "response_metadata", None) or {}
+        if not metadata:
+            message = self._final_ai_message(response)
+            metadata = getattr(message, "response_metadata", None) or {} if message else {}
         return metadata.get("finish_reason", "")
+
+    def _mark_truncated_final_turn(self, response: ModelResponse) -> None:
+        """Append a visible marker when a final assistant turn was cut off."""
+        message = self._final_ai_message(response)
+        if message is None or message.tool_calls:
+            return
+        if isinstance(message.content, str):
+            if message.content.endswith(TRUNCATION_MARKER):
+                return
+            closed = _close_unterminated_code_fence(message.content)
+            message.content = closed + TRUNCATION_MARKER
+        elif isinstance(message.content, list):
+            message.content.append({"type": "text", "text": TRUNCATION_MARKER})
+        logger.warning("Final assistant turn truncated (finish_reason=length); appended marker")
 
     async def awrap_model_call(
         self,
@@ -65,6 +112,12 @@ class ModelRetryMiddleware(AgentMiddleware):
                         last_retryable_reason = finish_reason
                         await asyncio.sleep(delay)
                         continue
+
+                # A "length" finish reason means the output-token ceiling was
+                # hit; retrying yields the same cutoff, so surface it to the user
+                # instead of silently returning a half-formed answer.
+                if finish_reason in LENGTH_FINISH_REASONS:
+                    self._mark_truncated_final_turn(response)
 
                 return response
 
@@ -94,4 +147,9 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = [
+    "ModelRetryMiddleware",
+    "MalformedResponseError",
+    "LENGTH_FINISH_REASONS",
+    "TRUNCATION_MARKER",
+]
