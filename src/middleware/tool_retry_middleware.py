@@ -32,6 +32,14 @@ RETRYABLE_ERROR_MARKERS = (
     "too many requests",
 )
 
+# Signatures that indicate the search backend is in a sustained outage rather
+# than a transient blip. Once seen for a tool in a turn, additional attempts on
+# that same tool only burn latency/tokens before the agent falls back.
+OUTAGE_MARKERS = (
+    "search failed: search failed",
+    "tool unavailable",
+)
+
 
 class ToolRetryMiddleware(AgentMiddleware[AgentState]):
     """Retry transient tool failures and return model-readable errors."""
@@ -46,6 +54,10 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        # Per-turn record of tools whose backend is down, so concurrent/later
+        # calls in the same turn skip the failing endpoint. Keyed by turn id.
+        self._outage_turn_id: str | None = None
+        self._unavailable_tools: set[str] = set()
 
     def _tool_name(self, request: ToolCallRequest) -> str:
         return request.tool_call.get("name", "unknown_tool")
@@ -90,6 +102,46 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         return any(marker in text for marker in RETRYABLE_ERROR_MARKERS)
 
+    def _is_outage(self, text: str) -> bool:
+        lowered = text.lower()
+        return any(marker in lowered for marker in OUTAGE_MARKERS)
+
+    def _turn_id(self, request: ToolCallRequest) -> str:
+        state = request.state
+        messages = state.get("messages", []) if isinstance(state, dict) else []
+        for message in reversed(messages):
+            message_id = getattr(message, "id", None)
+            if message_id:
+                return str(message_id)
+        return ""
+
+    def _reset_turn(self, turn_id: str) -> None:
+        if turn_id != self._outage_turn_id:
+            self._outage_turn_id = turn_id
+            self._unavailable_tools = set()
+
+    def _mark_unavailable(self, turn_id: str, tool_name: str) -> None:
+        self._reset_turn(turn_id)
+        self._unavailable_tools.add(tool_name)
+
+    def _is_unavailable(self, turn_id: str, tool_name: str) -> bool:
+        return (
+            turn_id == self._outage_turn_id and tool_name in self._unavailable_tools
+        )
+
+    def _outage_content(self, request: ToolCallRequest) -> str:
+        tool_name = self._tool_name(request)
+        payload: dict[str, Any] = {
+            "error": "Tool unavailable",
+            "message": f"{tool_name} is in an outage this turn; skipping retry.",
+            "tool": tool_name,
+            "suggestion": (
+                "Use another available source (filesystem search or support "
+                "articles) or answer from already retrieved context."
+            ),
+        }
+        return json.dumps(payload)
+
     def _tool_message(
         self,
         request: ToolCallRequest,
@@ -119,19 +171,43 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         }
         return json.dumps(payload)
 
+    def _result_text(self, result: ToolMessage | Command) -> str:
+        content = getattr(result, "content", None)
+        if isinstance(content, str):
+            return content
+        if content is not None:
+            return str(content)
+        return ""
+
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
         last_error: Exception | None = None
+        tool_name = self._tool_name(request)
+        turn_id = self._turn_id(request)
+
+        if self._is_unavailable(turn_id, tool_name):
+            logger.warning(
+                "Tool %s already flagged unavailable this turn; skipping call",
+                tool_name,
+            )
+            return self._tool_message(request, self._outage_content(request))
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await handler(request)
+                if self._is_outage(self._result_text(result)):
+                    logger.warning(
+                        "Tool %s returned an outage signature; "
+                        "marking unavailable for the rest of the turn",
+                        tool_name,
+                    )
+                    self._mark_unavailable(turn_id, tool_name)
+                return result
             except Exception as error:
                 last_error = error
-                tool_name = self._tool_name(request)
 
                 if self._is_no_results(error):
                     logger.info(
@@ -139,6 +215,18 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                         tool_name,
                     )
                     return self._tool_message(request, "No results found.")
+
+                if self._is_outage(self._error_text(error)):
+                    logger.warning(
+                        "Tool %s raised an outage signature; "
+                        "marking unavailable and skipping retries",
+                        tool_name,
+                    )
+                    self._mark_unavailable(turn_id, tool_name)
+                    return self._tool_message(
+                        request,
+                        self._final_error_content(request, error),
+                    )
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
                     delay = self.initial_delay * (
