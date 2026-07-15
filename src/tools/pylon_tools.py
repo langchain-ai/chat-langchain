@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_core.tools import ToolException
 
 load_dotenv()
 
@@ -128,12 +129,15 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
+def search_support_articles(query: str, collections: str = "all") -> str:
     """Get LangChain support article titles from Pylon KB, filtered by collection(s).
 
     Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
 
     Args:
+        query: Free-text search query describing what the user is looking for. REQUIRED.
+                    Do not pass an empty string. The collections field alone will not filter
+                    results meaningfully — pass a query that captures the user's specific question.
         collections: Comma-separated list of collection names to filter by.
                     Available collections:
                     - "General" - General administration and management topics
@@ -153,6 +157,11 @@ def search_support_articles(collections: str = "all") -> str:
     Returns:
         JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
     """
+    if query is None or not query.strip():
+        raise ToolException(
+            "search_support_articles requires a non-empty `query` argument — extract the key terms from the user's question and call again with both `query` and `collections`."
+        )
+
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()

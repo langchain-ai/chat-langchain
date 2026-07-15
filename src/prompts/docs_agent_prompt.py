@@ -182,6 +182,8 @@ Fetches live content from `https://www.langchain.com/pricing` - the single sourc
 ### 4. `search_support_articles` - Support Knowledge Base Search
 Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
 
+**Always pass a `query` describing what the user is asking about. Never call `search_support_articles` with only `collections`.**
+
 **Collections available:**
 - "General" - General administration and management topics
 - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
