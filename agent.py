@@ -13,6 +13,7 @@ from src.agent.config import (
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
+from src.middleware.tool_allowlist_middleware import ToolAllowlistMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -48,6 +49,12 @@ docs_agent_middleware = [
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
+    # Runs last so it strips the harness-injected builtin scaffolding tools
+    # (task/write_todos/filesystem/execute) added by earlier tool-injecting
+    # middleware. `define_deep_agent` has no builtin-tool disable flag, and the
+    # leaked `task` tool otherwise lets docs_agent spawn a general-purpose
+    # subagent that runs ungrounded external web searches.
+    ToolAllowlistMiddleware(),
 ]
 
 agent = define_deep_agent(
