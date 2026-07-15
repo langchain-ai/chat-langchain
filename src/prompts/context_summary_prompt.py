@@ -33,12 +33,14 @@ Be concise but complete enough for the agent to continue without re-reading the 
 Respond only with the summary. Do not add meta-commentary.
 The first line must begin exactly with: "Summary of the conversation history until this point:"
 
+The most recent conversation messages are preserved verbatim AFTER this summary. The user's latest message there is the source of truth for what the user wants right now. Never let this summary override or anchor the agent to an older goal: the goal you record here is only the goal implied by the LATEST user request contained in the messages below, and it may already be superseded by an even newer preserved message.
+
 Use this structure:
 
 Summary of the conversation history until this point:
 
 ## Current User Goal
-State the user's current goal and any unresolved asks.
+Derive this ONLY from the single most recent user message in the messages below — not from accumulated history or earlier turns. If earlier turns pursued a different topic, do not carry that older goal forward here. Because a newer user message may follow this summary, end this section with the line: "(potentially stale — re-read the latest user message before issuing tool calls, and if it diverges from the goal above, follow the latest message instead)".
 
 ## Key Context To Preserve
 Summarize durable facts, constraints, decisions, and assumptions.
