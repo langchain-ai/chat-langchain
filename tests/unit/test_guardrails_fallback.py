@@ -83,7 +83,7 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     """If guardrails classification fully fails, the main agent should continue."""
     middleware = _middleware_with_models()
 
-    async def _raise_classification_error(messages):  # noqa: ARG001
+    async def _raise_classification_error(messages, already_refused=False):  # noqa: ARG001
         raise GuardrailsClassificationError("all models failed")
 
     monkeypatch.setattr(middleware, "_classify_query", _raise_classification_error)

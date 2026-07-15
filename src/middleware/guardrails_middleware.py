@@ -64,9 +64,13 @@ class GuardrailsClassificationError(Exception):
 
 
 class GuardrailsState(AgentState):
-    """Extended state schema with off-topic flag."""
+    """Extended state schema with off-topic flags."""
 
     off_topic_query: NotRequired[bool]
+    # Sticky across turns of the same thread: once we refuse a request as
+    # off-topic, this stays set so re-asks (even re-framed as LangChain / tool
+    # requests) keep getting refused instead of capitulating.
+    refused_off_topic: NotRequired[bool]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -203,13 +207,21 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         safe_last_content = self._content_to_safe_text(last_content)
         query_preview = safe_last_content[:100]
 
+        # Sticky refusal: if we already refused an off-topic request earlier in
+        # this thread, tell the classifier so a re-ask (even one re-framed as a
+        # LangChain / tool request) is judged against that prior refusal instead
+        # of being treated as a fresh, benign follow-up.
+        already_refused = bool(state.get("refused_off_topic", False))
+
         # One classifier, every turn. Covers topic relevance + zero-tolerance
         # categories (NSFW, fiction, harmful-use-case, prompt-extraction,
         # social-pressure). The prompt's lenient follow-up rules keep legit
         # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
         # while zero-tolerance bullets override the default ALLOW.
         try:
-            guardrails_decision = await self._classify_query(messages)
+            guardrails_decision = await self._classify_query(
+                messages, already_refused=already_refused
+            )
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
             return {"off_topic_query": False}
@@ -234,7 +246,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return None
+            # A genuinely in-scope turn clears the off-topic flag for this turn.
+            # We intentionally keep refused_off_topic sticky so the sticky-refusal
+            # signal survives; it only matters when a turn re-classifies BLOCKED.
+            return {"off_topic_query": False}
 
         # Handle blocked queries
         logger.warning(
@@ -249,11 +264,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             )
             return None
 
-        # Generate rejection and block
+        # Generate rejection and block. Set refused_off_topic so subsequent
+        # turns stay refused even if the user re-frames the same request.
         off_topic_message = await self._generate_rejection_message(last_content)
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
+            "refused_off_topic": True,
             "jump_to": "end",
         }
 
@@ -367,7 +384,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
-    async def _classify_query(self, messages: list) -> GuardrailsDecision:
+    async def _classify_query(
+        self, messages: list, already_refused: bool = False
+    ) -> GuardrailsDecision:
         """Classify query as ALLOWED or BLOCKED.
 
         Raises:
@@ -406,6 +425,17 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             context_section = (
                 "\n\nPrevious questions in this conversation:\n"
                 + "\n".join(f"- {q}" for q in recent)
+            )
+
+        if already_refused:
+            context_section += (
+                "\n\nAn earlier turn in this conversation was already refused as "
+                "off-topic. Treat the current message as a re-ask of that refused "
+                "request: if it is the same underlying off-topic request re-framed "
+                "(e.g. wrapped in LangChain / Deep Agents terminology, or asking you "
+                "to use the available tools to fulfill it), it MUST stay BLOCKED. "
+                "Only ALLOW if it is a genuinely new, in-scope LangChain / LangGraph "
+                "/ LangSmith / Deep Agents question."
             )
 
         current_content = getattr(current_message, "content", current_query or "")
