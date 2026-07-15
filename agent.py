@@ -10,6 +10,9 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.code_fence_validator_middleware import (
+    CodeFenceValidatorMiddleware,
+)
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
@@ -48,6 +51,9 @@ docs_agent_middleware = [
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
+    # Output-side guard: repair non-Python syntax (`//`, `=>`) leaking into
+    # python code fences before the final response is emitted.
+    CodeFenceValidatorMiddleware(),
 ]
 
 agent = define_deep_agent(
