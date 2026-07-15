@@ -41,11 +41,24 @@ class ModelRetryMiddleware(AgentMiddleware):
         metadata = getattr(response, "response_metadata", None) or {}
         return metadata.get("finish_reason", "")
 
+    def _ensure_message_format(self, request: ModelRequest) -> ModelRequest:
+        """Pin output_version=v1 so LLM spans carry ls_message_format."""
+        model = getattr(request, "model", None)
+        if model is not None and getattr(model, "output_version", None) != "v1":
+            try:
+                return request.override(
+                    model=model.model_copy(update={"output_version": "v1"})
+                )
+            except Exception:
+                logger.debug("Could not pin output_version on model", exc_info=True)
+        return request
+
     async def awrap_model_call(
         self,
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
+        request = self._ensure_message_format(request)
         last_exception: Exception | None = None
         last_retryable_reason: str | None = None
 
