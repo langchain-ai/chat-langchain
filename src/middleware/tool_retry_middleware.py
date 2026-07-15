@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
@@ -41,11 +41,13 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         max_attempts: int = 3,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
+        max_repeat_signature: int = 3,
     ):
         super().__init__()
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self.max_repeat_signature = max_repeat_signature
 
     def _tool_name(self, request: ToolCallRequest) -> str:
         return request.tool_call.get("name", "unknown_tool")
@@ -119,11 +121,75 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         }
         return json.dumps(payload)
 
+    def _call_signature(self, name: str, args: Any) -> str:
+        try:
+            return f"{name}:{json.dumps(args, sort_keys=True, default=str)}"
+        except Exception:
+            return f"{name}:{args!r}"
+
+    def _consecutive_identical_calls(self, request: ToolCallRequest) -> int:
+        messages = getattr(request.state, "messages", None)
+        if messages is None and isinstance(request.state, dict):
+            messages = request.state.get("messages")
+        if not messages:
+            return 0
+
+        target = self._call_signature(
+            self._tool_name(request), request.tool_call.get("args", {})
+        )
+
+        count = 0
+        for message in reversed(messages):
+            if not isinstance(message, AIMessage):
+                continue
+            tool_calls = getattr(message, "tool_calls", None) or []
+            if not tool_calls:
+                break
+            matched = False
+            for call in tool_calls:
+                sig = self._call_signature(
+                    call.get("name", ""), call.get("args", {})
+                )
+                if sig == target:
+                    matched = True
+                    break
+            if not matched:
+                break
+            count += 1
+        return count
+
+    def _loop_break_message(self, request: ToolCallRequest) -> ToolMessage:
+        tool_name = self._tool_name(request)
+        payload = {
+            "error": "Tool call loop detected",
+            "message": (
+                f"{tool_name} was invoked with identical arguments "
+                f"{self.max_repeat_signature} times in a row; aborting to "
+                "avoid an infinite loop."
+            ),
+            "tool": tool_name,
+            "suggestion": (
+                "Try a different query, change tool, or answer from already "
+                "retrieved context."
+            ),
+        }
+        return self._tool_message(request, json.dumps(payload))
+
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
+        if self.max_repeat_signature > 0:
+            repeats = self._consecutive_identical_calls(request)
+            if repeats >= self.max_repeat_signature:
+                logger.warning(
+                    "Tool %s called with identical args %s times; short-circuiting",
+                    self._tool_name(request),
+                    repeats,
+                )
+                return self._loop_break_message(request)
+
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_attempts + 1):
