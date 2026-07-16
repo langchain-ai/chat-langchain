@@ -9,6 +9,9 @@ from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
+from src.middleware.model_fallback_message_middleware import (
+    ModelErrorFallbackMiddleware,
+)
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -135,6 +138,11 @@ tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
+# Terminal fallback: sits outermost of the model-call stack so a transient
+# provider error that survives retries and the model fallback chain becomes a
+# user-facing reply instead of crashing the run with empty output.
+model_error_fallback_middleware = ModelErrorFallbackMiddleware()
+
 # =============================================================================
 # Exports
 # =============================================================================
@@ -154,6 +162,7 @@ __all__ = [
     "model_retry_middleware",
     "tool_retry_middleware",
     "model_fallback_middleware",
+    "model_error_fallback_middleware",
     # Config
     "MAX_RETRIES",
     "logger",
