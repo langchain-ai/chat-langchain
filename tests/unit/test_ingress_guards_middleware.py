@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from types import SimpleNamespace
 
@@ -32,6 +33,67 @@ def test_before_agent_truncates_oversized_human_message():
 def test_before_agent_noop_when_under_cap():
     middleware = IngressGuardsMiddleware()
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
+
+    assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_rejects_misrouted_agent_state():
+    middleware = IngressGuardsMiddleware()
+    blob = json.dumps(
+        {
+            "name": "leadership_coach_agent",
+            "thread_model_call_count": 3,
+            "off_topic_query": False,
+            "messages": [
+                {"type": "human", "content": "How do I recognize my team?"},
+                {
+                    "type": "tool",
+                    "name": "team_recognition_history",
+                    "content": "Prior recognitions: ...",
+                },
+            ],
+        }
+    )
+    state = {"messages": [HumanMessage(content=blob, id="h1")]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["jump_to"] == "end"
+    assert isinstance(update["messages"][0], AIMessage)
+
+
+def test_before_agent_rejects_misrouted_agent_state_under_values_wrapper():
+    middleware = IngressGuardsMiddleware()
+    blob = json.dumps(
+        {
+            "values": {
+                "name": "leadership_coach_agent",
+                "messages": [
+                    {
+                        "type": "tool",
+                        "name": "team_recognition_history",
+                        "content": "Prior recognitions: ...",
+                    }
+                ],
+            }
+        }
+    )
+    state = {"messages": [HumanMessage(content=blob, id="h1")]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["jump_to"] == "end"
+
+
+def test_before_agent_allows_question_with_json_snippet():
+    middleware = IngressGuardsMiddleware()
+    question = (
+        "How do I configure a LangChain agent? Here is my config: "
+        '{"model": "gpt-4o", "temperature": 0}'
+    )
+    state = {"messages": [HumanMessage(content=question, id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
