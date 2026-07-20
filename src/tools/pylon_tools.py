@@ -344,7 +344,12 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        # Surface a miss as a clearly error-flagged result so retry/agent logic
+        # can recognize it as terminal rather than treating it as valid content.
+        return (
+            f"ERROR_ARTICLE_NOT_FOUND: Article ID {article_id} does not exist in the "
+            f"knowledge base. Do not retry this ID; answer from other sources."
+        )
 
     except ValueError as e:
         # API key not configured

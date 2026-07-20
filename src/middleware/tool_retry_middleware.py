@@ -41,14 +41,25 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         max_attempts: int = 3,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
+        max_identical_calls: int = 2,
     ):
         super().__init__()
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self.max_identical_calls = max_identical_calls
+        self._call_signatures: dict[tuple[str, str], int] = {}
 
     def _tool_name(self, request: ToolCallRequest) -> str:
         return request.tool_call.get("name", "unknown_tool")
+
+    def _tool_args_key(self, request: ToolCallRequest) -> str:
+        """Return a stable, hashable key derived from the tool call args."""
+        args = request.tool_call.get("args", {})
+        try:
+            return json.dumps(args, sort_keys=True, default=str)
+        except TypeError:
+            return repr(args)
 
     def _tool_call_id(self, request: ToolCallRequest) -> str:
         return request.tool_call.get("id", "")
@@ -125,6 +136,23 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         handler,
     ) -> ToolMessage | Command:
         last_error: Exception | None = None
+
+        # Short-circuit repeated identical (name + args) tool calls: if the same
+        # signature has already been seen too many times this trajectory, stop
+        # instead of looping and tell the model the lookup is terminal.
+        signature = (self._tool_name(request), self._tool_args_key(request))
+        self._call_signatures[signature] = self._call_signatures.get(signature, 0) + 1
+        if self._call_signatures[signature] > self.max_identical_calls:
+            logger.warning(
+                "Tool %s called with identical args %s times; short-circuiting",
+                signature[0],
+                self._call_signatures[signature],
+            )
+            return self._tool_message(
+                request,
+                "This exact tool call was already attempted and did not succeed. "
+                "Stop retrying it and answer using other available information.",
+            )
 
         for attempt in range(1, self.max_attempts + 1):
             try:

@@ -45,6 +45,9 @@ docs_agent_middleware = [
         summary_prompt=context_summary_prompt,
         trim_tokens_to_summarize=None,
     ),
+    # tool_retry_middleware wraps every tool call for the agent, so its
+    # max_identical_calls setting is the global cap: no tool (name + args) can be
+    # attempted more than that many times before the trajectory is short-circuited.
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
