@@ -14,6 +14,7 @@ from src.middleware.retry_middleware import (
     MalformedResponseError,
     ModelRetryMiddleware,
 )
+from src.middleware.tool_loop_guard_middleware import ToolLoopGuardMiddleware
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
 dotenv.load_dotenv()
@@ -131,6 +132,7 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
+tool_loop_guard_middleware = ToolLoopGuardMiddleware()
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
@@ -153,6 +155,7 @@ __all__ = [
     # Middleware
     "model_retry_middleware",
     "tool_retry_middleware",
+    "tool_loop_guard_middleware",
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",

@@ -8,6 +8,7 @@ from src.agent.config import (
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
+    tool_loop_guard_middleware,
     tool_retry_middleware,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
@@ -45,6 +46,7 @@ docs_agent_middleware = [
         summary_prompt=context_summary_prompt,
         trim_tokens_to_summarize=None,
     ),
+    tool_loop_guard_middleware,
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
