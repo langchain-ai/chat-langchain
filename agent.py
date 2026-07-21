@@ -10,6 +10,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.filesystem_guard_middleware import FilesystemGuardMiddleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
@@ -32,6 +33,10 @@ docs_agent_middleware = [
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
+    # Confine the agent to doc retrieval: refuse runtime-injected coding tools
+    # (ls/grep/read_file/write_file/write_todos/task) and keep any filesystem
+    # tool under the /oss/ documentation roots.
+    FilesystemGuardMiddleware(),
     GuardrailsMiddleware(
         model=GUARDRAILS_MODEL.id,
         fallback_model=DEFAULT_MODEL.id,
