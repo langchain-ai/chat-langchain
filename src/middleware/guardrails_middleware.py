@@ -425,7 +425,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 try:
                     result: GuardrailsDecision = await asyncio.wait_for(
                         structured_llm.ainvoke(
-                            prompt, config={"callbacks": [], "tags": ["guardrails"]}
+                            prompt, config={"tags": ["guardrails"]}
                         ),
                         timeout=GUARDRAILS_TIMEOUT_SECONDS,
                     )
