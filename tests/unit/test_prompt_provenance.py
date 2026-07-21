@@ -15,7 +15,7 @@ def test_get_prompt_provenance_local_mode(monkeypatch):
 
     result = provenance.get_prompt_provenance("docs_agent")
     assert result == {
-        "prompt_source": "local:src/prompts/docs_agent_prompt.py",
+        "prompt_source": "local:instructions.md",
         "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
     }
     assert "prompt_commit" not in result

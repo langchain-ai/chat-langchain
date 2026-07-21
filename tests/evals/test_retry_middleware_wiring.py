@@ -1,23 +1,24 @@
 # tests/evals/test_retry_middleware_wiring.py
 import pytest
 from langsmith import testing as t
+
+from agent import docs_agent_middleware
 from src.agent import config
-from src.agent.docs_graph import docs_agent
 from src.middleware.retry_middleware import ModelRetryMiddleware
+
 
 @pytest.mark.langsmith
 def test_retry_middleware_is_in_agent_middleware_list():
-    """Ensure ModelRetryMiddleware is wired into docs_agent's middleware stack."""
+    """Ensure ModelRetryMiddleware is wired into the MDA middleware stack."""
 
-    t.log_inputs({"check": "ModelRetryMiddleware in docs_agent middleware"})
+    t.log_inputs({"check": "ModelRetryMiddleware in docs_agent_middleware"})
 
-    middleware_list = getattr(docs_agent, "middleware", [])
-    types = [type(m).__name__ for m in middleware_list]
+    types = [type(m).__name__ for m in docs_agent_middleware]
     t.log_outputs({"middleware_types": types})
     t.log_reference_outputs({"expected": "ModelRetryMiddleware in middleware"})
 
-    assert any(isinstance(m, ModelRetryMiddleware) for m in middleware_list), (
-        f"ModelRetryMiddleware not found in docs_agent middleware. "
+    assert any(isinstance(m, ModelRetryMiddleware) for m in docs_agent_middleware), (
+        f"ModelRetryMiddleware not found in docs_agent_middleware. "
         f"Found: {types}"
     )
 

@@ -47,7 +47,7 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
     metadata = build_docs_agent_trace_metadata()
 
     assert metadata["source_type"] == "Chat-LangChain"
-    assert metadata["prompt_source"] == "local:src/prompts/docs_agent_prompt.py"
+    assert metadata["prompt_source"] == "local:instructions.md"
     assert (
         metadata["guardrails_prompt_source"]
         == "local:src/prompts/guardrails_prompts.py"
