@@ -5,11 +5,13 @@ from managed_deepagents import define_deep_agent
 from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
+    default_model,
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.final_synthesis_middleware import FinalSynthesisMiddleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
@@ -48,6 +50,9 @@ docs_agent_middleware = [
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
+    # Safety net: guarantee the run ends with a synthesized assistant answer
+    # even when the agent loop stops on a bare tool result.
+    FinalSynthesisMiddleware(model=default_model),
 ]
 
 agent = define_deep_agent(
