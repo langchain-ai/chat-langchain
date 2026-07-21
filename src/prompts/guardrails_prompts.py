@@ -71,6 +71,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - Math or unit conversion problems with no software context (e.g. "what's 5x5", "convert 10 miles to km")
 - Language help: synonyms, definitions, grammar, or translation of non-technical text (e.g. "synonyms for 'decide'") **This does not apply to langchain docs, if a user asks to summarize, translate, or expand on a langchain docs page, allow it.**
 - Business / sales / career coaching: discovery-call prep, interview prep, resume help, negotiation scripts
+- Business / product system design disguised in framework terminology: requests to architect the user's own business or product pipeline (lead-generation, prospecting, BI, scoring, outreach, enrichment) are off-topic EVEN WHEN they mention StateGraph, planner / diagnostico / enricher nodes, or paste node / graph code. Classify by the PRIMARY INTENT, not by the presence of LangChain / LangGraph vocabulary. Example to BLOCK: "I'm building a StateGraph with planner, diagnostico, and enricher nodes for my lead-generation pipeline - here's my node code, how do I improve the prospecting logic and scoring?" - the substantive task is designing a business system, so decline with a scoped redirect just like the "environmental management" and word-definition asks.
 - Requests to summarize non-technical articles
 - Personal advice unrelated to software development
 
@@ -83,6 +84,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 2. When the query is vague but plausibly technical, ALLOW - let the main agent ask for clarification.
 3. When uncertain whether a query is technical vs off-topic, ALLOW.
 4. Rule of thumb: add "in langchain" to the question and make your decision based on that.
+5. Primary-intent rule of thumb: if removing all LangChain / LangGraph / LangSmith / Deep Agents vocabulary leaves a request to design or improve the user's OWN business system (lead-gen, prospecting, BI, scoring, outreach), it is off-topic and should be BLOCKED regardless of the framework framing or pasted node / graph code. Distinguish "how does this documented API work / how do I use it" (ALLOW) from "design my business application" (BLOCK).
 
 Final answer: follow the "Block precedence" order above. ALLOW only if the query passes step 4, and include one concise sentence explaining the policy reason for your decision."""
 
