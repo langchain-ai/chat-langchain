@@ -102,7 +102,7 @@ def get_prompt_provenance(graph_id: str) -> dict[str, str]:
     """Return prompt provenance for a graph_id."""
     if _USE_LOCAL_PROMPTS and graph_id == "docs_agent":
         return {
-            "prompt_source": "local:src/prompts/docs_agent_prompt.py",
+            "prompt_source": "local:instructions.md",
             "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
         }
 

@@ -1,8 +1,7 @@
 """Root-run LangSmith metadata for the managed docs agent.
 
-Legacy ``docs_graph.py`` applied these via ``docs_agent.with_config(metadata=...)``.
-On MDA, pass the same dict to ``define_deep_agent(metadata=...)`` so the runtime
-applies ``.with_config`` after ``create_deep_agent`` — nested middleware cannot
+Pass this dict to ``define_deep_agent(metadata=...)`` so the runtime applies
+``.with_config`` after ``create_deep_agent`` — nested middleware cannot
 reliably reach the LangSmith root run tree.
 """
 

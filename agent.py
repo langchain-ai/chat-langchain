@@ -60,6 +60,5 @@ agent = define_deep_agent(
     # The current public app does not have cross-thread user memory. Keep MDA
     # managed memory off until identity scoping is ready.
     disable_memory=True,
-    # Root-trace parity with legacy docs_graph.with_config(metadata=...).
     metadata=build_docs_agent_trace_metadata(),
 )
