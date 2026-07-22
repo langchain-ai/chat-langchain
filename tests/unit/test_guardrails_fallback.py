@@ -1,10 +1,11 @@
 """Tests for guardrails model fallback behavior."""
 
 import asyncio
+import json
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -13,6 +14,7 @@ from src.middleware import guardrails_middleware as guardrails_module
 from src.middleware.guardrails_middleware import (
     GuardrailsClassificationError,
     GuardrailsMiddleware,
+    _is_guardrails_decision_message,
 )
 
 
@@ -96,3 +98,64 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_is_guardrails_decision_message_detects_classifier_json():
+    """The helper should only flag AIMessages that are serialized GuardrailsDecisions."""
+    decision_json = json.dumps(
+        {"decision": "ALLOWED", "explanation": "LangChain question."}
+    )
+    assert _is_guardrails_decision_message(AIMessage(content=decision_json)) is True
+    assert _is_guardrails_decision_message(AIMessage(content="Here is your answer.")) is False
+    assert _is_guardrails_decision_message(HumanMessage(content=decision_json)) is False
+
+
+def test_allowed_query_strips_contaminating_decision_message(monkeypatch):
+    """An ALLOWED in-scope query must not surface the raw guardrail decision JSON."""
+    middleware = _middleware_with_models()
+
+    async def _allow(messages):  # noqa: ARG001
+        return {"decision": "ALLOWED", "explanation": "LangChain-related question."}
+
+    monkeypatch.setattr(middleware, "_classify_query", _allow)
+
+    decision_message = AIMessage(
+        content=json.dumps(
+            {"decision": "ALLOWED", "explanation": "LangChain-related question."}
+        )
+    )
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {
+                "messages": [
+                    HumanMessage(content="How do agents work?"),
+                    decision_message,
+                ]
+            },
+            Runtime(context=None),
+        )
+    )
+
+    assert result is not None
+    remaining = result["messages"]
+    assert decision_message not in remaining
+    assert not any(_is_guardrails_decision_message(m) for m in remaining)
+
+
+def test_allowed_query_without_contamination_returns_none(monkeypatch):
+    """A clean ALLOWED query should proceed to the agent without altering messages."""
+    middleware = _middleware_with_models()
+
+    async def _allow(messages):  # noqa: ARG001
+        return {"decision": "ALLOWED", "explanation": "LangChain-related question."}
+
+    monkeypatch.setattr(middleware, "_classify_query", _allow)
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="How do agents work?")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert result is None

@@ -1,6 +1,7 @@
 """Lenient guardrails middleware to filter only egregious misuse."""
 
 import asyncio
+import json
 import logging
 import os
 import random
@@ -95,6 +96,24 @@ else:
         _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
         guardrails_prompt_commit = None
         guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
+
+
+def _is_guardrails_decision_message(msg: Any) -> bool:
+    """Return whether msg is an AIMessage whose content is a serialized GuardrailsDecision."""
+    if not isinstance(msg, AIMessage):
+        return False
+    content = getattr(msg, "content", None)
+    if not isinstance(content, str):
+        return False
+    try:
+        parsed = json.loads(content)
+    except (ValueError, TypeError):
+        return False
+    return (
+        isinstance(parsed, dict)
+        and parsed.get("decision") in {"ALLOWED", "BLOCKED"}
+        and "explanation" in parsed
+    )
 
 
 class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
@@ -234,6 +253,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
+            # Defensive: the classifier's structured-output response must never
+            # become the user-visible final message. Strip any trailing AIMessage
+            # that is actually a serialized GuardrailsDecision so the agent
+            # continues to document retrieval instead of stopping on it.
+            if messages and _is_guardrails_decision_message(messages[-1]):
+                return {"messages": messages[:-1]}
             return None
 
         # Handle blocked queries
