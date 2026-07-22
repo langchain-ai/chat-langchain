@@ -291,11 +291,13 @@ def get_support_article_content(article_id: str) -> str:
     """Fetch the full HTML content of a specific Pylon support article.
 
     Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
+    Accepts either the UUID `id` field or the URL-slug identifier
+    (`<identifier>-<slug>` or just `<identifier>`) returned by
+    search_support_articles. The UUID is preferred. Do not pass full
     docs.langchain.com URLs or paths.
 
     Args:
-        article_id: The article ID from search_support_articles
+        article_id: The UUID `id` or URL-slug identifier from search_support_articles
 
     Returns:
         Article content with only: id, title, url, collection, content
@@ -317,7 +319,14 @@ def get_support_article_content(article_id: str) -> str:
 
         # Find the article by ID
         for article in articles:
-            if article.get("id") == article_id:
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            slug_id = f"{identifier}-{slug}" if identifier and slug else ""
+            if (
+                article.get("id") == article_id
+                or (identifier and identifier == article_id)
+                or (slug_id and slug_id == article_id)
+            ):
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -325,9 +334,6 @@ def get_support_article_content(article_id: str) -> str:
                     coll_id, "Customer Support Knowledge Base"
                 )
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
                 if identifier and slug:
                     support_url = (
                         f"https://support.langchain.com/articles/{identifier}-{slug}"
@@ -344,7 +350,11 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        return (
+            f"Article ID '{article_id}' not found. "
+            "Tip: pass the 'id' field (UUID) from search_support_articles, "
+            "not the URL slug."
+        )
 
     except ValueError as e:
         # API key not configured
