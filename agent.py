@@ -54,7 +54,7 @@ agent = define_deep_agent(
     name="docs_agent",
     # Keep this literal so `mda deploy` can infer the provider package and
     # preflight GOOGLE_API_KEY.
-    model="google_genai:gemini-3.1-flash-lite",
+    model="google_genai:gemini-3.5-flash-lite",
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     # The current public app does not have cross-thread user memory. Keep MDA

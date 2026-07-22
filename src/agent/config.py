@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 class ModelConfig:
     """Configuration for a supported chat model."""
 
-    id: str  # e.g., "google_genai:gemini-3.1-flash-lite"
-    name: str  # Display name, e.g., "Gemini 3.1 Flash Lite"
+    id: str  # e.g., "google_genai:gemini-3.5-flash-lite"
+    name: str  # Display name, e.g., "Gemini 3.5 Flash Lite"
     provider: str  # e.g., "google", "openai", "baseten"
     api_key_env: str  # Environment variable for API key
     description: str | None = None
@@ -55,9 +55,9 @@ MODELS: dict[str, ModelConfig] = {
         description="Cheapest GPT-5.4-class model for simple high-volume tasks",
     ),
     # Google
-    "gemini-3.1-flash-lite": ModelConfig(
-        id="google_genai:gemini-3.1-flash-lite",
-        name="Gemini 3.1 Flash Lite",
+    "gemini-3.5-flash-lite": ModelConfig(
+        id="google_genai:gemini-3.5-flash-lite",
+        name="Gemini 3.5 Flash Lite",
         provider="google",
         api_key_env="GOOGLE_API_KEY",
         description="Fastest, most cost-effective Gemini",
@@ -65,7 +65,7 @@ MODELS: dict[str, ModelConfig] = {
 }
 
 # Default models for different use cases
-DEFAULT_MODEL = MODELS["gemini-3.1-flash-lite"]
+DEFAULT_MODEL = MODELS["gemini-3.5-flash-lite"]
 GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
 
 # Fallback chain (in order of preference)
@@ -112,14 +112,17 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model) | RunnableLambda(_raise_for_retryable_finish_reason)
+        init_chat_model(model=model)
+        | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
 
 def init_retry_fallback_model(model: str) -> Runnable:
     """Initialize a model runnable with the shared retry and fallback policy."""
     primary_model = _init_retrying_model(model)
-    fallback_models = [_init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS]
+    fallback_models = [
+        _init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS
+    ]
     return primary_model.with_fallbacks(fallback_models)
 
 
