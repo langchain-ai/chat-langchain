@@ -20,6 +20,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - MCP (Model Context Protocol) - this IS part of the LangChain ecosystem
 - DeepAgents, agent frameworks, agent architectures
 - LangChain integrations (vector stores, LLM providers, tools, retrievers, embeddings)
+- Prompt / template formatting questions (jinja2, mustache, f-string, ChatPromptTemplate template_format, template rendering, filters, for-loops and whitespace/newline control inside a template) are ALWAYS in scope - these are core LangChain prompt-template features
 - Any LLM provider questions (OpenAI, Anthropic, Groq, xAI, Google, etc.)
 - Model parameters (temperature, reasoning, max_tokens, etc.)
 - Streaming, async, callbacks, runnables, LCEL
@@ -82,9 +83,10 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 1. When the query is a plausible technical follow-up about prior LangChain / LangGraph / LangSmith / Fleet / Deep Agents context, ALLOW.
 2. When the query is vague but plausibly technical, ALLOW - let the main agent ask for clarification.
 3. When uncertain whether a query is technical vs off-topic, ALLOW.
-4. Rule of thumb: add "in langchain" to the question and make your decision based on that.
+4. Prompt/template formatting mechanics (jinja2, mustache, f-string) are IN scope even when phrased generically ("for loop in jinja2", "how to avoid the new line") - do NOT bucket these as generic "formatting/recipes". When uncertain, ALLOW so the agent can search the docs.
+5. Rule of thumb: add "in langchain" to the question and make your decision based on that.
 
-Final answer: follow the "Block precedence" order above. ALLOW only if the query passes step 4, and include one concise sentence explaining the policy reason for your decision."""
+Final answer: follow the "Block precedence" order above. ALLOW only if the query passes step 5, and include one concise sentence explaining the policy reason for your decision."""
 
 rejection_system_prompt = """You are a helpful LangChain documentation assistant explaining your scope limitations.
 
