@@ -122,6 +122,21 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     return _articles_cache
 
 
+def _fetch_article_by_id(article_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch a single article by id directly from the Pylon API.
+
+    Used as a fallback when an id surfaced by search is not present in the
+    paginated cache (e.g. it falls beyond the page cap of _fetch_all_articles).
+    """
+    kb_id = _get_kb_id()
+    url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/articles/{article_id}"
+    response = requests.get(url, headers=_get_headers())
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    return response.json().get("data")
+
+
 # =============================================================================
 # LangChain Tools
 # =============================================================================
@@ -315,28 +330,39 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
+        # Find the article by ID in the cached set (same id field search emits)
+        matched_article = None
         for article in articles:
             if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
+                matched_article = article
+                break
+
+        # The cache is capped at max_pages, so an id that search surfaced can be
+        # absent here. Fall back to fetching the specific article by id directly.
+        if matched_article is None:
+            matched_article = _fetch_article_by_id(article_id)
+
+        if matched_article is not None:
+            article = matched_article
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
                 )
+            else:
+                support_url = "URL not available"
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
-
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,7 +370,13 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        return (
+            f"Article ID {article_id} not found in knowledge base. "
+            "Pass the exact value from the 'id' field of a search_support_articles "
+            "result (a UUID). If this id came from a search result, the knowledge "
+            "base cache may be incomplete; re-run search_support_articles for the "
+            "relevant collection and retry rather than guessing other ids."
+        )
 
     except ValueError as e:
         # API key not configured
