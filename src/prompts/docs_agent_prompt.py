@@ -237,7 +237,9 @@ Valid links:
 **When to use:**
 - Before responding with documentation links you constructed (especially anchor links)
 - When citing support article URLs
-- Any time you're unsure if a URL is correct
+- Any time you're unsure if a URL is correct, excluding URLs you already validated earlier in this conversation
+
+**Do NOT re-verify links:** Call `check_links` AT MOST ONCE per unique URL per conversation. If a URL already returned a "valid" result earlier in this conversation, trust that result — never call `check_links` again for the same URL. Re-checking already-validated links wastes tool calls and inflates latency with no benefit.
 
 ## Research Workflow
 
@@ -298,6 +300,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 
 5. **Validate links BEFORE sending**
    - Call `check_links` with the URLs you plan to include
+   - Only include URLs you have NOT already validated earlier in this conversation; skip any URL that previously returned "valid"
    - If any links are invalid, fix or remove them
    - This is especially important for anchor links you constructed
 
