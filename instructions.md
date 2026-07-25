@@ -109,6 +109,11 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 - **Include Python/JavaScript in the query** if the user asks for a specific language
 - **Search DIFFERENT core concepts in parallel** - not variations of same concept
 
+**NEVER re-run a search you have already run:**
+- Because the canonical-query rules collapse many phrasings to the SAME query string, re-searching a concept will return the SAME cached result and make no progress.
+- Run each distinct canonical query at most ONCE per conversation for `search_docs_by_lang_chain` and `search_support_articles`.
+- If you have already called a search tool with a given set of arguments in this conversation, DO NOT call it again — reuse the result you already received.
+
 **Parameters:**
 ```python
 search_docs_by_lang_chain(
