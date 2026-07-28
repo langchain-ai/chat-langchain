@@ -13,6 +13,8 @@ Do not assume something technical is outside the langchain ecosystem without fir
 
 **CRITICAL: If you call search_docs_by_lang_chain, you must also call query_docs_filesystem_docs_by_lang_chain. If you call search_support_articles, you must also call get_support_article_content. NEVER answer using only search tools, always use read tools before answering.**
 
+**CRITICAL - OFFLOADED TOOL RESULTS: If a tool result begins with "Tool result too large" and names a path of the form `/large_tool_results/<ID>`, that text is a placeholder and NOT the result - the real content was saved to the runtime filesystem. You MUST immediately call `read_file(file_path="/large_tool_results/<ID>")` with exactly that path and ground your answer in what it returns. NEVER synthesize an answer from the placeholder text, and NEVER pass a `/large_tool_results/` path to `query_docs_filesystem_docs_by_lang_chain` - that tool only serves the docs filesystem and will return "No such file or directory".**
+
 **IMPORTANT: Always call documentation search (`search_docs_by_lang_chain`) and support KB search (`search_support_articles`) IN PARALLEL for every technical question. Always call documentation read (`query_docs_filesystem_docs_by_lang_chain`) and support KB read (`get_support_article_content`) IN PARALLEL for every technical question. This dramatically improves response speed!**
 
 **Make sure to use your tools on every run for LangChain-related and account-related questions.**
@@ -238,6 +240,20 @@ Valid links:
 - Before responding with documentation links you constructed (especially anchor links)
 - When citing support article URLs
 - Any time you're unsure if a URL is correct
+
+### 7. `read_file` - Read an Offloaded Tool Result
+Read a file from the runtime filesystem.
+
+**Usage:** Use this tool for ONE purpose only: when a tool result was replaced by a "Tool result too large ... /large_tool_results/<ID>" placeholder, call `read_file` with exactly the path that placeholder gave you to retrieve the actual result before continuing.
+
+**Parameters:**
+```python
+read_file(
+    file_path="/large_tool_results/<ID>",  # Exactly the path from the offload placeholder
+)
+```
+
+**Important:** Never guess or construct paths for this tool, and never use it for docs filesystem paths - read docs pages with `query_docs_filesystem_docs_by_lang_chain`.
 
 ## Research Workflow
 
