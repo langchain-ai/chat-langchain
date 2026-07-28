@@ -144,6 +144,8 @@ query_docs_filesystem_docs_by_lang_chain(
 **Guidelines:**
 - Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
+- **Every path you pass to this tool MUST be copied verbatim from a `Page:` value returned by `search_docs_by_lang_chain` in the current conversation.** Never construct a path from a `docs.langchain.com` URL, from memory, or from a `/large_tool_results/<id>` offload placeholder. If you have no `Page:` value, search again first.
+- **If the tool returns `No such file or directory`, the path was wrong.** Do NOT retry the same path. Run a discovery command such as `ls /oss/python/integrations/` or `rg -l "<topic>" /oss` to locate the real page, then read it. If you still cannot read any page, say so plainly in your answer instead of presenting ungrounded content as authoritative. (A bare `exit: 1` from `rg` with no stderr just means "no match" and is not a path error.)
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` → `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
 **IMPORTANT - Create Anchor Links to Subsections:**
@@ -271,6 +273,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 3. **Round 2: read official docs pages and support articles IN PARALLEL**
    - From docs search results, pick the top 1-3 most relevant `Page` paths
    - Append `.mdx` to each path and read them with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer
+   - Only use paths that appeared verbatim as a `Page` value in this conversation's search results — never invent or recall a path, and never pass a `/large_tool_results/` id
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
