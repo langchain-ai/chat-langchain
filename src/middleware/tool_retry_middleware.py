@@ -19,6 +19,16 @@ NO_RESULTS_MARKERS = (
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
+DOCS_FILESYSTEM_TOOL = "query_docs_filesystem_docs_by_lang_chain"
+
+# stderr markers that mean the model supplied a path or command that cannot
+# exist, as opposed to ripgrep's bare `exit: 1` (no match), which is normal.
+INVALID_DOCS_COMMAND_MARKERS = (
+    "no such file or directory",
+    "permission denied",
+    "not a directory",
+)
+
 RETRYABLE_ERROR_MARKERS = (
     "bad gateway",
     "connection error",
@@ -119,6 +129,21 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         }
         return json.dumps(payload)
 
+    def _invalid_docs_command_content(self, text: str) -> str | None:
+        """Return a model-legible error when a docs read used a bad path or command."""
+        lowered = text.lower()
+        if not any(marker in lowered for marker in INVALID_DOCS_COMMAND_MARKERS):
+            return None
+
+        return (
+            "ERROR_DOCS_PATH_INVALID: the requested path or command is not valid "
+            "on the docs filesystem. Do not retry a guessed path. Re-run "
+            "search_docs_by_lang_chain for this concept and read only a path that "
+            "search returned. Allowed commands: head -N, tail -N, "
+            'rg -C N "pattern", cat.\n'
+            f"Original output:\n{text[:400]}"
+        )
+
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
@@ -128,7 +153,20 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await handler(request)
+                if (
+                    self._tool_name(request) == DOCS_FILESYSTEM_TOOL
+                    and isinstance(result, ToolMessage)
+                    and isinstance(result.content, str)
+                ):
+                    invalid = self._invalid_docs_command_content(result.content)
+                    if invalid is not None:
+                        logger.warning(
+                            "Docs filesystem read failed on an invalid path/command: %s",
+                            result.content[:200],
+                        )
+                        return self._tool_message(request, invalid)
+                return result
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)

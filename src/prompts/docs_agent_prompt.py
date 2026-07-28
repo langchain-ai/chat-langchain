@@ -124,7 +124,13 @@ Read and navigate the official docs filesystem after search finds relevant pages
 
 **Best for:** reading full docs pages, extracting exact code examples, finding a subsection, or checking several discovered pages in one call.
 
-**Usage:** Search first, then read the most relevant `.mdx` page paths. Append `.mdx` to the path returned from search if needed. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provider good answers.**
+**Usage:** Search first, then read the most relevant `.mdx` page paths. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provide good answers.**
+
+**HARD RULE - never invent a path:** You may only read a path that appeared verbatim in a `search_docs_by_lang_chain` result in THIS conversation (optionally with `.mdx` appended). Never construct a path from a remembered docs URL pattern such as `/oss/{lang}/integrations/{category}/{provider}.mdx`, and never guess a sibling or parent page. If search returned a different path than you expected (e.g. `/langsmith/trace-deepseek` for a DeepSeek question), read that returned path - not the one you assumed exists.
+
+**Allowed command forms only:** `head -N <path>`, `tail -N <path>`, `rg -C N "pattern" <path>`, `cat <path>`. The argument is a real shell command; keyword-style syntax such as `offset=120 limit=120 <path>` is invalid and fails with `Permission denied`.
+
+**Recovery when a read fails:** If the result contains `No such file or directory`, `Permission denied`, or `ERROR_DOCS_PATH_INVALID`, the path or command was wrong. Re-run `search_docs_by_lang_chain` for that concept and read a path from the new results. Never retry a guessed path, and never answer from memory about that page - if search cannot surface it, tell the user the page could not be found in the docs.
 
 **Examples:**
 ```python
