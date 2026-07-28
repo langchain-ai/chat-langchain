@@ -199,6 +199,8 @@ Get list of support article titles from Pylon KB, filtered by collection(s). Use
 
 **Returns:** JSON with article IDs, titles, and URLs
 
+**CRITICAL: Only pass collection names exactly as spelled above - never invent, reorder, or abbreviate them. If the tool returns `{"error": "Collection '...' not found. Available collections: ..."}`, you MUST re-issue `search_support_articles` once using a name copied verbatim from the returned list before composing an answer. Never answer from an errored KB search.**
+
 ### 5. `get_support_article_content` - Fetch Full Support Article
 Fetch the full HTML content of a specific Pylon/support.langchain.com article by ID.
 

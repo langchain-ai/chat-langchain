@@ -5,11 +5,13 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, Iterable, List, Literal, Optional, Union, get_args
 
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from pydantic import BaseModel, Field, field_validator
 
 load_dotenv()
 
@@ -33,6 +35,95 @@ def _get_api_key() -> str:
     if not api_key:
         raise ValueError("PYLON_API_KEY not configured in .env")
     return api_key
+
+
+# =============================================================================
+# Collection Names
+# =============================================================================
+
+CollectionName = Literal[
+    "all",
+    "General",
+    "OSS (LangChain and LangGraph)",
+    "LangSmith Observability",
+    "LangSmith Evaluation",
+    "LangSmith Deployment",
+    "SDKs and APIs",
+    "LangSmith Studio",
+    "Self Hosted",
+    "Troubleshooting",
+    "Security",
+]
+
+COLLECTION_NAMES: tuple = get_args(CollectionName)
+
+
+def _collection_words(name: str) -> frozenset:
+    """Return the set of lowercase alphanumeric words in a collection name."""
+    return frozenset(re.findall(r"[a-z0-9]+", name.casefold()))
+
+
+def _resolve_collection_name(name: str, candidates: Iterable[str]) -> Optional[str]:
+    """Resolve a requested collection name to a known one, tolerating scrambles."""
+    candidates = list(candidates)
+
+    for candidate in candidates:
+        if candidate == name:
+            return candidate
+
+    lowered = name.casefold()
+    for candidate in candidates:
+        if candidate.casefold() == lowered:
+            return candidate
+
+    words = _collection_words(name)
+    if not words:
+        return None
+
+    equal = [c for c in candidates if _collection_words(c) == words]
+    if len(equal) == 1:
+        return equal[0]
+
+    # A scrambled name may also drop or duplicate a word ("OSS (LangGraph and
+    # LangGraph)"), so accept a strict subset when exactly one candidate matches.
+    subset = [c for c in candidates if words < _collection_words(c)]
+    if len(subset) == 1:
+        return subset[0]
+
+    return None
+
+
+class SearchSupportArticlesInput(BaseModel):
+    """Validated arguments for search_support_articles."""
+
+    collections: Union[CollectionName, str] = Field(
+        default="all",
+        description=(
+            "Collection name to filter by, or a comma-separated list of names. "
+            f"Allowed values: {', '.join(COLLECTION_NAMES)}. "
+            'Use "all" to search every collection.'
+        ),
+    )
+
+    @field_validator("collections", mode="before")
+    @classmethod
+    def _resolve_collections(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+
+        resolved = []
+        for part in value.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            match = _resolve_collection_name(part, COLLECTION_NAMES)
+            if match is None:
+                raise ValueError(
+                    f"Collection '{part}' not found. Available collections: {', '.join(COLLECTION_NAMES)}"
+                )
+            resolved.append(match)
+
+        return ",".join(resolved) if resolved else "all"
 
 
 # =============================================================================
@@ -127,7 +218,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 # =============================================================================
 
 
-@tool
+@tool(args_schema=SearchSupportArticlesInput)
 def search_support_articles(collections: str = "all") -> str:
     """Get LangChain support article titles from Pylon KB, filtered by collection(s).
 
@@ -217,23 +308,17 @@ def search_support_articles(collections: str = "all") -> str:
             # Get collection IDs for requested collections
             collection_ids = []
             for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
-                else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                matched_name = _resolve_collection_name(
+                    coll_name, collection_map.keys()
+                )
+                if matched_name is None:
+                    return json.dumps(
+                        {
+                            "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
+                        },
+                        indent=2,
+                    )
+                collection_ids.append(collection_map[matched_name])
 
             # Filter articles by collection_id
             filtered_articles = [
