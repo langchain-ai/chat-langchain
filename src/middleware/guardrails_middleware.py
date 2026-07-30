@@ -389,23 +389,27 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ):
             return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
 
-        # Build context from previous human messages (for follow-up detection)
-        prior_queries = []
+        # Build context from previous user and assistant turns (for follow-up
+        # detection). The assistant's prior answers are what make the prompt's
+        # "plausible follow-up to prior technical context" ALLOW rule evaluable
+        # for short queries like "continue".
+        prior_turns = []
         for msg in reversed(messages[:-1]):  # Exclude current message
-            if isinstance(msg, HumanMessage):
+            if isinstance(msg, (HumanMessage, AIMessage)):
                 text = self._extract_message_text(msg)
                 if text:
-                    prior_queries.append(text[:200])  # Truncate for brevity
-                    if len(prior_queries) == 3:
+                    role = "User" if isinstance(msg, HumanMessage) else "Assistant"
+                    prior_turns.append(f"{role}: {text[:500]}")  # Truncate for brevity
+                    if len(prior_turns) == 6:
                         break
 
         # Build the classification prompt
         context_section = ""
-        if prior_queries:
-            recent = list(reversed(prior_queries))  # Restore chronological order.
+        if prior_turns:
+            recent = list(reversed(prior_turns))  # Restore chronological order.
             context_section = (
-                "\n\nPrevious questions in this conversation:\n"
-                + "\n".join(f"- {q}" for q in recent)
+                "\n\nRecent conversation (user and assistant):\n"
+                + "\n".join(f"- {turn}" for turn in recent)
             )
 
         current_content = getattr(current_message, "content", current_query or "")
