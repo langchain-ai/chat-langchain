@@ -305,6 +305,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Check: Bold opening sentence (starts with **)
    - Check: Inline code uses `backticks`
    - Check: Code blocks wrapped in ```language
+   - Check: No code block contains a literal ``` unless the OUTER fence uses FOUR backticks - otherwise the block closes early and the remaining code renders as prose
    - Check: Blank line before all bullet lists
    - Check: Links use [text](url) format, at the end
    - Check: No plain URLs (https://...)
@@ -375,6 +376,10 @@ CRITICAL:
     - [Doc Title](https://full-url.com)
     ```
     NOT: `- Doc Title — https://url` or `- https://url`
+14. **CRITICAL: Escape code samples containing a literal ```** - a three-backtick fence is closed by the FIRST inner ```, so the block ends mid-code and the rest renders as prose. When a sample must contain a literal ``` - a prompt string telling a model to return a fenced html block, or markdown-stripping logic like `content.split("```html")[1]` - either:
+    - open AND close the OUTER block with FOUR backticks (````python ... ````), or
+    - replace the literal with a described placeholder such as "a fenced html block"
+    NEVER emit a literal ``` inside a three-backtick fence.
 
 ### Example (Tool Calling):
 
