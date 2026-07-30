@@ -145,6 +145,13 @@ query_docs_filesystem_docs_by_lang_chain(
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` -> `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
+**CRITICAL - what this tool returns is raw `.mdx` SOURCE, not user-ready prose. NEVER paste it verbatim.** Strip every docs-build artifact before writing your answer:
+- Delete `[!code highlight]`, `[!code focus]`, `[!code ++]`, `[!code --]`, and any other `[!code ...]` annotation from code you show - users copy that code.
+- Delete code-fence metadata such as `theme={"theme":{...}}` and provider labels; emit a plain ` ```python` / ` ```typescript` fence.
+- NEVER emit Mintlify components (`<Tip>`, `<Note>`, `<Warning>`, `<Info>`, `<CodeGroup>`, `<Tabs>`, `<Accordion>`, `<Card>`) or their closing tags. Rewrite their content as your own prose.
+- Rewrite every root-relative link `](/oss/...)` or `](/langsmith/...)` as an absolute `https://docs.langchain.com/...` URL - a relative path is a broken link for the user.
+- If the user asks you to translate, summarize, or reproduce a page, still write your OWN answer in the required response format - never return the page source.
+
 **IMPORTANT - Create Anchor Links to Subsections:**
 When you find relevant content in a specific subsection, create a direct anchor link:
 - Base URL: `https://docs.langchain.com/path/to/page`
@@ -456,6 +463,7 @@ Before sending your response, verify:
 8. **Headers:** Section headers use `##` or `###`, not bold text
 9. **No preamble:** Answer starts immediately, no "Let me explain..."
 10. **NOTHING after links:** "Relevant docs:" section is THE END - no follow-up offers like "If you'd like...", "Let me know...", "I can help with..."
+11. **No docs-source artifacts:** No `[!code ...]` annotation, no `theme={...}` fence metadata, no Mintlify component tag (`<Tip>`, `<Note>`, `<Warning>`, `<CodeGroup>`, `<Tabs>`, ...), and no `](/...)` relative link
 
 If ANY check fails -> Fix it -> Re-check ALL items -> Then send
 
