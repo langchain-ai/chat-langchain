@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -41,6 +42,21 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+# Negative cache: the article cache is only populated after a successful fetch, so
+# without a cooldown every call re-hits an API that is already known to be failing.
+_articles_failure_until: float = 0.0
+_ARTICLES_FAILURE_TTL_SECONDS = 60.0
+
+
+class SupportKBUnavailable(RuntimeError):
+    """Raised when the Pylon support knowledge base cannot be searched."""
+
+
+def _mark_articles_unavailable() -> None:
+    """Start the negative-cache cooldown after a hard article-fetch failure."""
+    global _articles_failure_until
+    _articles_failure_until = time.monotonic() + _ARTICLES_FAILURE_TTL_SECONDS
 
 
 def _get_headers() -> Dict[str, str]:
@@ -87,6 +103,11 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     if _articles_cache is not None:
         return _articles_cache
 
+    if time.monotonic() < _articles_failure_until:
+        raise SupportKBUnavailable(
+            "support knowledge base unavailable (recent article fetch failure)"
+        )
+
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/articles"
     headers = _get_headers()
@@ -101,16 +122,18 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
         response.raise_for_status()
         body = response.json()
 
-        page_data = body.get("data", [])
+        # `.get(key, default)` only applies the default when the key is ABSENT; Pylon
+        # can send an explicit `null`, so falsy values must be coerced explicitly.
+        page_data = body.get("data") or []
         all_articles.extend(page_data)
         pages_fetched += 1
 
         # Resolve next-page cursor from common Pylon/REST pagination shapes
         next_cursor = (
             body.get("next")
-            or body.get("meta", {}).get("next")
-            or body.get("links", {}).get("next")
-            or body.get("pagination", {}).get("cursor")
+            or (body.get("meta") or {}).get("next")
+            or (body.get("links") or {}).get("next")
+            or (body.get("pagination") or {}).get("cursor")
         )
 
         if not next_cursor:
@@ -275,6 +298,10 @@ def search_support_articles(collections: str = "all") -> str:
 
         return json.dumps(result, indent=2)
 
+    except SupportKBUnavailable:
+        # Already-known failure inside the cooldown window; re-raising without
+        # re-marking keeps the cooldown from being extended indefinitely.
+        raise
     except ValueError as e:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
@@ -282,8 +309,13 @@ def search_support_articles(collections: str = "all") -> str:
         # Network/API error
         return json.dumps({"error": str(e)}, indent=2)
     except Exception as e:
-        # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        # Returning an unexpected failure as content makes it indistinguishable from
+        # data, and leaves tool_retry_middleware/model_fallback_middleware inert.
+        _mark_articles_unavailable()
+        raise SupportKBUnavailable(
+            "TOOL ERROR: support knowledge base unavailable - answer from docs only "
+            f"and tell the user the support KB could not be searched ({e})"
+        ) from e
 
 
 @tool
@@ -346,6 +378,8 @@ Content:
 
         return f"Article ID {article_id} not found in knowledge base."
 
+    except SupportKBUnavailable:
+        raise
     except ValueError as e:
         # API key not configured
         return f"Error: {str(e)}"
@@ -353,8 +387,13 @@ Content:
         # Network/API error
         return f"Error fetching article: {str(e)}"
     except Exception as e:
-        # Catch-all for unexpected errors
-        return f"Unexpected error: {str(e)}"
+        # Same rationale as search_support_articles: never hand an unexpected failure
+        # back as ordinary content.
+        _mark_articles_unavailable()
+        raise SupportKBUnavailable(
+            "TOOL ERROR: support knowledge base unavailable - answer from docs only "
+            f"and tell the user the support KB could not be searched ({e})"
+        ) from e
 
 
 # Backwards-compatible Python import alias. The tool name exposed to the model is
