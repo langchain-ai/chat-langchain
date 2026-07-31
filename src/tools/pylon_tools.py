@@ -286,6 +286,36 @@ def search_support_articles(collections: str = "all") -> str:
         return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
 
 
+def _resolve_article(
+    articles: List[Dict[str, Any]], article_id: str
+) -> Dict[str, Any] | None:
+    """Resolve an article by any identifier the model may have been shown."""
+    if not article_id:
+        return None
+
+    requested = str(article_id).strip().split("?")[0].split("#")[0]
+    if "support.langchain.com/articles/" in requested:
+        requested = requested.rstrip("/").split("/")[-1]
+    normalized = requested.strip().lower()
+    if not normalized:
+        return None
+
+    for article in articles:
+        identifier = str(article.get("identifier", "") or "").strip()
+        slug = str(article.get("slug", "") or "").strip()
+        candidates = {
+            str(article.get("id", "") or "").strip().lower(),
+            identifier.lower(),
+            f"{identifier}-{slug}".lower() if identifier and slug else "",
+            slug.lower(),
+        }
+        candidates.discard("")
+        if normalized in candidates:
+            return article
+
+    return None
+
+
 @tool
 def get_support_article_content(article_id: str) -> str:
     """Fetch the full HTML content of a specific Pylon support article.
@@ -315,36 +345,7 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
-                )
-
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
-
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
-Title: {title}
-URL: {support_url}
-Collection: {collection}
-
-Content:
-{article.get("current_published_content_html", "No content available")[:5000]}"""
-
-        return f"Article ID {article_id} not found in knowledge base."
+        article = _resolve_article(articles, article_id)
 
     except ValueError as e:
         # API key not configured
@@ -355,6 +356,42 @@ Content:
     except Exception as e:
         # Catch-all for unexpected errors
         return f"Unexpected error: {str(e)}"
+
+    # An unresolved article must raise: a success-shaped string here is invisible
+    # to ToolRetryMiddleware and reads to the model as an ordinary observation.
+    if article is None:
+        candidate_ids = [
+            str(a.get("id"))
+            for a in articles
+            if a.get("id") and a.get("is_published", False)
+        ][:3]
+        raise ValueError(
+            f"article_id {article_id!r} did not resolve to any knowledge base "
+            'article. The only accepted key is the exact "id" field returned by '
+            f"search_support_articles. Closest candidate ids: {candidate_ids}"
+        )
+
+    title = article.get("title", "Untitled")
+    # Look up collection name by collection_id; fall back to default
+    coll_id = article.get("collection_id")
+    collection = collection_id_to_name.get(coll_id, "Customer Support Knowledge Base")
+
+    # Construct support.langchain.com URL
+    identifier = article.get("identifier", "")
+    slug = article.get("slug", "")
+    if identifier and slug:
+        support_url = f"https://support.langchain.com/articles/{identifier}-{slug}"
+    else:
+        support_url = "URL not available"
+
+    # Only return id, title, url, collection, content
+    return f"""ID: {article.get("id")}
+Title: {title}
+URL: {support_url}
+Collection: {collection}
+
+Content:
+{article.get("current_published_content_html", "No content available")[:5000]}"""
 
 
 # Backwards-compatible Python import alias. The tool name exposed to the model is
