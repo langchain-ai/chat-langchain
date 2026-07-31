@@ -1,5 +1,6 @@
 """Push the local docs agent prompt to LangSmith Prompt Hub."""
 
+import os
 import sys
 
 from dotenv import load_dotenv
@@ -13,6 +14,9 @@ from src.prompts.docs_agent_prompt import docs_agent_prompt
 def main() -> None:
     """Push the docs agent prompt in the simplest form."""
     load_dotenv(".env", override=True)
+    # The production .env enables tracing; building the prompt below would otherwise
+    # emit an artifact root run into the production project.
+    os.environ["LANGSMITH_TRACING"] = "false"
     prompt = ChatPromptTemplate.from_messages([SystemMessage(content=docs_agent_prompt)])
     url = Client().push_prompt("langchain-ai/public-chat-langchain-test", object=prompt)
     sys.stdout.write(f"{url}\n")

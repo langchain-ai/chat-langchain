@@ -1,5 +1,6 @@
 """Push the local guardrails prompt to LangSmith Prompt Hub."""
 
+import os
 import sys
 
 from dotenv import load_dotenv
@@ -13,6 +14,9 @@ from src.prompts.guardrails_prompts import guardrails_system_prompt
 def main() -> None:
     """Push the guardrails prompt in the simplest form."""
     load_dotenv(".env", override=True)
+    # The production .env enables tracing; building the prompt below would otherwise
+    # emit an artifact root run into the production project.
+    os.environ["LANGSMITH_TRACING"] = "false"
     prompt = ChatPromptTemplate.from_messages(
         [SystemMessage(content=guardrails_system_prompt)]
     )
