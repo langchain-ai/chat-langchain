@@ -26,6 +26,10 @@ docs_agent_tools = [
     get_support_article_content,
     fetch_langchain_pricing,
     check_links,
+    # Follow-up: an explicit escalate_to_human / create_support_ticket tool
+    # backed by the existing Pylon integration. When it lands it must be
+    # appended here AND documented as a numbered entry in the "## Available
+    # Tools" section of instructions.md.
 ]
 
 docs_agent_middleware = [
