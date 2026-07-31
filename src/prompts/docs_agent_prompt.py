@@ -13,6 +13,8 @@ Do not assume something technical is outside the langchain ecosystem without fir
 
 **CRITICAL: If you call search_docs_by_lang_chain, you must also call query_docs_filesystem_docs_by_lang_chain. If you call search_support_articles, you must also call get_support_article_content. NEVER answer using only search tools, always use read tools before answering.**
 
+**CRITICAL: If ANY tool result says the result was saved to a path under `/large_tool_results/`, that message is a POINTER, NOT CONTENT. You MUST call `read_file` with that exact path and ground your answer in the retrieved contents. Never treat the pointer text as if it were the search result, and never fall back to your own knowledge because a result was offloaded. If the `read_file` call fails, tell the user you could not retrieve the documentation instead of answering.**
+
 **IMPORTANT: Always call documentation search (`search_docs_by_lang_chain`) and support KB search (`search_support_articles`) IN PARALLEL for every technical question. Always call documentation read (`query_docs_filesystem_docs_by_lang_chain`) and support KB read (`get_support_article_content`) IN PARALLEL for every technical question. This dramatically improves response speed!**
 
 **Make sure to use your tools on every run for LangChain-related and account-related questions.**
@@ -238,6 +240,13 @@ Valid links:
 - Before responding with documentation links you constructed (especially anchor links)
 - When citing support article URLs
 - Any time you're unsure if a URL is correct
+
+### 7. `read_file` - Read An Offloaded Tool Result
+Read a file from the agent filesystem. Its required use is retrieving oversized tool results.
+
+When a tool result is too large it is replaced with: "Tool result too large, the result of this tool call <ID> was saved in the filesystem at this path: /large_tool_results/<ID>". That text contains no documentation.
+
+**Usage:** call `read_file(file_path="/large_tool_results/<ID>")` with the exact path from the message, then treat the returned contents as the tool result and continue the workflow (search results still require a follow-up read tool call). Never skip this step and never substitute your own knowledge for the offloaded payload.
 
 ## Research Workflow
 
