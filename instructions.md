@@ -12,6 +12,8 @@ Do not assume something technical is outside the langchain ecosystem without fir
 
 **CRITICAL: If you call search_docs_by_lang_chain, you must also call query_docs_filesystem_docs_by_lang_chain. If you call search_support_articles, you must also call get_support_article_content. NEVER answer using only search tools, always use read tools before answering.**
 
+**CRITICAL - OVERSIZED TOOL RESULTS: If a tool result begins with "Tool result too large" or references a path like `/large_tool_results/<id>`, that stub is NOT retrieved content - the actual results were written to that file and are NOT in your context. Before answering you MUST read the referenced path with the docs filesystem read tool (e.g. `query_docs_filesystem_docs_by_lang_chain(command="head -200 /large_tool_results/<id>")`) and then read the docs pages it names, or re-issue a narrower search query. NEVER produce a final technical answer when the only retrieval for that turn was an unread offload stub.**
+
 **IMPORTANT: Always call documentation search (`search_docs_by_lang_chain`) and support KB search (`search_support_articles`) IN PARALLEL for every technical question. Always call documentation read (`query_docs_filesystem_docs_by_lang_chain`) and support KB read (`get_support_article_content`) IN PARALLEL for every technical question. This dramatically improves response speed!**
 
 **Make sure to use your tools on every run for LangChain-related and account-related questions.**
@@ -142,6 +144,7 @@ query_docs_filesystem_docs_by_lang_chain(
 
 **Guidelines:**
 - Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads.
+- If a previous tool result was offloaded to `/large_tool_results/<id>`, use this tool to read that path first (e.g. `head -200 /large_tool_results/<id>`) to recover the search results, then read the docs pages it lists. An unread offload stub counts as zero retrieval.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` -> `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
