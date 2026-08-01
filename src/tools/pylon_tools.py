@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import threading
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -41,6 +42,7 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+_cache_lock = threading.Lock()
 
 
 def _get_headers() -> Dict[str, str]:
@@ -64,16 +66,19 @@ def _fetch_collections() -> Dict[str, str]:
     response = requests.get(url, headers=_get_headers())
     response.raise_for_status()
 
-    collections_data = response.json().get("data", [])
+    collections_data = response.json().get("data") or []
 
-    # Build mapping of collection names to IDs (only public collections)
-    _collections_cache = {
+    # Build the mapping locally, then publish atomically so concurrent
+    # requests never read a half-populated cache.
+    local_map = {
         coll["title"]: coll["id"]
         for coll in collections_data
         if coll.get("visibility_config", {}).get("visibility") == "public"
     }
+    with _cache_lock:
+        _collections_cache = local_map
 
-    return _collections_cache
+    return local_map
 
 
 def _fetch_all_articles() -> List[Dict[str, Any]]:
@@ -101,7 +106,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
         response.raise_for_status()
         body = response.json()
 
-        page_data = body.get("data", [])
+        page_data = body.get("data") or []
         all_articles.extend(page_data)
         pages_fetched += 1
 
@@ -118,8 +123,10 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
         params = {"cursor": next_cursor}
 
-    _articles_cache = all_articles
-    return _articles_cache
+    with _cache_lock:
+        _articles_cache = all_articles
+
+    return all_articles
 
 
 # =============================================================================
@@ -281,9 +288,11 @@ def search_support_articles(collections: str = "all") -> str:
     except requests.exceptions.RequestException as e:
         # Network/API error
         return json.dumps({"error": str(e)}, indent=2)
-    except Exception as e:
-        # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+    except Exception:
+        # Do not swallow genuine crashes as a normal tool string — re-raise so
+        # tool_retry_middleware can retry and surface persistent failure.
+        logger.exception("search_support_articles failed unexpectedly")
+        raise
 
 
 @tool
