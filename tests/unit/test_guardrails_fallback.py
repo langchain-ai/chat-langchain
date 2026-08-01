@@ -4,7 +4,7 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -77,6 +77,61 @@ def test_guardrails_raises_after_all_models_exhaust_retries(monkeypatch):
 
     assert primary.calls == 2
     assert fallback.calls == 2
+
+
+class ContextAwareModel:
+    """Fake classifier that only allows deictic follow-ups when it can see the assistant's turn."""
+
+    def __init__(self):
+        self.prompt_text = ""
+
+    def with_structured_output(self, schema):  # noqa: ARG002
+        return self
+
+    async def ainvoke(self, prompt, config=None):  # noqa: ARG002
+        content = prompt[-1].content
+        self.prompt_text = (
+            content if isinstance(content, str) else " ".join(str(b) for b in content)
+        )
+        if "Assistant:" in self.prompt_text:
+            return {"decision": "ALLOWED", "explanation": "Follow-up to prior answer."}
+        return {"decision": "BLOCKED", "explanation": "No referent for the query."}
+
+
+def _product_conversation():
+    return [
+        HumanMessage(content="LangChain 生态里有哪些产品?"),
+        AIMessage(
+            content=(
+                "LangChain is the framework for building LLM apps, LangGraph is the "
+                "orchestration runtime, LangSmith is the observability and evaluation "
+                "platform, and Deep Agents is the agent harness."
+            )
+        ),
+        HumanMessage(content="有什么区别"),
+    ]
+
+
+def test_guardrails_allows_deictic_followup_using_assistant_context():
+    """A short follow-up should be allowed because the assistant's answer is in context."""
+    model = ContextAwareModel()
+    middleware = _middleware_with_models(("primary", model))
+
+    result = asyncio.run(middleware._classify_query(_product_conversation()))
+
+    assert result["decision"] == "ALLOWED"
+
+
+def test_guardrails_context_includes_user_and_assistant_turns():
+    """The classifier context should be a role-labelled transcript of both sides."""
+    model = ContextAwareModel()
+    middleware = _middleware_with_models(("primary", model))
+
+    asyncio.run(middleware._classify_query(_product_conversation()))
+
+    assert "Recent conversation:" in model.prompt_text
+    assert "User: LangChain 生态里有哪些产品?" in model.prompt_text
+    assert "Assistant: LangChain is the framework" in model.prompt_text
 
 
 def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):

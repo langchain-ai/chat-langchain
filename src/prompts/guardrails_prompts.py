@@ -34,6 +34,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - Requests for different formats or languages (Python/JS) of a technical answer
 - Clarification questions on a previous technical answer
 - Short/vague questions that plausibly relate to the prior technical context
+- If the current query is short and refers back to something not named in it (deictic/pronoun follow-ups such as "what is the difference", "how do I do that", "tell me specifically how", "有什么区别", "具体应该怎么做") AND a Recent conversation transcript is present above, ALWAYS ALLOW - the referent is in the transcript and the main agent will resolve it.
 - Questions with typos in LangChain terminology
 - Any high level / general questions about any of the core topics (like: "what is langchain in one sentence")
 

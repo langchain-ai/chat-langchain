@@ -389,24 +389,29 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ):
             return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
 
-        # Build context from previous human messages (for follow-up detection)
-        prior_queries = []
+        # Include assistant turns too: a deictic follow-up ("有什么区别") only has a
+        # referent if the answer that introduced it is visible to the classifier.
+        transcript = []
+        human_kept = 0
+        ai_kept = 0
         for msg in reversed(messages[:-1]):  # Exclude current message
-            if isinstance(msg, HumanMessage):
-                text = self._extract_message_text(msg)
-                if text:
-                    prior_queries.append(text[:200])  # Truncate for brevity
-                    if len(prior_queries) == 3:
-                        break
+            text = self._extract_message_text(msg)
+            if not text:
+                continue
+            if isinstance(msg, HumanMessage) and human_kept < 3:
+                transcript.append(f"User: {text[:200]}")  # Truncate for brevity
+                human_kept += 1
+            elif isinstance(msg, AIMessage) and ai_kept < 2:
+                transcript.append(f"Assistant: {text[:600]}")
+                ai_kept += 1
+            if human_kept >= 3 and ai_kept >= 2:
+                break
 
         # Build the classification prompt
         context_section = ""
-        if prior_queries:
-            recent = list(reversed(prior_queries))  # Restore chronological order.
-            context_section = (
-                "\n\nPrevious questions in this conversation:\n"
-                + "\n".join(f"- {q}" for q in recent)
-            )
+        if transcript:
+            recent = list(reversed(transcript))  # Restore chronological order.
+            context_section = "\n\nRecent conversation:\n" + "\n".join(recent)
 
         current_content = getattr(current_message, "content", current_query or "")
         prompt = [
