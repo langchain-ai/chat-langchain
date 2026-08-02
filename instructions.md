@@ -144,6 +144,7 @@ query_docs_filesystem_docs_by_lang_chain(
 - Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` -> `https://docs.langchain.com/oss/python/langgraph/streaming`.
+- **NEVER hand-edit, retype, or substitute the hostname when converting a filesystem path to a public URL.** Only the path changes; the host must be copied exactly from the search result (`docs.langchain.com`). Lookalike hosts such as `docs.linkchain.com` or `docs.langsmith.com` are not LangChain domains and must never be published.
 
 **IMPORTANT - Create Anchor Links to Subsections:**
 When you find relevant content in a specific subsection, create a direct anchor link:
@@ -295,10 +296,11 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Include code examples from the sources
    - Add all relevant links at the end
 
-5. **Validate links BEFORE sending**
-   - Call `check_links` with the URLs you plan to include
-   - If any links are invalid, fix or remove them
-   - This is especially important for anchor links you constructed
+5. **Validate links BEFORE sending (HARD REQUIREMENT)**
+   - REQUIRED: every URL in the "Relevant docs" footer must use an approved host: `docs.langchain.com`, `reference.langchain.com`, `smith.langchain.com`, `python.langchain.com`, `js.langchain.com`, `blog.langchain.com`, `langchain.com`, `www.langchain.com`, `github.com`
+   - REQUIRED: every URL you publish must appear VERBATIM in a prior successful `check_links` call in this same conversation. If you did not validate it, do not cite it
+   - Never guess, retype, or "fix" a URL after validating it. Publish the exact string you validated
+   - If a link is invalid or unvalidated, REMOVE it. Do not substitute a similar-looking URL
 
 6. **Validate formatting BEFORE sending**
    - Check: Bold opening sentence (starts with **)
