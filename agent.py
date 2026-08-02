@@ -13,6 +13,9 @@ from src.agent.config import (
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
+from src.middleware.tool_call_validation_middleware import (
+    ToolCallNameValidationMiddleware,
+)
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -37,6 +40,9 @@ docs_agent_middleware = [
         fallback_model=DEFAULT_MODEL.id,
         block_off_topic=True,
     ),
+    # Gemini streaming can merge parallel function-call chunks into one
+    # "search_docs_by_lang_chainsearch_support_articles"-style call.
+    ToolCallNameValidationMiddleware(declared_tools=docs_agent_tools),
     CustomSummarizationMiddleware(
         model=DEFAULT_MODEL.id,
         summary_model=summarization_model,
