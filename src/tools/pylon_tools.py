@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -123,6 +124,54 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 # =============================================================================
+# Identifier Resolution Helpers
+# =============================================================================
+
+_PLACEHOLDER_ARTICLE_IDS = {"", "dummy", "example", "<id>", "article_id", "id"}
+
+
+def _normalize_collection_key(name: str) -> tuple:
+    """Normalize a collection name to (prefix, frozenset of parenthetical tokens)."""
+    lowered = name.strip().casefold()
+    match = re.match(r"^(.*?)\s*\((.*)\)\s*$", lowered)
+    if not match:
+        return (lowered, frozenset())
+    prefix = match.group(1).strip()
+    tokens = frozenset(t for t in re.split(r"[\s,]+|\band\b", match.group(2)) if t)
+    return (prefix, tokens)
+
+
+def _resolve_collection_name(name: str, collection_map: Dict[str, str]) -> str | None:
+    """Resolve a requested collection name to a real key in collection_map."""
+    if name in collection_map:
+        return name
+
+    stripped = name.strip().casefold()
+    for key in collection_map:
+        if key.casefold() == stripped:
+            return key
+
+    target_prefix, target_tokens = _normalize_collection_key(name)
+    for key in collection_map:
+        if _normalize_collection_key(key) == (target_prefix, target_tokens):
+            return key
+
+    # Models often mangle the parenthetical part ("OSS (LangGraph and LangGraph)"),
+    # so fall back to a subset match when it identifies exactly one collection.
+    subset_matches = [
+        key
+        for key in collection_map
+        if target_tokens
+        and _normalize_collection_key(key)[0] == target_prefix
+        and target_tokens <= _normalize_collection_key(key)[1]
+    ]
+    if len(subset_matches) == 1:
+        return subset_matches[0]
+
+    return None
+
+
+# =============================================================================
 # LangChain Tools
 # =============================================================================
 
@@ -149,6 +198,10 @@ def search_support_articles(collections: str = "all") -> str:
 
                     Use "all" to search all collections (default)
                     Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
+                    Collection names are matched leniently: casing and the word
+                    order inside parentheses do not matter. Any name that cannot
+                    be resolved is reported in "unresolved_collections" while the
+                    collections that did resolve are still searched.
 
     Returns:
         JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
@@ -210,6 +263,7 @@ def search_support_articles(collections: str = "all") -> str:
             )
 
         # Filter by collection ID if specified
+        unresolved_collections: List[str] = []
         if collections.lower() != "all":
             # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
@@ -217,23 +271,21 @@ def search_support_articles(collections: str = "all") -> str:
             # Get collection IDs for requested collections
             collection_ids = []
             for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
+                resolved = _resolve_collection_name(coll_name, collection_map)
+                if resolved is not None:
+                    collection_ids.append(collection_map[resolved])
                 else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                    unresolved_collections.append(coll_name)
+
+            # Only fail the whole call when nothing at all could be resolved;
+            # otherwise a single bad name would discard every valid collection.
+            if not collection_ids:
+                return json.dumps(
+                    {
+                        "error": f"Collection(s) {', '.join(repr(c) for c in unresolved_collections)} not found. Available collections: {', '.join(collection_map.keys())}"
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -272,6 +324,9 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if unresolved_collections:
+            result["unresolved_collections"] = unresolved_collections
+            result["available_collections"] = list(collection_map.keys())
 
         return json.dumps(result, indent=2)
 
@@ -291,16 +346,30 @@ def get_support_article_content(article_id: str) -> str:
     """Fetch the full HTML content of a specific Pylon support article.
 
     Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
+    Prefer the UUID "id" returned by search_support_articles; the
+    support.langchain.com "{identifier}-{slug}" value from that article's "url"
+    (or the full URL) is also accepted. Do not pass docs.langchain.com URLs or
+    paths.
 
     Args:
-        article_id: The article ID from search_support_articles
+        article_id: The article's UUID "id" from search_support_articles, or its
+            support.langchain.com "{identifier}-{slug}" value or full URL
 
     Returns:
         Article content with only: id, title, url, collection, content
     """
     try:
+        lookup = re.sub(
+            r"^https?://support\.langchain\.com/articles/",
+            "",
+            (article_id or "").strip(),
+        ).strip("/")
+        if lookup.casefold() in _PLACEHOLDER_ARTICLE_IDS:
+            return (
+                f"Invalid article_id {article_id!r}. Call search_support_articles "
+                "first and pass the 'id' value of the article you want."
+            )
+
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
 
@@ -317,7 +386,16 @@ def get_support_article_content(article_id: str) -> str:
 
         # Find the article by ID
         for article in articles:
-            if article.get("id") == article_id:
+            identifier = str(article.get("identifier") or "")
+            slug = str(article.get("slug") or "")
+            candidates = {
+                str(article.get("id") or ""),
+                identifier,
+                slug,
+                f"{identifier}-{slug}" if identifier and slug else "",
+            }
+            candidates.discard("")
+            if lookup in candidates:
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -326,8 +404,6 @@ def get_support_article_content(article_id: str) -> str:
                 )
 
                 # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
                 if identifier and slug:
                     support_url = (
                         f"https://support.langchain.com/articles/{identifier}-{slug}"
@@ -344,7 +420,10 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        return (
+            f"Article ID {article_id} not found in knowledge base. Call "
+            "search_support_articles and use the 'id' value it returns."
+        )
 
     except ValueError as e:
         # API key not configured
