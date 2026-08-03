@@ -2,9 +2,11 @@
 # Tools:
 #   - search_support_articles
 #   - get_support_article_content
+import difflib
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -122,6 +124,20 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     return _articles_cache
 
 
+def _normalize_collection_name(name: str) -> str:
+    """Casefold a collection name and order-insensitively normalize parenthesised tokens."""
+    base = re.sub(r"\s+", " ", name.strip().casefold())
+    match = re.match(r"^(?P<head>[^(]*)\((?P<inner>[^)]*)\)\s*$", base)
+    if match:
+        tokens = sorted(
+            token
+            for token in re.split(r"[^a-z0-9]+", match.group("inner"))
+            if token and token != "and"
+        )
+        return f"{match.group('head').strip()} ({' '.join(tokens)})"
+    return re.sub(r"[^a-z0-9 ]+", "", base).strip()
+
+
 # =============================================================================
 # LangChain Tools
 # =============================================================================
@@ -135,9 +151,12 @@ def search_support_articles(collections: str = "all") -> str:
 
     Args:
         collections: Comma-separated list of collection names to filter by.
-                    Available collections:
+                    Values MUST be copied VERBATIM from the list below. Word order
+                    inside the parentheses matters and no other labels exist.
+                    Available collections (exact strings):
                     - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
+                    - "OSS (LangChain and LangGraph)" - Open source libraries. This is the
+                      ONLY OSS label; "OSS (LangGraph and LangChain)" is NOT valid.
                     - "LangSmith Observability" - Tracing, stats, and observability of agents
                     - "LangSmith Evaluation" - Datasets, evaluations, and prompts
                     - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
@@ -146,6 +165,9 @@ def search_support_articles(collections: str = "all") -> str:
                     - "Self Hosted" - Self-hosted LangSmith including deployments
                     - "Troubleshooting" - Broad domain issue triage and resolution
                     - "Security" - Code scans, key management, and security topics
+
+                    There is no "Billing" collection - billing, pricing, and account
+                    topics live under "General".
 
                     Use "all" to search all collections (default)
                     Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
@@ -210,30 +232,46 @@ def search_support_articles(collections: str = "all") -> str:
             )
 
         # Filter by collection ID if specified
+        unresolved: List[str] = []
         if collections.lower() != "all":
             # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
 
             # Get collection IDs for requested collections
             collection_ids = []
+            normalized_map = {
+                _normalize_collection_name(key): key for key in collection_map.keys()
+            }
             for coll_name in requested_collections:
+                resolved_key = None
                 if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
+                    resolved_key = coll_name
                 else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                    resolved_key = normalized_map.get(
+                        _normalize_collection_name(coll_name)
+                    )
+                if resolved_key is None:
+                    close = difflib.get_close_matches(
+                        _normalize_collection_name(coll_name),
+                        list(normalized_map.keys()),
+                        n=1,
+                        cutoff=0.8,
+                    )
+                    if close:
+                        resolved_key = normalized_map[close[0]]
+                if resolved_key is None:
+                    # Skip unrecognized names so the valid ones still return grounding
+                    unresolved.append(coll_name)
+                    continue
+                collection_ids.append(collection_map[resolved_key])
+
+            if not collection_ids:
+                return json.dumps(
+                    {
+                        "error": f"No requested collection matched. Unresolved: {', '.join(unresolved)}. Available collections: {', '.join(collection_map.keys())}"
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -250,13 +288,20 @@ def search_support_articles(collections: str = "all") -> str:
             coll_id = article.get("collection_id")
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
+        skipped_note = (
+            f" These requested collections were not recognized and were skipped: {', '.join(unresolved)}."
+            if unresolved
+            else ""
+        )
+
         if not published_articles:
             return json.dumps(
                 {
                     "collections": collections,
+                    "unresolved_collections": unresolved,
                     "total": 0,
                     "articles": [],
-                    "note": "No articles found",
+                    "note": f"No articles found.{skipped_note}",
                 },
                 indent=2,
             )
@@ -268,9 +313,10 @@ def search_support_articles(collections: str = "all") -> str:
         # Return structured JSON format
         result = {
             "collections": collections,
+            "unresolved_collections": unresolved,
             "total": len(published_articles),
             "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "note": f"All articles listed are public and have content. Use IDs to fetch full content.{skipped_note}",
         }
 
         return json.dumps(result, indent=2)
