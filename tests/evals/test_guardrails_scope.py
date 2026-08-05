@@ -210,7 +210,48 @@ def test_guardrails_nsfw_rule_is_zero_tolerance():
 
 
 # ---------------------------------------------------------------------------
-# Test 8: Main agent prompt must have defense-in-depth NSFW refusal
+# Test 8: General software / CS / ML concept questions must be allowed
+# ---------------------------------------------------------------------------
+
+# Observed asks that were wrongly classified as BLOCKED because no ALWAYS ALLOW
+# rule visibly outranked the "Clearly off-topic requests" trivia/science bullets.
+GENERAL_SOFTWARE_ASKS = [
+    "what is f1 score",
+    "what is hill climbing",
+    "python vs reactjs which is faster",
+    "how can i make an er diagram",
+    "suggest a file name for this module",
+]
+
+
+def test_guardrails_prompt_allows_general_software_questions():
+    """Prompt must carry an explicit block precedence and the observed ALLOW asks."""
+    precedence_idx = PROMPT_LOWER.find("## block precedence")
+    assert precedence_idx != -1, (
+        "The guardrails prompt's final instruction refers to a 'Block precedence' "
+        "order, so the prompt must contain a '## Block precedence' section stating "
+        "that the ALWAYS ALLOW software/technical rules outrank the 'Clearly "
+        "off-topic requests' list.\n\n"
+        "Failing traces: general CS/ML asks such as 'what is hill climbing' and "
+        "'what is f1 score' were BLOCKED with 'no LangChain context' as the reason."
+    )
+
+    assert "never grounds for blocked" in PROMPT_LOWER, (
+        "The guardrails prompt must state that the absence of LangChain or "
+        "documentation context is NOT grounds for BLOCKED - every observed "
+        "misclassification cited exactly that as its reason."
+    )
+
+    for ask in GENERAL_SOFTWARE_ASKS:
+        assert ask in PROMPT_LOWER, (
+            f"The observed ask '{ask}' must appear as a worked ALLOW example in the "
+            "'ALWAYS ALLOW - Software development related questions' section so the "
+            "classifier does not treat general CS/ML concepts as off-topic trivia."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Test 9: Main agent prompt must have defense-in-depth NSFW refusal
 # ---------------------------------------------------------------------------
 
 AGENT_PROMPT_LOWER = docs_agent_prompt.lower()
