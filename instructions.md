@@ -214,6 +214,10 @@ Verify that URLs are valid and accessible before including in your response.
 
 **Usage:** Before finalizing your response, call `check_links` with the URLs you plan to include.
 
+**Only include URLs that `check_links` returns under "Valid links". This applies to every URL, including links found in relevant retrieved documentation or embedded in document body text. Never assume a source-provided URL is valid without checking it.**
+
+**Hostname hint:** Official documentation links use `docs.langchain.com`, not the legacy `docs.langsmith.com` hostname.
+
 **Parameters:**
 ```python
 check_links(
