@@ -76,9 +76,14 @@ def _resolve_hub_provenance(
     ``api_key_set`` is part of the cache key so enabling ``LANGSMITH_PROMPT_API_KEY``
     invalidates prior failed lookups. The key value itself is read at call time.
     """
+    from langsmith import tracing_context
+
     try:
         client = _hub_client(workspace_id, _prompt_api_key() if api_key_set else None)
-        template = client.pull_prompt(hub_name)
+        # Provenance lookups are bookkeeping, not agent work: keep them out of
+        # the app's tracing project.
+        with tracing_context(enabled=False):
+            template = client.pull_prompt(hub_name)
         commit = (template.metadata or {}).get("lc_hub_commit_hash")
         if not commit:
             logger.warning(
