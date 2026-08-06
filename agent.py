@@ -1,5 +1,9 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+# Must precede the heavy imports below to observe them. No-op unless
+# LG_STARTUP_DIAG=1.
+from src.utils import startup_diag  # noqa: F401  # isort: skip
+
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
