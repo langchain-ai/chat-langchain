@@ -115,8 +115,6 @@ interface UseStreamHandlerProps {
   shouldInterruptRef?: React.MutableRefObject<boolean>
   onRunCreated?: (runId: string) => void
   userId?: string | null
-  userEmail?: string | null
-  userName?: string | null
   auth: LangSmithAuth
 }
 
@@ -168,8 +166,6 @@ export function useStreamHandler({
   shouldInterruptRef,
   onRunCreated,
   userId,
-  userEmail,
-  userName,
   auth,
 }: UseStreamHandlerProps): UseStreamHandlerReturn {
   /**
@@ -417,11 +413,10 @@ export function useStreamHandler({
 
       const agentType = "docs_agent"
 
-      // Trace metadata for LangSmith observability
+      // Trace metadata for LangSmith observability. `user_id` is indexed and
+      // filterable, so it carries only the pseudonymous id -- no email or name.
       const traceMetadata = {
         user_id: userId || "unknown",
-        ...(userEmail && userEmail !== userId ? { user_email: userEmail } : {}),
-        ...(userName && !userName.startsWith("User") ? { user_name: userName } : {}),
         source_type: "Chat-LangChain",
         graph: agentType,
       }
@@ -863,7 +858,7 @@ export function useStreamHandler({
     }
 
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, fetchUsageMetadata, generateShareLink, onRunCreated, userId, userEmail, userName])
+  }, [client, threadId, setMessages, fetchUsageMetadata, generateShareLink, onRunCreated, userId])
 
   return { processStream }
 }

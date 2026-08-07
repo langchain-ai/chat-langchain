@@ -1,8 +1,9 @@
 /**
  * User ID Management Hook
  *
- * Public Chat LangChain uses an authenticated email when available and falls
- * back to an anonymous browser UUID persisted in localStorage.
+ * Public Chat LangChain uses the pseudonymous Supabase uid when available and
+ * falls back to an anonymous browser UUID persisted in localStorage. The id is
+ * sent as LangSmith trace/thread metadata, so it must never be an email address.
  */
 
 'use client'
@@ -51,6 +52,13 @@ export function getOrCreateGuestUserId(): string | null {
   return id
 }
 
+/** Opaque id for a signed-in user; never their email or display name. */
+export function getPseudonymousUserId(
+  user: { id?: string | null } | null | undefined
+): string | null {
+  return user?.id ? `user-${user.id}` : null
+}
+
 // ============================================================================
 // Hook Implementation
 // ============================================================================
@@ -58,8 +66,8 @@ export function getOrCreateGuestUserId(): string | null {
 /**
  * Get user ID for thread management.
  *
- * Returns the authenticated user's email or a browser UUID used to filter
- * threads on the LangGraph backend.
+ * Returns the authenticated user's pseudonymous Supabase id or a browser UUID
+ * used to filter threads on the LangGraph backend.
  *
  * @returns The user's unique ID, or null while loading
  *
@@ -77,13 +85,14 @@ export function useUserId(): string | null {
     if (typeof window === 'undefined') return
     if (loading) return
 
-    if (user?.email) {
-      setUserId(user.email)
+    const signedInUserId = getPseudonymousUserId(user)
+    if (signedInUserId) {
+      setUserId(signedInUserId)
       return
     }
 
     setUserId(getOrCreateGuestUserId())
-  }, [loading, user?.email])
+  }, [loading, user])
 
   return userId
 }
@@ -177,7 +186,7 @@ export function useGuestAuth(): GuestAuthState {
 export function useLangGraphAuth(): LangGraphAuthState {
   const { user, session, loading: authLoading, authRegion } = useAuth()
   const { guestUserId, guestToken, loading: guestLoading } = useGuestAuth()
-  const signedInUserId = user?.email ?? null
+  const signedInUserId = getPseudonymousUserId(user)
   const signedInToken = session?.access_token ?? null
 
   return {
