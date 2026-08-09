@@ -3,6 +3,7 @@ import asyncio
 import logging
 from typing import Awaitable, Callable
 
+import httpx
 from langchain.agents.middleware.types import (
     AgentMiddleware,
     ModelCallResult,
@@ -16,6 +17,19 @@ logger = logging.getLogger(__name__)
 RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
 }
+
+# Exceptions raised when a per-request deadline trips. google-genai surfaces
+# aiohttp/asyncio timeouts, while the OpenAI and Anthropic SDKs raise
+# httpx-derived ones, so both families have to be matched.
+RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    TimeoutError,
+    httpx.TimeoutException,
+)
+
+
+def is_retryable_exception(exc: BaseException) -> bool:
+    """Return True if the exception is a transient failure worth retrying."""
+    return isinstance(exc, RETRYABLE_EXCEPTIONS)
 
 
 class MalformedResponseError(Exception):
@@ -70,16 +84,17 @@ class ModelRetryMiddleware(AgentMiddleware):
 
             except Exception as e:
                 last_exception = e
+                outcome = "timed out" if is_retryable_exception(e) else "failed"
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
                     logger.warning(
-                        f"Model call failed attempt {attempt + 1}/{self.max_retries + 1}: {e}, "
+                        f"Model call {outcome} attempt {attempt + 1}/{self.max_retries + 1}: {e}, "
                         f"retrying in {delay:.2f}s"
                     )
                     await asyncio.sleep(delay)
                 else:
                     logger.error(
-                        f"Model call failed after {self.max_retries + 1} attempts: {e}"
+                        f"Model call {outcome} after {self.max_retries + 1} attempts: {e}"
                     )
 
         # Exhausted retries - raise for fallback middleware
@@ -94,4 +109,9 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = [
+    "ModelRetryMiddleware",
+    "MalformedResponseError",
+    "RETRYABLE_EXCEPTIONS",
+    "is_retryable_exception",
+]

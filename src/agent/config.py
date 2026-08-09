@@ -97,8 +97,13 @@ for key in API_KEYS:
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
+# Wall-clock ceiling for a single model request. Without a deadline a stalled
+# provider call hangs the whole turn and neither ModelRetryMiddleware nor
+# ModelFallbackMiddleware can fire, because neither ever sees an exception.
+MODEL_TIMEOUT_S = float(os.getenv("MODEL_TIMEOUT_SECONDS", "30"))
+
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(model=DEFAULT_MODEL.id, timeout=MODEL_TIMEOUT_S)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -112,7 +117,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_chat_model(model=model, timeout=MODEL_TIMEOUT_S)
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -135,7 +140,11 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+# Instances rather than ids: ModelFallbackMiddleware re-initializes plain string
+# models without kwargs, which would leave the fallback hop unbounded too.
+model_fallback_middleware = ModelFallbackMiddleware(
+    *[init_chat_model(model=m.id, timeout=MODEL_TIMEOUT_S) for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -159,5 +168,6 @@ __all__ = [
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
+    "MODEL_TIMEOUT_S",
     "logger",
 ]
