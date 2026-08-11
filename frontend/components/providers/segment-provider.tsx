@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { useUserId } from "@/lib/hooks/auth/use-user-id";
+import { useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 
 // Declare analytics global type
@@ -14,29 +13,48 @@ declare global {
 /**
  * Segment Analytics Provider
  *
- * Leverages existing langgraph-user-id for tracking anonymous users.
+ * Identifies signed-in users by their real Supabase auth user ID (matching
+ * the pattern used in langchain-ai/help-portal), not by email or a
+ * client-generated guest ID. Anonymous visitors are left to Segment's own
+ * anonymous ID rather than being identify()'d with a fabricated ID.
  */
 export function SegmentProvider({ children }: { children: React.ReactNode }) {
-  const userId = useUserId(); // Uses existing langgraph-user-id logic
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  const identifiedUserIdRef = useRef<string | null>(null);
 
+  // Identify the user once we have a real auth user ID.
   useEffect(() => {
-    // Wait for Segment to load and user ID to be ready
-    if (typeof window === "undefined" || !window.analytics || !userId) {
-      return;
-    }
+    if (typeof window === "undefined" || !window.analytics) return;
+    if (loading || !user) return;
+    if (identifiedUserIdRef.current === user.id) return;
 
-    window.analytics.identify(userId, {
+    identifiedUserIdRef.current = user.id;
+    window.analytics.identify(user.id, {
+      email: user.email,
+      name: user.user_metadata?.full_name,
       deployment: "public",
-      userType: user ? "authenticated" : "anonymous",
-      email: user?.email,
+      userType: "authenticated",
     });
+  }, [user, loading])
+
+  // Reset identity on logout so the next sign-in starts clean.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.analytics) return;
+    if (loading || user) return
+    if (identifiedUserIdRef.current === null) return
+
+    identifiedUserIdRef.current = null
+    window.analytics.reset()
+  }, [user, loading])
+
+  // Track page views regardless of auth state.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.analytics || loading) return;
 
     window.analytics.page({
       deployment: "public",
     });
-
-  }, [userId, user]);
+  }, [loading]);
 
   return <>{children}</>;
 }
