@@ -106,7 +106,10 @@ export async function GET(request: NextRequest) {
       return redirectWithAuthError(origin, "auth_failed")
     }
 
-    return NextResponse.redirect(origin)
+    const redirectUrl = new URL(origin)
+    redirectUrl.searchParams.set("auth_success", "1")
+    redirectUrl.searchParams.set("auth_region", region)
+    return NextResponse.redirect(redirectUrl)
   } catch (error) {
     console.error("Unexpected error in OAuth callback", {
       isError: error instanceof Error,

@@ -55,9 +55,13 @@ export const getDefaultAuthRegion = (): AuthRegion => {
 export const getStoredAuthRegion = (): AuthRegion => {
   if (typeof window === "undefined") return getDefaultAuthRegion()
 
-  const storedRegion = window.localStorage.getItem(AUTH_REGION_STORAGE_KEY)
-  if (isAuthRegion(storedRegion) && isSupabaseAuthConfigured(storedRegion)) {
-    return storedRegion
+  try {
+    const storedRegion = window.localStorage.getItem(AUTH_REGION_STORAGE_KEY)
+    if (isAuthRegion(storedRegion) && isSupabaseAuthConfigured(storedRegion)) {
+      return storedRegion
+    }
+  } catch (error) {
+    console.warn("[Auth] Region storage unavailable", error)
   }
 
   return getDefaultAuthRegion()
@@ -65,7 +69,11 @@ export const getStoredAuthRegion = (): AuthRegion => {
 
 export const setStoredAuthRegion = (region: AuthRegion): void => {
   if (typeof window === "undefined") return
-  window.localStorage.setItem(AUTH_REGION_STORAGE_KEY, region)
+  try {
+    window.localStorage.setItem(AUTH_REGION_STORAGE_KEY, region)
+  } catch (error) {
+    console.warn("[Auth] Region storage unavailable", error)
+  }
 }
 
 export const getSupabaseAuthStorageKey = (region: AuthRegion): string =>
@@ -74,10 +82,14 @@ export const getSupabaseAuthStorageKey = (region: AuthRegion): string =>
 function clearSupabaseAuthStorage(): void {
   if (typeof window === "undefined") return
 
-  for (const key of Object.keys(window.localStorage)) {
-    if (key.startsWith(SUPABASE_AUTH_STORAGE_KEY_PREFIX)) {
-      window.localStorage.removeItem(key)
+  try {
+    for (const key of Object.keys(window.localStorage)) {
+      if (key.startsWith(SUPABASE_AUTH_STORAGE_KEY_PREFIX)) {
+        window.localStorage.removeItem(key)
+      }
     }
+  } catch (error) {
+    console.warn("[Auth] Session storage unavailable", error)
   }
 
   document.cookie
