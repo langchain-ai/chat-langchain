@@ -9,6 +9,7 @@ import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
 import { useAuth } from "@/lib/auth"
 import type { AuthRegion } from "@/lib/auth"
+import { trackEvent } from "@/components/providers/segment-provider"
 import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
 import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
@@ -690,6 +691,11 @@ export function ChatInterface({
     if (autoSend) {
       const userMessage = createUserMessage(cappedMessage)
       setMessages((prev) => [...prev, userMessage])
+      trackEvent("Chat Message Sent", {
+        threadId,
+        messageCount: messages.length + 1,
+        hasAttachments: false,
+      })
       processMessage(cappedMessage, [], userMessage)
         .then(() => onInitialMessageSent?.())
         .catch((error) => {
@@ -700,7 +706,7 @@ export function ChatInterface({
       // Just populate input (existing behavior for ticket page, etc.)
       setLimitedInput(trimmedMessage)
     }
-  }, [initialMessage, autoSend, uiState.hasAutoSent, uiState.isLoadingThread, userId, client, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent])
+  }, [initialMessage, autoSend, uiState.hasAutoSent, uiState.isLoadingThread, userId, client, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent, threadId, messages])
 
   const handleSend = useCallback(async () => {
     if (!uiState.input.trim() && attachedFiles.length === 0) {
@@ -710,6 +716,12 @@ export function ChatInterface({
     if (!userId || !client) {
       return
     }
+
+    trackEvent("Chat Message Sent", {
+      threadId,
+      messageCount: messages.length + messageQueueRef.current.length + 1,
+      hasAttachments: attachedFiles.length > 0,
+    })
 
     const userMessage = createUserMessage(uiState.input)
     if (attachedFiles.length > 0) {
@@ -744,7 +756,7 @@ export function ChatInterface({
     if (messageQueueRef.current.length > 0) {
       processQueue()
     }
-  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, setInput, clearFiles, processMessage, processQueue])
+  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, setInput, clearFiles, processMessage, processQueue, threadId, messages])
 
   const handleStop = useCallback(async () => {
     console.log('User requested stop')
