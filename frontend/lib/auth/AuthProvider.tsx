@@ -121,6 +121,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ) {
           setUser(session?.user ?? null)
           setSession(session ?? null)
+
+          if (event === "SIGNED_IN" && session?.user) {
+            // Called directly on window.analytics (not the trackEvent
+            // helper in segment-provider.tsx) to avoid a circular import:
+            // segment-provider imports useAuth from this module.
+            const provider = session.user.app_metadata?.provider ?? "email"
+            window.analytics?.track("Signed In", {
+              provider,
+              email: session.user.email,
+              deployment: "public",
+            })
+          }
         }
 
         if (event === "SIGNED_OUT") {
