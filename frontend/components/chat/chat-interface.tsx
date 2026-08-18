@@ -719,7 +719,7 @@ export function ChatInterface({
 
     trackEvent("Chat Message Sent", {
       threadId,
-      messageCount: messages.length + 1,
+      messageCount: messages.length + messageQueueRef.current.length + 1,
       hasAttachments: attachedFiles.length > 0,
     })
 

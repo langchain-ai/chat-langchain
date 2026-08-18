@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react"
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js"
@@ -44,6 +45,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const availableAuthRegions = getAvailableAuthRegions()
   const isConfigured = isSupabaseAuthConfigured(authRegion)
+  // Tracks the last known signed-in user id so we only fire the "Signed In"
+  // analytics event on an actual unauthenticated -> authenticated transition,
+  // not on every SIGNED_IN event (Supabase also emits SIGNED_IN when an
+  // existing session is re-confirmed, e.g. on tab refocus).
+  const lastTrackedUserIdRef = useRef<string | null>(null)
 
   const setAuthRegion = useCallback((region: AuthRegion) => {
     if (!isSupabaseAuthConfigured(region)) return
@@ -122,7 +128,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(session?.user ?? null)
           setSession(session ?? null)
 
-          if (event === "SIGNED_IN" && session?.user) {
+          if (
+            event === "SIGNED_IN" &&
+            session?.user &&
+            lastTrackedUserIdRef.current !== session.user.id
+          ) {
+            // Only fires on an actual unauthenticated -> authenticated
+            // transition. Supabase can also emit SIGNED_IN when an existing
+            // session is simply re-confirmed (e.g. on tab refocus), which
+            // would otherwise inflate this event.
+            lastTrackedUserIdRef.current = session.user.id
+
             // Called directly on window.analytics (not the trackEvent
             // helper in segment-provider.tsx) to avoid a circular import:
             // segment-provider imports useAuth from this module.
@@ -136,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (event === "SIGNED_OUT") {
+          lastTrackedUserIdRef.current = null
           setUser(null)
           setSession(null)
         }
