@@ -10,6 +10,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.context_overflow_middleware import ContextOverflowGuardMiddleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
@@ -48,6 +49,10 @@ docs_agent_middleware = [
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
+    # Innermost (closest to the model call): a hard window guard that trims the
+    # assembled prompt to fit and recovers from context_length_exceeded 400s so a
+    # single-turn overflow ends with a real deliverable instead of null outputs.
+    ContextOverflowGuardMiddleware(),
 ]
 
 agent = define_deep_agent(
