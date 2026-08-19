@@ -8,7 +8,8 @@
     "dev:remote": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test __tests__/*.test.mts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
