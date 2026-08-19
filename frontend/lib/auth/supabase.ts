@@ -69,8 +69,24 @@ export const getStoredAuthRegion = (): AuthRegion => {
 
 export const setStoredAuthRegion = (region: AuthRegion): void => {
   if (typeof window === "undefined") return
+
+  let storedRegion: AuthRegion
+  switch (region) {
+    case "eu":
+      storedRegion = "eu"
+      break
+    case "apac":
+      storedRegion = "apac"
+      break
+    case "aws":
+      storedRegion = "aws"
+      break
+    default:
+      storedRegion = "us"
+  }
+
   try {
-    window.localStorage.setItem(AUTH_REGION_STORAGE_KEY, region)
+    window.localStorage.setItem(AUTH_REGION_STORAGE_KEY, storedRegion)
   } catch (error) {
     console.warn("[Auth] Region storage unavailable", error)
   }
