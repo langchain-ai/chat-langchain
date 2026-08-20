@@ -11,14 +11,21 @@ hand-rolled ``src/api/auth.py`` handler:
   uses ``/auth/v1/user`` introspection (required while some regions still mint
   legacy HS256 tokens with an empty JWKS).
 - ``threads: "actor"`` replaces the ``@auth.on.threads`` owner tagging (owner =
-  the user's email, or the guest actor id).
+  the pseudonymous ``user-<uuid>`` actor id, or the guest actor id).
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
 
 from managed_deepagents import define_identity, providers
+
+_ACTOR_SALT = os.environ.get("IDENTITY_ACTOR_SALT")
+if not _ACTOR_SALT:
+    raise RuntimeError(
+        "IDENTITY_ACTOR_SALT must be set for pseudonymous actor identities"
+    )
 
 # Region label (sent by the frontend as ``x-supabase-region``) -> the env vars
 # that carry that region's Supabase project URL and anon key. Matches the
@@ -31,6 +38,21 @@ _REGION_ENV: dict[str, tuple[str, str]] = {
 }
 
 
+def _normalize_actor_id(claims: dict[str, object]) -> str:
+    """Return a pseudonymous actor id from Supabase introspection claims."""
+    subject = claims.get("sub")
+    if isinstance(subject, str) and subject.strip() and "@" not in subject:
+        return f"user-{subject.strip()}"
+    email = claims.get("email")
+    if not isinstance(email, str) or not email.strip():
+        raise ValueError("Supabase introspection claims require a usable sub or email")
+    normalized_email = email.strip().lower()
+    digest = hashlib.sha256(f"{_ACTOR_SALT}:{normalized_email}".encode()).hexdigest()[
+        :32
+    ]
+    return f"user-{digest}"
+
+
 def _providers() -> list[dict]:
     entries: list[dict] = []
     for region, (url_env, key_env) in _REGION_ENV.items():
@@ -41,6 +63,7 @@ def _providers() -> list[dict]:
         # resolves the real *.supabase.co iss for multi-provider routing.
         provider = providers.supabase(url=base.rstrip("/"), introspect=True)
         provider["id"] = f"supabase-{region}"
+        provider["claims"] = {"actor": "sub", "email": "email"}
         provider["introspect"]["headers"] = {"apikey": "${" + key_env + "}"}
         entries.append(provider)
     # Anonymous visitors: MDA issues + verifies signed guest tokens itself
