@@ -16,7 +16,11 @@ from src.middleware.summarization_middleware import CustomSummarizationMiddlewar
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
-from src.tools.pylon_tools import get_support_article_content, search_support_articles
+from src.tools.pylon_tools import (
+    create_support_ticket,
+    get_support_article_content,
+    search_support_articles,
+)
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
 # The MCP docs tools are declared in connectors/mcp.py so the managed runtime
@@ -24,6 +28,7 @@ from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 docs_agent_tools = [
     search_support_articles,
     get_support_article_content,
+    create_support_ticket,
     fetch_langchain_pricing,
     check_links,
 ]

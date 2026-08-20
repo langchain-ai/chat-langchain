@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_core.runnables import RunnableConfig
 
 load_dotenv()
 
@@ -45,7 +46,23 @@ _collections_cache: Optional[Dict[str, str]] = None
 
 def _get_headers() -> Dict[str, str]:
     """Get API headers with authentication."""
-    return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
+    return {
+        "Authorization": f"Bearer {_get_api_key()}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+
+
+def _get_request_context(config: RunnableConfig) -> Dict[str, str]:
+    """Extract available thread and user identifiers from tool runtime context."""
+    configurable = config.get("configurable", {})
+    metadata = config.get("metadata", {})
+    context: Dict[str, str] = {}
+    for key in ("thread_id", "user_id"):
+        value = configurable.get(key) or metadata.get(key)
+        if value:
+            context[key] = str(value)
+    return context
 
 
 def _fetch_collections() -> Dict[str, str]:
@@ -125,6 +142,39 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 # =============================================================================
 # LangChain Tools
 # =============================================================================
+
+
+@tool
+def create_support_ticket(subject: str, body: str, config: RunnableConfig) -> str:
+    """Create tickets for account, billing, payment, suspension, or outage issues."""
+    try:
+        payload: Dict[str, Any] = {
+            "title": subject,
+            "body_html": body,
+            "metadata": _get_request_context(config),
+        }
+        response = requests.post(
+            f"{PYLON_API_BASE_URL}/v1/issues",
+            headers=_get_headers(),
+            json=payload,
+        )
+        response.raise_for_status()
+        result = response.json()
+        ticket_id = (
+            result.get("id") or result.get("issue_id") or result.get("ticket_id")
+        )
+        if not ticket_id and isinstance(result.get("data"), dict):
+            data = result["data"]
+            ticket_id = data.get("id") or data.get("issue_id") or data.get("ticket_id")
+        if not ticket_id:
+            return "Error: Pylon created the ticket but returned no ticket identifier."
+        return str(ticket_id)
+    except ValueError as e:
+        return f"Error: {e}"
+    except requests.exceptions.RequestException as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error: Unexpected error: {e}"
 
 
 @tool
