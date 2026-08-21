@@ -7,7 +7,6 @@ import type { Message, ImageAttachment } from "@/lib/types"
 import { createUserMessage, generateMessageId, extractTextFromContent } from "@/lib/utils/chat"
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
-import { useAuth } from "@/lib/auth"
 import type { AuthRegion } from "@/lib/auth"
 import { trackEvent } from "@/components/providers/segment-provider"
 import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
@@ -211,9 +210,6 @@ export function ChatInterface({
   // User Information
   // ============================================================================
 
-  // Get user information for tracking in LangSmith
-  const { user } = useAuth()
-
   // Create stable client instance with the current thread owner's credential.
   const client = useMemo(() => {
     if (!authToken) {
@@ -226,19 +222,6 @@ export function ChatInterface({
   const langsmithAuth = useMemo<LangSmithAuth>(
     () => ({ token: authToken, region: authRegion }),
     [authToken, authRegion]
-  )
-
-  // Memoize user metadata to prevent unnecessary re-renders
-  const userEmail = useMemo(
-    () => user?.email || userId || null,
-    [user?.email, userId]
-  )
-  const userName = useMemo(
-    () =>
-      user?.user_metadata?.full_name ||
-      user?.email ||
-      (userId ? `Guest ${userId.slice(0, 8)}` : null),
-    [user?.email, user?.user_metadata?.full_name, userId]
   )
 
   const handleRunCreated = useCallback((runId: string) => {
@@ -263,8 +246,6 @@ export function ChatInterface({
     shouldInterruptRef,
     onRunCreated: handleRunCreated,
     userId,
-    userEmail,
-    userName,
     auth: langsmithAuth,
   })
 
