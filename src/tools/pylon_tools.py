@@ -5,11 +5,12 @@
 import json
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
-from langchain.tools import tool
+from langchain.tools import ToolException, tool
 
 load_dotenv()
 
@@ -41,6 +42,14 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+# Only successful fetches are cached, so a persistent upstream fault would
+# otherwise issue one uncached Pylon call per tool invocation and trigger 429s.
+_ARTICLES_FAILURE_THRESHOLD = 3
+_ARTICLES_FAILURE_TTL_SECONDS = 60.0
+_articles_failure_count = 0
+_articles_failure_until = 0.0
+_articles_failure_reason = ""
 
 
 def _get_headers() -> Dict[str, str]:
@@ -76,17 +85,8 @@ def _fetch_collections() -> Dict[str, str]:
     return _collections_cache
 
 
-def _fetch_all_articles() -> List[Dict[str, Any]]:
-    """Fetch all articles from Pylon API and cache them.
-
-    Follows pagination cursors until all pages are retrieved, with a safety
-    cap of 10 pages (~1000 articles) to prevent infinite loops.
-    """
-    global _articles_cache
-
-    if _articles_cache is not None:
-        return _articles_cache
-
+def _fetch_article_pages() -> List[Dict[str, Any]]:
+    """Fetch every page of articles from the Pylon API."""
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/articles"
     headers = _get_headers()
@@ -101,16 +101,18 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
         response.raise_for_status()
         body = response.json()
 
-        page_data = body.get("data", [])
+        # Pylon sends "data": null on some responses, and a .get() default only
+        # applies when the key is absent.
+        page_data = body.get("data") or []
         all_articles.extend(page_data)
         pages_fetched += 1
 
         # Resolve next-page cursor from common Pylon/REST pagination shapes
         next_cursor = (
             body.get("next")
-            or body.get("meta", {}).get("next")
-            or body.get("links", {}).get("next")
-            or body.get("pagination", {}).get("cursor")
+            or (body.get("meta") or {}).get("next")
+            or (body.get("links") or {}).get("next")
+            or (body.get("pagination") or {}).get("cursor")
         )
 
         if not next_cursor:
@@ -118,7 +120,47 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
         params = {"cursor": next_cursor}
 
-    _articles_cache = all_articles
+    return all_articles
+
+
+def _fetch_all_articles() -> List[Dict[str, Any]]:
+    """Fetch all articles from Pylon API, caching successes and recent failures.
+
+    Follows pagination cursors until all pages are retrieved, with a safety
+    cap of 10 pages (~1000 articles) to prevent infinite loops.
+    """
+    global _articles_cache
+    global _articles_failure_count, _articles_failure_until, _articles_failure_reason
+
+    if _articles_cache is not None:
+        return _articles_cache
+
+    if _articles_failure_until:
+        if time.monotonic() < _articles_failure_until:
+            raise ToolException(
+                f"Pylon knowledge base temporarily unavailable: {_articles_failure_reason}"
+            )
+        _articles_failure_until = 0.0
+        _articles_failure_count = 0
+
+    try:
+        articles = _fetch_article_pages()
+    except Exception as e:
+        _articles_failure_count += 1
+        _articles_failure_reason = str(e) or e.__class__.__name__
+        if _articles_failure_count >= _ARTICLES_FAILURE_THRESHOLD:
+            _articles_failure_until = time.monotonic() + _ARTICLES_FAILURE_TTL_SECONDS
+            logger.warning(
+                "Pylon article fetch failed %s times; pausing requests for %ss: %s",
+                _articles_failure_count,
+                _ARTICLES_FAILURE_TTL_SECONDS,
+                _articles_failure_reason,
+            )
+        raise
+
+    _articles_failure_count = 0
+    _articles_failure_until = 0.0
+    _articles_cache = articles
     return _articles_cache
 
 
@@ -205,9 +247,7 @@ def search_support_articles(collections: str = "all") -> str:
         try:
             collection_map = _fetch_collections()
         except Exception as e:
-            return json.dumps(
-                {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
-            )
+            raise ToolException(f"Failed to fetch Pylon collections: {str(e)}") from e
 
         # Filter by collection ID if specified
         if collections.lower() != "all":
@@ -275,15 +315,17 @@ def search_support_articles(collections: str = "all") -> str:
 
         return json.dumps(result, indent=2)
 
+    except ToolException:
+        raise
     except ValueError as e:
         # API key not configured
-        return json.dumps({"error": str(e)}, indent=2)
+        raise ToolException(f"Pylon support search misconfigured: {str(e)}") from e
     except requests.exceptions.RequestException as e:
-        # Network/API error
-        return json.dumps({"error": str(e)}, indent=2)
+        # Network/API error; raising lets ToolRetryMiddleware retry transient
+        # failures and emit its standardized "Tool unavailable" message.
+        raise ToolException(f"Pylon support search request failed: {str(e)}") from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        raise ToolException(f"Pylon support search failed: {str(e)}") from e
 
 
 @tool
@@ -346,15 +388,17 @@ Content:
 
         return f"Article ID {article_id} not found in knowledge base."
 
+    except ToolException:
+        raise
     except ValueError as e:
         # API key not configured
-        return f"Error: {str(e)}"
+        raise ToolException(f"Pylon article fetch misconfigured: {str(e)}") from e
     except requests.exceptions.RequestException as e:
-        # Network/API error
-        return f"Error fetching article: {str(e)}"
+        # Network/API error; raising lets ToolRetryMiddleware retry transient
+        # failures and emit its standardized "Tool unavailable" message.
+        raise ToolException(f"Pylon article request failed: {str(e)}") from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return f"Unexpected error: {str(e)}"
+        raise ToolException(f"Pylon article fetch failed: {str(e)}") from e
 
 
 # Backwards-compatible Python import alias. The tool name exposed to the model is
