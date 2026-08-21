@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
@@ -14,7 +15,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_TIMEOUT = 10.0
 MAX_REDIRECTS = 5
 USER_AGENT = "LangChain-LinkChecker/1.0"
-CONTENT_CHECK_BYTES = 8192  # Only read first 8KB for soft 404 detection
+CONTENT_CHECK_BYTES = 65536
+DOCS_FILESYSTEM_ROOT = Path("/")
 
 # Domains known to have soft 404s (return 200 with "not found" content)
 SOFT_404_DOMAINS = {
@@ -56,9 +58,20 @@ def _needs_soft_404_check(url: str) -> bool:
         return False
 
 
-def _is_soft_404(content: str) -> bool:
+def _docs_corpus_path_exists(url: str) -> bool:
+    """Check whether a docs URL maps to a page in the documentation corpus."""
+    parsed_url = urlparse(url)
+    relative_path = parsed_url.path.strip("/")
+    if not relative_path:
+        return (DOCS_FILESYSTEM_ROOT / "index.mdx").is_file()
+
+    page_path = DOCS_FILESYSTEM_ROOT / relative_path
+    return (DOCS_FILESYSTEM_ROOT / f"{relative_path}.mdx").is_file() or (page_path / "index.mdx").is_file()
+
+
+def _is_soft_404(content: str, requested_url: str | None = None, final_url: str | None = None) -> bool:
     """Detect soft 404 pages that return HTTP 200 but show 'not found' content."""
-    if "Article Not Found" in content:
+    if re.search(r"article not found|page not found|we couldn't find that page", content, re.IGNORECASE):
         return True
 
     title_match = re.search(r'<title>(.*?)</title>', content, re.IGNORECASE)
@@ -66,6 +79,27 @@ def _is_soft_404(content: str) -> bool:
         title = title_match.group(1).lower()
         if any(phrase in title for phrase in ['not found', '404', 'page not found']):
             return True
+
+    if requested_url and urlparse(requested_url).netloc.lower() == "docs.langchain.com" and re.search(
+        r'<meta\b[^>]*name=["\']robots["\'][^>]*content=["\'][^"\']*noindex',
+        content,
+        re.IGNORECASE,
+    ):
+        return True
+
+    if requested_url and final_url:
+        requested = urlparse(requested_url)
+        final = urlparse(final_url)
+        requested_path = requested.path.rstrip("/")
+        final_path = final.path.rstrip("/") or "/"
+        if (
+            requested.netloc.lower() == "docs.langchain.com"
+            and requested_path not in ("", "/")
+            and final.netloc.lower() == "docs.langchain.com"
+            and final_path in ("/", "/index")
+        ):
+            return True
+
     return False
 
 
@@ -85,6 +119,16 @@ async def _check_single_url(
         return result
 
     try:
+        if urlparse(url).netloc.lower() == "docs.langchain.com" and not _docs_corpus_path_exists(url):
+            result = LinkCheckResult(
+                url=url,
+                valid=False,
+                status_code=None,
+                error="Path not present in documentation corpus",
+            )
+            _cache[url] = result
+            return result
+
         needs_content_check = _needs_soft_404_check(url)
 
         if needs_content_check:
@@ -100,7 +144,7 @@ async def _check_single_url(
                         if len(content) >= CONTENT_CHECK_BYTES:
                             break
 
-                    if _is_soft_404(content):
+                    if _is_soft_404(content, requested_url=url, final_url=str(response.url)):
                         result = LinkCheckResult(
                             url=url, valid=False, status_code=200, final_url=final_url,
                             error="Soft 404: Page shows 'not found' content",
@@ -128,7 +172,8 @@ async def _check_single_url(
                 final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
             )
 
-        _cache[url] = result
+        if not (needs_content_check and result.valid):
+            _cache[url] = result
         return result
 
     except httpx.TimeoutException:

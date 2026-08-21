@@ -8,8 +8,8 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,12 +17,9 @@ import pytest
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
     _check_single_url,
-    _check_urls_async,
-    _format_results,
     check_links,
 )
 
@@ -30,8 +27,8 @@ from src.tools.link_check_tools import (
 class _FakeStreamResponse:
     """Minimal async streaming response for _check_single_url tests."""
 
-    def __init__(self, url: str, status_code: int, content: str):
-        self.url = url
+    def __init__(self, url: str, status_code: int, content: str, response_url: str | None = None):
+        self.url = response_url or url
         self.status_code = status_code
         self._content = content
 
@@ -48,12 +45,13 @@ class _FakeStreamResponse:
 class _FakeStreamingClient:
     """Minimal client that exercises the soft-404 streaming path."""
 
-    def __init__(self, content: str, status_code: int = 200):
+    def __init__(self, content: str, status_code: int = 200, response_url: str | None = None):
         self.content = content
         self.status_code = status_code
+        self.response_url = response_url
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
-        return _FakeStreamResponse(url, self.status_code, self.content)
+        return _FakeStreamResponse(url, self.status_code, self.content, self.response_url)
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +254,64 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_docs_corpus_page_is_valid(tmp_path: Path):
+    """A docs page present in the corpus should be checked as valid."""
+    page = tmp_path / "oss/python/langchain/overview.mdx"
+    page.parent.mkdir(parents=True)
+    page.touch()
+
+    with patch("src.tools.link_check_tools.DOCS_FILESYSTEM_ROOT", tmp_path):
+        result = await _check_single_url(
+            _FakeStreamingClient("<html><body>Documentation</body></html>"),
+            "https://docs.langchain.com/oss/python/langchain/overview",
+            timeout=1.0,
+        )
+
+    assert result.valid
+
+
+@pytest.mark.asyncio
+async def test_missing_docs_corpus_page_skips_network(tmp_path: Path):
+    """A docs path absent from the corpus should fail before making a request."""
+    client = MagicMock()
+    client.stream.side_effect = AssertionError("network should not be called")
+
+    with patch("src.tools.link_check_tools.DOCS_FILESYSTEM_ROOT", tmp_path):
+        result = await _check_single_url(
+            client,
+            "https://docs.langchain.com/oss/python/langchain/missing",
+            timeout=1.0,
+        )
+
+    assert result == LinkCheckResult(
+        url="https://docs.langchain.com/oss/python/langchain/missing",
+        valid=False,
+        status_code=None,
+        error="Path not present in documentation corpus",
+    )
+    client.stream.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_docs_redirect_to_index_is_soft_404(tmp_path: Path):
+    """A deep docs URL redirected to the docs index should fail validation."""
+    page = tmp_path / "oss/python/langchain/overview.mdx"
+    page.parent.mkdir(parents=True)
+    page.touch()
+
+    with patch("src.tools.link_check_tools.DOCS_FILESYSTEM_ROOT", tmp_path):
+        result = await _check_single_url(
+            _FakeStreamingClient(
+                "<html><body>Documentation</body></html>",
+                response_url="https://docs.langchain.com/",
+            ),
+            "https://docs.langchain.com/oss/python/langchain/overview",
+            timeout=1.0,
+        )
+
+    assert not result.valid
+    assert result.final_url == "https://docs.langchain.com/"
+    assert result.error == "Soft 404: Page shows 'not found' content"
