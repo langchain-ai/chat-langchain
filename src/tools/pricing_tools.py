@@ -41,6 +41,11 @@ def _extract_text(html: str) -> str:
     return text.strip()
 
 
+def _looks_like_pricing(text: str) -> bool:
+    """Return whether text contains a currency pricing signal."""
+    return bool(re.search(r"\$\s?\d", text))
+
+
 async def _fetch_pricing_uncached() -> str:
     """Fetch and parse the live pricing page. Raises on failure."""
     async with httpx.AsyncClient(
@@ -54,16 +59,7 @@ async def _fetch_pricing_uncached() -> str:
 
 @tool
 async def fetch_langchain_pricing() -> str:
-    """ALWAYS use this tool for ANY question about LangChain pricing, plans, or trace limits.
-
-    DO NOT use docs search for pricing questions — it does not have current pricing data.
-
-    Triggers: "how many traces", "plus plan", "developer plan", "enterprise plan",
-    "how much does", "pricing", "cost", "seats", "quota", "pay-as-you-go", "fleet runs",
-    "upgrade", "billing", "what plan", "which plan".
-
-    Returns live pricing data directly from https://www.langchain.com/pricing.
-    """
+    """Use this tool for any question about LangChain pricing, plans, or trace limits. Triggers: "how many traces", "plus plan", "developer plan", "enterprise plan", "how much does", "pricing", "cost", "seats", "quota", "pay-as-you-go", "fleet runs", "upgrade", "billing", "what plan", "which plan". Docs search may be used if this tool errors. If this tool returns a string beginning with 'Error:', do not state any specific prices, plan costs, seat prices, or unit rates — tell the user you could not retrieve current pricing and link them to https://www.langchain.com/pricing."""
     global _cached_text, _cached_at
 
     # Fast path: return cached text if it's still fresh. The lock here is
@@ -72,6 +68,7 @@ async def fetch_langchain_pricing() -> str:
         if (
             _cached_text is not None
             and (time.monotonic() - _cached_at) < _CACHE_TTL_SECONDS
+            and _looks_like_pricing(_cached_text)
         ):
             return _cached_text
 
@@ -85,13 +82,13 @@ async def fetch_langchain_pricing() -> str:
         # On failure, fall back to stale cache if we have one — better than
         # telling the user "go check the website" when we have a 1-hour-old copy.
         with _cache_lock:
-            if _cached_text is not None:
+            if _cached_text is not None and _looks_like_pricing(_cached_text):
                 logger.warning("Pricing fetch timed out, returning stale cached copy")
                 return _cached_text
         return f"Error: Request to {PRICING_URL} timed out. Direct the user to {PRICING_URL} for current pricing."
     except httpx.HTTPStatusError as e:
         with _cache_lock:
-            if _cached_text is not None:
+            if _cached_text is not None and _looks_like_pricing(_cached_text):
                 logger.warning(
                     f"Pricing fetch returned HTTP {e.response.status_code}, returning stale cached copy"
                 )
@@ -100,9 +97,13 @@ async def fetch_langchain_pricing() -> str:
     except Exception as e:
         logger.warning(f"Failed to fetch pricing page: {e}")
         with _cache_lock:
-            if _cached_text is not None:
+            if _cached_text is not None and _looks_like_pricing(_cached_text):
                 return _cached_text
         return f"Error: Could not fetch pricing information. Direct the user to {PRICING_URL} for current pricing."
+
+    if not _looks_like_pricing(text):
+        logger.warning("Pricing page returned no recognizable pricing data")
+        return f"Error: Could not extract pricing data from {PRICING_URL} (the page is client-rendered). Do not state specific prices; direct the user to {PRICING_URL}."
 
     with _cache_lock:
         _cached_text = text
