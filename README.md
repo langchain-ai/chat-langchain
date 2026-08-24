@@ -62,6 +62,30 @@ cp .env.example .env
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
 
+#### Optional: OrcaRouter Gateway Provider
+
+This project also supports running through the [OrcaRouter](https://www.orcarouter.ai)
+gateway. OrcaRouter exposes a single OpenAI-compatible endpoint
+(`https://api.orcarouter.ai/v1`) with one key, routing each request to the best
+model for the task. It also runs gateway-level, zero-trust security for AI agents
+on the same endpoint — screening every prompt/response and governing every tool
+call on a default-deny basis, with no application code changes.
+
+To use it, set your OrcaRouter key and select the `orcarouter` model:
+
+| Variable               | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `ORCAROUTER_API_KEY`   | OrcaRouter API key (`sk-orca-...`)                     |
+| `ORCAROUTER_BASE_URL`  | Optional. Defaults to `https://api.orcarouter.ai/v1`   |
+
+```bash
+export ORCAROUTER_API_KEY=sk-orca-your_key_here
+```
+
+OrcaRouter is registered in `src/agent/config.py` as the `orcarouter` model
+(`openai:orcarouter/auto`), which uses `init_chat_model` with the gateway
+`base_url` injected automatically — no other code changes required.
+
 ### Running Locally
 
 #### Backend

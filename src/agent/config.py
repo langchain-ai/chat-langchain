@@ -3,10 +3,12 @@
 import logging
 import os
 from dataclasses import dataclass
+from typing import Any
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.retry_middleware import (
@@ -62,6 +64,14 @@ MODELS: dict[str, ModelConfig] = {
         api_key_env="GOOGLE_API_KEY",
         description="Fastest, most cost-effective Gemini",
     ),
+    # OrcaRouter
+    "orcarouter": ModelConfig(
+        id="openai:orcarouter/auto",
+        name="OrcaRouter",
+        provider="orcarouter",
+        api_key_env="ORCAROUTER_API_KEY",
+        description="OrcaRouter gateway — one key, routed access to frontier and open-weight models",
+    ),
 }
 
 # Default models for different use cases
@@ -82,6 +92,7 @@ API_KEYS = [
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "GOOGLE_API_KEY",
+    "ORCAROUTER_API_KEY",
 ]
 
 for key in API_KEYS:
@@ -90,15 +101,42 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+# OpenAI-compatible gateway endpoint for the OrcaRouter provider.
+ORCAROUTER_BASE_URL = os.getenv("ORCAROUTER_BASE_URL", "https://api.orcarouter.ai/v1")
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
+
+# Reverse index of model id -> provider for gateway-aware init.
+_MODEL_PROVIDERS: dict[str, str] = {
+    model_config.id: model_config.provider for model_config in MODELS.values()
+}
+
+
+def init_configured_model(model: str, **kwargs: Any) -> BaseChatModel:
+    """Initialize a chat model, applying gateway defaults for OrcaRouter.
+
+    Mirrors ``init_chat_model`` but, for OrcaRouter models, injects the gateway
+    base URL (and ``ORCAROUTER_API_KEY`` when present) so requests route to
+    ``https://api.orcarouter.ai/v1`` instead of the OpenAI default endpoint.
+    """
+    if _MODEL_PROVIDERS.get(model) == "orcarouter":
+        kwargs.setdefault(
+            "base_url",
+            os.getenv("ORCAROUTER_BASE_URL", "https://api.orcarouter.ai/v1"),
+        )
+        if orca_key := os.getenv("ORCAROUTER_API_KEY"):
+            kwargs.setdefault("api_key", orca_key)
+    return init_chat_model(model=model, **kwargs)
+
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_configured_model(DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -112,7 +150,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_configured_model(model=model)
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -152,6 +190,7 @@ __all__ = [
     # Models
     "default_model",
     "init_retry_fallback_model",
+    "init_configured_model",
     "summarization_model",
     # Middleware
     "model_retry_middleware",
@@ -159,5 +198,6 @@ __all__ = [
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
+    "ORCAROUTER_BASE_URL",
     "logger",
 ]
