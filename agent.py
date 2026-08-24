@@ -12,6 +12,9 @@ from src.agent.config import (
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
+from src.middleware.split_merged_tool_calls_middleware import (
+    SplitMergedToolCallsMiddleware,
+)
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
@@ -32,6 +35,7 @@ docs_agent_middleware = [
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
+    SplitMergedToolCallsMiddleware(),
     GuardrailsMiddleware(
         model=GUARDRAILS_MODEL.id,
         fallback_model=DEFAULT_MODEL.id,

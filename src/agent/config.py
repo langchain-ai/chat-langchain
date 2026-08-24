@@ -96,9 +96,26 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+GEMINI_PARALLEL_TOOL_CALLS = os.getenv(
+    "GEMINI_PARALLEL_TOOL_CALLS", "false"
+).lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+
+def _model_init_kwargs(model: str) -> dict[str, bool]:
+    if model == DEFAULT_MODEL.id:
+        return {"parallel_tool_calls": GEMINI_PARALLEL_TOOL_CALLS}
+    return {}
+
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(
+    model=DEFAULT_MODEL.id, **_model_init_kwargs(DEFAULT_MODEL.id)
+)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -112,7 +129,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_chat_model(model=model, **_model_init_kwargs(model))
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -151,6 +168,7 @@ __all__ = [
     "ModelConfig",
     # Models
     "default_model",
+    "GEMINI_PARALLEL_TOOL_CALLS",
     "init_retry_fallback_model",
     "summarization_model",
     # Middleware
