@@ -17,6 +17,17 @@ RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
 }
 
+# Deterministic provider-side validation errors that will never succeed on retry;
+# retrying them burns up to max_retries x N-providers LLM calls before surfacing
+# the failure to the user.
+NON_RETRYABLE_KEYWORDS = (
+    "Invalid base64 image_url",
+    "invalid_base64",
+    "Malformed url parameter",
+    "Unable to process input image",
+    "INVALID_ARGUMENT",
+)
+
 
 class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
@@ -69,6 +80,12 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
+                err_str = str(e)
+                if any(kw in err_str for kw in NON_RETRYABLE_KEYWORDS):
+                    logger.error(
+                        f"Non-retryable validation error, failing fast: {e}"
+                    )
+                    raise
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)

@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import random
+import re
 from typing import Any, Literal
 
 import langsmith as ls
@@ -48,6 +49,37 @@ _GUARDRAILS_PROMPT_HUB_NAME = (
 
 # Cache for dataset ID to avoid repeated lookups
 _dataset_id_cache: str | None = None
+
+# Matches data URLs whose base64 payload is empty (prefix-only). Provider APIs
+# reject these as fatal validation errors, so we replace them before dispatch.
+_EMPTY_BASE64_DATA_URL = re.compile(r"^data:[^;]+;base64,\s*$")
+
+
+def _sanitize_image_blocks(messages: list) -> list:
+    """Replace image_url blocks with empty base64 payloads with a placeholder text block."""
+    for msg in messages:
+        content = getattr(msg, "content", None)
+        if not isinstance(content, list):
+            continue
+        new_content = []
+        for block in content:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "image_url"
+                and _EMPTY_BASE64_DATA_URL.match(
+                    (block.get("image_url") or {}).get("url") or ""
+                )
+            ):
+                new_content.append(
+                    {
+                        "type": "text",
+                        "text": "[Invalid image upload — please re-attach the image]",
+                    }
+                )
+            else:
+                new_content.append(block)
+        msg.content = new_content
+    return messages
 
 
 class GuardrailsDecision(TypedDict):
@@ -192,6 +224,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         messages = state.get("messages", [])
         if not messages:
             return None
+
+        _sanitize_image_blocks(messages)
 
         # Extract the current query for all checks below.
         last_message = messages[-1]
@@ -373,6 +407,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         Raises:
             GuardrailsClassificationError: If classification fails after retries.
         """
+        _sanitize_image_blocks(messages)
+
         # Extract the current query (last human message)
         current_message = None
         current_query = None
