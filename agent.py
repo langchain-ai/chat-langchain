@@ -10,6 +10,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.filesystem_paths_middleware import FilesystemPathsMiddleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
@@ -46,6 +47,8 @@ docs_agent_middleware = [
         trim_tokens_to_summarize=None,
     ),
     tool_retry_middleware,
+    # Runs inside the retry wrapper so it sees the filesystem tool's own output.
+    FilesystemPathsMiddleware(),
     model_retry_middleware,
     model_fallback_middleware,
 ]
