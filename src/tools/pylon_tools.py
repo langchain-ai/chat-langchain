@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -41,6 +42,43 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _resolve_article(articles: list[dict], article_id: str) -> dict | None:
+    """Resolve an article from its UUID, identifier, slug, or public URL."""
+    key = article_id.strip()
+    parsed_url = urlparse(key)
+    if parsed_url.scheme or parsed_url.netloc or "/" in key:
+        key = parsed_url.path.rstrip("/").rsplit("/", 1)[-1]
+
+    key_lower = key.lower()
+    for article in articles:
+        if article.get("id") == key:
+            return article
+
+    for article in articles:
+        identifier = article.get("identifier")
+        if identifier is not None and str(identifier) == key:
+            return article
+
+    for article in articles:
+        identifier = article.get("identifier")
+        slug = article.get("slug")
+        if identifier is not None and slug is not None:
+            if f"{identifier}-{slug}".lower() == key_lower:
+                return article
+
+    for article in articles:
+        slug = article.get("slug")
+        if slug is not None and str(slug).lower() == key_lower:
+            return article
+
+    for article in articles:
+        identifier = article.get("identifier")
+        if identifier is not None and key_lower.startswith(f"{identifier}-".lower()):
+            return article
+
+    return None
 
 
 def _get_headers() -> Dict[str, str]:
@@ -315,28 +353,27 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
+        article = _resolve_article(articles, article_id)
+        if article is not None:
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
                 )
+            else:
+                support_url = "URL not available"
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
-
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,7 +381,24 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        available_articles = [
+            {"id": item.get("id"), "title": item.get("title", "Untitled")}
+            for item in articles
+            if (
+                item.get("is_published", False)
+                and item.get("id")
+                and item.get("title")
+                and item.get("title") != "Untitled"
+                and item.get("visibility_config", {}).get("visibility") == "public"
+                and item.get("identifier")
+                and item.get("slug")
+            )
+        ][:10]
+        return (
+            "The article_id must be the article's `id` field returned by "
+            "search_support_articles, not its numeric identifier or URL slug. "
+            f"Available article IDs: {json.dumps(available_articles)}"
+        )
 
     except ValueError as e:
         # API key not configured
