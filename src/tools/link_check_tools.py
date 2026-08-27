@@ -56,8 +56,14 @@ def _needs_soft_404_check(url: str) -> bool:
         return False
 
 
-def _is_soft_404(content: str) -> bool:
+def _is_soft_404(content: str, url: str | None = None, final_url: str | None = None) -> bool:
     """Detect soft 404 pages that return HTTP 200 but show 'not found' content."""
+    if url and final_url:
+        requested = urlparse(url)
+        final = urlparse(final_url)
+        if requested.netloc.lower() in SOFT_404_DOMAINS and requested.path != final.path:
+            return True
+
     if "Article Not Found" in content:
         return True
 
@@ -93,6 +99,14 @@ async def _check_single_url(
                 final_url = str(response.url) if str(response.url) != url else None
                 is_valid = 200 <= response.status_code < 400
 
+                if _is_soft_404("", url, final_url):
+                    result = LinkCheckResult(
+                        url=url, valid=False, status_code=response.status_code, final_url=final_url,
+                        error="Soft 404: Redirected to a different page",
+                    )
+                    _cache[url] = result
+                    return result
+
                 if is_valid and response.status_code == 200:
                     content = ""
                     async for chunk in response.aiter_text():
@@ -100,7 +114,7 @@ async def _check_single_url(
                         if len(content) >= CONTENT_CHECK_BYTES:
                             break
 
-                    if _is_soft_404(content):
+                    if _is_soft_404(content, url, final_url):
                         result = LinkCheckResult(
                             url=url, valid=False, status_code=200, final_url=final_url,
                             error="Soft 404: Page shows 'not found' content",
@@ -168,7 +182,10 @@ def _format_results(results: list[LinkCheckResult]) -> str:
 
     if invalid:
         lines.append("Invalid links:")
-        lines.extend(f"  - {r.url}: {r.error}" for r in invalid)
+        lines.extend(
+            f"  - {r.url}{f' (→ {r.final_url})' if r.final_url else ''}: {r.error}"
+            for r in invalid
+        )
         lines.append("")
 
     if valid:
