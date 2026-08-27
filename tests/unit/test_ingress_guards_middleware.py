@@ -36,6 +36,52 @@ def test_before_agent_noop_when_under_cap():
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
 
+def test_before_agent_redacts_connection_uri_password():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content="postgres://appuser:S3cr3t!@host:5432/db", id="h1"
+    )
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content == (
+        "postgres://appuser:***REDACTED***@host:5432/db"
+    )
+
+
+def test_before_agent_preserves_documentation_placeholder():
+    middleware = IngressGuardsMiddleware()
+    content = "postgres://user:password@host:5432/db"
+    human = HumanMessage(content=content, id="h1")
+
+    assert middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_redacts_api_key_and_bearer_token():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content="sk-1234567890abcdef https://x Authorization: Bearer abcdefghijklmnop",
+        id="h1",
+    )
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content == (
+        "***REDACTED*** https://x Authorization: Bearer ***REDACTED***"
+    )
+
+
+def test_redact_content_preserves_non_text_blocks():
+    middleware = IngressGuardsMiddleware()
+    image = {"type": "image_url", "image_url": {"url": "sk-1234567890abcdef"}}
+    content = [image, {"type": "text", "text": "sk-1234567890abcdef"}]
+
+    redacted = middleware._redact_content(content)
+
+    assert redacted[0] is image
+    assert redacted[1]["text"] == "***REDACTED***"
+
+
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
