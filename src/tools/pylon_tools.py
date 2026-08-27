@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_core.runnables import RunnableConfig
 
 load_dotenv()
 
@@ -41,6 +42,38 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+_search_cache: Dict[str, bool] = {}
+_run_search_cache: Dict[str, set[str]] = {}
+
+
+def _search_cache_key(collections: str) -> str:
+    """Serialize search arguments for cache lookup."""
+    return json.dumps({"collections": collections}, sort_keys=True)
+
+
+def _search_was_run(collections: str, config: RunnableConfig | None) -> bool:
+    """Check whether this search was already run in the current context."""
+    key = _search_cache_key(collections)
+    if config:
+        configurable = config.get("configurable", {})
+        metadata = config.get("metadata", {})
+        run_key = configurable.get("thread_id") or metadata.get("run_id")
+        if run_key:
+            return key in _run_search_cache.setdefault(str(run_key), set())
+    return key in _search_cache
+
+
+def _remember_search(collections: str, config: RunnableConfig | None) -> None:
+    """Record a completed search in the current context."""
+    key = _search_cache_key(collections)
+    if config:
+        configurable = config.get("configurable", {})
+        metadata = config.get("metadata", {})
+        run_key = configurable.get("thread_id") or metadata.get("run_id")
+        if run_key:
+            _run_search_cache.setdefault(str(run_key), set()).add(key)
+            return
+    _search_cache[key] = True
 
 
 def _get_headers() -> Dict[str, str]:
@@ -128,7 +161,9 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
+def search_support_articles(
+    collections: str = "all", *, config: RunnableConfig
+) -> str:
     """Get LangChain support article titles from Pylon KB, filtered by collection(s).
 
     Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
@@ -154,8 +189,12 @@ def search_support_articles(collections: str = "all") -> str:
         JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
     """
     try:
+        if _search_was_run(collections, config):
+            return "Identical search already run in this conversation; reuse the earlier results."
+
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
+        _remember_search(collections, config)
 
         # Handle None or empty response
         if articles is None or not articles:
