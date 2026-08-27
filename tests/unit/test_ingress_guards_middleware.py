@@ -36,6 +36,63 @@ def test_before_agent_noop_when_under_cap():
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
 
+def test_before_agent_redacts_real_dsn_password():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content="Use postgres://db_user:s3cr3t%24value@127.0.0.1:5432/app",
+        id="h1",
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == (
+        "Use postgres://db_user:[REDACTED_PASSWORD]@127.0.0.1:5432/app"
+    )
+
+
+def test_before_agent_leaves_placeholder_dsn_password_alone():
+    middleware = IngressGuardsMiddleware()
+    content = "Use postgres://db_user:password@127.0.0.1:5432/app"
+    human = HumanMessage(content=content, id="h1")
+
+    assert middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_redacts_content_blocks_and_preserves_surrounding_text():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content=[
+            {"type": "text", "text": "DSN: postgres://user:real-secret@db/app"},
+            {"type": "image_url", "image_url": {"url": "image"}},
+            " token=real-token",
+        ],
+        id="h1",
+    )
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == [
+        {"type": "text", "text": "DSN: postgres://user:[REDACTED_PASSWORD]@db/app"},
+        {"type": "image_url", "image_url": {"url": "image"}},
+        " token=[REDACTED_SECRET]",
+    ]
+
+
+def test_before_agent_redacts_before_truncating_oversized_input():
+    middleware = IngressGuardsMiddleware()
+    content = "password=real-secret " + "x" * MAX_MESSAGE_CHARS
+    human = HumanMessage(content=content, id="h1")
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert len(update["messages"][0].content) == MAX_MESSAGE_CHARS
+    assert "real-secret" not in update["messages"][0].content
+
+
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
