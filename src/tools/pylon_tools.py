@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_core.tools import ToolException
 
 load_dotenv()
 
@@ -315,28 +316,68 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
+        normalized_article_id = article_id.strip().lower()
+
         # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
+        article = next(
+            (article for article in articles if article.get("id") == article_id),
+            None,
+        )
+        if article is None:
+            article = next(
+                (
+                    article
+                    for article in articles
+                    if article.get("identifier") is not None
+                    and str(article.get("identifier")).strip().lower()
+                    == normalized_article_id
+                ),
+                None,
+            )
+        if article is None:
+            article = next(
+                (
+                    article
+                    for article in articles
+                    if article.get("identifier") is not None
+                    and article.get("slug") is not None
+                    and f"{article.get('identifier')}-{article.get('slug')}".strip().lower()
+                    == normalized_article_id
+                ),
+                None,
+            )
+        if article is None:
+            article = next(
+                (
+                    article
+                    for article in articles
+                    if article.get("slug") is not None
+                    and str(article.get("slug")).strip().lower()
+                    == normalized_article_id
+                ),
+                None,
+            )
+
+        if article is not None:
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
                 )
+            else:
+                support_url = "URL not available"
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
-
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,8 +385,12 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        raise ToolException(
+            f"Article '{article_id}' could not be resolved. Pass the UUID from the 'id' field returned by search_support_articles (for example 'f1782122-2836-4a3e-b7c3-1a8c31bad015'), not the numeric identifier or the slug from the 'url' field."
+        )
 
+    except ToolException:
+        raise
     except ValueError as e:
         # API key not configured
         return f"Error: {str(e)}"
