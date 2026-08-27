@@ -78,7 +78,8 @@ else:
     _langsmith_client = Client()
     try:
         _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
-        _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.invoke({"messages": []}).messages[
+        # Render directly because import-time tracing would export an orphan root run.
+        _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.format_messages(messages=[])[
             0
         ].content
         guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
