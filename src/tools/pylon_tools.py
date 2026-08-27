@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -41,6 +42,44 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _resolve_article(
+    articles: List[Dict[str, Any]], article_id: str
+) -> Optional[Dict[str, Any]]:
+    """Resolve an article from its UUID or supported URL identifier."""
+    normalized_id = article_id.strip()
+    parsed_url = urlparse(normalized_id)
+    if parsed_url.scheme and parsed_url.netloc:
+        path = parsed_url.path.rstrip("/")
+        if "/articles/" in path:
+            normalized_id = path.rsplit("/articles/", 1)[-1]
+
+    for article in articles:
+        if article.get("id") == normalized_id:
+            return article
+
+    for article in articles:
+        identifier = article.get("identifier")
+        if identifier is not None and str(identifier) == normalized_id:
+            return article
+
+    for article in articles:
+        identifier = article.get("identifier")
+        slug = article.get("slug")
+        if (
+            identifier is not None
+            and slug is not None
+            and f"{identifier}-{slug}" == normalized_id
+        ):
+            return article
+
+    for article in articles:
+        identifier = article.get("identifier")
+        if identifier is not None and normalized_id.startswith(f"{identifier}-"):
+            return article
+
+    return None
 
 
 def _get_headers() -> Dict[str, str]:
@@ -288,18 +327,7 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
-
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
+    """Fetch article content using the UUID `id` field from `search_support_articles`; support-article URLs and numeric identifiers are also accepted and resolved automatically."""
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
@@ -315,28 +343,27 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
+        article = _resolve_article(articles, article_id)
+        if article is not None:
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
                 )
+            else:
+                support_url = "URL not available"
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
-
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,7 +371,39 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        normalized_id = article_id.strip()
+        parsed_url = urlparse(normalized_id)
+        if parsed_url.scheme and parsed_url.netloc and "/articles/" in parsed_url.path:
+            normalized_id = parsed_url.path.rstrip("/").rsplit("/articles/", 1)[-1]
+
+        prefix_match = next(
+            (
+                candidate
+                for candidate in articles
+                if any(
+                    prefix
+                    and (
+                        normalized_id.startswith(str(prefix))
+                        or str(prefix).startswith(normalized_id)
+                    )
+                    for prefix in (
+                        candidate.get("identifier"),
+                        candidate.get("slug"),
+                    )
+                )
+            ),
+            None,
+        )
+        suggestion = ""
+        if prefix_match is not None:
+            suggestion = (
+                f' Closest matching article: "{prefix_match.get("title", "Untitled")}" '
+                f"has UUID id {prefix_match.get('id')}."
+            )
+        return (
+            f'ERROR: Article ID "{article_id}" did not resolve. The required argument '
+            f'is the "id" (UUID) field from search_support_articles.{suggestion}'
+        )
 
     except ValueError as e:
         # API key not configured
