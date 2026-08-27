@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -41,6 +42,37 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _normalize_article_key(value: str) -> str:
+    """Normalize an article identifier or URL for comparison."""
+    normalized = str(value).strip().lower()
+    parsed = urlparse(normalized)
+    if parsed.scheme and parsed.netloc:
+        path_segments = [segment for segment in parsed.path.split("/") if segment]
+        if path_segments:
+            normalized = path_segments[-1]
+    return normalized
+
+
+def _resolve_article(
+    articles: List[Dict[str, Any]], article_id: str
+) -> Optional[Dict[str, Any]]:
+    """Resolve an article by UUID, numeric identifier, slug, or URL."""
+    normalized_article_id = _normalize_article_key(article_id)
+    for article in articles:
+        identifier = article.get("identifier")
+        slug = article.get("slug")
+        candidates = [article.get("id"), identifier]
+        if identifier and slug:
+            candidates.append(f"{identifier}-{slug}")
+        if any(
+            candidate is not None
+            and _normalize_article_key(candidate) == normalized_article_id
+            for candidate in candidates
+        ):
+            return article
+    return None
 
 
 def _get_headers() -> Dict[str, str]:
@@ -190,6 +222,7 @@ def search_support_articles(collections: str = "all") -> str:
                 published_articles.append(
                     {
                         "id": article.get("id"),
+                        "identifier": article.get("identifier"),
                         "title": article.get("title", ""),
                         "url": support_url,
                         "collection_id": article.get(
@@ -270,7 +303,7 @@ def search_support_articles(collections: str = "all") -> str:
             "collections": collections,
             "total": len(published_articles),
             "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "note": "All articles listed are public and have content. Use either id or identifier with get_support_article_content; the identifier-slug from the URL is also accepted.",
         }
 
         return json.dumps(result, indent=2)
@@ -291,8 +324,7 @@ def get_support_article_content(article_id: str) -> str:
     """Fetch the full HTML content of a specific Pylon support article.
 
     Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
+    Accepts the article UUID, numeric identifier, or identifier-slug from the article URL.
 
     Args:
         article_id: The article ID from search_support_articles
@@ -315,28 +347,27 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
+        article = _resolve_article(articles, article_id)
+        if article is not None:
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
                 )
+            else:
+                support_url = "URL not available"
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
-
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,7 +375,15 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        available_articles = "; ".join(
+            f"{article.get('id')}: {article.get('title', 'Untitled')}"
+            for article in articles[:10]
+        )
+        return (
+            f"Article ID {article_id} not found in knowledge base. Accepted forms are "
+            "the article UUID, numeric identifier, or identifier-slug from the article URL. "
+            f"Available articles: {available_articles}"
+        )
 
     except ValueError as e:
         # API key not configured
