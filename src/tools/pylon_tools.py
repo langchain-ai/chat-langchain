@@ -5,6 +5,8 @@
 import json
 import logging
 import os
+import re
+from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -40,7 +42,28 @@ def _get_api_key() -> str:
 # =============================================================================
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
+_article_index: Optional[Dict[str, Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _build_article_index(articles: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Build normalized lookups for article identifiers."""
+    index: Dict[str, Dict[str, Any]] = {}
+    for article in articles:
+        identifier = article.get("identifier")
+        slug = article.get("slug")
+        keys = [article.get("id"), identifier, slug]
+        if identifier and slug:
+            keys.extend(
+                [
+                    f"{identifier}-{slug}",
+                    f"https://support.langchain.com/articles/{identifier}-{slug}",
+                ]
+            )
+        for key in keys:
+            if key:
+                index[str(key).lower().strip().rstrip("/")] = article
+    return index
 
 
 def _get_headers() -> Dict[str, str]:
@@ -82,7 +105,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     Follows pagination cursors until all pages are retrieved, with a safety
     cap of 10 pages (~1000 articles) to prevent infinite loops.
     """
-    global _articles_cache
+    global _article_index, _articles_cache
 
     if _articles_cache is not None:
         return _articles_cache
@@ -119,6 +142,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
         params = {"cursor": next_cursor}
 
     _articles_cache = all_articles
+    _article_index = _build_article_index(all_articles)
     return _articles_cache
 
 
@@ -216,6 +240,7 @@ def search_support_articles(collections: str = "all") -> str:
 
             # Get collection IDs for requested collections
             collection_ids = []
+            warnings = []
             for coll_name in requested_collections:
                 if coll_name in collection_map:
                     collection_ids.append(collection_map[coll_name])
@@ -228,12 +253,21 @@ def search_support_articles(collections: str = "all") -> str:
                             matched = True
                             break
                     if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
+                        requested_tokens = set(re.findall(r"[a-z0-9]+", coll_name.lower()))
+                        for key in collection_map:
+                            if requested_tokens == set(
+                                re.findall(r"[a-z0-9]+", key.lower())
+                            ):
+                                collection_ids.append(collection_map[key])
+                                matched = True
+                                break
+                    if not matched:
+                        warnings.append(
+                            f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
                         )
+
+            if not collection_ids:
+                return json.dumps({"error": "; ".join(warnings)}, indent=2)
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -257,6 +291,7 @@ def search_support_articles(collections: str = "all") -> str:
                     "total": 0,
                     "articles": [],
                     "note": "No articles found",
+                    "warnings": warnings if collections.lower() != "all" else [],
                 },
                 indent=2,
             )
@@ -271,6 +306,7 @@ def search_support_articles(collections: str = "all") -> str:
             "total": len(published_articles),
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "warnings": warnings if collections.lower() != "all" else [],
         }
 
         return json.dumps(result, indent=2)
@@ -315,28 +351,34 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
+        global _article_index
+        if _article_index is None:
+            _article_index = _build_article_index(articles)
+        normalized_article_id = str(article_id).lower().strip().rstrip("/")
+        support_prefix = "https://support.langchain.com/articles/"
+        if normalized_article_id.startswith(support_prefix):
+            normalized_article_id = normalized_article_id[len(support_prefix) :]
+        article = _article_index.get(normalized_article_id)
+        if article is not None:
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
                 )
+            else:
+                support_url = "URL not available"
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
-
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,7 +386,27 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        candidates = sorted(
+            articles,
+            key=lambda candidate: max(
+                SequenceMatcher(
+                    None,
+                    normalized_article_id,
+                    str(candidate.get(field, "")).lower().strip(),
+                ).ratio()
+                for field in ("title", "slug")
+            ),
+            reverse=True,
+        )[:5]
+        candidate_text = "; ".join(
+            f"id={candidate.get('id')} title={candidate.get('title', 'Untitled')}"
+            for candidate in candidates
+        )
+        return (
+            f"Article ID {article_id} was not recognized in the knowledge base. "
+            f"Closest candidates: {candidate_text}. "
+            "Retry with the id field from search_support_articles."
+        )
 
     except ValueError as e:
         # API key not configured
