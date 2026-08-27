@@ -5,7 +5,9 @@
 import json
 import logging
 import os
+from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -315,9 +317,20 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
+        normalized_article_id = article_id.strip()
+        parsed_article_id = urlparse(normalized_article_id)
+        if parsed_article_id.scheme and parsed_article_id.netloc:
+            normalized_article_id = parsed_article_id.path.rstrip("/").split("/")[-1]
+
         for article in articles:
-            if article.get("id") == article_id:
+            identifier = article.get("identifier")
+            slug = article.get("slug")
+            article_ids = {
+                article.get("id"),
+                str(identifier) if identifier is not None else None,
+                f"{identifier}-{slug}" if identifier is not None and slug else None,
+            }
+            if normalized_article_id in article_ids:
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -344,7 +357,29 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        query = normalized_article_id.lower()
+        candidates = []
+        for article in articles:
+            title = str(article.get("title", ""))
+            slug = str(article.get("slug", ""))
+            haystack = f"{title} {slug}".lower()
+            score = max(
+                SequenceMatcher(None, query, title.lower()).ratio(),
+                SequenceMatcher(None, query, slug.lower()).ratio(),
+            )
+            if query and query in haystack:
+                score += 1
+            candidates.append((score, {"id": article.get("id"), "title": title}))
+        candidates.sort(key=lambda candidate: candidate[0], reverse=True)
+        candidate_text = ", ".join(
+            json.dumps(candidate[1]) for candidate in candidates[:3]
+        )
+        return (
+            f"Article ID {article_id} did not resolve in the knowledge base. "
+            "Use the canonical `id` field from search_support_articles output, "
+            "not an identifier or anything derived from its `url`."
+            + (f" Possible matches: {candidate_text}" if candidate_text else "")
+        )
 
     except ValueError as e:
         # API key not configured
