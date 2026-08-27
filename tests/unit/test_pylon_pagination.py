@@ -4,11 +4,8 @@ These tests do NOT require network access or LangSmith credentials.
 All HTTP calls are mocked via unittest.mock.
 """
 
-import importlib
-import sys
 import unittest
-from unittest.mock import MagicMock, call, patch
-
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -186,6 +183,52 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+
+class TestGetSupportArticleContentIds(unittest.TestCase):
+    """Unit tests for support article ID normalization."""
+
+    def setUp(self):
+        import src.tools.pylon_tools as pylon_module
+
+        self.module = pylon_module
+        self.article = {
+            "id": "UUID-123",
+            "identifier": "6253531756",
+            "slug": "example-article",
+            "title": "Example article",
+            "current_published_content_html": "Article body",
+        }
+
+    @patch("src.tools.pylon_tools._fetch_collections", return_value={})
+    @patch("src.tools.pylon_tools._fetch_all_articles")
+    def test_accepts_all_supported_id_shapes(self, mock_fetch, mock_collections):
+        mock_fetch.return_value = [self.article]
+
+        for article_id in (
+            "UUID-123",
+            "6253531756",
+            "6253531756-example-article",
+            "https://support.langchain.com/articles/6253531756-example-article",
+        ):
+            with self.subTest(article_id=article_id):
+                result = self.module.get_support_article_content.invoke(
+                    {"article_id": article_id}
+                )
+                self.assertIn("Article body", result)
+
+    @patch("src.tools.pylon_tools._fetch_collections", return_value={})
+    @patch("src.tools.pylon_tools._fetch_all_articles")
+    def test_unknown_id_returns_actionable_error(self, mock_fetch, mock_collections):
+        mock_fetch.return_value = [self.article]
+
+        result = self.module.get_support_article_content.invoke(
+            {"article_id": "unknown-article"}
+        )
+
+        self.assertIn("ERROR: no support article matches", result)
+        self.assertIn("Pass the `id` field returned by search_support_articles", result)
+        self.assertIn("UUID-123", result)
 
 
 if __name__ == "__main__":

@@ -279,6 +279,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
    - From support article results, select 1-3 relevant article IDs and call `get_support_article_content` for them in parallel
+   - Pass the `id` value (UUID) returned by `search_support_articles` to `get_support_article_content`; never pass the numeric identifier or slug from the article `url`
 
 4. **STOP and synthesize**
    - After rounds 1-2, you almost always have enough information

@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -41,6 +42,24 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _article_id_candidates(article: dict) -> set[str]:
+    identifier = str(article.get("identifier") or "")
+    slug = str(article.get("slug") or "")
+    candidates = {str(article.get("id") or "")}
+    if identifier:
+        candidates.add(identifier)
+        if slug:
+            candidates.add(f"{identifier}-{slug}")
+    return {candidate.lower() for candidate in candidates if candidate}
+
+
+def _normalize_article_id(raw: str) -> str:
+    raw = (raw or "").strip()
+    if "support.langchain.com/articles/" in raw:
+        raw = raw.rsplit("/articles/", 1)[-1]
+    return raw.strip("/").lower()
 
 
 def _get_headers() -> Dict[str, str]:
@@ -315,9 +334,9 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
+        wanted = _normalize_article_id(article_id)
         for article in articles:
-            if article.get("id") == article_id:
+            if wanted in _article_id_candidates(article):
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -344,7 +363,38 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        scored_articles = []
+        for article in articles:
+            searchable_values = [
+                article.get("title", ""),
+                article.get("slug", ""),
+                article.get("identifier", ""),
+            ]
+            score = max(
+                (
+                    SequenceMatcher(
+                        None,
+                        wanted,
+                        _normalize_article_id(str(value)),
+                    ).ratio()
+                    for value in searchable_values
+                    if value
+                ),
+                default=0,
+            )
+            scored_articles.append((score, article))
+        scored_articles.sort(key=lambda item: item[0], reverse=True)
+        sample_ids = [
+            str(article.get("id"))
+            for _, article in scored_articles[:3]
+            if article.get("id")
+        ]
+        return (
+            f"ERROR: no support article matches '{article_id}'. "
+            "Pass the `id` field returned by search_support_articles (a UUID), "
+            "not the numeric identifier or the slug from the article URL. "
+            f"Closest available ids: {', '.join(sample_ids)}"
+        )
 
     except ValueError as e:
         # API key not configured
