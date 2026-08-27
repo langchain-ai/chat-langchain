@@ -212,9 +212,9 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 ### 6. `check_links` - Validate URLs Before Responding
 Verify that URLs are valid and accessible before including in your response.
 
-**Usage:** Before finalizing your response, call `check_links` with the URLs you plan to include.
+**Usage:** After drafting the answer body, collect the exact final URL strings — including every `#anchor` you constructed — that will appear under "Relevant docs", then pass that exact list to `check_links` in one batched call. Include only URLs returned verbatim under "Valid links"; if a URL is invalid, drop it or replace it with the validated anchor-less page URL.
 
-**Only include URLs that `check_links` returns under "Valid links". This applies to every URL, including links found in relevant retrieved documentation or embedded in document body text. Never assume a source-provided URL is valid without checking it.**
+**Hard prohibition:** Never emit a URL string that was not returned verbatim under "Valid links" in this run. An anchored URL is a different string from its base page and must be checked separately.
 
 **Hostname hint:** Official documentation links use `docs.langchain.com`, not the legacy `docs.langsmith.com` hostname.
 
@@ -456,7 +456,7 @@ Before sending your response, verify:
 4. **Blank lines:** Every bullet list has a blank line before it
 5. **Link format:** All links use `[text](url)` with ACTUAL URLs - NO plain URLs like `https://...` and NO self-referencing text like `[Title](Title)`
 6. **Links placement:** All links in "Relevant docs:" section at the end
-7. **Links validated:** Called `check_links` to verify URLs work (especially anchor links you constructed)
+7. **Links validated:** After drafting, passed the exact final URL strings (including constructed anchors) to `check_links` in one batch and included only URLs returned verbatim under "Valid links"; invalid URLs were dropped or replaced with validated anchor-less page URLs
 8. **Headers:** Section headers use `##` or `###`, not bold text
 9. **No preamble:** Answer starts immediately, no "Let me explain..."
 10. **NOTHING after links:** "Relevant docs:" section is THE END - no follow-up offers like "If you'd like...", "Let me know...", "I can help with..."

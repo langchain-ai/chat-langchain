@@ -4,7 +4,8 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from html.parser import HTMLParser
+from urllib.parse import unquote, urlparse
 
 import httpx
 from langchain.tools import tool
@@ -69,6 +70,50 @@ def _is_soft_404(content: str) -> bool:
     return False
 
 
+class _AnchorParser(HTMLParser):
+    """Collect element anchors and heading text from an HTML page."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.anchors: set[str] = set()
+        self._heading_parts: list[str] | None = None
+        self.heading_texts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        for attribute in ("id", "name"):
+            value = attributes.get(attribute)
+            if value:
+                self.anchors.add(value)
+        if tag.lower() in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            self._heading_parts = []
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in {"h1", "h2", "h3", "h4", "h5", "h6"} and self._heading_parts is not None:
+            self.heading_texts.append(" ".join(self._heading_parts))
+            self._heading_parts = None
+
+    def handle_data(self, data: str) -> None:
+        if self._heading_parts is not None:
+            self._heading_parts.append(data)
+
+
+def _slugify_heading(text: str) -> str:
+    """Convert heading text to the anchor slug used by docs pages."""
+    text = re.sub(r"[^\w\s-]", "", text.lower())
+    return re.sub(r"-+", "-", re.sub(r"\s+", "-", text)).strip("-")
+
+
+def _anchor_exists(content: str, fragment: str) -> bool:
+    """Check whether an HTML page contains the requested anchor."""
+    parser = _AnchorParser()
+    parser.feed(content)
+    decoded_fragment = unquote(fragment)
+    return decoded_fragment in parser.anchors or any(
+        _slugify_heading(text) == decoded_fragment.lower() for text in parser.heading_texts
+    )
+
+
 async def _check_single_url(
     client: httpx.AsyncClient,
     url: str,
@@ -85,6 +130,41 @@ async def _check_single_url(
         return result
 
     try:
+        parsed_url = urlparse(url)
+        fragment = parsed_url.fragment
+
+        if fragment:
+            async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
+                final_url = str(response.url) if str(response.url) != url else None
+                is_valid = 200 <= response.status_code < 400
+                content = ""
+                if is_valid:
+                    async for chunk in response.aiter_text():
+                        content += chunk
+
+                    if response.status_code == 200 and _is_soft_404(content):
+                        result = LinkCheckResult(
+                            url=url, valid=False, status_code=200, final_url=final_url,
+                            error="Soft 404: Page shows 'not found' content",
+                        )
+                        _cache[url] = result
+                        return result
+
+                    if not _anchor_exists(content, fragment):
+                        result = LinkCheckResult(
+                            url=url, valid=False, status_code=200, final_url=final_url,
+                            error=f"anchor '#{fragment}' not found on page",
+                        )
+                        _cache[url] = result
+                        return result
+
+                result = LinkCheckResult(
+                    url=url, valid=is_valid, status_code=response.status_code,
+                    final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
+                )
+            _cache[url] = result
+            return result
+
         needs_content_check = _needs_soft_404_check(url)
 
         if needs_content_check:
