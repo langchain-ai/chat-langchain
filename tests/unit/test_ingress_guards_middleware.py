@@ -36,6 +36,42 @@ def test_before_agent_noop_when_under_cap():
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
 
+def test_before_agent_redacts_latest_human_message():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content="Use postgres://db_user:synthPass123!@db.internal:5432/app",
+        id="h1",
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == (
+        "Use postgres://db_user:<REDACTED>@db.internal:5432/app"
+    )
+
+
+def test_before_agent_redacts_text_blocks_and_preserves_non_text_blocks():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content=[
+            {"type": "text", "text": "password=synthPass123!"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}},
+        ],
+        id="h1",
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == [
+        {"type": "text", "text": "password=<REDACTED>"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}},
+    ]
+
+
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
