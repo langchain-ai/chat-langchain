@@ -190,6 +190,7 @@ def search_support_articles(collections: str = "all") -> str:
                 published_articles.append(
                     {
                         "id": article.get("id"),
+                        "fetch_id": article.get("id"),
                         "title": article.get("title", ""),
                         "url": support_url,
                         "collection_id": article.get(
@@ -270,7 +271,7 @@ def search_support_articles(collections: str = "all") -> str:
             "collections": collections,
             "total": len(published_articles),
             "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "note": "All articles listed are public and have content. Use the `id` field (a UUID) to fetch full content.",
         }
 
         return json.dumps(result, indent=2)
@@ -288,18 +289,7 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
-
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
+    """Fetch article content using the opaque `id` UUID from search_support_articles, not the numeric identifier or slug in its URL."""
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
@@ -315,9 +305,26 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
+        normalized_article_id = str(article_id).strip()
+        normalized_article_id = normalized_article_id.split("?", 1)[0].split("#", 1)[0]
+        if "support.langchain.com/articles/" in normalized_article_id:
+            normalized_article_id = normalized_article_id.split(
+                "support.langchain.com/articles/", 1
+            )[1]
+        elif "://" in normalized_article_id:
+            normalized_article_id = normalized_article_id.rsplit("/", 1)[-1]
+        normalized_article_id = normalized_article_id.strip().rstrip("/")
+
+        # Find the article by ID or URL-derived identifier
         for article in articles:
-            if article.get("id") == article_id:
+            identifier = str(article.get("identifier") or "").strip()
+            slug = str(article.get("slug") or "").strip()
+            article_keys = {
+                str(article.get("id") or "").strip(),
+                identifier,
+                f"{identifier}-{slug}" if identifier and slug else "",
+            }
+            if normalized_article_id in article_keys:
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -326,8 +333,6 @@ def get_support_article_content(article_id: str) -> str:
                 )
 
                 # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
                 if identifier and slug:
                     support_url = (
                         f"https://support.langchain.com/articles/{identifier}-{slug}"
@@ -344,7 +349,14 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        available_articles = [
+            {"id": article.get("id"), "title": article.get("title", "")}
+            for article in articles[:10]
+        ]
+        return (
+            f"Article ID {article_id} was not recognized. Available articles: "
+            f"{json.dumps(available_articles)}. Retry with one of the `id` values above."
+        )
 
     except ValueError as e:
         # API key not configured
