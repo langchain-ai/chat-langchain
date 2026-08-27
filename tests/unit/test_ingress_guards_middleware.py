@@ -12,6 +12,7 @@ os.environ["USE_LOCAL_PROMPTS"] = "1"
 from src.middleware.ingress_guards_middleware import (
     MAX_MESSAGE_CHARS,
     IngressGuardsMiddleware,
+    redact_secrets,
 )
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
@@ -34,6 +35,42 @@ def test_before_agent_noop_when_under_cap():
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_redact_secrets_preserves_uri_structure():
+    text = "postgres://user:supersecret@host:5432/db?sslmode=disable"
+
+    assert (
+        redact_secrets(text)
+        == "postgres://user:[REDACTED_SECRET]@host:5432/db?sslmode=disable"
+    )
+
+
+def test_redact_secrets_leaves_documentation_sample_untouched():
+    text = "postgresql://usuario:password@localhost/db"
+
+    assert redact_secrets(text) == text
+
+
+def test_redact_secrets_redacts_key_in_fenced_code():
+    text = "```bash\nexport KEY=sk-live-secret-value\n```"
+
+    assert redact_secrets(text) == "```bash\nexport KEY=[REDACTED_SECRET]\n```"
+
+
+def test_redact_secrets_leaves_environment_lookup_untouched():
+    text = 'api_key = os.getenv("X")'
+
+    assert redact_secrets(text) == text
+
+
+def test_before_agent_preserves_identity_for_clean_message():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(content="Hello", id="h1")
+    state = {"messages": [human]}
+
+    assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+    assert state["messages"][0] is human
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):

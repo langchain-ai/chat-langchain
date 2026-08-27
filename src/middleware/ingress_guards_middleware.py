@@ -14,6 +14,7 @@ not synthesized; archive deploys use ``LANGSMITH_HOST_REVISION_ID`` /
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
@@ -21,6 +22,47 @@ from langgraph.runtime import Runtime
 
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
 MAX_MESSAGE_CHARS = 50_000
+
+_URI_CREDENTIAL_RE = re.compile(
+    r"\b([a-z][a-z0-9+.\-]*)://([A-Za-z0-9_.%\-]{1,64}):([^@\s/\"'`]{4,128})@"
+)
+_PREFIX_SECRET_RE = re.compile(
+    r"(?<![A-Za-z0-9])((?:sk-|tvly-|AIza|ghp_|xoxb-|pk_live_|lsv2_|lcl_)[A-Za-z0-9_\-]{4,})"
+)
+_BEARER_SECRET_RE = re.compile(r"\bBearer\s+([^\s\"'`]+)")
+_JWT_SECRET_RE = re.compile(
+    r"\b(eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b"
+)
+_CONTEXTUAL_SECRET_RE = re.compile(
+    r"\b(api_key|apikey|token|secret|password|passwd|LANGSMITH_API_KEY|"
+    r"LANGCHAIN_API_KEY|POSTGRES_URI|POSTGRES_URI_CUSTOM|DATABASE_URL)"
+    r"(\s*[=:]\s*)([^\s,;]+)",
+    re.IGNORECASE,
+)
+_PLACEHOLDER_RE = re.compile(
+    r"(?:xxx+|\*{3,}|<[^>]{1,40}>|\$\{[^}]+\}|os\.getenv|os\.environ|"
+    r"\b(?:password|passwd|usuario|username|changeme|example|placeholder|redacted(?:_secret)?)\b)",
+    re.IGNORECASE,
+)
+
+
+def _redact_match(match: re.Match[str], group: int = 1) -> str:
+    """Replace a matched secret unless it is an allowed placeholder."""
+    secret = match.group(group)
+    if _PLACEHOLDER_RE.search(secret):
+        return match.group(0)
+    start, end = match.span(group)
+    value = match.string
+    return value[match.start() : start] + "[REDACTED_SECRET]" + value[end : match.end()]
+
+
+def redact_secrets(text: str) -> str:
+    """Redact credentials from text while preserving surrounding context."""
+    redacted = _URI_CREDENTIAL_RE.sub(lambda match: _redact_match(match, 3), text)
+    redacted = _PREFIX_SECRET_RE.sub(_redact_match, redacted)
+    redacted = _BEARER_SECRET_RE.sub(_redact_match, redacted)
+    redacted = _JWT_SECRET_RE.sub(_redact_match, redacted)
+    return _CONTEXTUAL_SECRET_RE.sub(lambda match: _redact_match(match, 3), redacted)
 
 
 class IngressGuardsMiddleware(AgentMiddleware):
@@ -33,13 +75,43 @@ class IngressGuardsMiddleware(AgentMiddleware):
         messages = state.get("messages", [])
         for message in reversed(messages):
             if getattr(message, "type", None) == "human":
-                capped = self._truncate_content(message.content)
+                redacted = self._redact_content(message.content)
+                capped = self._truncate_content(redacted)
                 if capped is not message.content:
                     # Same id => the messages reducer overwrites in place.
                     message.content = capped
                     return {"messages": [message]}
                 break
         return None
+
+    def _redact_content(self, content: Any) -> Any:
+        """Redact secrets from text content while preserving non-text blocks."""
+        if isinstance(content, str):
+            redacted = redact_secrets(content)
+            return redacted if redacted != content else content
+
+        if not isinstance(content, list):
+            return content
+
+        changed = False
+        redacted_content: list[Any] = []
+        for block in content:
+            if isinstance(block, str):
+                redacted = redact_secrets(block)
+                changed = changed or redacted != block
+                redacted_content.append(redacted)
+            elif (
+                isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            ):
+                text = block["text"]
+                redacted = redact_secrets(text)
+                changed = changed or redacted != text
+                redacted_content.append({**block, "text": redacted})
+            else:
+                redacted_content.append(block)
+        return redacted_content if changed else content
 
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
@@ -72,4 +144,4 @@ class IngressGuardsMiddleware(AgentMiddleware):
         return truncated if changed else content
 
 
-__all__ = ["IngressGuardsMiddleware", "MAX_MESSAGE_CHARS"]
+__all__ = ["IngressGuardsMiddleware", "MAX_MESSAGE_CHARS", "redact_secrets"]
