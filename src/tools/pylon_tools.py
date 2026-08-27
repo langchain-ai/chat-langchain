@@ -17,6 +17,25 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+SUPPORT_ARTICLE_URL_PREFIX = "https://support.langchain.com/articles/"
+
+
+def _normalize_article_key(value: str) -> str:
+    """Normalize an article ID, slug, or support article URL."""
+    normalized = value.strip()
+    if normalized.startswith(SUPPORT_ARTICLE_URL_PREFIX):
+        normalized = normalized[len(SUPPORT_ARTICLE_URL_PREFIX) :]
+    return normalized.strip()
+
+
+def _article_matches(article: dict, key: str) -> bool:
+    """Return whether a key identifies an article."""
+    return key in (
+        article.get("id"),
+        article.get("identifier"),
+        article.get("slug"),
+        f"{article.get('identifier')}-{article.get('slug')}",
+    )
 
 
 def _get_kb_id() -> str:
@@ -189,7 +208,7 @@ def search_support_articles(collections: str = "all") -> str:
 
                 published_articles.append(
                     {
-                        "id": article.get("id"),
+                        "article_id": article.get("id"),
                         "title": article.get("title", ""),
                         "url": support_url,
                         "collection_id": article.get(
@@ -270,7 +289,7 @@ def search_support_articles(collections: str = "all") -> str:
             "collections": collections,
             "total": len(published_articles),
             "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "note": "All articles listed are public and have content. Pass the article_id, not the slug inside url, to get_support_article_content.",
         }
 
         return json.dumps(result, indent=2)
@@ -315,9 +334,11 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
+        normalized_article_id = _normalize_article_key(article_id)
+
         # Find the article by ID
         for article in articles:
-            if article.get("id") == article_id:
+            if _article_matches(article, normalized_article_id):
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -344,7 +365,34 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        key_lower = normalized_article_id.lower()
+        near_matches = []
+        for article in articles:
+            identifier = str(article.get("identifier") or "").strip()
+            title = str(article.get("title") or "").strip()
+            identifier_lower = identifier.lower()
+            if (
+                article.get("id")
+                and identifier
+                and (
+                    key_lower.startswith(identifier_lower)
+                    or identifier_lower.startswith(key_lower)
+                )
+                or article.get("id")
+                and title
+                and key_lower in title.lower()
+            ):
+                near_matches.append(f"{article.get('id')} — {title}")
+            if len(near_matches) == 3:
+                break
+
+        message = (
+            f"Article ID {article_id} not found in knowledge base. Accepted key fields: "
+            "id, identifier, slug, identifier-slug, or a support article URL."
+        )
+        if near_matches:
+            message += "\nNear-match candidates:\n" + "\n".join(near_matches)
+        return message
 
     except ValueError as e:
         # API key not configured
