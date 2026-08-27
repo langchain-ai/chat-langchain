@@ -5,6 +5,8 @@
 import json
 import logging
 import os
+import re
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -41,6 +43,24 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _normalize_collection_name(name: str) -> tuple[str, Counter[str]]:
+    """Normalize a collection name for tolerant matching."""
+    normalized = " ".join(name.casefold().split())
+    return normalized, Counter(re.findall(r"[a-z0-9]+", normalized))
+
+
+def _article_match_keys(article: Dict[str, Any]) -> set[str]:
+    """Return supported lookup keys for an article."""
+    keys = {str(article["id"])} if article.get("id") is not None else set()
+    identifier = article.get("identifier")
+    slug = article.get("slug")
+    if identifier is not None:
+        keys.add(str(identifier))
+        if slug:
+            keys.add(f"{identifier}-{slug}")
+    return keys
 
 
 def _get_headers() -> Dict[str, str]:
@@ -210,6 +230,7 @@ def search_support_articles(collections: str = "all") -> str:
             )
 
         # Filter by collection ID if specified
+        unresolved_collections = []
         if collections.lower() != "all":
             # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
@@ -228,12 +249,15 @@ def search_support_articles(collections: str = "all") -> str:
                             matched = True
                             break
                     if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                        _, requested_words = _normalize_collection_name(coll_name)
+                        for key in collection_map.keys():
+                            _, available_words = _normalize_collection_name(key)
+                            if requested_words == available_words:
+                                collection_ids.append(collection_map[key])
+                                matched = True
+                                break
+                    if not matched:
+                        unresolved_collections.append(coll_name)
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -251,15 +275,15 @@ def search_support_articles(collections: str = "all") -> str:
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
         if not published_articles:
-            return json.dumps(
-                {
-                    "collections": collections,
-                    "total": 0,
-                    "articles": [],
-                    "note": "No articles found",
-                },
-                indent=2,
-            )
+            result = {
+                "collections": collections,
+                "total": 0,
+                "articles": [],
+                "note": "No articles found",
+            }
+            if unresolved_collections:
+                result["unresolved_collections"] = unresolved_collections
+            return json.dumps(result, indent=2)
 
         # Clean up collection_id from output (internal field)
         for article in published_articles:
@@ -272,6 +296,8 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if unresolved_collections:
+            result["unresolved_collections"] = unresolved_collections
 
         return json.dumps(result, indent=2)
 
@@ -291,11 +317,13 @@ def get_support_article_content(article_id: str) -> str:
     """Fetch the full HTML content of a specific Pylon support article.
 
     Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
+    Accepts the article UUID id, numeric Pylon identifier, or identifier-slug value
+    from the url returned by search_support_articles; do not pass docs.langchain.com
+    URLs or paths.
 
     Args:
-        article_id: The article ID from search_support_articles
+        article_id: The article UUID id, numeric Pylon identifier, or identifier-slug
+                    value from the url returned by search_support_articles
 
     Returns:
         Article content with only: id, title, url, collection, content
@@ -317,7 +345,9 @@ def get_support_article_content(article_id: str) -> str:
 
         # Find the article by ID
         for article in articles:
-            if article.get("id") == article_id:
+            if article_id.strip().casefold() in {
+                key.casefold() for key in _article_match_keys(article)
+            }:
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -344,7 +374,24 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        requested_words = set(re.findall(r"[a-z0-9]+", article_id.casefold()))
+        candidates = []
+        for article in articles:
+            title = str(article.get("title", ""))
+            slug = str(article.get("slug", ""))
+            overlap = len(
+                requested_words
+                & set(re.findall(r"[a-z0-9]+", f"{title} {slug}".casefold()))
+            )
+            candidates.append((overlap, article.get("id"), title))
+        candidates = [candidate for candidate in candidates if candidate[0] > 0]
+        candidates.sort(key=lambda candidate: (-candidate[0], str(candidate[1])))
+        suggestions = [
+            {"id": article_id_value, "title": title}
+            for _, article_id_value, title in candidates[:5]
+        ]
+        suffix = f" Candidates: {json.dumps(suggestions)}" if suggestions else ""
+        return f"Article ID {article_id} not found in knowledge base.{suffix}"
 
     except ValueError as e:
         # API key not configured
