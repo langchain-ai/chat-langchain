@@ -288,18 +288,7 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
-
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
+    """Fetch support article content, preferring the UUID id field; support URLs and numeric public IDs also resolve."""
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
@@ -315,28 +304,60 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
-                )
+        normalized_id = article_id.strip()
+        support_url_prefix = "https://support.langchain.com/articles/"
+        if normalized_id.startswith(support_url_prefix):
+            normalized_id = normalized_id[len(support_url_prefix) :].rstrip("/")
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
+        def article_url(article: Dict[str, Any]) -> str:
+            if article.get("url"):
+                return article["url"].rstrip("/")
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                return f"{support_url_prefix}{identifier}-{slug}"
+            return ""
 
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+        def article_slug(article: Dict[str, Any]) -> str:
+            url = article_url(article)
+            return url.rsplit("/", 1)[-1] if url else ""
+
+        matched_article = next(
+            (article for article in articles if article.get("id") == normalized_id),
+            None,
+        )
+        if matched_article is None:
+            matched_article = next(
+                (
+                    article
+                    for article in articles
+                    if article_slug(article) == normalized_id
+                ),
+                None,
+            )
+        if matched_article is None:
+            matched_article = next(
+                (
+                    article
+                    for article in articles
+                    if article_slug(article).split("-", 1)[0] == normalized_id
+                ),
+                None,
+            )
+
+        if matched_article is not None:
+            article = matched_article
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            support_url = article_url(article) or "URL not available"
+
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,7 +365,30 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        query_terms = {
+            term
+            for term in normalized_id.lower().replace("-", " ").split()
+            if term
+        }
+
+        def candidate_score(article: Dict[str, Any]) -> int:
+            searchable = f"{article.get('title', '')} {article_slug(article)}".lower()
+            return sum(term in searchable for term in query_terms)
+
+        candidates = sorted(articles, key=candidate_score, reverse=True)[:5]
+        candidate_data = [
+            {
+                "id": candidate.get("id"),
+                "title": candidate.get("title", "Untitled"),
+                "url": article_url(candidate) or "URL not available",
+            }
+            for candidate in candidates
+        ]
+        return (
+            f"Article ID {article_id} not found in knowledge base. The tool requires "
+            "the UUID from the id field of search_support_articles. "
+            f"Candidates: {json.dumps(candidate_data)}"
+        )
 
     except ValueError as e:
         # API key not configured
