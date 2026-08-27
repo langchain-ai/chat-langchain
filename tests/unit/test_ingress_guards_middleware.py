@@ -36,6 +36,29 @@ def test_before_agent_noop_when_under_cap():
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
 
+def test_before_agent_redacts_uri_password():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content="postgres://u:S0meP4ssw0rd@127.0.0.1:5432/db?sslmode=disable",
+        id="h1",
+    )
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == (
+        "postgres://u:<REDACTED_SECRET>@127.0.0.1:5432/db?sslmode=disable"
+    )
+
+
+def test_before_agent_preserves_uri_placeholder_password():
+    middleware = IngressGuardsMiddleware()
+    content = "postgres://u:${PGPASS}@host/db"
+    human = HumanMessage(content=content, id="h1")
+
+    assert middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace()) is None
+
+
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
