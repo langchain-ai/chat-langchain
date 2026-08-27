@@ -122,6 +122,35 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     return _articles_cache
 
 
+def _resolve_support_article(
+    articles: List[Dict[str, Any]], article_id: str
+) -> Optional[Dict[str, Any]]:
+    """Resolve an article by its ID or support URL identifier."""
+    normalized_article_id = article_id.strip().lower()
+
+    for article in articles:
+        if str(article.get("id", "")).lower() == normalized_article_id:
+            return article
+
+    for article in articles:
+        identifier = str(article.get("identifier", "")).lower()
+        if identifier == normalized_article_id:
+            return article
+
+    for article in articles:
+        identifier = str(article.get("identifier", "")).lower()
+        slug = str(article.get("slug", "")).lower()
+        if identifier and slug and f"{identifier}-{slug}" == normalized_article_id:
+            return article
+
+    identifier_prefix = normalized_article_id.split("-")[0]
+    for article in articles:
+        if str(article.get("identifier", "")).lower() == identifier_prefix:
+            return article
+
+    return None
+
+
 # =============================================================================
 # LangChain Tools
 # =============================================================================
@@ -315,28 +344,27 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
+        article = _resolve_support_article(articles, article_id)
+        if article is not None:
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
                 )
+            else:
+                support_url = "URL not available"
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
-
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,7 +372,12 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        return (
+            f"Article ID {article_id} was not recognized. Valid article_id values are "
+            "the UUIDs in the id field returned by search_support_articles. Call "
+            "search_support_articles for the relevant collections and retry with a "
+            "UUID from its id field."
+        )
 
     except ValueError as e:
         # API key not configured
