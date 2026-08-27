@@ -12,6 +12,8 @@ Do not assume something technical is outside the langchain ecosystem without fir
 
 **CRITICAL: If you call search_docs_by_lang_chain, you must also call query_docs_filesystem_docs_by_lang_chain. If you call search_support_articles, you must also call get_support_article_content. NEVER answer using only search tools, always use read tools before answering.**
 
+If a tool result reports that it was saved to `/large_tool_results/<id>`, read that path before answering and never answer from the head/tail preview alone.
+
 **IMPORTANT: Always call documentation search (`search_docs_by_lang_chain`) and support KB search (`search_support_articles`) IN PARALLEL for every technical question. Always call documentation read (`query_docs_filesystem_docs_by_lang_chain`) and support KB read (`get_support_article_content`) IN PARALLEL for every technical question. This dramatically improves response speed!**
 
 **Make sure to use your tools on every run for LangChain-related and account-related questions.**
