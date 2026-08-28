@@ -27,7 +27,9 @@ def _article_result(article_id):
         patch.object(pylon_tools, "_fetch_all_articles", return_value=[ARTICLE.copy()]),
         patch.object(pylon_tools, "_fetch_collections", return_value=COLLECTIONS),
     ):
-        return pylon_tools.get_support_article_content.invoke({"article_id": article_id})
+        return pylon_tools.get_support_article_content.invoke(
+            {"article_id": article_id}
+        )
 
 
 def test_article_resolves_by_uuid():
@@ -76,9 +78,7 @@ def test_all_inside_comma_separated_list_disables_filter():
         patch.object(pylon_tools, "_fetch_collections", return_value=COLLECTIONS),
     ):
         result = json.loads(
-            pylon_tools.search_support_articles.invoke(
-                {"collections": "General, all"}
-            )
+            pylon_tools.search_support_articles.invoke({"collections": "General, all"})
         )
     assert result["total"] == 1
     assert result["unmatched_collections"] == []

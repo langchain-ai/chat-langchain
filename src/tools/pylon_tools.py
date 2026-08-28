@@ -251,7 +251,9 @@ def search_support_articles(collections: str = "all") -> str:
         requested_collections = [c.strip() for c in collections.split(",") if c.strip()]
         unmatched_collections = []
         collection_ids = []
-        all_collections = any(name.casefold() == "all" for name in requested_collections)
+        all_collections = any(
+            name.casefold() == "all" for name in requested_collections
+        )
         if not all_collections:
             names_to_resolve = requested_collections
         else:
