@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import unicodedata
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -41,6 +42,55 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _collection_name_tokens(name: str) -> set[str]:
+    """Normalize a collection name into casefolded word tokens."""
+    normalized = "".join(
+        " " if unicodedata.category(character).startswith("P") else character
+        for character in name.casefold()
+    )
+    return set(normalized.split())
+
+
+def _resolve_collection_name(
+    requested_name: str, collection_map: Dict[str, str]
+) -> tuple[str | None, str | None]:
+    """Resolve a requested collection name and its nearest candidate."""
+    if requested_name in collection_map:
+        return requested_name, requested_name
+
+    requested_casefolded = requested_name.casefold()
+    for collection_name in collection_map:
+        if collection_name.casefold() == requested_casefolded:
+            return collection_name, collection_name
+
+    requested_tokens = _collection_name_tokens(requested_name)
+    normalized_matches = [
+        collection_name
+        for collection_name in collection_map
+        if _collection_name_tokens(collection_name) == requested_tokens
+    ]
+    if normalized_matches:
+        return normalized_matches[0], normalized_matches[0]
+
+    nearest_name: str | None = None
+    nearest_score = -1.0
+    for collection_name in collection_map:
+        candidate_tokens = _collection_name_tokens(collection_name)
+        score = (
+            len(requested_tokens & candidate_tokens)
+            / max(len(requested_tokens), len(candidate_tokens))
+            if requested_tokens and candidate_tokens
+            else 0.0
+        )
+        if score > nearest_score:
+            nearest_name = collection_name
+            nearest_score = score
+
+    if nearest_score >= 0.5:
+        return nearest_name, nearest_name
+    return None, nearest_name
 
 
 def _get_headers() -> Dict[str, str]:
@@ -210,6 +260,7 @@ def search_support_articles(collections: str = "all") -> str:
             )
 
         # Filter by collection ID if specified
+        unresolved_collections = []
         if collections.lower() != "all":
             # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
@@ -217,23 +268,25 @@ def search_support_articles(collections: str = "all") -> str:
             # Get collection IDs for requested collections
             collection_ids = []
             for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
+                matched_name, nearest_name = _resolve_collection_name(
+                    coll_name, collection_map
+                )
+                if matched_name is not None:
+                    collection_ids.append(collection_map[matched_name])
                 else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                    unresolved_collections.append(
+                        {"requested": coll_name, "nearest": nearest_name}
+                    )
+
+            if not collection_ids:
+                return json.dumps(
+                    {
+                        "error": "No requested collections could be resolved.",
+                        "available_collections": list(collection_map),
+                        "unresolved_collections": unresolved_collections,
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -251,15 +304,15 @@ def search_support_articles(collections: str = "all") -> str:
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
         if not published_articles:
-            return json.dumps(
-                {
-                    "collections": collections,
-                    "total": 0,
-                    "articles": [],
-                    "note": "No articles found",
-                },
-                indent=2,
-            )
+            result = {
+                "collections": collections,
+                "total": 0,
+                "articles": [],
+                "note": "No articles found",
+            }
+            if collections.lower() != "all" and unresolved_collections:
+                result["unresolved_collections"] = unresolved_collections
+            return json.dumps(result, indent=2)
 
         # Clean up collection_id from output (internal field)
         for article in published_articles:
@@ -272,6 +325,8 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if collections.lower() != "all" and unresolved_collections:
+            result["unresolved_collections"] = unresolved_collections
 
         return json.dumps(result, indent=2)
 
