@@ -5,6 +5,8 @@
 import json
 import logging
 import os
+import re
+from difflib import get_close_matches
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -41,6 +43,17 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _normalize_collection_name(name: str) -> str:
+    """Normalize collection names for tolerant matching."""
+    normalized_name = " ".join(name.casefold().split())
+
+    def sort_parenthesized_tokens(match: re.Match[str]) -> str:
+        tokens = re.findall(r"[a-z0-9]+", match.group(1))
+        return f"({' '.join(sorted(tokens))})"
+
+    return re.sub(r"\(([^)]*)\)", sort_parenthesized_tokens, normalized_name)
 
 
 def _get_headers() -> Dict[str, str]:
@@ -210,9 +223,15 @@ def search_support_articles(collections: str = "all") -> str:
             )
 
         # Filter by collection ID if specified
+        unresolved_collections: List[str] = []
         if collections.lower() != "all":
             # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
+            normalized_collection_map = {
+                _normalize_collection_name(name): collection_id
+                for name, collection_id in collection_map.items()
+            }
+            normalized_collection_names = list(normalized_collection_map.keys())
 
             # Get collection IDs for requested collections
             collection_ids = []
@@ -221,19 +240,41 @@ def search_support_articles(collections: str = "all") -> str:
                     collection_ids.append(collection_map[coll_name])
                 else:
                     # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                    matched_collection = next(
+                        (
+                            key
+                            for key in collection_map
+                            if key.casefold() == coll_name.casefold()
+                        ),
+                        None,
+                    )
+                    if matched_collection is not None:
+                        collection_ids.append(collection_map[matched_collection])
+                        continue
+
+                    normalized_name = _normalize_collection_name(coll_name)
+                    if normalized_name in normalized_collection_map:
+                        collection_ids.append(normalized_collection_map[normalized_name])
+                        continue
+
+                    close_matches = get_close_matches(
+                        normalized_name,
+                        normalized_collection_names,
+                        n=1,
+                        cutoff=0.8,
+                    )
+                    if close_matches:
+                        collection_ids.append(normalized_collection_map[close_matches[0]])
+                    else:
+                        unresolved_collections.append(coll_name)
+
+            if not collection_ids:
+                return json.dumps(
+                    {
+                        "error": f"Collection(s) not found: {', '.join(unresolved_collections)}. Available collections: {', '.join(collection_map.keys())}"
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -251,15 +292,16 @@ def search_support_articles(collections: str = "all") -> str:
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
         if not published_articles:
-            return json.dumps(
-                {
-                    "collections": collections,
-                    "total": 0,
-                    "articles": [],
-                    "note": "No articles found",
-                },
-                indent=2,
-            )
+            result = {
+                "collections": collections,
+                "total": 0,
+                "articles": [],
+                "note": "No articles found",
+            }
+            if unresolved_collections:
+                result["unresolved_collections"] = unresolved_collections
+                result["available_collections"] = list(collection_map.keys())
+            return json.dumps(result, indent=2)
 
         # Clean up collection_id from output (internal field)
         for article in published_articles:
@@ -272,6 +314,9 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if unresolved_collections:
+            result["unresolved_collections"] = unresolved_collections
+            result["available_collections"] = list(collection_map.keys())
 
         return json.dumps(result, indent=2)
 
