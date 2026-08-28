@@ -5,7 +5,9 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -17,6 +19,43 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+
+
+def _normalize_collection_name(name: str) -> str:
+    """Normalize a collection name for tolerant matching."""
+    normalized = name.strip().casefold()
+
+    def normalize_parenthetical(match: re.Match[str]) -> str:
+        words = re.findall(r"[\w]+", match.group(1), flags=re.UNICODE)
+        return "(" + " ".join(sorted(words)) + ")"
+
+    normalized = re.sub(r"\(([^)]*)\)", normalize_parenthetical, normalized)
+    return " ".join(re.findall(r"[\w]+", normalized, flags=re.UNICODE))
+
+
+def _article_matches(article: Dict[str, Any], article_id: str) -> bool:
+    """Return whether an article matches an accepted identifier form."""
+    requested = str(article_id).strip()
+    identifier = str(article.get("identifier", "")).strip()
+    slug = str(article.get("slug", "")).strip()
+    identifier_slug = f"{identifier}-{slug}" if identifier and slug else ""
+    leading_numeric = re.match(r"\d+", identifier_slug)
+    candidates = [
+        str(article.get("id", "")).strip(),
+        identifier,
+        leading_numeric.group(0) if leading_numeric else "",
+        identifier_slug,
+    ]
+    if requested in candidates:
+        return True
+
+    parsed = urlparse(requested)
+    if parsed.netloc.casefold() == "support.langchain.com" and parsed.path.startswith(
+        "/articles/"
+    ):
+        final_segment = parsed.path.rstrip("/").rsplit("/", 1)[-1].strip()
+        return final_segment in candidates
+    return False
 
 
 def _get_kb_id() -> str:
@@ -209,31 +248,42 @@ def search_support_articles(collections: str = "all") -> str:
                 {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
             )
 
-        # Filter by collection ID if specified
-        if collections.lower() != "all":
-            # Parse requested collection names
-            requested_collections = [c.strip() for c in collections.split(",")]
+        requested_collections = [c.strip() for c in collections.split(",") if c.strip()]
+        unmatched_collections = []
+        collection_ids = []
+        all_collections = any(
+            name.casefold() == "all" for name in requested_collections
+        )
+        if not all_collections:
+            names_to_resolve = requested_collections
+        else:
+            names_to_resolve = [
+                name for name in requested_collections if name.casefold() != "all"
+            ]
 
-            # Get collection IDs for requested collections
-            collection_ids = []
-            for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
-                else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+        normalized_collection_map = {
+            _normalize_collection_name(name): collection_id
+            for name, collection_id in collection_map.items()
+        }
+        for coll_name in names_to_resolve:
+            collection_id = normalized_collection_map.get(
+                _normalize_collection_name(coll_name)
+            )
+            if collection_id is None:
+                unmatched_collections.append(coll_name)
+            else:
+                collection_ids.append(collection_id)
+
+        if not all_collections:
+            if not collection_ids:
+                return json.dumps(
+                    {
+                        "error": "No requested collections matched."
+                        f" Unmatched collections: {unmatched_collections}."
+                        f" Available collections: {', '.join(collection_map.keys())}"
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -256,6 +306,8 @@ def search_support_articles(collections: str = "all") -> str:
                     "collections": collections,
                     "total": 0,
                     "articles": [],
+                    "unmatched_collections": unmatched_collections,
+                    "available_collections": list(collection_map.keys()),
                     "note": "No articles found",
                 },
                 indent=2,
@@ -270,6 +322,8 @@ def search_support_articles(collections: str = "all") -> str:
             "collections": collections,
             "total": len(published_articles),
             "articles": published_articles,
+            "unmatched_collections": unmatched_collections,
+            "available_collections": list(collection_map.keys()),
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
 
@@ -291,8 +345,7 @@ def get_support_article_content(article_id: str) -> str:
     """Fetch the full HTML content of a specific Pylon support article.
 
     Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
+    Accepts an article UUID, numeric identifier, identifier-slug, or support URL.
 
     Args:
         article_id: The article ID from search_support_articles
@@ -315,9 +368,9 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
+        # Find the article by an accepted identifier form
         for article in articles:
-            if article.get("id") == article_id:
+            if _article_matches(article, article_id):
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -344,7 +397,11 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        return (
+            f"Article ID {article_id} not found. Use an article UUID, numeric identifier, "
+            "identifier-slug, or the full support.langchain.com article URL returned by "
+            "search_support_articles."
+        )
 
     except ValueError as e:
         # API key not configured
