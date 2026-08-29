@@ -78,9 +78,12 @@ else:
     _langsmith_client = Client()
     try:
         _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
-        _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.invoke({"messages": []}).messages[
-            0
-        ].content
+        _first_message = _prompt_template.messages[0]
+        _GUARDRAILS_SYSTEM_PROMPT = getattr(
+            getattr(_first_message, "prompt", None),
+            "template",
+            getattr(_first_message, "content", ""),
+        )
         guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
             "lc_hub_commit_hash"
         )
