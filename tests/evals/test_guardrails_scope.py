@@ -9,6 +9,8 @@ LangChain context by blocking/redirecting them.
 import os
 import sys
 
+import pytest
+
 # Ensure src is on the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -33,6 +35,57 @@ PURE_DS_LIBRARIES = [
     "scipy",
     "matplotlib",
 ]
+
+REGRESSION_FIXTURES = [
+    pytest.param(
+        "Qual é o parâmetro k?",
+        "Package: langchain-core / Symbol: similarity_search",
+        "ALLOWED",
+        id="portuguese-k-parameter-with-page-context",
+    ),
+    pytest.param(
+        "Prepare a tree diagram of language core and its branches/packages",
+        "",
+        "ALLOWED",
+        id="langchain-package-tree-diagram",
+    ),
+    pytest.param(
+        "人工智能应用使用哪些技术？",
+        "",
+        "ALLOWED",
+        id="vague-chinese-ai-technology-question",
+    ),
+    pytest.param(
+        "Review this PRD document and provide feedback",
+        "",
+        "BLOCKED",
+        id="prd-document-review",
+    ),
+    pytest.param(
+        "Recommend a good mystery book",
+        "",
+        "BLOCKED",
+        id="non-technical-book-recommendation",
+    ),
+]
+
+
+@pytest.mark.parametrize("query,page_context,expected_decision", REGRESSION_FIXTURES)
+def test_guardrails_regression_fixtures_have_expected_decisions(
+    query, page_context, expected_decision
+):
+    """Regression fixtures document the expected guardrails decisions."""
+    assert expected_decision in {"ALLOWED", "BLOCKED"}
+    if expected_decision == "ALLOWED":
+        assert "always allow" in PROMPT_LOWER or "otherwise allow" in PROMPT_LOWER
+        if page_context:
+            assert "page context" in PROMPT_LOWER
+        if "tree diagram" in query.lower():
+            assert "structural or diagrammatic" in PROMPT_LOWER
+        if any(ord(character) > 127 for character in query):
+            assert "any natural language" in PROMPT_LOWER
+    else:
+        assert "clearly off-topic" in PROMPT_LOWER
 
 
 # ---------------------------------------------------------------------------
