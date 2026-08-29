@@ -34,6 +34,21 @@ PURE_DS_LIBRARIES = [
     "matplotlib",
 ]
 
+MUST_ALLOW_FIXTURES = [
+    (
+        "como deixo o k sem limite?",
+        "Project: chat-langchain\nPackage: langchain\n"
+        "Symbol: similarity_search\nPage URL: https://reference.langchain.com/",
+    ),
+    ("Prepare a tree diagram of language core and its branches/packages", ""),
+    ("what technologies do AI applications use now?", ""),
+]
+
+MUST_BLOCK_FIXTURES = [
+    ("rate my PRD", ""),
+    ("recommend books about Spark", ""),
+]
+
 
 # ---------------------------------------------------------------------------
 # Test 1: Prompt must contain explicit language about data science restrictions
@@ -161,6 +176,33 @@ def test_guardrails_prompt_default_is_still_allow():
         "'YOUR DEFAULT IS TO ALLOW' or 'when uncertain, ALWAYS choose ALLOWED' "
         "language from the prompt."
     )
+
+
+def test_guardrails_scope_regression_fixtures_are_covered():
+    """Prompt preserves lenient allows and intended non-technical blocks."""
+    page_context_query, page_context = MUST_ALLOW_FIXTURES[0]
+    allow_queries = {query for query, _ in MUST_ALLOW_FIXTURES}
+    block_queries = {query for query, _ in MUST_BLOCK_FIXTURES}
+    assert allow_queries == {
+        "como deixo o k sem limite?",
+        "Prepare a tree diagram of language core and its branches/packages",
+        "what technologies do AI applications use now?",
+    }
+    assert block_queries == {"rate my PRD", "recommend books about Spark"}
+    assert page_context_query == "como deixo o k sem limite?"
+    assert all(
+        term in page_context.lower()
+        for term in ("project:", "package:", "symbol:", "page url:")
+    )
+    assert all(
+        term in PROMPT_LOWER for term in ("page-context preamble", "symbol", "page url")
+    )
+    assert "technical artifacts" in PROMPT_LOWER
+    assert "general software/ai related questions" in PROMPT_LOWER
+
+    for query, _ in MUST_BLOCK_FIXTURES:
+        deliverable = query.removeprefix("rate my ").removeprefix("recommend ")
+        assert deliverable in PROMPT_LOWER or "non-technical" in PROMPT_LOWER
 
 
 # ---------------------------------------------------------------------------
