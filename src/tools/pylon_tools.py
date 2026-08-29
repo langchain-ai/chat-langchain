@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 
 import requests
 from dotenv import load_dotenv
@@ -120,6 +121,18 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
     _articles_cache = all_articles
     return _articles_cache
+
+
+def _normalize_article_reference(article_id: str) -> str:
+    """Normalize an article ID, identifier, or support article URL."""
+    reference = str(article_id).strip()
+    if not reference:
+        return reference
+
+    if "://" in reference:
+        reference = urlsplit(reference).path
+
+    return reference.rstrip("/").rsplit("/", 1)[-1].strip()
 
 
 # =============================================================================
@@ -315,9 +328,21 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
+        normalized_article_id = _normalize_article_reference(article_id)
+
+        # Find the article by ID, numeric identifier, or URL article segment
         for article in articles:
-            if article.get("id") == article_id:
+            article_id_values = {
+                str(article.get(field)).strip()
+                for field in ("id", "identifier")
+                if article.get(field) is not None
+            }
+            identifier = str(article.get("identifier", "")).strip()
+            slug = str(article.get("slug", "")).strip()
+            if identifier and slug:
+                article_id_values.add(f"{identifier}-{slug}")
+
+            if normalized_article_id in article_id_values:
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -344,7 +369,19 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        valid_article_ids = [
+            str(article.get("id")).strip()
+            for article in articles
+            if article.get("is_published", False)
+            and article.get("visibility_config", {}).get("visibility") == "public"
+            and article.get("id") is not None
+        ][:20]
+        valid_ids = ", ".join(valid_article_ids) or "none"
+        return (
+            f"Error: Article lookup failed for {article_id}. "
+            f"Valid published/public article IDs currently cached: {valid_ids}. "
+            "Retry with one of those ids."
+        )
 
     except ValueError as e:
         # API key not configured
