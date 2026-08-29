@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -190,6 +191,7 @@ def search_support_articles(collections: str = "all") -> str:
                 published_articles.append(
                     {
                         "id": article.get("id"),
+                        "article_id": article.get("id"),
                         "title": article.get("title", ""),
                         "url": support_url,
                         "collection_id": article.get(
@@ -288,18 +290,7 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
-
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
+    """Fetch article content; article_id accepts the UUID id or numeric identifier from its URL."""
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
@@ -315,9 +306,22 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
+        requested_id = str(article_id).strip()
+        identifier_match = re.search(
+            r"(?:https?://)?support\.langchain\.com/articles/(\d+)(?:-|$)",
+            requested_id,
+        ) or re.match(r"^(\d+)(?:-|$)", requested_id)
+        requested_identifier = (
+            identifier_match.group(1) if identifier_match else requested_id
+        )
+
+        # Find the article by ID or numeric identifier
         for article in articles:
-            if article.get("id") == article_id:
+            if (
+                str(article.get("id", "")).strip() == requested_id
+                or str(article.get("identifier", "")).strip()
+                == requested_identifier
+            ):
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -344,7 +348,15 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        return json.dumps(
+            {
+                "error": f"Article '{article_id}' not found. Call search_support_articles and pass the exact id field.",
+                "example_valid_ids": [
+                    article.get("id") for article in articles[:3] if article.get("id")
+                ],
+            },
+            indent=2,
+        )
 
     except ValueError as e:
         # API key not configured
