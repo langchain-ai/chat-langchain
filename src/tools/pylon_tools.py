@@ -165,6 +165,9 @@ def search_support_articles(collections: str = "all") -> str:
                     "total": 0,
                     "articles": [],
                     "note": "No articles returned from API",
+                    "discovery_only": True,
+                    "content_tool": "get_support_article_content",
+                    "content_scope": "titles_links_only",
                 },
                 indent=2,
             )
@@ -257,6 +260,9 @@ def search_support_articles(collections: str = "all") -> str:
                     "total": 0,
                     "articles": [],
                     "note": "No articles found",
+                    "discovery_only": True,
+                    "content_tool": "get_support_article_content",
+                    "content_scope": "titles_links_only",
                 },
                 indent=2,
             )
@@ -270,7 +276,10 @@ def search_support_articles(collections: str = "all") -> str:
             "collections": collections,
             "total": len(published_articles),
             "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "note": "Discovery results contain titles and links only. Fetch full content with get_support_article_content using an article id.",
+            "discovery_only": True,
+            "content_tool": "get_support_article_content",
+            "content_scope": "titles_links_only",
         }
 
         return json.dumps(result, indent=2)
