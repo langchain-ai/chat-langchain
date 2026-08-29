@@ -1,10 +1,12 @@
 """Tests for guardrails model fallback behavior."""
 
 import asyncio
+import importlib
 import os
+import sys
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -14,6 +16,54 @@ from src.middleware.guardrails_middleware import (
     GuardrailsClassificationError,
     GuardrailsMiddleware,
 )
+
+
+def test_hub_prompt_import_does_not_create_trace(monkeypatch):
+    """Hub prompt extraction should not execute or trace a Runnable."""
+    import langsmith
+    import langsmith.run_helpers
+
+    context_enabled: list[bool] = []
+
+    class FakeContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+    def fake_tracing_context(*, enabled):
+        context_enabled.append(enabled)
+        return FakeContext()
+
+    class FakePrompt:
+        metadata = {"lc_hub_commit_hash": "test-commit"}
+
+        def invoke(self, inputs):  # noqa: ARG002
+            raise AssertionError("module import must not invoke the prompt")
+
+        def format_messages(self, **inputs):  # noqa: ARG002
+            return [SystemMessage(content="mocked guardrails prompt")]
+
+    class FakeClient:
+        def pull_prompt(self, hub_name):  # noqa: ARG002
+            return FakePrompt()
+
+    monkeypatch.setenv("USE_LOCAL_PROMPTS", "0")
+    monkeypatch.setattr(langsmith, "Client", FakeClient)
+    monkeypatch.setattr(
+        langsmith.run_helpers, "tracing_context", fake_tracing_context
+    )
+
+    module_name = "src.middleware.guardrails_middleware"
+    original_module = sys.modules[module_name]
+    try:
+        sys.modules.pop(module_name)
+        module = importlib.import_module(module_name)
+        assert module._GUARDRAILS_SYSTEM_PROMPT
+        assert context_enabled == [False]
+    finally:
+        sys.modules[module_name] = original_module
 
 
 class FakeStructuredModel:
