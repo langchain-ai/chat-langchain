@@ -6,13 +6,19 @@ LangChain context by blocking/redirecting them.
 
 """
 
+import asyncio
 import os
 import sys
+
+from langchain_core.messages import HumanMessage
 
 # Ensure src is on the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
+from src.middleware.guardrails_middleware import (
+    _GUARDRAILS_SYSTEM_PROMPT,
+    GuardrailsMiddleware,
+)
 from src.prompts.docs_agent_prompt import docs_agent_prompt
 
 # ---------------------------------------------------------------------------
@@ -33,6 +39,25 @@ PURE_DS_LIBRARIES = [
     "scipy",
     "matplotlib",
 ]
+
+
+class _AllowedClassifier:
+    def __init__(self):
+        self.prompt = None
+
+    def with_structured_output(self, _schema):
+        return self
+
+    async def ainvoke(self, prompt, config=None):
+        self.prompt = prompt
+        system_prompt = prompt[0].content.lower()
+        if "if the request includes page context" not in system_prompt:
+            raise AssertionError("Page-context allow rule is missing")
+        if "allow requests to diagram" not in system_prompt:
+            raise AssertionError("Documentation-shaping allow rule is missing")
+        if "including any page context" not in system_prompt:
+            raise AssertionError("Critical Rule 4 does not include page context")
+        return {"decision": "ALLOWED", "explanation": "LangChain documentation question."}
 
 
 # ---------------------------------------------------------------------------
@@ -155,12 +180,60 @@ def test_guardrails_prompt_default_is_still_allow():
         or "your default is to allow" in PROMPT_LOWER
         or "when uncertain" in PROMPT_LOWER
     )
+
     assert has_allow_default, (
         "The guardrails prompt must still default to ALLOW to avoid blocking "
         "valid LangChain questions. Verify that the fix did not remove the "
         "'YOUR DEFAULT IS TO ALLOW' or 'when uncertain, ALWAYS choose ALLOWED' "
         "language from the prompt."
     )
+
+
+def test_guardrails_allows_non_english_parameter_question_with_page_context():
+    """Classifier path allows localized symbol questions with page context."""
+    middleware = object.__new__(GuardrailsMiddleware)
+    classifier = _AllowedClassifier()
+    middleware.classifier_llms = [("stub", classifier)]
+
+    result = asyncio.run(middleware._classify_query(
+        [
+            HumanMessage(
+                content=(
+                    "Page context: project LangChain, package langchain-core, "
+                    "symbol VectorStore.similarity_search, "
+                    "https://reference.langchain.com/python/langchain-core/vectorstores/"
+                    "similarity_search. como deixo o k sem limite?"
+                )
+            )
+        ]
+    ))
+
+    assert result["decision"] == "ALLOWED"
+    assert "como deixo o k sem limite?" in classifier.prompt[1].content
+    assert "langchain-core" in classifier.prompt[1].content
+
+
+def test_guardrails_allows_tree_diagram_request_with_page_context():
+    """Classifier path allows documentation-shaping package diagrams."""
+    middleware = object.__new__(GuardrailsMiddleware)
+    classifier = _AllowedClassifier()
+    middleware.classifier_llms = [("stub", classifier)]
+
+    result = asyncio.run(middleware._classify_query(
+        [
+            HumanMessage(
+                content=(
+                    "Page context: project LangChain, package langchain-core, "
+                    "https://docs.langchain.com/oss/python/langchain/overview. "
+                    "Create a tree diagram of the langchain-core package."
+                )
+            )
+        ]
+    ))
+
+    assert result["decision"] == "ALLOWED"
+    assert "tree diagram" in classifier.prompt[1].content
+    assert "langchain-core" in classifier.prompt[1].content
 
 
 # ---------------------------------------------------------------------------
