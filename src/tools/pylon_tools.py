@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -41,6 +42,7 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+_last_search_articles: Optional[List[Dict[str, Any]]] = None
 
 
 def _get_headers() -> Dict[str, str]:
@@ -154,11 +156,14 @@ def search_support_articles(collections: str = "all") -> str:
         JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
     """
     try:
+        global _last_search_articles
+
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
 
         # Handle None or empty response
         if articles is None or not articles:
+            _last_search_articles = []
             return json.dumps(
                 {
                     "collections": collections,
@@ -199,6 +204,7 @@ def search_support_articles(collections: str = "all") -> str:
                 )
 
         if not published_articles:
+            _last_search_articles = []
             return "No published articles available in the knowledge base."
 
         # Fetch collection map for naming
@@ -251,6 +257,7 @@ def search_support_articles(collections: str = "all") -> str:
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
         if not published_articles:
+            _last_search_articles = []
             return json.dumps(
                 {
                     "collections": collections,
@@ -261,6 +268,11 @@ def search_support_articles(collections: str = "all") -> str:
                 indent=2,
             )
 
+        selected_ids = {article.get("id") for article in published_articles}
+        _last_search_articles = [
+            article for article in articles if article.get("id") in selected_ids
+        ]
+
         # Clean up collection_id from output (internal field)
         for article in published_articles:
             article.pop("collection_id", None)
@@ -270,7 +282,7 @@ def search_support_articles(collections: str = "all") -> str:
             "collections": collections,
             "total": len(published_articles),
             "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "note": "The id field is the article UUID and the url field is for reference only. Use the id field to fetch full content.",
         }
 
         return json.dumps(result, indent=2)
@@ -291,11 +303,10 @@ def get_support_article_content(article_id: str) -> str:
     """Fetch the full HTML content of a specific Pylon support article.
 
     Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
+    Accepts an article UUID, numeric URL identifier, or full support article URL.
 
     Args:
-        article_id: The article ID from search_support_articles
+        article_id: Article UUID, numeric URL identifier, or support article URL
 
     Returns:
         Article content with only: id, title, url, collection, content
@@ -315,9 +326,34 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
+        search_articles = (
+            _last_search_articles if _last_search_articles is not None else articles
+        )
+        normalized_identifier = article_id.strip()
+        parsed_url = urlparse(normalized_identifier)
+        url_path = parsed_url.path.rstrip("/")
+        url_article = (
+            url_path.split("/articles/", 1)[-1] if "/articles/" in url_path else ""
+        )
+
+        for article in search_articles:
+            identifier = str(article.get("identifier", ""))
+            slug = str(article.get("slug", ""))
+            generated_support_url = (
+                f"https://support.langchain.com/articles/{identifier}-{slug}"
+                if identifier and slug
+                else ""
+            )
+            matches = (
+                article.get("id") == normalized_identifier
+                or (
+                    normalized_identifier.isdigit()
+                    and identifier == normalized_identifier
+                )
+                or normalized_identifier.rstrip("/") == generated_support_url
+                or url_article == f"{identifier}-{slug}"
+            )
+            if matches:
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -326,12 +362,8 @@ def get_support_article_content(article_id: str) -> str:
                 )
 
                 # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
                 if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
+                    support_url = generated_support_url
                 else:
                     support_url = "URL not available"
 
@@ -344,7 +376,20 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        valid_article_ids = [
+            article.get("id") for article in search_articles if article.get("id")
+        ]
+        return json.dumps(
+            {
+                "error": f"Article identifier '{article_id}' not found in knowledge base.",
+                "message": (
+                    "Use one of the valid UUID values in valid_article_ids, or run "
+                    "search_support_articles first to refresh the available articles."
+                ),
+                "valid_article_ids": valid_article_ids,
+            },
+            indent=2,
+        )
 
     except ValueError as e:
         # API key not configured
