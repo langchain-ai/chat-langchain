@@ -5,6 +5,8 @@
 import json
 import logging
 import os
+import re
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -41,6 +43,43 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _resolve_collection_name(
+    requested_name: str, collection_map: Dict[str, str]
+) -> str | None:
+    """Resolve a requested collection name against the live collection map."""
+    requested_words = Counter(
+        word
+        for word in re.findall(r"[a-z0-9]+", requested_name.casefold())
+        if word != "and"
+    )
+    if not requested_words:
+        return None
+
+    normalized = {
+        name: Counter(
+            word for word in re.findall(r"[a-z0-9]+", name.casefold()) if word != "and"
+        )
+        for name in collection_map
+    }
+
+    exact_matches = [
+        name for name, words in normalized.items() if words == requested_words
+    ]
+    if len(exact_matches) == 1:
+        return exact_matches[0]
+
+    subset_matches = [
+        name
+        for name, words in normalized.items()
+        if requested_words <= words
+        or " ".join(requested_words.elements()) in " ".join(words.elements())
+        or " ".join(words.elements()) in " ".join(requested_words.elements())
+    ]
+    if len(subset_matches) == 1:
+        return subset_matches[0]
+    return None
 
 
 def _get_headers() -> Dict[str, str]:
@@ -129,30 +168,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 @tool
 def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+    """Get support article titles, optionally filtered by canonical collection names or all."""
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -210,30 +226,33 @@ def search_support_articles(collections: str = "all") -> str:
             )
 
         # Filter by collection ID if specified
-        if collections.lower() != "all":
-            # Parse requested collection names
-            requested_collections = [c.strip() for c in collections.split(",")]
-
-            # Get collection IDs for requested collections
-            collection_ids = []
-            for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
-                else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+        requested_collections = [c.strip() for c in collections.split(",")]
+        if any(coll_name.casefold() == "all" for coll_name in requested_collections):
+            unresolved_collections = []
+        else:
+            resolved_collections = [
+                _resolve_collection_name(coll_name, collection_map)
+                for coll_name in requested_collections
+            ]
+            unresolved_collections = [
+                coll_name
+                for coll_name, resolved_name in zip(
+                    requested_collections, resolved_collections
+                )
+                if resolved_name is None
+            ]
+            collection_ids = [
+                collection_map[resolved_name]
+                for resolved_name in resolved_collections
+                if resolved_name is not None
+            ]
+            if not collection_ids:
+                return json.dumps(
+                    {
+                        "error": f"Collection '{unresolved_collections[0]}' not found. Available collections: {', '.join(collection_map.keys())}"
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -272,6 +291,11 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if unresolved_collections:
+            result["warning"] = (
+                f"Unrecognized collections: {', '.join(unresolved_collections)}. "
+                f"Available collections: {', '.join(collection_map.keys())}"
+            )
 
         return json.dumps(result, indent=2)
 
