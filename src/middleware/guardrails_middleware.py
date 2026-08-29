@@ -77,10 +77,13 @@ if _USE_LOCAL_PROMPTS:
 else:
     _langsmith_client = Client()
     try:
-        _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
-        _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.invoke({"messages": []}).messages[
-            0
-        ].content
+        with ls.tracing_context(enabled=False):
+            _prompt_template = _langsmith_client.pull_prompt(
+                _GUARDRAILS_PROMPT_HUB_NAME
+            )
+            _GUARDRAILS_SYSTEM_PROMPT = (
+                _prompt_template.invoke({"messages": []}).messages[0].content
+            )
         guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
             "lc_hub_commit_hash"
         )

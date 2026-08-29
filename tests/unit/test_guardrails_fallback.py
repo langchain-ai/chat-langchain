@@ -41,6 +41,11 @@ def _middleware_with_models(*models: tuple[str, FakeStructuredModel]) -> Guardra
     return middleware
 
 
+def test_import_loads_non_empty_guardrails_prompt():
+    """Importing guardrails middleware provides a usable system prompt."""
+    assert guardrails_module._GUARDRAILS_SYSTEM_PROMPT
+
+
 def test_guardrails_falls_back_after_primary_retries(monkeypatch):
     """The fallback model should get its own retry budget after primary fails."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
