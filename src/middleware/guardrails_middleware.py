@@ -55,6 +55,7 @@ class GuardrailsDecision(TypedDict):
 
     decision: Literal["ALLOWED", "BLOCKED"]
     explanation: str
+    continues_blocked_objective: NotRequired[bool]
 
 
 class GuardrailsClassificationError(Exception):
@@ -64,9 +65,10 @@ class GuardrailsClassificationError(Exception):
 
 
 class GuardrailsState(AgentState):
-    """Extended state schema with off-topic flag."""
+    """Extended state schema with guardrails tracking."""
 
     off_topic_query: NotRequired[bool]
+    blocked_objective: NotRequired[str]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -208,14 +210,33 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # social-pressure). The prompt's lenient follow-up rules keep legit
         # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
         # while zero-tolerance bullets override the default ALLOW.
+        blocked_objective = state.get("blocked_objective")
         try:
-            guardrails_decision = await self._classify_query(messages)
+            if blocked_objective:
+                guardrails_decision = await self._classify_query(
+                    messages, blocked_objective
+                )
+            else:
+                guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
             return {"off_topic_query": False}
 
-        decision = guardrails_decision["decision"]
+        continues_blocked_objective = bool(
+            blocked_objective
+            and guardrails_decision.get("continues_blocked_objective")
+        )
+        decision = (
+            "BLOCKED"
+            if continues_blocked_objective
+            else guardrails_decision["decision"]
+        )
         explanation = guardrails_decision["explanation"]
+        if continues_blocked_objective and decision != guardrails_decision["decision"]:
+            explanation = (
+                "This continues an objective that was already blocked earlier in "
+                "the conversation."
+            )
 
         # Track in LangSmith metadata
         self._track_decision_metadata(guardrails_decision)
@@ -254,6 +275,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
+            "blocked_objective": safe_last_content.strip(),
             "jump_to": "end",
         }
 
@@ -367,7 +389,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
-    async def _classify_query(self, messages: list) -> GuardrailsDecision:
+    async def _classify_query(
+        self, messages: list, blocked_objective: str | None = None
+    ) -> GuardrailsDecision:
         """Classify query as ALLOWED or BLOCKED.
 
         Raises:
@@ -406,6 +430,15 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             context_section = (
                 "\n\nPrevious questions in this conversation:\n"
                 + "\n".join(f"- {q}" for q in recent)
+            )
+        if blocked_objective:
+            context_section += (
+                "\n\nPreviously blocked objective in this thread:\n"
+                f"- {blocked_objective[:500]}\n"
+                "If the current request continues this objective under different "
+                "wording or framing, set continues_blocked_objective to true and "
+                "set decision to BLOCKED. Unrelated requests remain eligible for "
+                "normal classification."
             )
 
         current_content = getattr(current_message, "content", current_query or "")
