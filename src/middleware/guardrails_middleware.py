@@ -53,7 +53,7 @@ _dataset_id_cache: str | None = None
 class GuardrailsDecision(TypedDict):
     """Structured output for guardrails decision."""
 
-    decision: Literal["ALLOWED", "BLOCKED"]
+    decision: Literal["ALLOWED", "ALLOWED_OUT_OF_SCOPE", "BLOCKED"]
     explanation: str
 
 
@@ -67,6 +67,7 @@ class GuardrailsState(AgentState):
     """Extended state schema with off-topic flag."""
 
     off_topic_query: NotRequired[bool]
+    out_of_scope_query: NotRequired[bool]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -236,6 +237,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.info("Query validated: %s", explanation)
             return None
 
+        if decision == "ALLOWED_OUT_OF_SCOPE":
+            logger.info("Out-of-scope technical query admitted for limited lookup: %s", explanation)
+            return {"out_of_scope_query": True}
+
         # Handle blocked queries
         logger.warning(
             "Off-topic query detected: %s... Reason: %s",
@@ -368,7 +373,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         return None
 
     async def _classify_query(self, messages: list) -> GuardrailsDecision:
-        """Classify query as ALLOWED or BLOCKED.
+        """Classify query as ALLOWED, ALLOWED_OUT_OF_SCOPE, or BLOCKED.
 
         Raises:
             GuardrailsClassificationError: If classification fails after retries.
