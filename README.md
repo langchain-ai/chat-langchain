@@ -1,3 +1,4 @@
+<!-- Chat LangChain: a documentation assistant built with LangGraph. -->
 # Chat LangChain
 
 > A documentation assistant deployed as a Managed Deep Agent.
