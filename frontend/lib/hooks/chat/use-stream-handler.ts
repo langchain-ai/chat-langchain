@@ -117,6 +117,13 @@ interface UseStreamHandlerProps {
   userId?: string | null
   userEmail?: string | null
   userName?: string | null
+  /**
+   * Live accessor for Segment's anonymous ID (from SegmentProvider), read at
+   * run-submission time rather than passed as a cached value — the ID can
+   * be regenerated asynchronously by Segment (e.g. after logout), so a
+   * snapshot taken at an earlier render could be stale.
+   */
+  getSegmentAnonymousId?: () => string | null
   auth: LangSmithAuth
 }
 
@@ -170,6 +177,7 @@ export function useStreamHandler({
   userId,
   userEmail,
   userName,
+  getSegmentAnonymousId,
   auth,
 }: UseStreamHandlerProps): UseStreamHandlerReturn {
   /**
@@ -417,11 +425,16 @@ export function useStreamHandler({
 
       const agentType = "docs_agent"
 
-      // Trace metadata for LangSmith observability
+      // Trace metadata for LangSmith observability.
+      // Read the Segment anonymous ID live, right before the run is created,
+      // rather than from a cached value — see getSegmentAnonymousId's doc
+      // comment. Omitted entirely (never a placeholder) when unavailable.
+      const segmentAnonymousId = getSegmentAnonymousId?.() ?? null
       const traceMetadata = {
         user_id: userId || "unknown",
         ...(userEmail && userEmail !== userId ? { user_email: userEmail } : {}),
         ...(userName && !userName.startsWith("User") ? { user_name: userName } : {}),
+        ...(segmentAnonymousId ? { segment_anonymous_id: segmentAnonymousId } : {}),
         source_type: "Chat-LangChain",
         graph: agentType,
       }
@@ -863,7 +876,7 @@ export function useStreamHandler({
     }
 
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, fetchUsageMetadata, generateShareLink, onRunCreated, userId, userEmail, userName])
+  }, [client, threadId, setMessages, fetchUsageMetadata, generateShareLink, onRunCreated, userId, userEmail, userName, getSegmentAnonymousId])
 
   return { processStream }
 }
