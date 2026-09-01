@@ -2,9 +2,10 @@
 
 import asyncio
 import os
+import runpy
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -34,18 +35,43 @@ class FakeStructuredModel:
         return outcome
 
 
-def _middleware_with_models(*models: tuple[str, FakeStructuredModel]) -> GuardrailsMiddleware:
+def _middleware_with_models(
+    *models: tuple[str, FakeStructuredModel],
+) -> GuardrailsMiddleware:
     middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
     middleware.classifier_llms = list(models)
     middleware.block_off_topic = True
     return middleware
 
 
+def test_importing_guardrails_middleware_does_not_invoke_pulled_prompt(monkeypatch):
+    class NoInvokeTemplate:
+        messages = [SystemMessage(content="system prompt")]
+        metadata = {}
+
+        def invoke(self, inputs):  # noqa: ARG002
+            raise AssertionError("import-time prompt extraction invoked the template")
+
+    class FakeClient:
+        def pull_prompt(self, prompt_name):  # noqa: ARG002
+            return NoInvokeTemplate()
+
+    monkeypatch.delenv("USE_LOCAL_PROMPTS", raising=False)
+    monkeypatch.setattr("langsmith.Client", FakeClient)
+    imported_module = runpy.run_module(
+        "src.middleware.guardrails_middleware", run_name="guardrails_import_test"
+    )
+
+    assert imported_module["_GUARDRAILS_SYSTEM_PROMPT"] == "system prompt"
+
+
 def test_guardrails_falls_back_after_primary_retries(monkeypatch):
     """The fallback model should get its own retry budget after primary fails."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
 
-    primary = FakeStructuredModel([RuntimeError("primary down"), RuntimeError("still down")])
+    primary = FakeStructuredModel(
+        [RuntimeError("primary down"), RuntimeError("still down")]
+    )
     fallback = FakeStructuredModel(
         [{"decision": "ALLOWED", "explanation": "LangChain-related question."}]
     )
@@ -64,7 +90,9 @@ def test_guardrails_raises_after_all_models_exhaust_retries(monkeypatch):
     """Guardrails should fail only after every model exhausts retries."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
 
-    primary = FakeStructuredModel([RuntimeError("primary down"), RuntimeError("still down")])
+    primary = FakeStructuredModel(
+        [RuntimeError("primary down"), RuntimeError("still down")]
+    )
     fallback = FakeStructuredModel(
         [RuntimeError("fallback down"), RuntimeError("fallback still down")]
     )
