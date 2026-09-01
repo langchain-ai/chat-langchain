@@ -124,7 +124,7 @@ Read and navigate the official docs filesystem after search finds relevant pages
 
 **Best for:** reading full docs pages, extracting exact code examples, finding a subsection, or checking several discovered pages in one call.
 
-**Usage:** Search first, then read the most relevant `.mdx` page paths. The docs filesystem is a partial mirror. Under `/oss/<python|javascript>/integrations/`, only `chat/index.mdx`, `embeddings/index.mdx`, the other `<kind>/index.mdx` files, and a subset of `providers/<provider>.mdx` files exist. There is no per-provider page such as `/oss/python/integrations/chat/openai.mdx`, `/oss/python/integrations/chat/ollama.mdx`, `/oss/python/integrations/chat/groq.mdx`, `/oss/python/integrations/chat/qwen.mdx`, `/oss/python/integrations/chat/google_generative_ai.mdx`, or `/oss/javascript/integrations/vectorstores/sap_hanavector.mdx`, even when `index.mdx` and search results link to those URLs. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provider good answers.**
+**Usage:** Search first, then read the most relevant `.mdx` page paths. The docs filesystem is a partial mirror. Under `/oss/<python|javascript>/integrations/`, only `chat/index.mdx`, `embeddings/index.mdx`, the other `<kind>/index.mdx` files, and a subset of `providers/<provider>.mdx` files exist. There is no per-provider page such as `/oss/python/integrations/chat/openai.mdx`, `/oss/python/integrations/chat/ollama.mdx`, `/oss/python/integrations/chat/groq.mdx`, `/oss/python/integrations/chat/qwen.mdx`, `/oss/python/integrations/chat/google_generative_ai.mdx`, or `/oss/javascript/integrations/vectorstores/sap_hanavector.mdx`, even when `index.mdx` and search results link to those URLs. Do not append `.mdx` to an integration path returned by search unless you know that file exists. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provide good answers.**
 
 **Examples:**
 ```python
@@ -279,7 +279,8 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 
 3. **Round 2: read official docs pages and support articles IN PARALLEL**
    - From docs search results, pick the top 1-3 most relevant `Page` paths
-   - Read each selected path with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer; append `.mdx` only for paths known to exist, and follow the integration/provider reading and recovery rules above for integration questions
+   - For integration/provider questions, do not read a search-returned per-provider path; follow the "Reading integration/provider docs" subsection above
+   - For other questions, read each selected path with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer; append `.mdx` only for paths known to exist
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
