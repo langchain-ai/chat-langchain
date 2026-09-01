@@ -43,10 +43,13 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
         "src.utils.prompt_provenance._USE_LOCAL_PROMPTS",
         True,
     )
+    monkeypatch.delenv("LANGSMITH_ENV", raising=False)
+    monkeypatch.delenv("LANGSMITH_HOST_PROJECT_NAME", raising=False)
 
     metadata = build_docs_agent_trace_metadata()
 
     assert metadata["source_type"] == "Chat-LangChain"
+    assert metadata["environment"] == "production"
     assert metadata["prompt_source"] == "local:instructions.md"
     assert (
         metadata["guardrails_prompt_source"]
@@ -61,3 +64,21 @@ def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch
 
     metadata = build_docs_agent_trace_metadata()
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+
+
+def test_build_docs_agent_trace_metadata_uses_configured_environment(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_ENV", "dev")
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "immanuel-chat-langchain-test")
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "dev"
+
+
+def test_build_docs_agent_trace_metadata_detects_staging_host(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_ENV", raising=False)
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "immanuel-chat-langchain-test")
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "staging"
