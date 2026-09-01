@@ -47,12 +47,25 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
     metadata = build_docs_agent_trace_metadata()
 
     assert metadata["source_type"] == "Chat-LangChain"
+    assert metadata["environment"] == "production"
     assert metadata["prompt_source"] == "local:instructions.md"
     assert (
         metadata["guardrails_prompt_source"]
         == "local:src/prompts/guardrails_prompts.py"
     )
     assert metadata["LANGSMITH_AGENT_VERSION"] == "rev-a"
+
+
+def test_build_docs_agent_trace_metadata_marks_staging(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_ENV", "dev")
+    monkeypatch.setattr(
+        "src.utils.prompt_provenance._USE_LOCAL_PROMPTS",
+        True,
+    )
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "staging"
 
 
 def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch):
