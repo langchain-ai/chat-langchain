@@ -288,18 +288,7 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
-
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
+    """Fetch article content by the preferred UUID id, numeric identifier, or identifier-slug URL value from search_support_articles."""
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
@@ -315,9 +304,19 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
+        normalized_article_id = str(article_id).strip().casefold()
         for article in articles:
-            if article.get("id") == article_id:
+            article_id_values = [article.get("id")]
+            if article.get("identifier") is not None:
+                article_id_values.append(str(article["identifier"]))
+            if article.get("identifier") is not None and article.get("slug"):
+                article_id_values.append(f"{article['identifier']}-{article['slug']}")
+
+            if any(
+                value is not None
+                and str(value).strip().casefold() == normalized_article_id
+                for value in article_id_values
+            ):
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -344,7 +343,13 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        return json.dumps(
+            {
+                "error": f"No support article matches '{article_id}'.",
+                "hint": "Pass the UUID from the 'id' field of search_support_articles.",
+            },
+            indent=2,
+        )
 
     except ValueError as e:
         # API key not configured
