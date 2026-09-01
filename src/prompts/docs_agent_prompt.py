@@ -149,7 +149,7 @@ query_docs_filesystem_docs_by_lang_chain(
 **When a read fails:**
 - If reading a search-result page returns `exit: 1` with `No such file or directory`, treat that page as absent from the docs filesystem. This is common for `/integrations/**` provider pages.
 - Do not retry with `find`, `ls`, repeated identical commands, or broad `rg` sweeps.
-- Instead, fall back in order to (a) the matching page's `Content:` excerpt from `search_docs_by_lang_chain`, then (b) the documentation landing page in the same directory, using `index.mdx` where it exists or `overview.mdx` for directories that use that filename.
+- Instead, fall back in order to (a) the matching page's `Content:` excerpt from `search_docs_by_lang_chain`, then (b) `index.mdx` in the same directory if it exists.
 - Do not assume the landing page contains integration-specific details.
 
 **IMPORTANT - Create Anchor Links to Subsections:**
@@ -267,7 +267,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Scan the existing conversation messages for tool results from the same query
    - If results for that query are already in the conversation history, skip the search and use the existing result instead
    - Never call `search_docs_by_lang_chain` or `search_support_articles` with a query that already has results in the message history — re-searching duplicates context and causes token overflow
-   - Never rely on results from search_docs_by_lang_chain or search_support_articles for answers. These are only for locations of relevant docs/articles
+   - Do not rely on search result titles, links, or paths alone. For documentation, the returned `Content:` excerpt may ground only claims it directly supports when the full page cannot be read; for support articles, use the full content returned by `get_support_article_content`
 
 2. **Round 1: search documentation AND support articles IN PARALLEL**
    - Identify every distinct concept in the user's question, usually 1-4 concepts
@@ -283,7 +283,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Append `.mdx` to each path and read them with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
-   - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
+   - Search result titles, links, and paths are for discovery. A documentation `Content:` excerpt is permitted grounding only for claims it directly supports when the matching full page cannot be read; otherwise use the full page content from `query_docs_filesystem_docs_by_lang_chain`
    - From support article results, select 1-3 relevant article IDs and call `get_support_article_content` for them in parallel
 
 4. **STOP and synthesize**
