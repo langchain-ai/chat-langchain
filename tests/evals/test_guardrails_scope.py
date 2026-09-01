@@ -6,13 +6,20 @@ LangChain context by blocking/redirecting them.
 
 """
 
+import asyncio
 import os
 import sys
 
 # Ensure src is on the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+os.environ["USE_LOCAL_PROMPTS"] = "1"
 
-from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
+from langchain_core.messages import HumanMessage
+
+from src.middleware.guardrails_middleware import (
+    _GUARDRAILS_SYSTEM_PROMPT,
+    GuardrailsMiddleware,
+)
 from src.prompts.docs_agent_prompt import docs_agent_prompt
 
 # ---------------------------------------------------------------------------
@@ -33,6 +40,57 @@ PURE_DS_LIBRARIES = [
     "scipy",
     "matplotlib",
 ]
+
+
+class _AllowedModel:
+    """Return ALLOWED while capturing the classifier prompt."""
+
+    def __init__(self):
+        self.prompt = None
+
+    def with_structured_output(self, schema):  # noqa: ARG002
+        return self
+
+    async def ainvoke(self, prompt, config=None):  # noqa: ARG002
+        self.prompt = prompt
+        return {"decision": "ALLOWED", "explanation": "Technical review or prompt question."}
+
+
+def _middleware_with_allowed_model(model):
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    middleware.classifier_llms = [("test", model)]
+    middleware.block_off_topic = True
+    return middleware
+
+
+def test_message_role_question_on_reference_docs_is_allowed():
+    """Message-role questions in the LangChain docs context are allowed."""
+    model = _AllowedModel()
+    middleware = _middleware_with_allowed_model(model)
+    query = "I am viewing https://reference.langchain.com. prompt 的作用？什么时候用什么角色的prompt？"
+
+    result = asyncio.run(middleware._classify_query([HumanMessage(content=query)]))
+
+    assert result["decision"] == "ALLOWED"
+    assert query in model.prompt[1].content
+
+
+def test_creative_prompt_template_review_is_allowed():
+    """Reviewing a creative prompt template is still technical."""
+    model = _AllowedModel()
+    middleware = _middleware_with_allowed_model(model)
+    query = """Is this LangSmith prompt template written correctly?
+
+    {story_outline}
+    {voices}
+    {exist_characters}
+    Write the next story scene with these inputs.
+    """
+
+    result = asyncio.run(middleware._classify_query([HumanMessage(content=query)]))
+
+    assert result["decision"] == "ALLOWED"
+    assert query in model.prompt[1].content
 
 
 # ---------------------------------------------------------------------------
