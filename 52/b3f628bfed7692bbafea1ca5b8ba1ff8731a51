@@ -1,0 +1,33 @@
+frontend/lib/hooks/chat/use-stream-handler.ts
+  s_0ba233c73954be::t_729d5e0aef8922 180
+  s_0ba233c73954be::t_3b7e5a06c4da74 428-432,437
+  s_0ba233c73954be::t_accf646e7f3378 120-126
+  s_0ba233c73954be::t_1fdcafc631e20f 879
+frontend/components/chat/chat-interface.tsx
+  s_0ba233c73954be::t_f1327f53d4a3a4 12
+  s_0ba233c73954be::t_e136dc45744421 259-260,270
+frontend/components/providers/segment-provider.tsx
+  s_0ba233c73954be::t_ebe07ac7e800a8 106-142
+  s_0ba233c73954be::t_dded5f2025ad1e 3,13-30,42-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "52b3f628bfed7692bbafea1ca5b8ba1ff8731a51",
+  "prompts": {},
+  "humans": {
+    "h_d9bb7eeb24d8a0": {
+      "author": "Danny Lambert <danielrlambert3@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_0ba233c73954be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc281093-3728-47a3-bb77-4077786d9e1d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Danny Lambert <danielrlambert3@gmail.com>"
+    }
+  }
+}
