@@ -124,7 +124,7 @@ Read and navigate the official docs filesystem after search finds relevant pages
 
 **Best for:** reading full docs pages, extracting exact code examples, finding a subsection, or checking several discovered pages in one call.
 
-**Usage:** Search first, then read the most relevant `.mdx` page paths. The docs filesystem is a partial mirror. Under `/oss/<python|javascript>/integrations/`, only `chat/index.mdx`, `embeddings/index.mdx`, the other `<kind>/index.mdx` files, and a subset of `providers/<provider>.mdx` files exist. There is no per-provider page such as `/oss/python/integrations/chat/openai.mdx`, `/oss/python/integrations/chat/ollama.mdx`, `/oss/python/integrations/chat/groq.mdx`, `/oss/python/integrations/chat/qwen.mdx`, `/oss/python/integrations/chat/google_generative_ai.mdx`, or `/oss/javascript/integrations/vectorstores/sap_hanavector.mdx`, even when `index.mdx` and search results link to those URLs. Do not append `.mdx` to an integration path returned by search unless you know that file exists. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provide good answers.**
+**Usage:** Search first, then read the most relevant `.mdx` page paths. The docs filesystem is a partial mirror, not a complete copy of the public site. Under `/oss/<python|javascript>/integrations/`, kind directories use `index.mdx`, and only a subset of `providers/<provider>.mdx` pages exist. Search-result URLs may point to provider pages that are absent from the filesystem, including `/oss/python/integrations/chat/openai.mdx`, `/oss/python/integrations/chat/ollama.mdx`, `/oss/python/integrations/chat/groq.mdx`, `/oss/python/integrations/chat/qwen.mdx`, `/oss/python/integrations/chat/google_generative_ai.mdx`, and `/oss/javascript/integrations/vectorstores/sap_hanavector.mdx`. Do not append `.mdx` to an integration path returned by search unless the file is known to exist. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provide good answers.**
 
 **Examples:**
 ```python
@@ -147,8 +147,8 @@ query_docs_filesystem_docs_by_lang_chain(
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` → `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
 **Reading integration/provider docs:**
-- For a provider question, first `head` the relevant `/oss/<lang>/integrations/providers/<provider>.mdx`, then run `rg -C 5 "<Symbol>" /oss/<lang>/integrations/<kind>/index.mdx`.
-- Do not construct `<kind>/<provider>.mdx` paths; integration directories generally contain an `index.mdx` rather than a page for every provider.
+- For a provider question, read the relevant existing `/oss/<lang>/integrations/providers/<provider>.mdx` only when that provider page is known to exist, then run `rg -C 5 "<Symbol>" /oss/<lang>/integrations/<kind>/index.mdx`.
+- Never construct `/oss/<lang>/integrations/<kind>/<provider>.mdx` paths from search results. Integration directories generally contain an `index.mdx` rather than a page for every provider; use the provider page under `integrations/providers/` only when its existence is known.
 - If a `query_docs_filesystem_docs_by_lang_chain` read returns `No such file or directory`, do not issue repeated `find /` or `rg -il` sweeps. Make at most one corrective read using the directory `index.mdx`; otherwise use the page content already returned by `search_docs_by_lang_chain`. If neither yields the answer, state that the documentation for that integration could not be retrieved instead of answering from memory.
 
 **IMPORTANT - Create Anchor Links to Subsections:**
