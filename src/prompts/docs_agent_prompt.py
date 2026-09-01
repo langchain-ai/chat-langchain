@@ -124,7 +124,7 @@ Read and navigate the official docs filesystem after search finds relevant pages
 
 **Best for:** reading full docs pages, extracting exact code examples, finding a subsection, or checking several discovered pages in one call.
 
-**Usage:** Search first, then read the most relevant `.mdx` page paths. Append `.mdx` to the path returned from search if needed. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provider good answers.**
+**Usage:** Search first, then read the most relevant `.mdx` page paths. The docs filesystem is a partial mirror, not a complete copy of the public site. Under `/oss/<python|javascript>/integrations/`, kind directories use `index.mdx`, and only a subset of `providers/<provider>.mdx` pages exist. Search-result URLs may point to provider pages that are absent from the filesystem, including `/oss/python/integrations/chat/openai.mdx`, `/oss/python/integrations/chat/ollama.mdx`, `/oss/python/integrations/chat/groq.mdx`, `/oss/python/integrations/chat/qwen.mdx`, `/oss/python/integrations/chat/google_generative_ai.mdx`, and `/oss/javascript/integrations/vectorstores/sap_hanavector.mdx`. Do not append `.mdx` to an integration path returned by search unless the file is known to exist. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provide good answers.**
 
 **Examples:**
 ```python
@@ -145,6 +145,11 @@ query_docs_filesystem_docs_by_lang_chain(
 - Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` → `https://docs.langchain.com/oss/python/langgraph/streaming`.
+
+**Reading integration/provider docs:**
+- For a provider question, read the relevant existing `/oss/<lang>/integrations/providers/<provider>.mdx` only when that provider page is known to exist, then run `rg -C 5 "<Symbol>" /oss/<lang>/integrations/<kind>/index.mdx`.
+- Never construct `/oss/<lang>/integrations/<kind>/<provider>.mdx` paths from search results. Integration directories generally contain an `index.mdx` rather than a page for every provider; use the provider page under `integrations/providers/` only when its existence is known.
+- If a `query_docs_filesystem_docs_by_lang_chain` read returns `No such file or directory`, do not issue repeated `find /` or `rg -il` sweeps. Make at most one corrective read using the directory `index.mdx`; otherwise use the page content already returned by `search_docs_by_lang_chain`. If neither yields the answer, state that the documentation for that integration could not be retrieved instead of answering from memory.
 
 **IMPORTANT - Create Anchor Links to Subsections:**
 When you find relevant content in a specific subsection, create a direct anchor link:
@@ -274,7 +279,8 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 
 3. **Round 2: read official docs pages and support articles IN PARALLEL**
    - From docs search results, pick the top 1-3 most relevant `Page` paths
-   - Append `.mdx` to each path and read them with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer
+   - For integration/provider questions, do not read a search-returned per-provider path; follow the "Reading integration/provider docs" subsection above
+   - For other questions, read each selected path with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer; append `.mdx` only for paths known to exist
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
