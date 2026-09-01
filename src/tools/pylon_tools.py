@@ -315,28 +315,53 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
-                )
+        normalized_article_id = article_id.strip().casefold().rstrip("/")
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
+        matched_article = next(
+            (
+                article
+                for article in articles
+                if str(article.get("id", "")).strip().casefold().rstrip("/")
+                == normalized_article_id
+            ),
+            None,
+        )
+
+        if matched_article is None:
+            for article in articles:
+                identifier = str(article.get("identifier", "")).strip()
+                slug = str(article.get("slug", "")).strip()
+                aliases = [identifier]
                 if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
+                    aliases.append(f"{identifier}-{slug}")
+                if any(
+                    alias.casefold().rstrip("/") == normalized_article_id
+                    for alias in aliases
+                ):
+                    matched_article = article
+                    break
 
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+        if matched_article is not None:
+            article = matched_article
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
+                )
+            else:
+                support_url = "URL not available"
+
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,7 +369,10 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        return (
+            f"Article ID {article_id} not found. Pass the UUID from the `ID:` field, "
+            "the article identifier, or the identifier-slug shown in the article URL."
+        )
 
     except ValueError as e:
         # API key not configured
