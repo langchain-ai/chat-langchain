@@ -10,8 +10,10 @@ import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.prompts.chat import SystemMessagePromptTemplate
 from langgraph.runtime import Runtime
 from langsmith import Client
+from langsmith.run_helpers import tracing_context
 from typing_extensions import NotRequired, TypedDict
 
 from src.prompts.guardrails_prompts import (
@@ -50,6 +52,18 @@ _GUARDRAILS_PROMPT_HUB_NAME = (
 _dataset_id_cache: str | None = None
 
 
+def _extract_guardrails_system_prompt(prompt_template: Any) -> str:
+    """Extract the system prompt without invoking the template."""
+    for message in getattr(prompt_template, "messages", ()):
+        if isinstance(message, SystemMessage):
+            return message.content
+        if isinstance(message, SystemMessagePromptTemplate):
+            return message.prompt.template
+
+    with tracing_context(enabled=False):
+        return prompt_template.invoke({"messages": []}).messages[0].content
+
+
 class GuardrailsDecision(TypedDict):
     """Structured output for guardrails decision."""
 
@@ -78,9 +92,7 @@ else:
     _langsmith_client = Client()
     try:
         _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
-        _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.invoke({"messages": []}).messages[
-            0
-        ].content
+        _GUARDRAILS_SYSTEM_PROMPT = _extract_guardrails_system_prompt(_prompt_template)
         guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
             "lc_hub_commit_hash"
         )
@@ -169,9 +181,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -380,14 +390,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
