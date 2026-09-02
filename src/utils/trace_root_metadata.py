@@ -20,6 +20,7 @@ def build_docs_agent_trace_metadata(
 ) -> dict[str, str]:
     """Return metadata that should land on the root LangSmith run."""
     metadata: dict[str, str] = {
+        "environment": os.environ.get("APP_ENVIRONMENT") or "production",
         "source_type": "Chat-LangChain",
         **get_prompt_provenance(graph_id),
     }
