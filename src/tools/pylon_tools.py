@@ -101,16 +101,16 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
         response.raise_for_status()
         body = response.json()
 
-        page_data = body.get("data", [])
+        page_data = body.get("data") or []
         all_articles.extend(page_data)
         pages_fetched += 1
 
         # Resolve next-page cursor from common Pylon/REST pagination shapes
         next_cursor = (
             body.get("next")
-            or body.get("meta", {}).get("next")
-            or body.get("links", {}).get("next")
-            or body.get("pagination", {}).get("cursor")
+            or (body.get("meta") or {}).get("next")
+            or (body.get("links") or {}).get("next")
+            or (body.get("pagination") or {}).get("cursor")
         )
 
         if not next_cursor:
@@ -118,6 +118,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
         params = {"cursor": next_cursor}
 
+    # Only cache fully successful fetches so later calls can retry failures.
     _articles_cache = all_articles
     return _articles_cache
 
@@ -281,9 +282,9 @@ def search_support_articles(collections: str = "all") -> str:
     except requests.exceptions.RequestException as e:
         # Network/API error
         return json.dumps({"error": str(e)}, indent=2)
-    except Exception as e:
+    except Exception:
         # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        raise
 
 
 @tool
@@ -352,9 +353,9 @@ Content:
     except requests.exceptions.RequestException as e:
         # Network/API error
         return f"Error fetching article: {str(e)}"
-    except Exception as e:
+    except Exception:
         # Catch-all for unexpected errors
-        return f"Unexpected error: {str(e)}"
+        raise
 
 
 # Backwards-compatible Python import alias. The tool name exposed to the model is
