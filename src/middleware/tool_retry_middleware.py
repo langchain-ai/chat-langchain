@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -31,6 +32,21 @@ RETRYABLE_ERROR_MARKERS = (
     "timeout",
     "too many requests",
 )
+
+
+def _flatten_tool_content(content: Any) -> str:
+    """Flatten ToolMessage content to text."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            str(block["text"])
+            for block in content
+            if isinstance(block, dict)
+            and block.get("type") == "text"
+            and "text" in block
+        )
+    return str(content)
 
 
 class ToolRetryMiddleware(AgentMiddleware[AgentState]):
@@ -90,6 +106,24 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         return any(marker in text for marker in RETRYABLE_ERROR_MARKERS)
 
+    def _content_indicates_failure(self, content_text: str) -> bool:
+        """Detect short ToolMessage content that reports an upstream failure."""
+        text = content_text.lower()
+        if len(text) > 400:
+            return False
+
+        failure_word = re.search(
+            r"\b(?:failed|failure|error|gateway|unavailable)\b", text
+        )
+        if any(marker in text for marker in RETRYABLE_ERROR_MARKERS):
+            return failure_word is not None
+
+        status_code = re.search(r"\b(?:429|500|502|503|504)\b", text)
+        return bool(
+            status_code
+            and re.search(r"\b(?:failed|failure|error|gateway|unavailable)\b", text)
+        )
+
     def _tool_message(
         self,
         request: ToolCallRequest,
@@ -128,7 +162,40 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await handler(request)
+                if isinstance(result, ToolMessage):
+                    flattened_text = _flatten_tool_content(result.content)
+                    if self._content_indicates_failure(flattened_text):
+                        error = RuntimeError(flattened_text[:160])
+                        last_error = error
+                        tool_name = self._tool_name(request)
+                        if attempt < self.max_attempts:
+                            delay = self.initial_delay * (
+                                self.backoff_factor ** (attempt - 1)
+                            )
+                            logger.warning(
+                                "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
+                                tool_name,
+                                attempt,
+                                self.max_attempts,
+                                self._error_text(error),
+                                delay,
+                            )
+                            await asyncio.sleep(delay)
+                            continue
+
+                        logger.warning(
+                            "Tool %s failed after %s/%s attempts: %s",
+                            tool_name,
+                            attempt,
+                            self.max_attempts,
+                            self._error_text(error),
+                        )
+                        return self._tool_message(
+                            request,
+                            self._final_error_content(request, error),
+                        )
+                return result
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
@@ -141,9 +208,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -169,7 +234,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]
