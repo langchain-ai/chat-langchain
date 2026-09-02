@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -41,6 +42,32 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+class _UnmatchedCollectionError(ValueError):
+    """Raised when no requested collection name can be resolved."""
+
+
+def _resolve_collection_name(name: str, collection_map: Dict[str, str]) -> Optional[str]:
+    """Resolve a requested collection name to its canonical collection ID."""
+    if name in collection_map:
+        return collection_map[name]
+
+    casefolded_name = name.casefold()
+    for collection_name, collection_id in collection_map.items():
+        if collection_name.casefold() == casefolded_name:
+            return collection_id
+
+    def normalize(value: str) -> List[str]:
+        words = re.sub(r"[^\w\s]", " ", value.casefold()).split()
+        return sorted(set(words) - {"and", "the", "&"})
+
+    normalized_name = normalize(name)
+    for collection_name, collection_id in collection_map.items():
+        if normalize(collection_name) == normalized_name:
+            return collection_id
+
+    return None
 
 
 def _get_headers() -> Dict[str, str]:
@@ -210,6 +237,8 @@ def search_support_articles(collections: str = "all") -> str:
             )
 
         # Filter by collection ID if specified
+        unmatched_collections = []
+        available_collections = list(collection_map.keys())
         if collections.lower() != "all":
             # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
@@ -217,23 +246,18 @@ def search_support_articles(collections: str = "all") -> str:
             # Get collection IDs for requested collections
             collection_ids = []
             for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
+                resolved_id = _resolve_collection_name(coll_name, collection_map)
+                if resolved_id is not None:
+                    collection_ids.append(resolved_id)
                 else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                    unmatched_collections.append(coll_name)
+
+            if not collection_ids:
+                raise _UnmatchedCollectionError(
+                    "None of the requested collections could be resolved. Available "
+                    f"collections: {', '.join(available_collections)}. Retry with "
+                    'collections="all".'
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -254,6 +278,8 @@ def search_support_articles(collections: str = "all") -> str:
             return json.dumps(
                 {
                     "collections": collections,
+                    "unmatched_collections": unmatched_collections,
+                    "available_collections": available_collections,
                     "total": 0,
                     "articles": [],
                     "note": "No articles found",
@@ -268,6 +294,8 @@ def search_support_articles(collections: str = "all") -> str:
         # Return structured JSON format
         result = {
             "collections": collections,
+            "unmatched_collections": unmatched_collections,
+            "available_collections": available_collections,
             "total": len(published_articles),
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
@@ -275,6 +303,8 @@ def search_support_articles(collections: str = "all") -> str:
 
         return json.dumps(result, indent=2)
 
+    except _UnmatchedCollectionError:
+        raise
     except ValueError as e:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
