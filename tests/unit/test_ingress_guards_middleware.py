@@ -11,6 +11,7 @@ os.environ["USE_LOCAL_PROMPTS"] = "1"
 
 from src.middleware.ingress_guards_middleware import (
     MAX_MESSAGE_CHARS,
+    SECRET_PLACEHOLDER,
     IngressGuardsMiddleware,
 )
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
@@ -34,6 +35,58 @@ def test_before_agent_noop_when_under_cap():
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_redacts_pasted_langsmith_key_before_model_call():
+    middleware = IngressGuardsMiddleware()
+    secret = "lsv2_sk_abcdefghijklmnop_qrstuvwxyz123456"
+    human = HumanMessage(
+        content=f'curl https://api.smith.langchain.com -H "X-Api-Key: {secret}"',
+        id="h1",
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == (
+        f'curl https://api.smith.langchain.com -H "X-Api-Key: {SECRET_PLACEHOLDER}"'
+    )
+    assert secret not in update["messages"][0].content
+
+
+def test_redaction_preserves_documentation_placeholders():
+    middleware = IngressGuardsMiddleware()
+    content = (
+        "lsv2_your_api_key_here YOUR_API_KEY "
+        "postgresql://postgres:postgres@localhost:5432/db"
+    )
+    human = HumanMessage(content=content, id="h1")
+    state = {"messages": [human]}
+
+    assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_redaction_preserves_non_text_multimodal_blocks():
+    middleware = IngressGuardsMiddleware()
+    secret = "lsv2_sk_abcdefghijklmnop_qrstuvwxyz123456"
+    image = {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}}
+    human = HumanMessage(
+        content=[
+            {"type": "text", "text": f"Authorization: Bearer {secret}"},
+            image,
+        ],
+        id="h1",
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content[0]["text"] == (
+        f"Authorization: Bearer {SECRET_PLACEHOLDER}"
+    )
+    assert update["messages"][0].content[1] == image
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
