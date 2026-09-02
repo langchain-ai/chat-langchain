@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -41,6 +42,63 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _normalize_collection_name(name: str) -> str:
+    """Normalize a collection name for loose matching."""
+    normalized = re.sub(r"[^\w\s]+", " ", name.casefold())
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _resolve_collection_name(
+    name: str, collection_map: Dict[str, str]
+) -> Optional[str]:
+    """Resolve a user-provided name to a unique collection name."""
+    if name in collection_map:
+        return name
+
+    case_insensitive_matches = [
+        key for key in collection_map if key.casefold() == name.casefold()
+    ]
+    if len(case_insensitive_matches) == 1:
+        return case_insensitive_matches[0]
+
+    normalized_name = _normalize_collection_name(name)
+    normalized_matches = [
+        key
+        for key in collection_map
+        if _normalize_collection_name(key) == normalized_name
+    ]
+    if len(normalized_matches) == 1:
+        return normalized_matches[0]
+
+    requested_tokens = set(normalized_name.split())
+    if requested_tokens:
+        token_matches = [
+            key
+            for key in collection_map
+            if requested_tokens == set(_normalize_collection_name(key).split())
+        ]
+        if len(token_matches) == 1:
+            return token_matches[0]
+
+        subset_matches = [
+            key
+            for key in collection_map
+            if requested_tokens.issubset(set(_normalize_collection_name(key).split()))
+        ]
+        if len(subset_matches) == 1:
+            return subset_matches[0]
+
+    substring_matches = [
+        key
+        for key in collection_map
+        if normalized_name and normalized_name in _normalize_collection_name(key)
+    ]
+    if len(substring_matches) == 1:
+        return substring_matches[0]
+
+    return None
 
 
 def _get_headers() -> Dict[str, str]:
@@ -147,6 +205,8 @@ def search_support_articles(collections: str = "all") -> str:
                     - "Troubleshooting" - Broad domain issue triage and resolution
                     - "Security" - Code scans, key management, and security topics
 
+                    Matching is loose, but only these real collections exist. Billing or charge
+                    questions should use "General" and "Troubleshooting".
                     Use "all" to search all collections (default)
                     Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
 
@@ -209,31 +269,29 @@ def search_support_articles(collections: str = "all") -> str:
                 {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
             )
 
-        # Filter by collection ID if specified
-        if collections.lower() != "all":
-            # Parse requested collection names
-            requested_collections = [c.strip() for c in collections.split(",")]
+        unmatched_collections = []
+        available_collections = sorted(collection_map)
 
-            # Get collection IDs for requested collections
+        # Filter by collection ID if specified
+        if collections.casefold() != "all":
+            requested_collections = [c.strip() for c in collections.split(",")]
             collection_ids = []
             for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
-                else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                resolved_name = _resolve_collection_name(coll_name, collection_map)
+                if resolved_name is None:
+                    unmatched_collections.append(coll_name)
+                elif collection_map[resolved_name] not in collection_ids:
+                    collection_ids.append(collection_map[resolved_name])
+
+            if not collection_ids:
+                return json.dumps(
+                    {
+                        "error": "None of the requested collections were found.",
+                        "unmatched_collections": unmatched_collections,
+                        "available_collections": available_collections,
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -251,15 +309,16 @@ def search_support_articles(collections: str = "all") -> str:
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
         if not published_articles:
-            return json.dumps(
-                {
-                    "collections": collections,
-                    "total": 0,
-                    "articles": [],
-                    "note": "No articles found",
-                },
-                indent=2,
-            )
+            result = {
+                "collections": collections,
+                "total": 0,
+                "articles": [],
+                "note": "No articles found",
+            }
+            if collections.casefold() != "all":
+                result["unmatched_collections"] = unmatched_collections
+                result["available_collections"] = available_collections
+            return json.dumps(result, indent=2)
 
         # Clean up collection_id from output (internal field)
         for article in published_articles:
@@ -272,6 +331,9 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if collections.casefold() != "all":
+            result["unmatched_collections"] = unmatched_collections
+            result["available_collections"] = available_collections
 
         return json.dumps(result, indent=2)
 
