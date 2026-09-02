@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -30,6 +31,12 @@ RETRYABLE_ERROR_MARKERS = (
     "timed out",
     "timeout",
     "too many requests",
+)
+
+CONTENT_FAILURE_PATTERNS = (
+    "search failed",
+    "query failed",
+    "docs filesystem query failed",
 )
 
 
@@ -90,6 +97,34 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         return any(marker in text for marker in RETRYABLE_ERROR_MARKERS)
 
+    def _result_signals_failure(self, result) -> str | None:
+        content = getattr(result, "content", None)
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            text = "".join(
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+        else:
+            return None
+
+        if len(text) >= 400:
+            return None
+
+        normalized = text.lower()
+        if any(pattern in normalized for pattern in CONTENT_FAILURE_PATTERNS):
+            return text
+
+        if self._is_retryable(RuntimeError(text)) or any(
+            re.search(rf"\b{status_code}\b", text)
+            for status_code in RETRYABLE_STATUS_CODES
+        ):
+            return text
+
+        return None
+
     def _tool_message(
         self,
         request: ToolCallRequest,
@@ -128,7 +163,37 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await handler(request)
+                result_error = self._result_signals_failure(result)
+                if result_error is None:
+                    return result
+
+                tool_name = self._tool_name(request)
+                if attempt < self.max_attempts:
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
+                    logger.warning(
+                        "Tool %s returned failure content attempt %s/%s: %s; "
+                        "retrying in %.2fs",
+                        tool_name,
+                        attempt,
+                        self.max_attempts,
+                        result_error,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+
+                logger.warning(
+                    "Tool %s returned failure content after %s/%s attempts: %s",
+                    tool_name,
+                    attempt,
+                    self.max_attempts,
+                    result_error,
+                )
+                return self._tool_message(
+                    request,
+                    self._final_error_content(request, RuntimeError(result_error)),
+                )
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
@@ -141,9 +206,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -169,7 +232,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]
