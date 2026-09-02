@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_core.tools import ToolException
 
 load_dotenv()
 
@@ -64,7 +65,7 @@ def _fetch_collections() -> Dict[str, str]:
     response = requests.get(url, headers=_get_headers())
     response.raise_for_status()
 
-    collections_data = response.json().get("data", [])
+    collections_data = response.json().get("data") or []
 
     # Build mapping of collection names to IDs (only public collections)
     _collections_cache = {
@@ -101,7 +102,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
         response.raise_for_status()
         body = response.json()
 
-        page_data = body.get("data", [])
+        page_data = body.get("data") or []
         all_articles.extend(page_data)
         pages_fetched += 1
 
@@ -216,6 +217,7 @@ def search_support_articles(collections: str = "all") -> str:
 
             # Get collection IDs for requested collections
             collection_ids = []
+            unknown_collections = []
             for coll_name in requested_collections:
                 if coll_name in collection_map:
                     collection_ids.append(collection_map[coll_name])
@@ -228,12 +230,12 @@ def search_support_articles(collections: str = "all") -> str:
                             matched = True
                             break
                     if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                        unknown_collections.append(coll_name)
+
+            if not collection_ids:
+                raise ToolException(
+                    f"None of the requested collections were found. Available collections: {', '.join(collection_map.keys())}"
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -272,9 +274,14 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if collections.lower() != "all":
+            result["unknown_collections"] = unknown_collections
+            result["available_collections"] = list(collection_map.keys())
 
         return json.dumps(result, indent=2)
 
+    except ToolException:
+        raise
     except ValueError as e:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
@@ -283,7 +290,7 @@ def search_support_articles(collections: str = "all") -> str:
         return json.dumps({"error": str(e)}, indent=2)
     except Exception as e:
         # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        raise ToolException(f"Unexpected error: {str(e)}") from e
 
 
 @tool
@@ -354,7 +361,7 @@ Content:
         return f"Error fetching article: {str(e)}"
     except Exception as e:
         # Catch-all for unexpected errors
-        return f"Unexpected error: {str(e)}"
+        raise ToolException(f"Unexpected error: {str(e)}") from e
 
 
 # Backwards-compatible Python import alias. The tool name exposed to the model is

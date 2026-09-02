@@ -4,11 +4,9 @@ These tests do NOT require network access or LangSmith credentials.
 All HTTP calls are mocked via unittest.mock.
 """
 
-import importlib
-import sys
+import json
 import unittest
-from unittest.mock import MagicMock, call, patch
-
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -186,6 +184,58 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_null_data_returns_empty_list(self, mock_get, mock_kb_id, mock_api_key):
+        """An API response with null data returns an empty list."""
+        mock_get.return_value = _make_response(None, next_cursor=None)
+
+        result = self.module._fetch_all_articles()
+
+        self.assertEqual(result, [])
+        mock_get.assert_called_once()
+
+
+class TestSearchSupportArticlesCollections(unittest.TestCase):
+    """Unit tests for support article collection filtering."""
+
+    def setUp(self):
+        """Reset the module cache before each test."""
+        import src.tools.pylon_tools as pylon_module
+
+        pylon_module._articles_cache = None
+        self.module = pylon_module
+
+    @patch("src.tools.pylon_tools._fetch_collections")
+    @patch("src.tools.pylon_tools._fetch_all_articles")
+    def test_unknown_collection_keeps_valid_collection(
+        self, mock_fetch_articles, mock_fetch_collections
+    ):
+        """An unknown collection does not discard matching collection results."""
+        mock_fetch_articles.return_value = [
+            {
+                "id": "article-1",
+                "title": "Article 1",
+                "is_published": True,
+                "visibility_config": {"visibility": "public"},
+                "identifier": "article-1",
+                "slug": "article-1",
+                "collection_id": "collection-1",
+            }
+        ]
+        mock_fetch_collections.return_value = {"General": "collection-1"}
+
+        result = json.loads(
+            self.module.search_support_articles.invoke(
+                {"collections": "General,Missing"}
+            )
+        )
+
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(result["unknown_collections"], ["Missing"])
+        self.assertEqual(result["available_collections"], ["General"])
 
 
 if __name__ == "__main__":
