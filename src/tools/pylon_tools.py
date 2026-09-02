@@ -5,11 +5,13 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_core.tools import ToolException
 
 load_dotenv()
 
@@ -41,6 +43,14 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _normalize_collection_key(name: str) -> frozenset[str]:
+    return frozenset(
+        token
+        for token in re.sub(r"[^a-z0-9]+", " ", name.lower()).split()
+        if token != "and"
+    )
 
 
 def _get_headers() -> Dict[str, str]:
@@ -213,9 +223,14 @@ def search_support_articles(collections: str = "all") -> str:
         if collections.lower() != "all":
             # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
+            normalized_map = {
+                _normalize_collection_key(key): value
+                for key, value in collection_map.items()
+            }
 
             # Get collection IDs for requested collections
             collection_ids = []
+            unresolved = []
             for coll_name in requested_collections:
                 if coll_name in collection_map:
                     collection_ids.append(collection_map[coll_name])
@@ -228,12 +243,19 @@ def search_support_articles(collections: str = "all") -> str:
                             matched = True
                             break
                     if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
+                        collection_id = normalized_map.get(
+                            _normalize_collection_key(coll_name)
                         )
+                        if collection_id is not None:
+                            collection_ids.append(collection_id)
+                        else:
+                            unresolved.append(coll_name)
+
+            if not collection_ids:
+                raise ToolException(
+                    f"Collections not found: {', '.join(unresolved)}. "
+                    f"Available collections: {', '.join(sorted(collection_map))}"
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -244,6 +266,13 @@ def search_support_articles(collections: str = "all") -> str:
 
             published_articles = filtered_articles
 
+        warnings = [
+            f"Collection '{collection_name}' not found" for collection_name in unresolved
+        ] if collections.lower() != "all" else []
+        available_collections = (
+            sorted(collection_map) if collections.lower() != "all" else None
+        )
+
         # Update collection names based on collection_id (for all articles)
         collection_id_to_name = {v: k for k, v in collection_map.items()}
         for article in published_articles:
@@ -251,15 +280,16 @@ def search_support_articles(collections: str = "all") -> str:
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
         if not published_articles:
-            return json.dumps(
-                {
-                    "collections": collections,
-                    "total": 0,
-                    "articles": [],
-                    "note": "No articles found",
-                },
-                indent=2,
-            )
+            result = {
+                "collections": collections,
+                "total": 0,
+                "articles": [],
+                "note": "No articles found",
+            }
+            if collections.lower() != "all":
+                result["warnings"] = warnings
+                result["available_collections"] = available_collections
+            return json.dumps(result, indent=2)
 
         # Clean up collection_id from output (internal field)
         for article in published_articles:
@@ -272,9 +302,14 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if collections.lower() != "all":
+            result["warnings"] = warnings
+            result["available_collections"] = available_collections
 
         return json.dumps(result, indent=2)
 
+    except ToolException:
+        raise
     except ValueError as e:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
