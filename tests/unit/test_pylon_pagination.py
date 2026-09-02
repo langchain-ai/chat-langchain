@@ -4,15 +4,16 @@ These tests do NOT require network access or LangSmith credentials.
 All HTTP calls are mocked via unittest.mock.
 """
 
-import importlib
-import sys
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
+import requests
+from langchain_core.tools import ToolException
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_response(data, next_cursor=None):
     """Build a mock requests.Response whose .json() returns a Pylon-shaped body."""
@@ -45,6 +46,7 @@ ARTICLE_PAGE_3 = [{"id": "a5", "title": "Article 5"}]
 # Test class
 # ---------------------------------------------------------------------------
 
+
 class TestFetchAllArticlesPagination(unittest.TestCase):
     """Unit tests for _fetch_all_articles() pagination behaviour."""
 
@@ -52,7 +54,9 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
         """Reload the module and reset the global cache before each test."""
         # Ensure a clean module state so _articles_cache starts as None
         import src.tools.pylon_tools as pylon_module
+
         pylon_module._articles_cache = None
+        pylon_module._collections_cache = None
         self.module = pylon_module
 
     # ------------------------------------------------------------------
@@ -186,6 +190,100 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_null_data_returns_empty_list(self, mock_get, mock_kb_id, mock_api_key):
+        """An explicit null article data value is treated as an empty list."""
+        mock_get.return_value = _make_response(None, next_cursor=None)
+
+        result = self.module._fetch_all_articles()
+
+        self.assertEqual(result, [])
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_null_collection_data_returns_empty_mapping(
+        self, mock_get, mock_kb_id, mock_api_key
+    ):
+        """An explicit null collection data value is treated as an empty list."""
+        mock_get.return_value = _make_response(None, next_cursor=None)
+
+        result = self.module._fetch_collections()
+
+        self.assertEqual(result, {})
+
+
+class TestPylonToolErrors(unittest.TestCase):
+    """Unit tests for Pylon tool failure propagation."""
+
+    def setUp(self):
+        """Reset the global caches before each test."""
+        import src.tools.pylon_tools as pylon_module
+
+        pylon_module._articles_cache = None
+        pylon_module._collections_cache = None
+        self.module = pylon_module
+
+    def test_search_unexpected_error_raises_tool_exception(self):
+        """Unexpected search failures are exposed as tool errors."""
+        with patch.object(
+            self.module, "_fetch_all_articles", side_effect=RuntimeError("boom")
+        ):
+            with self.assertRaisesRegex(ToolException, "Unexpected error: boom"):
+                self.module.search_support_articles.invoke({"collections": "all"})
+
+    def test_search_configuration_error_raises_tool_exception(self):
+        """Search configuration failures are exposed as tool errors."""
+        with patch.object(
+            self.module,
+            "_fetch_all_articles",
+            side_effect=ValueError("PYLON_API_KEY not configured"),
+        ):
+            with self.assertRaisesRegex(ToolException, "PYLON_API_KEY not configured"):
+                self.module.search_support_articles.invoke({"collections": "all"})
+
+    def test_search_request_error_raises_tool_exception(self):
+        """Search request failures are exposed as tool errors."""
+        with patch.object(
+            self.module,
+            "_fetch_all_articles",
+            side_effect=requests.exceptions.RequestException("network down"),
+        ):
+            with self.assertRaisesRegex(ToolException, "network down"):
+                self.module.search_support_articles.invoke({"collections": "all"})
+
+    def test_content_unexpected_error_raises_tool_exception(self):
+        """Unexpected content failures are exposed as tool errors."""
+        with patch.object(
+            self.module, "_fetch_all_articles", side_effect=RuntimeError("boom")
+        ):
+            with self.assertRaisesRegex(ToolException, "Unexpected error: boom"):
+                self.module.get_support_article_content.invoke({"article_id": "a1"})
+
+    def test_content_configuration_error_raises_tool_exception(self):
+        """Content configuration failures are exposed as tool errors."""
+        with patch.object(
+            self.module,
+            "_fetch_all_articles",
+            side_effect=ValueError("PYLON_API_KEY not configured"),
+        ):
+            with self.assertRaisesRegex(ToolException, "PYLON_API_KEY not configured"):
+                self.module.get_support_article_content.invoke({"article_id": "a1"})
+
+    def test_content_request_error_raises_tool_exception(self):
+        """Content request failures are exposed as tool errors."""
+        with patch.object(
+            self.module,
+            "_fetch_all_articles",
+            side_effect=requests.exceptions.RequestException("network down"),
+        ):
+            with self.assertRaisesRegex(
+                ToolException, "Error fetching article: network down"
+            ):
+                self.module.get_support_article_content.invoke({"article_id": "a1"})
 
 
 if __name__ == "__main__":
