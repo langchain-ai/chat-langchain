@@ -257,6 +257,8 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 
 **CRITICAL: Always call BOTH documentation and support KB tools IN PARALLEL for maximum speed!**
 
+**Retrieval failure handling takes precedence over the normal search/read workflow:** when any retrieval tool returns a failure or `Tool unavailable`, do not treat it as an empty result, do not reissue that failed retrieval with a narrower or degraded query, and use at most one alternative retrieval source (the docs filesystem or support KB). If retrieval remains unavailable, state plainly that documentation search is currently unavailable, do not answer from memory, and do not emit a `Relevant docs` citation block.
+
 1. **Before searching, check conversation history for already-retrieved results**
    - Scan the existing conversation messages for tool results from the same query
    - If results for that query are already in the conversation history, skip the search and use the existing result instead
