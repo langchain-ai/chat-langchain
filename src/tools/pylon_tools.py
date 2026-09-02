@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_core.tools import ToolException
 
 load_dotenv()
 
@@ -101,16 +102,20 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
         response.raise_for_status()
         body = response.json()
 
-        page_data = body.get("data", [])
+        page_data = body.get("data") or []
         all_articles.extend(page_data)
+        _articles_cache = all_articles
         pages_fetched += 1
+
+        if not page_data:
+            break
 
         # Resolve next-page cursor from common Pylon/REST pagination shapes
         next_cursor = (
             body.get("next")
-            or body.get("meta", {}).get("next")
-            or body.get("links", {}).get("next")
-            or body.get("pagination", {}).get("cursor")
+            or (body.get("meta") or {}).get("next")
+            or (body.get("links") or {}).get("next")
+            or (body.get("pagination") or {}).get("cursor")
         )
 
         if not next_cursor:
@@ -280,10 +285,10 @@ def search_support_articles(collections: str = "all") -> str:
         return json.dumps({"error": str(e)}, indent=2)
     except requests.exceptions.RequestException as e:
         # Network/API error
-        return json.dumps({"error": str(e)}, indent=2)
+        raise ToolException(str(e)) from e
     except Exception as e:
         # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        raise ToolException(str(e)) from e
 
 
 @tool

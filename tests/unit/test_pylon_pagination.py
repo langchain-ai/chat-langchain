@@ -4,11 +4,10 @@ These tests do NOT require network access or LangSmith credentials.
 All HTTP calls are mocked via unittest.mock.
 """
 
-import importlib
-import sys
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
+from langchain_core.tools import ToolException
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -30,6 +29,14 @@ def _make_meta_response(data, next_cursor=None):
     body = {"data": data, "meta": {}}
     if next_cursor is not None:
         body["meta"]["next"] = next_cursor
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = body
+    mock_resp.raise_for_status.return_value = None
+    return mock_resp
+
+
+def _make_body_response(body):
+    """Build a mock response whose .json() returns the supplied body."""
     mock_resp = MagicMock()
     mock_resp.json.return_value = body
     mock_resp.raise_for_status.return_value = None
@@ -186,6 +193,34 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_null_data_stops_pagination_and_caches_articles(
+        self, mock_get, mock_kb_id, mock_api_key
+    ):
+        """A null data page stops pagination and preserves earlier articles."""
+        mock_get.side_effect = [
+            _make_response(ARTICLE_PAGE_1, next_cursor="cursor-1"),
+            _make_body_response({"data": None, "meta": None}),
+        ]
+
+        result = self.module._fetch_all_articles()
+
+        self.assertEqual(result, ARTICLE_PAGE_1)
+        self.assertEqual(self.module._articles_cache, ARTICLE_PAGE_1)
+        self.assertEqual(mock_get.call_count, 2)
+
+    @patch("src.tools.pylon_tools._fetch_all_articles")
+    def test_search_raises_tool_exception_on_failure(self, mock_fetch):
+        """Search failures raise ToolException instead of returning error content."""
+        mock_fetch.side_effect = TypeError("article data is not iterable")
+
+        with self.assertRaises(ToolException) as context:
+            self.module.search_support_articles.invoke({})
+
+        self.assertEqual(str(context.exception), "article data is not iterable")
 
 
 if __name__ == "__main__":
