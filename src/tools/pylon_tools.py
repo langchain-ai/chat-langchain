@@ -43,6 +43,10 @@ _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
 
 
+class KnowledgeBaseUnavailableError(RuntimeError):
+    """Indicate that the Pylon knowledge base could not be read."""
+
+
 def _get_headers() -> Dict[str, str]:
     """Get API headers with authentication."""
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
@@ -64,7 +68,11 @@ def _fetch_collections() -> Dict[str, str]:
     response = requests.get(url, headers=_get_headers())
     response.raise_for_status()
 
-    collections_data = response.json().get("data", [])
+    collections_data = response.json().get("data")
+    if collections_data is None:
+        raise KnowledgeBaseUnavailableError(
+            "KNOWLEDGE_BASE_UNAVAILABLE: Pylon collections response contained a null data page"
+        )
 
     # Build mapping of collection names to IDs (only public collections)
     _collections_cache = {
@@ -101,7 +109,11 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
         response.raise_for_status()
         body = response.json()
 
-        page_data = body.get("data", [])
+        page_data = body.get("data")
+        if page_data is None:
+            raise KnowledgeBaseUnavailableError(
+                "KNOWLEDGE_BASE_UNAVAILABLE: Pylon articles response contained a null data page"
+            )
         all_articles.extend(page_data)
         pages_fetched += 1
 
@@ -275,15 +287,12 @@ def search_support_articles(collections: str = "all") -> str:
 
         return json.dumps(result, indent=2)
 
-    except ValueError as e:
-        # API key not configured
-        return json.dumps({"error": str(e)}, indent=2)
-    except requests.exceptions.RequestException as e:
-        # Network/API error
-        return json.dumps({"error": str(e)}, indent=2)
+    except KnowledgeBaseUnavailableError:
+        raise
+    except (ValueError, requests.exceptions.RequestException) as e:
+        raise KnowledgeBaseUnavailableError(f"KNOWLEDGE_BASE_UNAVAILABLE: {e}") from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        raise KnowledgeBaseUnavailableError(f"KNOWLEDGE_BASE_UNAVAILABLE: {e}") from e
 
 
 @tool

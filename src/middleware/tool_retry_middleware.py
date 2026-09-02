@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -30,7 +31,10 @@ RETRYABLE_ERROR_MARKERS = (
     "timed out",
     "timeout",
     "too many requests",
+    "knowledge_base_unavailable",
 )
+
+KNOWLEDGE_BASE_UNAVAILABLE_MARKER = "KNOWLEDGE_BASE_UNAVAILABLE:"
 
 
 class ToolRetryMiddleware(AgentMiddleware[AgentState]):
@@ -106,6 +110,10 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         request: ToolCallRequest,
         error: Exception,
     ) -> str:
+        error_text = self._error_text(error)
+        if KNOWLEDGE_BASE_UNAVAILABLE_MARKER in error_text:
+            return error_text
+
         tool_name = self._tool_name(request)
         payload: dict[str, Any] = {
             "error": "Tool unavailable",
@@ -115,7 +123,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                 "Try a narrower or related query, use another available source, "
                 "or answer from already retrieved context."
             ),
-            "details": self._error_text(error)[:160],
+            "details": error_text[:160],
         }
         return json.dumps(payload)
 
@@ -141,9 +149,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -169,7 +175,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]

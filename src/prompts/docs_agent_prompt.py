@@ -208,6 +208,8 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 
 **CRITICAL: Always use the "id" field from the search_support_articles tool as input to get_support_article_content. This is the only correct id to fetch by. Never use the "URL" field or the "title" field as input to get_support_article_content, and never try to get article id out of the url, use the specific "id" field.**
 
+If `search_support_articles` returns `KNOWLEDGE_BASE_UNAVAILABLE`, the support knowledge base was not consulted successfully. Disclose that limitation in the final answer and do not interpret it as meaning that no relevant support articles exist.
+
 **Returns:** Full article content with title, URL, and HTML content
 
 ### 6. `check_links` - Validate URLs Before Responding
