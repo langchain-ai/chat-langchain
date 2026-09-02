@@ -4,11 +4,10 @@ These tests do NOT require network access or LangSmith credentials.
 All HTTP calls are mocked via unittest.mock.
 """
 
-import importlib
-import sys
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
+from langchain_core.tools import ToolException
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -186,6 +185,41 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_null_data_returns_empty_list_and_stops(self, mock_get, mock_kb_id, mock_api_key):
+        """An explicit null data page returns an empty list without raising."""
+        mock_get.return_value = _make_response(None, next_cursor=None)
+
+        result = self.module._fetch_all_articles()
+
+        self.assertEqual(result, [])
+        mock_get.assert_called_once()
+
+
+class TestSupportArticleToolErrors(unittest.TestCase):
+    """Unit tests for support KB tool error propagation."""
+
+    def setUp(self):
+        """Reset the module cache before each test."""
+        import src.tools.pylon_tools as pylon_module
+        pylon_module._articles_cache = None
+        pylon_module._collections_cache = None
+        self.module = pylon_module
+
+    @patch("src.tools.pylon_tools._fetch_all_articles", side_effect=ValueError("missing config"))
+    def test_search_raises_tool_exception(self, mock_fetch):
+        """Search failures raise ToolException instead of returning error content."""
+        with self.assertRaisesRegex(ToolException, "Pylon knowledge base unavailable: missing config"):
+            self.module.search_support_articles.invoke({"collections": "all"})
+
+    @patch("src.tools.pylon_tools._fetch_all_articles", side_effect=ValueError("missing config"))
+    def test_get_content_raises_tool_exception(self, mock_fetch):
+        """Article content failures raise ToolException instead of returning error content."""
+        with self.assertRaisesRegex(ToolException, "Pylon knowledge base unavailable: missing config"):
+            self.module.get_support_article_content.invoke({"article_id": "article-1"})
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_core.tools import ToolException
 
 load_dotenv()
 
@@ -64,7 +65,7 @@ def _fetch_collections() -> Dict[str, str]:
     response = requests.get(url, headers=_get_headers())
     response.raise_for_status()
 
-    collections_data = response.json().get("data", [])
+    collections_data = response.json().get("data") or []
 
     # Build mapping of collection names to IDs (only public collections)
     _collections_cache = {
@@ -101,7 +102,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
         response.raise_for_status()
         body = response.json()
 
-        page_data = body.get("data", [])
+        page_data = body.get("data") or []
         all_articles.extend(page_data)
         pages_fetched += 1
 
@@ -202,12 +203,7 @@ def search_support_articles(collections: str = "all") -> str:
             return "No published articles available in the knowledge base."
 
         # Fetch collection map for naming
-        try:
-            collection_map = _fetch_collections()
-        except Exception as e:
-            return json.dumps(
-                {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
-            )
+        collection_map = _fetch_collections()
 
         # Filter by collection ID if specified
         if collections.lower() != "all":
@@ -275,15 +271,14 @@ def search_support_articles(collections: str = "all") -> str:
 
         return json.dumps(result, indent=2)
 
-    except ValueError as e:
-        # API key not configured
-        return json.dumps({"error": str(e)}, indent=2)
-    except requests.exceptions.RequestException as e:
-        # Network/API error
-        return json.dumps({"error": str(e)}, indent=2)
+    except ToolException:
+        raise
+    except (ValueError, requests.exceptions.RequestException) as e:
+        logger.exception("Pylon knowledge base unavailable")
+        raise ToolException(f"Pylon knowledge base unavailable: {e}") from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        logger.exception("Pylon knowledge base unavailable")
+        raise ToolException(f"Pylon knowledge base unavailable: {e}") from e
 
 
 @tool
@@ -309,11 +304,8 @@ def get_support_article_content(article_id: str) -> str:
             return "Error: No articles available from API. Check PYLON_API_KEY configuration."
 
         # Build reverse mapping: collection_id -> collection_name
-        try:
-            collection_map = _fetch_collections()
-            collection_id_to_name = {v: k for k, v in collection_map.items()}
-        except Exception:
-            collection_id_to_name = {}
+        collection_map = _fetch_collections()
+        collection_id_to_name = {v: k for k, v in collection_map.items()}
 
         # Find the article by ID
         for article in articles:
@@ -346,15 +338,14 @@ Content:
 
         return f"Article ID {article_id} not found in knowledge base."
 
-    except ValueError as e:
-        # API key not configured
-        return f"Error: {str(e)}"
-    except requests.exceptions.RequestException as e:
-        # Network/API error
-        return f"Error fetching article: {str(e)}"
+    except ToolException:
+        raise
+    except (ValueError, requests.exceptions.RequestException) as e:
+        logger.exception("Pylon knowledge base unavailable")
+        raise ToolException(f"Pylon knowledge base unavailable: {e}") from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return f"Unexpected error: {str(e)}"
+        logger.exception("Pylon knowledge base unavailable")
+        raise ToolException(f"Pylon knowledge base unavailable: {e}") from e
 
 
 # Backwards-compatible Python import alias. The tool name exposed to the model is
