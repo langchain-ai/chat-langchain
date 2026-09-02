@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -15,6 +16,12 @@ logger = logging.getLogger(__name__)
 NO_RESULTS_MARKERS = (
     "no results found",
     "no result found",
+)
+
+RESULT_FAILURE_PREFIXES = (
+    "search failed:",
+    "docs filesystem query failed:",
+    "tool call failed:",
 )
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -90,6 +97,48 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         return any(marker in text for marker in RETRYABLE_ERROR_MARKERS)
 
+    def _result_text(self, result: ToolMessage | Command) -> str:
+        if isinstance(result, Command) or not isinstance(result, ToolMessage):
+            return ""
+
+        content = result.content
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return "\n".join(
+                block["text"]
+                for block in content
+                if isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            )
+        return ""
+
+    def _is_failure_result(self, result: ToolMessage | Command) -> bool:
+        text = self._result_text(result).strip().lower()
+        if not text:
+            return False
+        if text.startswith(RESULT_FAILURE_PREFIXES):
+            return True
+        if len(text) >= 400:
+            return False
+
+        status_code = re.search(r"(?<!\d)(?:429|500|502|503|504)(?!\d)", text)
+        if status_code:
+            return True
+
+        for marker in RETRYABLE_ERROR_MARKERS:
+            if marker in ("timeout", "timed out"):
+                failure_context = re.search(
+                    rf"\b(?:error|failed|failure|gateway|http|request|status|code|service|connection|retry|unavailable)\b.{{0,40}}\b{re.escape(marker)}\b",
+                    text,
+                )
+                if failure_context:
+                    return True
+            elif marker in text:
+                return True
+        return False
+
     def _tool_message(
         self,
         request: ToolCallRequest,
@@ -128,7 +177,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await handler(request)
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
@@ -141,9 +190,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -167,9 +214,44 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     self._final_error_content(request, error),
                 )
 
+            if not self._is_failure_result(result):
+                return result
+
+            result_text = self._result_text(result)
+            tool_name = self._tool_name(request)
+            if attempt < self.max_attempts:
+                delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
+                logger.warning(
+                    "Tool %s returned failure attempt %s/%s: %s; retrying in %.2fs",
+                    tool_name,
+                    attempt,
+                    self.max_attempts,
+                    result_text,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                continue
+
+            logger.warning(
+                "Tool %s returned failure after %s/%s attempts: %s",
+                tool_name,
+                attempt,
+                self.max_attempts,
+                result_text,
+            )
+            return self._tool_message(
+                request,
+                self._final_error_content(
+                    request,
+                    RuntimeError(result_text[:160]),
+                ),
+            )
+
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]
