@@ -19,6 +19,14 @@ logger = logging.getLogger(__name__)
 PYLON_API_BASE_URL = "https://api.usepylon.com"
 
 
+def _normalize_collection_name(name: str) -> str:
+    """Normalize a collection name for token-order-insensitive matching."""
+    normalized = "".join(
+        character if character.isalnum() else " " for character in name.casefold()
+    )
+    return " ".join(sorted(normalized.split()))
+
+
 def _get_kb_id() -> str:
     """Get knowledge base ID from environment."""
     kb_id = os.getenv("PYLON_KB_ID")
@@ -135,6 +143,9 @@ def search_support_articles(collections: str = "all") -> str:
 
     Args:
         collections: Comma-separated list of collection names to filter by.
+                    Canonical names are the listed titles below. Matching supports
+                    exact, case-insensitive, and token-order-insensitive forms;
+                    unrecognized names are skipped rather than treated as fatal.
                     Available collections:
                     - "General" - General administration and management topics
                     - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
@@ -210,30 +221,38 @@ def search_support_articles(collections: str = "all") -> str:
             )
 
         # Filter by collection ID if specified
+        unmatched = []
         if collections.lower() != "all":
             # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
 
             # Get collection IDs for requested collections
             collection_ids = []
+            casefolded_collection_map = {key.casefold(): key for key in collection_map}
+            normalized_collection_map = {
+                _normalize_collection_name(key): key for key in collection_map
+            }
             for coll_name in requested_collections:
                 if coll_name in collection_map:
                     collection_ids.append(collection_map[coll_name])
+                elif matched_key := casefolded_collection_map.get(coll_name.casefold()):
+                    collection_ids.append(collection_map[matched_key])
+                elif matched_key := normalized_collection_map.get(
+                    _normalize_collection_name(coll_name)
+                ):
+                    collection_ids.append(collection_map[matched_key])
                 else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                    unmatched.append(coll_name)
+
+            if not collection_ids:
+                return json.dumps(
+                    {
+                        "error": "None of the requested collection names resolved.",
+                        "available_collections": sorted(collection_map.keys()),
+                        "instruction": "Retry with one of the available collection names.",
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -257,6 +276,14 @@ def search_support_articles(collections: str = "all") -> str:
                     "total": 0,
                     "articles": [],
                     "note": "No articles found",
+                    **(
+                        {
+                            "unmatched_collections": unmatched,
+                            "available_collections": sorted(collection_map.keys()),
+                        }
+                        if unmatched
+                        else {}
+                    ),
                 },
                 indent=2,
             )
@@ -272,6 +299,9 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if unmatched:
+            result["unmatched_collections"] = unmatched
+            result["available_collections"] = sorted(collection_map.keys())
 
         return json.dumps(result, indent=2)
 
