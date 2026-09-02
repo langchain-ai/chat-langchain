@@ -32,6 +32,11 @@ RETRYABLE_ERROR_MARKERS = (
     "too many requests",
 )
 
+MCP_FAILURE_PREFIXES = (
+    "search failed:",
+    "docs filesystem query failed:",
+)
+
 
 class ToolRetryMiddleware(AgentMiddleware[AgentState]):
     """Retry transient tool failures and return model-readable errors."""
@@ -41,11 +46,14 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         max_attempts: int = 3,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
+        per_attempt_timeout: float = 20.0,
     ):
+        """Initialize retry and timeout settings."""
         super().__init__()
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self.per_attempt_timeout = per_attempt_timeout
 
     def _tool_name(self, request: ToolCallRequest) -> str:
         return request.tool_call.get("name", "unknown_tool")
@@ -55,6 +63,21 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
     def _error_text(self, error: Exception) -> str:
         return str(error) or error.__class__.__name__
+
+    def _flatten_content(self, content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for block in content:
+                if isinstance(block, str):
+                    parts.append(block)
+                elif isinstance(block, dict) and "text" in block:
+                    parts.append(str(block["text"]))
+            return "".join(parts)
+        if isinstance(content, dict):
+            return str(content.get("text", content))
+        return str(content)
 
     def _status_code(self, error: Exception) -> int | None:
         status_code = getattr(error, "status_code", None)
@@ -80,6 +103,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
     def _is_no_results(self, error: Exception) -> bool:
         text = self._error_text(error).lower()
+        return self._is_no_results_text(text)
+
+    def _is_no_results_text(self, text: str) -> bool:
         return any(marker in text for marker in NO_RESULTS_MARKERS)
 
     def _is_retryable(self, error: Exception) -> bool:
@@ -88,7 +114,18 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         if status_code in RETRYABLE_STATUS_CODES:
             return True
 
-        return any(marker in text for marker in RETRYABLE_ERROR_MARKERS)
+        return self._is_retryable_text(text)
+
+    def _is_retryable_text(self, text: str) -> bool:
+        if self._is_no_results_text(text):
+            return False
+        if any(marker in text for marker in RETRYABLE_ERROR_MARKERS):
+            return True
+        if any(prefix in text for prefix in MCP_FAILURE_PREFIXES):
+            return True
+        return bool(
+            re.search(r"\b(?:429|500|502|503|504)\b", text, re.IGNORECASE)
+        )
 
     def _tool_message(
         self,
@@ -124,11 +161,58 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
+        """Retry transient tool failures and normalize tool responses."""
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await asyncio.wait_for(
+                    handler(request), timeout=self.per_attempt_timeout
+                )
+
+                content = getattr(result, "content", None)
+                if content is None:
+                    return result
+
+                flattened = self._flatten_content(content)
+                if self._is_no_results_text(flattened.lower()):
+                    logger.info(
+                        "Tool %s returned no results; normalizing as tool output",
+                        self._tool_name(request),
+                    )
+                    return self._tool_message(request, "No results found.")
+
+                if not self._is_retryable_text(flattened.lower()):
+                    return result
+
+                last_error = RuntimeError(flattened)
+                tool_name = self._tool_name(request)
+                if attempt < self.max_attempts:
+                    delay = self.initial_delay * (
+                        self.backoff_factor ** (attempt - 1)
+                    )
+                    logger.warning(
+                        "Tool %s returned failure attempt %s/%s: %s; retrying in %.2fs",
+                        tool_name,
+                        attempt,
+                        self.max_attempts,
+                        flattened,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+
+                logger.warning(
+                    "Tool %s failed after %s/%s attempts: %s",
+                    tool_name,
+                    attempt,
+                    self.max_attempts,
+                    flattened,
+                )
+                return self._tool_message(
+                    request,
+                    self._final_error_content(request, RuntimeError(flattened[:160])),
+                )
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
