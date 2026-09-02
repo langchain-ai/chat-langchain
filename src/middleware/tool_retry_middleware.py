@@ -90,6 +90,32 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         return any(marker in text for marker in RETRYABLE_ERROR_MARKERS)
 
+    def _tool_message_text(self, message: ToolMessage) -> str:
+        content = message.content
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return " ".join(
+                block["text"]
+                for block in content
+                if isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            )
+        return str(content)
+
+    def _result_is_transient_failure(self, message: ToolMessage) -> bool:
+        text = self._tool_message_text(message).lower()
+        has_status_code = any(
+            re.search(rf"\b{status_code}\b", text)
+            for status_code in RETRYABLE_STATUS_CODES
+        )
+        return (
+            has_status_code
+            or any(marker in text for marker in RETRYABLE_ERROR_MARKERS)
+            or text.startswith(("search failed", "query failed"))
+        )
+
     def _tool_message(
         self,
         request: ToolCallRequest,
@@ -128,7 +154,32 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await handler(request)
+                if isinstance(
+                    result, ToolMessage
+                ) and self._result_is_transient_failure(result):
+                    error_text = self._tool_message_text(result)
+                    tool_name = self._tool_name(request)
+                    if attempt < self.max_attempts:
+                        delay = self.initial_delay * (
+                            self.backoff_factor ** (attempt - 1)
+                        )
+                        logger.warning(
+                            "Tool %s returned transient failure on attempt "
+                            "%s/%s: %s; retrying in %.2fs",
+                            tool_name,
+                            attempt,
+                            self.max_attempts,
+                            error_text,
+                            delay,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    return self._tool_message(
+                        request,
+                        self._final_error_content(request, RuntimeError(error_text)),
+                    )
+                return result
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
