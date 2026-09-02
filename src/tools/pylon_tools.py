@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_core.tools import ToolException
 
 load_dotenv()
 
@@ -64,7 +65,7 @@ def _fetch_collections() -> Dict[str, str]:
     response = requests.get(url, headers=_get_headers())
     response.raise_for_status()
 
-    collections_data = response.json().get("data", [])
+    collections_data = response.json().get("data") or []
 
     # Build mapping of collection names to IDs (only public collections)
     _collections_cache = {
@@ -101,7 +102,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
         response.raise_for_status()
         body = response.json()
 
-        page_data = body.get("data", [])
+        page_data = body.get("data") or []
         all_articles.extend(page_data)
         pages_fetched += 1
 
@@ -205,9 +206,7 @@ def search_support_articles(collections: str = "all") -> str:
         try:
             collection_map = _fetch_collections()
         except Exception as e:
-            return json.dumps(
-                {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
-            )
+            raise ToolException(f"Failed to fetch collections: {str(e)}") from e
 
         # Filter by collection ID if specified
         if collections.lower() != "all":
@@ -228,11 +227,8 @@ def search_support_articles(collections: str = "all") -> str:
                             matched = True
                             break
                     if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
+                        raise ToolException(
+                            f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
                         )
 
             # Filter articles by collection_id
@@ -275,15 +271,14 @@ def search_support_articles(collections: str = "all") -> str:
 
         return json.dumps(result, indent=2)
 
+    except ToolException:
+        raise
     except ValueError as e:
-        # API key not configured
-        return json.dumps({"error": str(e)}, indent=2)
+        raise ToolException(str(e)) from e
     except requests.exceptions.RequestException as e:
-        # Network/API error
-        return json.dumps({"error": str(e)}, indent=2)
+        raise ToolException(str(e)) from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        raise ToolException(f"Unexpected error: {str(e)}") from e
 
 
 @tool
@@ -306,14 +301,14 @@ def get_support_article_content(article_id: str) -> str:
 
         # Handle None or empty response
         if articles is None or not articles:
-            return "Error: No articles available from API. Check PYLON_API_KEY configuration."
+            return "Error: No articles available from API."
 
         # Build reverse mapping: collection_id -> collection_name
         try:
             collection_map = _fetch_collections()
             collection_id_to_name = {v: k for k, v in collection_map.items()}
-        except Exception:
-            collection_id_to_name = {}
+        except Exception as e:
+            raise ToolException(f"Failed to fetch collections: {str(e)}") from e
 
         # Find the article by ID
         for article in articles:
@@ -346,15 +341,14 @@ Content:
 
         return f"Article ID {article_id} not found in knowledge base."
 
+    except ToolException:
+        raise
     except ValueError as e:
-        # API key not configured
-        return f"Error: {str(e)}"
+        raise ToolException(str(e)) from e
     except requests.exceptions.RequestException as e:
-        # Network/API error
-        return f"Error fetching article: {str(e)}"
+        raise ToolException(f"Error fetching article: {str(e)}") from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return f"Unexpected error: {str(e)}"
+        raise ToolException(f"Unexpected error: {str(e)}") from e
 
 
 # Backwards-compatible Python import alias. The tool name exposed to the model is
