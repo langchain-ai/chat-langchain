@@ -187,6 +187,29 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
         self.assertEqual(result, [])
         mock_get.assert_called_once()
 
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_null_data_returns_empty_list(self, mock_get, mock_kb_id, mock_api_key):
+        """An explicitly null data field returns an empty list."""
+        mock_get.return_value = _make_response(None, next_cursor=None)
+
+        result = self.module._fetch_all_articles()
+
+        self.assertEqual(result, [])
+        mock_get.assert_called_once()
+
+    @patch("src.tools.pylon_tools._fetch_all_articles")
+    def test_search_failure_raises(self, mock_fetch_all_articles):
+        """An unexpected search failure is raised instead of returned as content."""
+        error = RuntimeError("fetch failed")
+        mock_fetch_all_articles.side_effect = error
+
+        with self.assertRaises(RuntimeError) as raised:
+            self.module.search_support_articles.invoke({"collections": "all"})
+
+        self.assertIs(raised.exception, error)
+
 
 if __name__ == "__main__":
     unittest.main()
