@@ -183,6 +183,7 @@ Fetches live content from `https://www.langchain.com/pricing` - the single sourc
 Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
 
 **Collections available:**
+Collection names are matched loosely; unknown names are ignored with a warning when other names resolve.
 - "General" - General administration and management topics
 - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
 - "LangSmith Observability" - Tracing, stats, and observability of agents
@@ -192,7 +193,6 @@ Get list of support article titles from Pylon KB, filtered by collection(s). Use
 - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
 - "Self Hosted" - Self-hosted LangSmith including deployments
 - "Troubleshooting" - Broad domain issue triage and resolution
-- "Security" - Code scans, key management, and security topics
 - Use "all" to search all collections
 
 **Best for:** Known issues, error messages, troubleshooting, deployment gotchas
