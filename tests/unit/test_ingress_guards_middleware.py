@@ -36,6 +36,49 @@ def test_before_agent_noop_when_under_cap():
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
 
+def test_before_agent_redacts_langsmith_key_in_curl_command():
+    middleware = IngressGuardsMiddleware()
+    content = 'curl -H "X-Api-Key: lsv2_sk_live-secret_123" https://example.com'
+    human = HumanMessage(content=content, id="h1")
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content == (
+        'curl -H "X-Api-Key: YOUR_API_KEY_HERE" https://example.com'
+    )
+
+
+def test_before_agent_redacts_x_api_key_header_value():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(content="X-Api-Key: abc-secret-value", id="h1")
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content == "X-Api-Key: YOUR_API_KEY_HERE"
+
+
+def test_before_agent_preserves_documentation_placeholder():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(content="Use lsv2_your_api_key_here in this example", id="h1")
+
+    assert (
+        middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+        is None
+    )
+
+
+def test_before_agent_preserves_surrounding_json_and_code():
+    middleware = IngressGuardsMiddleware()
+    content = '{"api_key":"lsv2_sk_secret","enabled":true}\nprint("done")'
+    human = HumanMessage(content=content, id="h1")
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content == (
+        '{"api_key":"YOUR_API_KEY_HERE","enabled":true}\nprint("done")'
+    )
+
+
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
