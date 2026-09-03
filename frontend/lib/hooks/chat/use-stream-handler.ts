@@ -85,8 +85,11 @@ function describeToolStep(name: string, args: Record<string, any> = {}): string 
   if (name === "query_docs_filesystem_docs_by_lang_chain") {
     return "Reading documentation"
   }
-  if (args.collections && name === "search_support_articles") {
-    return `Searching support articles (${args.collections})`
+  if (name === "search_support_articles") {
+    const scope = args.collections ? ` (${args.collections})` : ""
+    return args.query
+      ? `Searching support articles for "${args.query}"${scope}`
+      : `Searching support articles${scope}`
   }
   if (args.article_id && name === "get_support_article_content") {
     return "Reading support articles"
