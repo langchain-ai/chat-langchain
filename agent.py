@@ -10,6 +10,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.final_answer_guard_middleware import FinalAnswerGuardMiddleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
@@ -48,6 +49,7 @@ docs_agent_middleware = [
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
+    FinalAnswerGuardMiddleware(),
 ]
 
 agent = define_deep_agent(
