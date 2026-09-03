@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 
 // Declare analytics global type
@@ -8,6 +8,24 @@ declare global {
   interface Window {
     analytics: any;
   }
+}
+
+/**
+ * Exposes a live accessor for Segment's anonymous ID rather than a cached
+ * value. The ID can be regenerated asynchronously by Segment (e.g. after
+ * reset() on logout), so callers should read it at the moment they need it
+ * instead of relying on a React-state snapshot that could go stale.
+ */
+interface AnalyticsContextValue {
+  getAnonymousId: () => string | null;
+}
+
+const AnalyticsContext = createContext<AnalyticsContextValue>({
+  getAnonymousId: () => null,
+});
+
+export function useAnalyticsContext(): AnalyticsContextValue {
+  return useContext(AnalyticsContext);
 }
 
 /**
@@ -21,6 +39,9 @@ declare global {
 export function SegmentProvider({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const identifiedUserIdRef = useRef<string | null>(null);
+  // Tracks whether Segment's SDK has finished loading. Set once inside
+  // analytics.ready() below; never cleared, since readiness doesn't regress.
+  const isReadyRef = useRef(false);
 
   // Identify the user once we have a real auth user ID.
   useEffect(() => {
@@ -82,7 +103,43 @@ export function SegmentProvider({ children }: { children: React.ReactNode }) {
     });
   }, [loading]);
 
-  return <>{children}</>;
+  // Track when Segment's SDK has finished loading, independent of auth
+  // state, so getAnonymousId() below knows when it's safe to read from it.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.analytics) return;
+
+    let cancelled = false;
+
+    window.analytics.ready(() => {
+      if (!cancelled) isReadyRef.current = true;
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Live accessor rather than cached state: Segment can regenerate the
+  // anonymous ID asynchronously (e.g. after reset() on logout), so callers
+  // should read the current value at the moment they need it rather than a
+  // snapshot that could go stale.
+  const getAnonymousId = useCallback((): string | null => {
+    if (typeof window === "undefined" || !window.analytics || !isReadyRef.current) {
+      return null;
+    }
+
+    try {
+      return window.analytics.user?.()?.anonymousId?.() || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  return (
+    <AnalyticsContext.Provider value={{ getAnonymousId }}>
+      {children}
+    </AnalyticsContext.Provider>
+  );
 }
 
 /**

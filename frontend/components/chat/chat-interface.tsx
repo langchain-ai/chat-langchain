@@ -9,7 +9,7 @@ import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
 import { useAuth } from "@/lib/auth"
 import type { AuthRegion } from "@/lib/auth"
-import { trackEvent } from "@/components/providers/segment-provider"
+import { trackEvent, useAnalyticsContext } from "@/components/providers/segment-provider"
 import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
 import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
@@ -256,6 +256,8 @@ export function ChatInterface({
   // Custom Hooks
   // ============================================================================
 
+  const { getAnonymousId } = useAnalyticsContext()
+
   const { processStream } = useStreamHandler({
     client,
     threadId,
@@ -265,6 +267,7 @@ export function ChatInterface({
     userId,
     userEmail,
     userName,
+    getSegmentAnonymousId: getAnonymousId,
     auth: langsmithAuth,
   })
 
