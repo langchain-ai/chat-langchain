@@ -72,6 +72,19 @@ def _get_headers() -> Dict[str, str]:
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
 
 
+def _raise_for_status(response: requests.Response) -> None:
+    """Raise a sanitized error for unavailable Pylon credentials."""
+    try:
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as exc:
+        if response.status_code in (401, 403):
+            reason = response.reason or "request rejected"
+            raise PylonUnavailableError(
+                f"Pylon knowledge base unavailable: {response.status_code} {reason}"
+            ) from exc
+        raise
+
+
 def _fetch_collections() -> Dict[str, str]:
     """Fetch collections from Pylon API and cache them.
 
@@ -86,11 +99,7 @@ def _fetch_collections() -> Dict[str, str]:
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
     response = requests.get(url, headers=_get_headers())
-    if response.status_code in (401, 403):
-        raise PylonUnavailableError(
-            f"Pylon API returned HTTP {response.status_code} {response.reason}"
-        )
-    response.raise_for_status()
+    _raise_for_status(response)
 
     collections_data = response.json().get("data", [])
 
@@ -126,11 +135,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
     while pages_fetched < max_pages:
         response = requests.get(url, headers=headers, params=params)
-        if response.status_code in (401, 403):
-            raise PylonUnavailableError(
-                f"Pylon API returned HTTP {response.status_code} {response.reason}"
-            )
-        response.raise_for_status()
+        _raise_for_status(response)
         body = response.json()
 
         page_data = body.get("data", [])
@@ -260,11 +265,9 @@ def search_support_articles(collections: str = "all") -> str:
                         matched = True
                         break
                 if not matched:
-                    return json.dumps(
-                        {
-                            "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                        },
-                        indent=2,
+                    raise ValueError(
+                        f"Collection '{coll_name}' not found. Available collections: "
+                        f"{', '.join(collection_map.keys())}"
                     )
 
         # Filter articles by collection_id

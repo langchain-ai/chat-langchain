@@ -4,10 +4,8 @@ These tests do NOT require network access or LangSmith credentials.
 All HTTP calls are mocked via unittest.mock.
 """
 
-import importlib
-import sys
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +184,38 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_unauthorized_response_raises_sanitized_error(
+        self, mock_get, mock_kb_id, mock_api_key
+    ):
+        """Unauthorized responses do not become successful article results."""
+        response = _make_response([])
+        response.status_code = 401
+        response.reason = "Unauthorized"
+        response.raise_for_status.side_effect = self.module.requests.exceptions.HTTPError(
+            "401 response"
+        )
+        mock_get.return_value = response
+
+        with self.assertRaisesRegex(
+            self.module.PylonUnavailableError,
+            r"^Pylon knowledge base unavailable: 401 Unauthorized$",
+        ):
+            self.module._fetch_all_articles()
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_transport_error_propagates(self, mock_get, mock_kb_id, mock_api_key):
+        """Transport failures remain errors for the caller to handle."""
+        error = self.module.requests.exceptions.ConnectionError("connection failed")
+        mock_get.side_effect = error
+
+        with self.assertRaises(self.module.requests.exceptions.ConnectionError):
+            self.module._fetch_all_articles()
 
 
 if __name__ == "__main__":
