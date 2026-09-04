@@ -3,7 +3,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, Literal
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
 from langchain_core.messages import ToolMessage
@@ -94,11 +94,13 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         self,
         request: ToolCallRequest,
         content: str,
+        status: Literal["success", "error"] = "success",
     ) -> ToolMessage:
         return ToolMessage(
             content=content,
             name=self._tool_name(request),
             tool_call_id=self._tool_call_id(request),
+            status=status,
         )
 
     def _final_error_content(
@@ -165,11 +167,16 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                 return self._tool_message(
                     request,
                     self._final_error_content(request, error),
+                    status="error",
                 )
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request,
+            self._final_error_content(request, last_error),
+            status="error",
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]
