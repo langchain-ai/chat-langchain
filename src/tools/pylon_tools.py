@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from langchain_core.tools import ToolException
 
 load_dotenv()
 
@@ -41,6 +42,25 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+_auth_failed = False
+
+
+def _is_auth_error(error: requests.exceptions.HTTPError) -> bool:
+    """Identify Pylon authentication failures."""
+    return getattr(getattr(error, "response", None), "status_code", None) in (401, 403)
+
+
+def _raise_for_status(response: requests.Response) -> None:
+    """Raise a tool error for rejected Pylon credentials."""
+    global _auth_failed
+
+    try:
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as error:
+        if _is_auth_error(error):
+            _auth_failed = True
+            raise ToolException("Pylon knowledge base authentication failed") from error
+        raise
 
 
 def _get_headers() -> Dict[str, str]:
@@ -62,7 +82,7 @@ def _fetch_collections() -> Dict[str, str]:
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
     response = requests.get(url, headers=_get_headers())
-    response.raise_for_status()
+    _raise_for_status(response)
 
     collections_data = response.json().get("data", [])
 
@@ -98,7 +118,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
     while pages_fetched < max_pages:
         response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
+        _raise_for_status(response)
         body = response.json()
 
         page_data = body.get("data", [])
@@ -127,6 +147,25 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 # =============================================================================
 
 
+def verify_pylon_credentials() -> None:
+    """Verify Pylon credentials with one lightweight collections request."""
+    global _auth_failed
+
+    try:
+        kb_id = _get_kb_id()
+        url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
+        response = requests.get(url, headers=_get_headers())
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as error:
+        if _is_auth_error(error):
+            _auth_failed = True
+            logger.error("Pylon authentication failed")
+        else:
+            logger.warning("Pylon credential verification failed")
+    except Exception:
+        logger.warning("Pylon credential verification could not be completed")
+
+
 @tool
 def search_support_articles(collections: str = "all") -> str:
     """Get LangChain support article titles from Pylon KB, filtered by collection(s).
@@ -153,6 +192,9 @@ def search_support_articles(collections: str = "all") -> str:
     Returns:
         JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
     """
+    if _auth_failed:
+        raise ToolException("Pylon knowledge base authentication failed")
+
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -204,6 +246,8 @@ def search_support_articles(collections: str = "all") -> str:
         # Fetch collection map for naming
         try:
             collection_map = _fetch_collections()
+        except ToolException:
+            raise
         except Exception as e:
             return json.dumps(
                 {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
@@ -275,6 +319,8 @@ def search_support_articles(collections: str = "all") -> str:
 
         return json.dumps(result, indent=2)
 
+    except ToolException:
+        raise
     except ValueError as e:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
@@ -300,6 +346,9 @@ def get_support_article_content(article_id: str) -> str:
     Returns:
         Article content with only: id, title, url, collection, content
     """
+    if _auth_failed:
+        raise ToolException("Pylon knowledge base authentication failed")
+
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
@@ -312,6 +361,8 @@ def get_support_article_content(article_id: str) -> str:
         try:
             collection_map = _fetch_collections()
             collection_id_to_name = {v: k for k, v in collection_map.items()}
+        except ToolException:
+            raise
         except Exception:
             collection_id_to_name = {}
 
@@ -346,6 +397,8 @@ Content:
 
         return f"Article ID {article_id} not found in knowledge base."
 
+    except ToolException:
+        raise
     except ValueError as e:
         # API key not configured
         return f"Error: {str(e)}"
