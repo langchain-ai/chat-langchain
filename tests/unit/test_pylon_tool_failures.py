@@ -4,10 +4,15 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import requests
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
-from src.tools.pylon_tools import PylonUnavailableError, search_support_articles
+from src.tools.pylon_tools import (
+    PylonUnavailableError,
+    _raise_for_status,
+    search_support_articles,
+)
 
 
 def test_search_support_articles_raises_for_unauthorized_response():
@@ -21,6 +26,22 @@ def test_search_support_articles_raises_for_unauthorized_response():
 
     assert "PYLON_API_KEY" in str(context.value)
     assert "api.usepylon.com" in str(context.value)
+
+
+def test_raise_for_status_detects_unauthorized_http_error_response():
+    """HTTPError responses with 401 status become diagnosable outages."""
+    response = MagicMock(status_code=200)
+    unauthorized_response = MagicMock(status_code=403)
+    response.raise_for_status.side_effect = requests.HTTPError(
+        "forbidden", response=unauthorized_response
+    )
+
+    with pytest.raises(PylonUnavailableError) as context:
+        _raise_for_status(response, "https://api.usepylon.com/example")
+
+    assert "HTTP 403" in str(context.value)
+    assert "PYLON_API_KEY" in str(context.value)
+    assert "https://api.usepylon.com/example" in str(context.value)
 
 
 def test_tool_retry_middleware_propagates_pylon_failures():

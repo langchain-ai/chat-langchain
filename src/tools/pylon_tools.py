@@ -54,12 +54,22 @@ def _get_headers() -> Dict[str, str]:
 
 def _raise_for_status(response: requests.Response, url: str) -> None:
     """Raise an operator-facing error for invalid Pylon credentials."""
-    if response.status_code in (401, 403):
+    status_code = response.status_code
+    if status_code in (401, 403):
         raise PylonUnavailableError(
-            f"Pylon API returned HTTP {response.status_code} for {url}; "
+            f"Pylon API returned HTTP {status_code} for {url}; "
             "check or rotate PYLON_API_KEY configuration or credentials."
         )
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except requests.exceptions.RequestException as error:
+        response_status = getattr(error.response, "status_code", None)
+        if response_status in (401, 403):
+            raise PylonUnavailableError(
+                f"Pylon API returned HTTP {response_status} for {url}; "
+                "check or rotate PYLON_API_KEY configuration or credentials."
+            ) from error
+        raise
 
 
 def _fetch_collections() -> Dict[str, str]:
