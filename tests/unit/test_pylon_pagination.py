@@ -217,6 +217,29 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
         with self.assertRaises(self.module.requests.exceptions.ConnectionError):
             self.module._fetch_all_articles()
 
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_forbidden_response_omits_credentials_and_url(
+        self, mock_get, mock_kb_id, mock_api_key
+    ):
+        """Forbidden responses do not expose credentials or knowledge-base URLs."""
+        response = _make_response([])
+        response.status_code = 403
+        response.reason = "Forbidden"
+        response.raise_for_status.side_effect = self.module.requests.exceptions.HTTPError(
+            "403 response"
+        )
+        mock_get.return_value = response
+
+        with self.assertRaises(self.module.PylonUnavailableError) as context:
+            self.module._fetch_all_articles()
+
+        message = str(context.exception)
+        self.assertEqual(message, "Pylon knowledge base unavailable: 403 Forbidden")
+        self.assertNotIn("fake-key", message)
+        self.assertNotIn("kb-123", message)
+
 
 if __name__ == "__main__":
     unittest.main()
