@@ -142,7 +142,25 @@ def test_guardrails_prompt_still_allows_langchain_core_topics():
 
 
 # ---------------------------------------------------------------------------
-# Test 5: Sanity check - prompt still defaults to ALLOW (no over-correction)
+# Test 5: LangChain resource questions and technical follow-ups are allowed
+# ---------------------------------------------------------------------------
+
+
+def test_guardrails_prompt_allows_langchain_resource_questions():
+    """The docs versus reference question must match an allow criterion."""
+    assert "documentation, api reference, changelogs" in PROMPT_LOWER
+    assert "which to use" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_allows_bare_technical_follow_ups():
+    """Layman-terms follow-ups after LangGraph questions must be allowed."""
+    assert "in layman terms" in PROMPT_LOWER
+    assert "technical follow-up questions about prior langchain / langgraph" in PROMPT_LOWER
+    assert "in-scope technical questions" in PROMPT_LOWER
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Sanity check - prompt still defaults to ALLOW (no over-correction)
 # ---------------------------------------------------------------------------
 
 
