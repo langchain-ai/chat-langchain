@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 PYLON_API_BASE_URL = "https://api.usepylon.com"
 
 
+class PylonUnavailableError(RuntimeError):
+    """Raised when the Pylon knowledge base cannot be reached."""
+
+
 def _get_kb_id() -> str:
     """Get knowledge base ID from environment."""
     kb_id = os.getenv("PYLON_KB_ID")
@@ -48,6 +52,26 @@ def _get_headers() -> Dict[str, str]:
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
 
 
+def _raise_for_status(response: requests.Response, url: str) -> None:
+    """Raise an operator-facing error for invalid Pylon credentials."""
+    status_code = response.status_code
+    if status_code in (401, 403):
+        raise PylonUnavailableError(
+            f"Pylon API returned HTTP {status_code} for {url}; "
+            "check or rotate PYLON_API_KEY configuration or credentials."
+        )
+    try:
+        response.raise_for_status()
+    except requests.exceptions.RequestException as error:
+        response_status = getattr(error.response, "status_code", None)
+        if response_status in (401, 403):
+            raise PylonUnavailableError(
+                f"Pylon API returned HTTP {response_status} for {url}; "
+                "check or rotate PYLON_API_KEY configuration or credentials."
+            ) from error
+        raise
+
+
 def _fetch_collections() -> Dict[str, str]:
     """Fetch collections from Pylon API and cache them.
 
@@ -62,7 +86,7 @@ def _fetch_collections() -> Dict[str, str]:
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
     response = requests.get(url, headers=_get_headers())
-    response.raise_for_status()
+    _raise_for_status(response, url)
 
     collections_data = response.json().get("data", [])
 
@@ -98,7 +122,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
     while pages_fetched < max_pages:
         response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
+        _raise_for_status(response, url)
         body = response.json()
 
         page_data = body.get("data", [])
@@ -202,12 +226,7 @@ def search_support_articles(collections: str = "all") -> str:
             return "No published articles available in the knowledge base."
 
         # Fetch collection map for naming
-        try:
-            collection_map = _fetch_collections()
-        except Exception as e:
-            return json.dumps(
-                {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
-            )
+        collection_map = _fetch_collections()
 
         # Filter by collection ID if specified
         if collections.lower() != "all":
@@ -275,15 +294,14 @@ def search_support_articles(collections: str = "all") -> str:
 
         return json.dumps(result, indent=2)
 
+    except PylonUnavailableError:
+        raise
     except ValueError as e:
-        # API key not configured
-        return json.dumps({"error": str(e)}, indent=2)
+        raise PylonUnavailableError(str(e)) from e
     except requests.exceptions.RequestException as e:
-        # Network/API error
-        return json.dumps({"error": str(e)}, indent=2)
+        raise PylonUnavailableError(str(e)) from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        raise PylonUnavailableError(str(e)) from e
 
 
 @tool
@@ -306,14 +324,11 @@ def get_support_article_content(article_id: str) -> str:
 
         # Handle None or empty response
         if articles is None or not articles:
-            return "Error: No articles available from API. Check PYLON_API_KEY configuration."
+            return "No articles available in the knowledge base."
 
         # Build reverse mapping: collection_id -> collection_name
-        try:
-            collection_map = _fetch_collections()
-            collection_id_to_name = {v: k for k, v in collection_map.items()}
-        except Exception:
-            collection_id_to_name = {}
+        collection_map = _fetch_collections()
+        collection_id_to_name = {v: k for k, v in collection_map.items()}
 
         # Find the article by ID
         for article in articles:
@@ -346,15 +361,14 @@ Content:
 
         return f"Article ID {article_id} not found in knowledge base."
 
+    except PylonUnavailableError:
+        raise
     except ValueError as e:
-        # API key not configured
-        return f"Error: {str(e)}"
+        raise PylonUnavailableError(str(e)) from e
     except requests.exceptions.RequestException as e:
-        # Network/API error
-        return f"Error fetching article: {str(e)}"
+        raise PylonUnavailableError(str(e)) from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return f"Unexpected error: {str(e)}"
+        raise PylonUnavailableError(str(e)) from e
 
 
 # Backwards-compatible Python import alias. The tool name exposed to the model is
