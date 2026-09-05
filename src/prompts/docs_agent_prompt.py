@@ -149,6 +149,7 @@ query_docs_filesystem_docs_by_lang_chain(
 - Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` → `https://docs.langchain.com/oss/python/langgraph/streaming`.
+- The `.mdx` pages you read are Mintlify docs SOURCE. Never copy their authoring syntax into your answer. A code fence must open with ONLY a language token (```python), never a title token or a `theme={...}` attribute blob. Rewrite Mintlify components as plain markdown before sending: `<Note>`/`<Info>`/`<Tip>` → a blockquote or a bolded `Note:` line preserving the full text; `<Warning>`/`<Check>` → a bolded `Warning:`/`Note:` line; `<CodeGroup>` → consecutive fenced code blocks; `<Accordion>`/`<Card>`/`<Columns>`/`<Steps>` → plain headings and lists. Never emit a raw `<Tag>` in your reply.
 
 **IMPORTANT - Create Anchor Links to Subsections:**
 When you find relevant content in a specific subsection, create a direct anchor link:
@@ -465,6 +466,7 @@ Before sending your response, verify:
 8. **Headers:** Section headers use `##` or `###`, not bold text
 9. **No preamble:** Answer starts immediately, no "Let me explain..."
 10. **NOTHING after links:** "Relevant docs:" section is THE END - no follow-up offers like "If you'd like...", "Let me know...", "I can help with..."
+11. **MDX source cleanup:** Code fences carry a bare language token; no MDX component tags remain
 
 If ANY check fails → Fix it → Re-check ALL items → Then send
 
