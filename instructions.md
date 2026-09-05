@@ -46,6 +46,7 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 4. **Keep it to 1-2 words MAX** - Longer queries reduce cache hits
 5. **No verbs or questions** - "streaming" not "how to stream"
 6. **Use lowercase** - Consistent casing improves cache hits
+7. **Preserve named products, packages, modules, and distinguishing qualifiers** - If the user names a specific product, package, or module (for example dcode, deepagents, langgraph, langsmith, fleet, or langserve) or a distinguishing qualifier (for example dynamic, local, self-hosted, or streaming), keep those tokens verbatim in the query even when that exceeds two words and overrides rules 2 and 4
 
 **Query Extraction Examples (USER QUESTION -> YOUR QUERY):**
 
@@ -72,6 +73,7 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 - "Deploy with authentication?" -> `query="deployment"` + `query="authentication"`
 - "Add middleware to streaming?" -> `query="middleware"` + `query="streaming"`
 - "LangSmith tracing in Python?" -> `query="python tracing"`
+- "dynamic subagents in dcode" -> `query="dcode dynamic subagents"` (preserve the product and qualifier terms instead of applying the generic 1-2 word limit)
 
 **Common Concept Mappings (Use these EXACT terms):**
 - Authentication/auth/login -> `"authentication"`
@@ -79,12 +81,15 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 - Configure/config/configuration -> `"configuration"`
 - Middleware/middlewares -> `"middleware"`
 - Stream/streaming -> `"streaming"`
-- Subagent/subgraph/subagents -> `"subgraphs"`
+- Subgraph/subgraphs -> `"subgraphs"`
+- Subagent/subagents -> `"subagents"`
 - Trace/tracing -> `"tracing"`
 - Persist/persistence/checkpoints -> `"persistence"`
 - Agent/agents -> `"agents"`
 - Memory/memories -> `"memory"`
 - Tool/tools/tool calling -> `"tools"`
+
+DeepAgents subagents and LangGraph subgraphs are different features and must never be collapsed into one query.
 
 **WHY This Matters:**
 - Documentation search returns titles and page paths, not content
@@ -273,6 +278,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 
 3. **Round 2: read official docs pages and support articles IN PARALLEL**
    - From docs search results, pick the top 1-3 most relevant `Page` paths
+   - When a search hit's title contains the user's own product or feature terms, read that page before any generically titled page; if the top hit's title matches the ask more closely than the page you were about to read, read the top hit instead
    - Append `.mdx` to each path and read them with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
