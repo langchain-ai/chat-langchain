@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+MAX_SUPPORT_ARTICLE_RESULTS = 25
 
 
 class PylonUnavailableError(RuntimeError):
@@ -152,31 +153,10 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+def search_support_articles(
+    collections: str = "all", query: str = "", limit: int = 25
+) -> str:
+    """List published support articles with query filtering and a hard maximum of 25 results; limit controls fewer results, and collections="all" is an expensive last resort."""
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -189,8 +169,7 @@ def search_support_articles(collections: str = "all") -> str:
                     "total": 0,
                     "articles": [],
                     "note": "No articles returned from API",
-                },
-                indent=2,
+                }
             )
 
         # Filter to only PUBLIC visibility articles with valid titles
@@ -204,21 +183,11 @@ def search_support_articles(collections: str = "all") -> str:
                 and article.get("identifier")
                 and article.get("slug")
             ):
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier")
-                slug = article.get("slug")
-                support_url = (
-                    f"https://support.langchain.com/articles/{identifier}-{slug}"
-                )
-
                 published_articles.append(
                     {
                         "id": article.get("id"),
                         "title": article.get("title", ""),
-                        "url": support_url,
-                        "collection_id": article.get(
-                            "collection_id"
-                        ),  # Keep for filtering, will be set later
+                        "collection_id": article.get("collection_id"),
                     }
                 )
 
@@ -250,8 +219,7 @@ def search_support_articles(collections: str = "all") -> str:
                         return json.dumps(
                             {
                                 "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
+                            }
                         )
 
             # Filter articles by collection_id
@@ -262,6 +230,14 @@ def search_support_articles(collections: str = "all") -> str:
             ]
 
             published_articles = filtered_articles
+
+        if query:
+            query_lower = query.casefold()
+            published_articles = [
+                article
+                for article in published_articles
+                if query_lower in article["title"].casefold()
+            ]
 
         # Update collection names based on collection_id (for all articles)
         collection_id_to_name = {v: k for k, v in collection_map.items()}
@@ -276,23 +252,37 @@ def search_support_articles(collections: str = "all") -> str:
                     "total": 0,
                     "articles": [],
                     "note": "No articles found",
-                },
-                indent=2,
+                }
             )
 
-        # Clean up collection_id from output (internal field)
-        for article in published_articles:
-            article.pop("collection_id", None)
+        total = len(published_articles)
+        effective_limit = (
+            limit if isinstance(limit, int) and limit > 0 else MAX_SUPPORT_ARTICLE_RESULTS
+        )
+        effective_limit = min(effective_limit, MAX_SUPPORT_ARTICLE_RESULTS)
+        truncated = total > effective_limit
+        published_articles = published_articles[:effective_limit]
+        articles = [
+            {
+                "id": article["id"],
+                "title": article["title"],
+                "collection": article["collection"],
+            }
+            for article in published_articles
+        ]
 
         # Return structured JSON format
         result = {
             "collections": collections,
-            "total": len(published_articles),
-            "articles": published_articles,
+            "total": total,
+            "articles": articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if truncated:
+            result["truncated"] = True
+            result["note"] = "Results truncated; use a narrower query or specific collections."
 
-        return json.dumps(result, indent=2)
+        return json.dumps(result)
 
     except PylonUnavailableError:
         raise
