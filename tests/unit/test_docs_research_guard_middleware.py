@@ -8,6 +8,82 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 
 
+def test_oversized_retrieval_result_is_bounded_before_model_call():
+    middleware = DocsResearchGuardMiddleware(retrieval_result_char_limit=100)
+    calls: list[ModelRequest] = []
+    messages = [
+        HumanMessage(content="Find the docs."),
+        ToolMessage(
+            content="title: StateGraph\n\n" + ("documentation " * 100),
+            name="query_docs_filesystem_docs_by_lang_chain",
+            tool_call_id="filesystem-read",
+        ),
+    ]
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content="Done.")])
+
+    asyncio.run(middleware.awrap_model_call(ModelRequest(model=object(), messages=messages), handler))
+
+    result = calls[0].messages[-1]
+    assert isinstance(result, ToolMessage)
+    assert len(result.content) <= 100
+    assert "retrieval content omitted" in result.content
+    assert result.name == "query_docs_filesystem_docs_by_lang_chain"
+    assert result.tool_call_id == "filesystem-read"
+
+
+def test_oldest_retrieval_results_collapse_when_turn_budget_is_exceeded():
+    middleware = DocsResearchGuardMiddleware(
+        retrieval_result_char_limit=10_000,
+        retrieval_turn_char_limit=8_000,
+    )
+    calls: list[ModelRequest] = []
+    first = "first result\n" + ("a" * 4_500)
+    second = "second result\n" + ("b" * 4_500)
+    third = "third result\n" + ("c" * 4_500)
+    messages = [
+        HumanMessage(content="Find the docs."),
+        ToolMessage(content=first, name="search_docs_by_lang_chain", tool_call_id="1"),
+        ToolMessage(content=second, name="search_docs_by_lang_chain", tool_call_id="2"),
+        ToolMessage(content=third, name="search_docs_by_lang_chain", tool_call_id="3"),
+    ]
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content="Done.")])
+
+    asyncio.run(middleware.awrap_model_call(ModelRequest(model=object(), messages=messages), handler))
+
+    bounded = calls[0].messages[1:]
+    assert "retrieval content omitted" in bounded[0].content
+    assert "retrieval content omitted" in bounded[1].content
+    assert bounded[2].content == third
+    assert sum(len(message.content) for message in bounded) <= 8_000
+
+
+def test_small_retrieval_turn_remains_unchanged():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    messages = [
+        HumanMessage(content="Find the docs."),
+        ToolMessage(
+            content="small result",
+            name="search_docs_by_lang_chain",
+            tool_call_id="small-search",
+        ),
+    ]
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content="Done.")])
+
+    asyncio.run(middleware.awrap_model_call(ModelRequest(model=object(), messages=messages), handler))
+
+    assert calls[0].messages == messages
+
+
 def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     middleware = DocsResearchGuardMiddleware()
     calls: list[ModelRequest] = []
