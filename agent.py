@@ -41,6 +41,7 @@ docs_agent_middleware = [
     CustomSummarizationMiddleware(
         model=DEFAULT_MODEL.id,
         summary_model=summarization_model,
+        # Retrieval payload bounds should keep this fallback uncommon.
         trigger=("tokens", 130_000),
         keep=("tokens", 30_000),
         summary_prompt=context_summary_prompt,
