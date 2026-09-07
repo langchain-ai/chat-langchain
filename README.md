@@ -86,6 +86,15 @@ Point the frontend at the local MDA deployment via `NEXT_PUBLIC_LANGGRAPH_API_UR
 (see `frontend/.env.local.example`). Auth, guest issuance, and LangSmith
 operations go through the managed identity and connector surface.
 
+### LangSmith Tracing
+
+Root runs include an `environment` metadata value from `LANGSMITH_ENVIRONMENT`,
+then `ENVIRONMENT`, with `production` as the default. The synthetic
+`slo-probe-turn` latency probe must target a non-production LangSmith project;
+if it runs in this project, set `environment` to a non-production value and use
+a distinct `source_type` so probe roots can be excluded from dashboards, run
+rules, and baseline latency and error percentiles.
+
 ## Project Structure
 
 ```txt
