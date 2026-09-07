@@ -69,16 +69,24 @@ class GuardrailsState(AgentState):
     off_topic_query: NotRequired[bool]
 
 
-if _USE_LOCAL_PROMPTS:
-    _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
-    guardrails_prompt_commit = None
-    guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
-    logger.info("Using local guardrails prompt because USE_LOCAL_PROMPTS is enabled")
-else:
+def _load_guardrails_prompt() -> None:
+    """Load the guardrails prompt from the configured source."""
+    global _GUARDRAILS_SYSTEM_PROMPT
+    global guardrails_prompt_commit, guardrails_prompt_source
+
+    if _USE_LOCAL_PROMPTS:
+        _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
+        guardrails_prompt_commit = None
+        guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
+        logger.info(
+            "Using local guardrails prompt because USE_LOCAL_PROMPTS is enabled"
+        )
+        return
+
     _langsmith_client = Client()
     try:
         _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
-        _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.invoke({"messages": []}).messages[
+        _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.format_messages(messages=[])[
             0
         ].content
         guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
@@ -95,6 +103,9 @@ else:
         _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
         guardrails_prompt_commit = None
         guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
+
+
+_load_guardrails_prompt()
 
 
 class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
@@ -169,9 +180,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -380,14 +389,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
