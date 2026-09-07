@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
+import importlib
+
 from src.utils import prompt_provenance as provenance
 
 
@@ -82,3 +85,49 @@ def test_resolve_hub_provenance_without_overrides_uses_default_client(monkeypatc
     assert constructed == [{}, {}]
     assert result["prompt_source"].startswith("hub:")
     assert "prompt_commit" not in result
+
+
+def test_hub_prompt_pulls_disable_tracing(monkeypatch):
+    provenance._resolve_hub_provenance.cache_clear()
+    tracing_states: list[bool | None] = []
+
+    @contextlib.contextmanager
+    def fake_tracing_context(*, enabled):
+        tracing_states.append(enabled)
+        yield
+
+    monkeypatch.setattr(provenance, "tracing_context", fake_tracing_context)
+
+    class FakeClient:
+        def pull_prompt(self, hub_name: str):
+            return _FakeTemplate(f"commit-for-{hub_name}")
+
+    monkeypatch.setattr(provenance, "_hub_client", lambda *args: FakeClient())
+    provenance._resolve_hub_provenance("provenance-prompt", None, False)
+
+    import langsmith
+    from langsmith import run_helpers
+
+    import src.middleware.guardrails_middleware as guardrails_module
+    original_classification_error = guardrails_module.GuardrailsClassificationError
+
+    class FakeGuardrailsTemplate:
+        metadata = {"lc_hub_commit_hash": "guardrails-commit"}
+
+        def invoke(self, _input):
+            class Result:
+                messages = [type("Message", (), {"content": "prompt"})()]
+
+            return Result()
+
+    class FakeGuardrailsClient:
+        def pull_prompt(self, hub_name: str):
+            return FakeGuardrailsTemplate()
+
+    monkeypatch.setenv("USE_LOCAL_PROMPTS", "")
+    monkeypatch.setattr(langsmith, "Client", lambda: FakeGuardrailsClient())
+    monkeypatch.setattr(run_helpers, "tracing_context", fake_tracing_context)
+    importlib.reload(guardrails_module)
+    guardrails_module.GuardrailsClassificationError = original_classification_error
+
+    assert tracing_states == [False, False]

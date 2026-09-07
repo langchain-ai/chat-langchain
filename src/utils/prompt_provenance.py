@@ -1,8 +1,10 @@
-# Prompt provenance lookup for LangSmith trace metadata.
+"""Prompt provenance lookup for LangSmith trace metadata."""
 
 import logging
 import os
 from functools import lru_cache
+
+from langsmith.run_helpers import tracing_context
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +80,8 @@ def _resolve_hub_provenance(
     """
     try:
         client = _hub_client(workspace_id, _prompt_api_key() if api_key_set else None)
-        template = client.pull_prompt(hub_name)
+        with tracing_context(enabled=False):
+            template = client.pull_prompt(hub_name)
         commit = (template.metadata or {}).get("lc_hub_commit_hash")
         if not commit:
             logger.warning(
