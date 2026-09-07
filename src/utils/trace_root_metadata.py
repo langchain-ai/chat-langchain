@@ -21,6 +21,13 @@ def build_docs_agent_trace_metadata(
     """Return metadata that should land on the root LangSmith run."""
     metadata: dict[str, str] = {
         "source_type": "Chat-LangChain",
+        "environment": (
+            "development"
+            if os.environ.get("LANGSMITH_ENV") == "dev"
+            or os.environ.get("LANGSMITH_HOST_PROJECT_NAME")
+            == "immanuel-chat-langchain-test"
+            else "production"
+        ),
         **get_prompt_provenance(graph_id),
     }
     revision = os.environ.get("LANGCHAIN_REVISION_ID") or os.environ.get(
