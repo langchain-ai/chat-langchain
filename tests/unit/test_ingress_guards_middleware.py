@@ -36,6 +36,52 @@ def test_before_agent_noop_when_under_cap():
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
 
+def test_before_agent_redacts_quoted_api_key_header():
+    middleware = IngressGuardsMiddleware()
+    key = "lsv2_sk_" + "a" * 40
+    content = f'''curl https://example.test -H "X-Api-Key: {key}"'''
+    human = HumanMessage(content=content, id="h1")
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content == (
+        'curl https://example.test -H "X-Api-Key: <REDACTED_CREDENTIAL>"'
+    )
+
+
+def test_redaction_ignores_documentation_placeholders_and_short_keys():
+    middleware = IngressGuardsMiddleware()
+    content = "lsv2_your_api_key sk-..."
+
+    assert middleware._redact_text(content) == content
+
+
+def test_redaction_preserves_non_text_content_blocks():
+    middleware = IngressGuardsMiddleware()
+    key = "lsv2_sk_" + "b" * 40
+    content = [
+        {"type": "text", "text": f"key: {key}"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}},
+    ]
+
+    redacted = middleware._redact_content(content)
+
+    assert redacted[0]["text"] == "key: <REDACTED_CREDENTIAL>"
+    assert redacted[1] is content[1]
+
+
+def test_before_agent_redacts_before_truncating():
+    middleware = IngressGuardsMiddleware()
+    key = "lsv2_sk_" + "c" * 40
+    content = key + " " + "x" * MAX_MESSAGE_CHARS
+    human = HumanMessage(content=content, id="h1")
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content.startswith("<REDACTED_CREDENTIAL>")
+    assert len(update["messages"][0].content) == MAX_MESSAGE_CHARS
+
+
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
