@@ -5,11 +5,13 @@ from managed_deepagents.runtime import compile_managed_agent
 from _mda_connectors import connectors as _connectors
 from agent import agent as _definition
 from identity import identity as _identity
+from src.tools.pylon_tools import check_pylon_readiness
 
 _system_prompt = Path(__file__).with_name("instructions.md").read_text()
 
 
 def agent(config):
+    check_pylon_readiness()
     return compile_managed_agent(
         _definition,
         config,
