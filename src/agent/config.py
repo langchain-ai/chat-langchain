@@ -16,6 +16,9 @@ from src.middleware.retry_middleware import (
     MalformedResponseError,
     ModelRetryMiddleware,
 )
+from src.middleware.support_kb_disclosure_middleware import (
+    SupportKBDisclosureMiddleware,
+)
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
 dotenv.load_dotenv()
@@ -137,6 +140,7 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
+support_kb_disclosure_middleware = SupportKBDisclosureMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
@@ -161,6 +165,7 @@ __all__ = [
     "model_retry_middleware",
     "tool_retry_middleware",
     "docs_research_guard_middleware",
+    "support_kb_disclosure_middleware",
     "citation_guard_middleware",
     "model_fallback_middleware",
     # Config
