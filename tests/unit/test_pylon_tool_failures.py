@@ -9,23 +9,23 @@ from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 from src.tools.pylon_tools import (
+    SUPPORT_KB_UNAVAILABLE,
     PylonUnavailableError,
     _raise_for_status,
     search_support_articles,
 )
 
 
-def test_search_support_articles_raises_for_unauthorized_response():
-    """Unauthorized Pylon responses raise instead of returning tool content."""
+def test_search_support_articles_returns_sentinel_for_unauthorized_response():
+    """Unauthorized Pylon responses return a stable outage sentinel."""
     response = MagicMock(status_code=401)
     with patch("src.tools.pylon_tools.requests.get", return_value=response):
         with patch("src.tools.pylon_tools._get_api_key", return_value="fake-key"):
             with patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123"):
-                with pytest.raises(PylonUnavailableError) as context:
+                assert (
                     search_support_articles.invoke({"collections": "all"})
-
-    assert "PYLON_API_KEY" in str(context.value)
-    assert "api.usepylon.com" in str(context.value)
+                    == SUPPORT_KB_UNAVAILABLE
+                )
 
 
 def test_raise_for_status_detects_unauthorized_http_error_response():
