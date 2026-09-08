@@ -62,6 +62,9 @@ cp .env.example .env
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
 
+The current `PYLON_API_KEY` receives HTTP 401 responses from `api.usepylon.com`; rotate
+the key for the support-KB retrieval leg to function.
+
 ### Running Locally
 
 #### Backend
