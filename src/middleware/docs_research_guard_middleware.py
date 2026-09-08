@@ -33,6 +33,11 @@ _RETRY_INSTRUCTIONS = (
 _FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "docs_research_guard_forced_turn", default=None
 )
+SUPPORT_KB_DISCLOSURE = (
+    "Support articles could not be consulted, so this answer is based on official "
+    "documentation only."
+)
+SUPPORT_KB_TOOLS = frozenset({"search_support_articles", "get_support_article_content"})
 
 
 class DocsResearchGuardMiddleware(AgentMiddleware):
@@ -52,7 +57,29 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
             )
-            return await handler(retry_request)
+            response = await handler(retry_request)
+        return self._add_support_kb_disclosure(request, response)
+
+    def _add_support_kb_disclosure(
+        self, request: ModelRequest, response: ModelResponse
+    ) -> ModelResponse:
+        if not self._has_support_kb_error(request.messages):
+            return response
+        messages = self._response_messages(response)
+        if self._has_pending_tool_calls(messages):
+            return response
+        for index in range(len(messages) - 1, -1, -1):
+            message = messages[index]
+            if not isinstance(message, AIMessage):
+                continue
+            text = self._message_text(message)
+            if SUPPORT_KB_DISCLOSURE in text:
+                return response
+            messages[index] = message.model_copy(
+                update={"content": f"{text.rstrip()}\n\n{SUPPORT_KB_DISCLOSURE}"}
+            )
+            response.result = messages
+            return response
         return response
 
     def _should_retry(self, request: ModelRequest, response: ModelResponse) -> bool:
@@ -99,6 +126,17 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         return any(
             isinstance(message, ToolMessage) and message.name in RESEARCH_TOOLS
             for message in messages
+        )
+
+    def _has_support_kb_error(self, messages: list[BaseMessage]) -> bool:
+        latest_human_index = self._latest_human_index(messages)
+        if latest_human_index < 0:
+            return False
+        return any(
+            isinstance(message, ToolMessage)
+            and message.name in SUPPORT_KB_TOOLS
+            and message.status == "error"
+            for message in messages[latest_human_index + 1 :]
         )
 
     def _is_substantive_technical_answer(self, messages: list[BaseMessage]) -> bool:
