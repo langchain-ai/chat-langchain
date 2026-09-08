@@ -14,6 +14,7 @@ not synthesized; archive deploys use ``LANGSMITH_HOST_REVISION_ID`` /
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
@@ -21,6 +22,37 @@ from langgraph.runtime import Runtime
 
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
 MAX_MESSAGE_CHARS = 50_000
+REDACTED_SECRET = "YOUR_API_KEY_HERE"
+
+CREDENTIAL_PATTERNS = [
+    re.compile(
+        r"(?<![A-Za-z0-9_])(?:lsv2_pt_|lsv2_sk_|lcl_|sk-proj-|sk-|tvly-|AIza|ghp_|gho_|xoxb-|pk_live_)(?!your_api_key_here\b)[A-Za-z0-9_.-]+"
+    ),
+    re.compile(r"(?<![A-Za-z0-9_])eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+"),
+    re.compile(
+        r"(?i)(?P<prefix>(?:[A-Za-z0-9_]*)?(?:api_key|token|secret|password)\s*=\s*)(?P<quote>[\"']?)(?!lsv2_your_api_key_here\b)(?P<value>[^\"'\s,;&}]+)(?P=quote)"
+    ),
+    re.compile(
+        r"(?i)(?P<prefix>X-Api-Key\s*:\s*)(?P<quote>[\"']?)(?!lsv2_your_api_key_here\b)(?P<value>[^\"'\s,;]+)(?P=quote)"
+    ),
+    re.compile(
+        r"(?i)(?P<prefix>Authorization\s*:\s*Bearer\s+)(?P<quote>[\"']?)(?!lsv2_your_api_key_here\b)(?P<value>[^\"'\s,;]+)(?P=quote)"
+    ),
+]
+
+
+def _redact_secrets(text: str) -> str:
+    """Replace credential values with a stable placeholder."""
+    for pattern in CREDENTIAL_PATTERNS:
+        text = pattern.sub(
+            lambda match: (
+                f"{match.group('prefix')}{match.group('quote')}{REDACTED_SECRET}{match.group('quote')}"
+                if "prefix" in match.groupdict()
+                else REDACTED_SECRET
+            ),
+            text,
+        )
+    return text
 
 
 class IngressGuardsMiddleware(AgentMiddleware):
@@ -44,7 +76,12 @@ class IngressGuardsMiddleware(AgentMiddleware):
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
         if isinstance(content, str):
-            return content[:MAX_MESSAGE_CHARS] if len(content) > MAX_MESSAGE_CHARS else content
+            redacted = _redact_secrets(content)
+            return (
+                redacted[:MAX_MESSAGE_CHARS]
+                if len(redacted) > MAX_MESSAGE_CHARS
+                else redacted
+            )
 
         if not isinstance(content, list):
             return content
@@ -54,8 +91,9 @@ class IngressGuardsMiddleware(AgentMiddleware):
         truncated: list[Any] = []
         for block in content:
             if isinstance(block, str):
-                text = block[:remaining]
-                changed = changed or len(text) != len(block)
+                redacted = _redact_secrets(block)
+                text = redacted[:remaining]
+                changed = changed or text != block
                 truncated.append(text)
                 remaining -= len(text)
             elif (
@@ -63,8 +101,9 @@ class IngressGuardsMiddleware(AgentMiddleware):
                 and block.get("type") == "text"
                 and isinstance(block.get("text"), str)
             ):
-                text = block["text"][:remaining]
-                changed = changed or len(text) != len(block["text"])
+                redacted = _redact_secrets(block["text"])
+                text = redacted[:remaining]
+                changed = changed or text != block["text"]
                 truncated.append({**block, "text": text})
                 remaining -= len(text)
             else:
