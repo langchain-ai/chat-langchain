@@ -45,14 +45,18 @@ def test_raise_for_status_detects_unauthorized_http_error_response():
 
 
 def test_tool_retry_middleware_propagates_pylon_failures():
-    """Pylon outages are marked as tool errors instead of success content."""
+    """Pylon outages are sanitized before being returned as tool errors."""
     request = ToolCallRequest(
         tool_call={"name": "search_support_articles", "id": "call-1"},
         tool=None,
         state=None,
         runtime=None,
     )
-    handler = AsyncMock(side_effect=PylonUnavailableError("unauthorized"))
+    error_text = (
+        "Pylon API returned HTTP 401 for https://api.usepylon.com/example; "
+        "check PYLON_API_KEY for knowledge base kb-123."
+    )
+    handler = AsyncMock(side_effect=PylonUnavailableError(error_text))
 
     async def invoke():
         return await ToolRetryMiddleware(max_attempts=3).awrap_tool_call(
@@ -62,5 +66,11 @@ def test_tool_retry_middleware_propagates_pylon_failures():
     result = asyncio.run(invoke())
 
     assert result.status == "error"
-    assert result.content == "unauthorized"
+    assert result.name == "search_support_articles"
+    assert result.tool_call_id == "call-1"
+    assert "PYLON_API_KEY" not in result.content
+    assert "api.usepylon.com" not in result.content
+    assert "kb-123" not in result.content
+    assert "official documentation or other available sources" in result.content
+    assert "support knowledge base could not be searched" in result.content
     handler.assert_awaited_once()
