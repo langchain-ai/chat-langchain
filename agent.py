@@ -5,6 +5,7 @@ from managed_deepagents import define_deep_agent
 from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
+    docs_markup_sanitizer_middleware,
     docs_research_guard_middleware,
     model_fallback_middleware,
     model_retry_middleware,
@@ -50,6 +51,7 @@ docs_agent_middleware = [
     docs_research_guard_middleware,
     model_retry_middleware,
     model_fallback_middleware,
+    docs_markup_sanitizer_middleware,
 ]
 
 agent = define_deep_agent(
