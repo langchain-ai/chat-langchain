@@ -9,9 +9,11 @@ from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 from src.tools.pylon_tools import (
+    PylonConfigurationError,
     PylonUnavailableError,
     _raise_for_status,
     search_support_articles,
+    validate_pylon_configuration,
 )
 
 
@@ -45,7 +47,7 @@ def test_raise_for_status_detects_unauthorized_http_error_response():
 
 
 def test_tool_retry_middleware_propagates_pylon_failures():
-    """Pylon outages are marked as tool errors instead of success content."""
+    """Pylon outages are sanitized into error-status tool messages."""
     request = ToolCallRequest(
         tool_call={"name": "search_support_articles", "id": "call-1"},
         tool=None,
@@ -62,5 +64,19 @@ def test_tool_retry_middleware_propagates_pylon_failures():
     result = asyncio.run(invoke())
 
     assert result.status == "error"
-    assert result.content == "unauthorized"
+    assert '"error": "Tool unavailable"' in result.content
+    assert "support knowledge base unavailable" in result.content
+    assert "api.usepylon.com" not in result.content
+    assert "kb-123" not in result.content
+    assert "PYLON_API_KEY" not in result.content
     handler.assert_awaited_once()
+
+
+def test_validate_pylon_configuration_rejects_unauthorized_credentials():
+    """Startup validation labels rejected Pylon credentials as configuration errors."""
+    response = MagicMock(status_code=401)
+    with patch("src.tools.pylon_tools.requests.get", return_value=response):
+        with patch("src.tools.pylon_tools._get_api_key", return_value="fake-key"):
+            with patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123"):
+                with pytest.raises(PylonConfigurationError, match="Pylon configuration error"):
+                    validate_pylon_configuration()
