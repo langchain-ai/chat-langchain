@@ -52,6 +52,14 @@ def _get_headers() -> Dict[str, str]:
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
 
 
+def check_pylon_credentials() -> tuple[bool, int]:
+    """Check Pylon credentials against the configured knowledge base."""
+    kb_id = _get_kb_id()
+    url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
+    response = requests.get(url, headers=_get_headers())
+    return response.ok, response.status_code
+
+
 def _raise_for_status(response: requests.Response, url: str) -> None:
     """Raise an operator-facing error for invalid Pylon credentials."""
     status_code = response.status_code
@@ -374,3 +382,12 @@ Content:
 # Backwards-compatible Python import alias. The tool name exposed to the model is
 # get_support_article_content, which avoids confusion with official docs pages.
 get_article_content = get_support_article_content
+
+
+__all__ = [
+    "PylonUnavailableError",
+    "check_pylon_credentials",
+    "get_article_content",
+    "get_support_article_content",
+    "search_support_articles",
+]
