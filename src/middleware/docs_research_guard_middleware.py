@@ -97,7 +97,9 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
 
     def _has_research_tool(self, messages: list[BaseMessage]) -> bool:
         return any(
-            isinstance(message, ToolMessage) and message.name in RESEARCH_TOOLS
+            isinstance(message, ToolMessage)
+            and message.name in RESEARCH_TOOLS
+            and getattr(message, "status", None) != "error"
             for message in messages
         )
 
