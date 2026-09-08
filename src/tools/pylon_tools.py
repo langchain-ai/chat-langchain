@@ -47,6 +47,13 @@ _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
 
 
+def reset_caches() -> None:
+    """Clear cached Pylon articles and collections."""
+    global _articles_cache, _collections_cache
+    _articles_cache = None
+    _collections_cache = None
+
+
 def _get_headers() -> Dict[str, str]:
     """Get API headers with authentication."""
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}

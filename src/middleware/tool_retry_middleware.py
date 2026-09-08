@@ -116,8 +116,14 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
             "message": f"{tool_name} failed after {self.max_attempts} attempts.",
             "tool": tool_name,
             "suggestion": (
-                "Try a narrower or related query, use another available source, "
-                "or answer from already retrieved context."
+                "Answer only from public documentation and state plainly in the "
+                "final answer that the support knowledge base could not be "
+                "consulted for the question."
+                if isinstance(error, PylonUnavailableError)
+                else (
+                    "Try a narrower or related query, use another available source, "
+                    "or answer from already retrieved context."
+                )
             ),
             "details": self._error_text(error)[:160],
         }
@@ -134,14 +140,14 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
             try:
                 return await handler(request)
             except PylonUnavailableError as error:
-                logger.warning(
+                logger.error(
                     "Tool %s unavailable: %s",
                     self._tool_name(request),
                     self._error_text(error),
                 )
                 return self._tool_message(
                     request,
-                    self._error_text(error),
+                    self._final_error_content(request, error),
                     status="error",
                 )
             except Exception as error:
