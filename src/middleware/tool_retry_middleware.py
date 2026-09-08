@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -10,7 +11,7 @@ from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
-from src.tools.pylon_tools import PylonUnavailableError
+from src.tools.pylon_tools import PylonAuthError, PylonUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +134,17 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         for attempt in range(1, self.max_attempts + 1):
             try:
                 return await handler(request)
+            except PylonAuthError as error:
+                logger.error(
+                    "Tool %s failed authentication: %s",
+                    self._tool_name(request),
+                    self._error_text(error),
+                )
+                return self._tool_message(
+                    request,
+                    "The support knowledge base is currently unavailable; answer from documentation and tell the user this source could not be checked.",
+                    status="error",
+                )
             except PylonUnavailableError as error:
                 logger.warning(
                     "Tool %s unavailable: %s",
@@ -156,9 +168,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -184,7 +194,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]

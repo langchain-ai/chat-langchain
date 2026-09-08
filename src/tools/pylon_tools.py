@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -21,6 +22,10 @@ PYLON_API_BASE_URL = "https://api.usepylon.com"
 
 class PylonUnavailableError(RuntimeError):
     """Raised when the Pylon knowledge base cannot be reached."""
+
+
+class PylonAuthError(PylonUnavailableError):
+    """Raised when Pylon rejects the configured credentials."""
 
 
 def _get_kb_id() -> str:
@@ -56,20 +61,35 @@ def _raise_for_status(response: requests.Response, url: str) -> None:
     """Raise an operator-facing error for invalid Pylon credentials."""
     status_code = response.status_code
     if status_code in (401, 403):
-        raise PylonUnavailableError(
-            f"Pylon API returned HTTP {status_code} for {url}; "
-            "check or rotate PYLON_API_KEY configuration or credentials."
+        endpoint_path = urlparse(url).path
+        logger.error(
+            "Pylon authentication failed: status=%s path=%s", status_code, endpoint_path
         )
+        raise PylonAuthError(f"Pylon API authentication failed with HTTP {status_code}")
     try:
         response.raise_for_status()
     except requests.exceptions.RequestException as error:
         response_status = getattr(error.response, "status_code", None)
         if response_status in (401, 403):
-            raise PylonUnavailableError(
-                f"Pylon API returned HTTP {response_status} for {url}; "
-                "check or rotate PYLON_API_KEY configuration or credentials."
+            endpoint_path = urlparse(url).path
+            logger.error(
+                "Pylon authentication failed: status=%s path=%s",
+                response_status,
+                endpoint_path,
+            )
+            raise PylonAuthError(
+                f"Pylon API authentication failed with HTTP {response_status}"
             ) from error
         raise
+
+
+def pylon_healthcheck() -> bool:
+    """Verify Pylon credentials with a collections request."""
+    kb_id = _get_kb_id()
+    url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
+    response = requests.get(url, headers=_get_headers())
+    _raise_for_status(response, url)
+    return True
 
 
 def _fetch_collections() -> Dict[str, str]:
