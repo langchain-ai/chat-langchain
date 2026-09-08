@@ -16,6 +16,7 @@ from src.middleware.retry_middleware import (
     MalformedResponseError,
     ModelRetryMiddleware,
 )
+from src.middleware.support_disclosure_middleware import SupportDisclosureMiddleware
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
 dotenv.load_dotenv()
@@ -138,6 +139,7 @@ model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
+support_disclosure_middleware = SupportDisclosureMiddleware()
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
@@ -162,6 +164,7 @@ __all__ = [
     "tool_retry_middleware",
     "docs_research_guard_middleware",
     "citation_guard_middleware",
+    "support_disclosure_middleware",
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
