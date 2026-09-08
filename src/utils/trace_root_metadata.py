@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 
+from src.utils.environment import get_environment
 from src.utils.prompt_provenance import get_prompt_provenance
 
 _PROVENANCE_GRAPH_ID = "docs_agent"
@@ -21,6 +22,7 @@ def build_docs_agent_trace_metadata(
     """Return metadata that should land on the root LangSmith run."""
     metadata: dict[str, str] = {
         "source_type": "Chat-LangChain",
+        "environment": get_environment(),
         **get_prompt_provenance(graph_id),
     }
     revision = os.environ.get("LANGCHAIN_REVISION_ID") or os.environ.get(

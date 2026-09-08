@@ -1,8 +1,12 @@
-# Prompt provenance lookup for LangSmith trace metadata.
+"""Prompt provenance lookup for LangSmith trace metadata."""
 
 import logging
 import os
 from functools import lru_cache
+
+from langsmith.run_helpers import tracing_context
+
+from src.utils.environment import is_staging_environment
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +25,7 @@ _USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
     "true",
     "yes",
 }
-_USE_STAGING = (
-    os.getenv("LANGSMITH_HOST_PROJECT_NAME") == "immanuel-chat-langchain-test"
-    or os.getenv("LANGSMITH_ENV") == "dev"
-)
+_USE_STAGING = is_staging_environment()
 _HUB_PROMPTS: dict[str, str] = {
     "docs_agent": (
         "public-chat-langchain-test:staging"
@@ -77,8 +78,11 @@ def _resolve_hub_provenance(
     invalidates prior failed lookups. The key value itself is read at call time.
     """
     try:
-        client = _hub_client(workspace_id, _prompt_api_key() if api_key_set else None)
-        template = client.pull_prompt(hub_name)
+        with tracing_context(enabled=False):
+            client = _hub_client(
+                workspace_id, _prompt_api_key() if api_key_set else None
+            )
+            template = client.pull_prompt(hub_name)
         commit = (template.metadata or {}).get("lc_hub_commit_hash")
         if not commit:
             logger.warning(

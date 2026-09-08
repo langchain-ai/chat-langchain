@@ -12,6 +12,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
 from langsmith import Client
+from langsmith.run_helpers import tracing_context
 from typing_extensions import NotRequired, TypedDict
 
 from src.prompts.guardrails_prompts import (
@@ -23,6 +24,7 @@ from src.prompts.guardrails_prompts import (
 from src.prompts.guardrails_prompts import (
     rejection_system_prompt as _REJECTION_SYSTEM_PROMPT,
 )
+from src.utils.environment import is_staging_environment
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +38,7 @@ _USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
     "true",
     "yes",
 }
-_USE_STAGING = (
-    os.getenv("LANGSMITH_HOST_PROJECT_NAME") == "immanuel-chat-langchain-test"
-    or os.getenv("LANGSMITH_ENV") == "dev"
-)
+_USE_STAGING = is_staging_environment()
 _GUARDRAILS_PROMPT_HUB_NAME = (
     "public-chat-langchain-guardrails-test:staging"
     if _USE_STAGING
@@ -77,10 +76,13 @@ if _USE_LOCAL_PROMPTS:
 else:
     _langsmith_client = Client()
     try:
-        _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
-        _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.invoke({"messages": []}).messages[
-            0
-        ].content
+        with tracing_context(enabled=False):
+            _prompt_template = _langsmith_client.pull_prompt(
+                _GUARDRAILS_PROMPT_HUB_NAME
+            )
+            _GUARDRAILS_SYSTEM_PROMPT = (
+                _prompt_template.invoke({"messages": []}).messages[0].content
+            )
         guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
             "lc_hub_commit_hash"
         )
