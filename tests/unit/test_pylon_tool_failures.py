@@ -1,6 +1,7 @@
 """Tests for Pylon tool failure propagation."""
 
 import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,8 +10,10 @@ from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 from src.tools.pylon_tools import (
+    PylonCredentialConfigurationError,
     PylonUnavailableError,
     _raise_for_status,
+    check_pylon_credentials,
     search_support_articles,
 )
 
@@ -44,15 +47,20 @@ def test_raise_for_status_detects_unauthorized_http_error_response():
     assert "https://api.usepylon.com/example" in str(context.value)
 
 
-def test_tool_retry_middleware_propagates_pylon_failures():
-    """Pylon outages are marked as tool errors instead of success content."""
+def test_tool_retry_middleware_sanitizes_pylon_failures(caplog):
+    """Pylon outages are logged privately and sanitized for the model."""
     request = ToolCallRequest(
         tool_call={"name": "search_support_articles", "id": "call-1"},
         tool=None,
         state=None,
         runtime=None,
     )
-    handler = AsyncMock(side_effect=PylonUnavailableError("unauthorized"))
+    operator_error = (
+        "Pylon API returned HTTP 401 for "
+        "https://api.usepylon.com/knowledge-bases/kb-123/collections; "
+        "check or rotate PYLON_API_KEY configuration or credentials."
+    )
+    handler = AsyncMock(side_effect=PylonUnavailableError(operator_error))
 
     async def invoke():
         return await ToolRetryMiddleware(max_attempts=3).awrap_tool_call(
@@ -62,5 +70,31 @@ def test_tool_retry_middleware_propagates_pylon_failures():
     result = asyncio.run(invoke())
 
     assert result.status == "error"
-    assert result.content == "unauthorized"
+    payload = json.loads(result.content)
+    assert payload == {
+        "error": "Support knowledge base unavailable",
+        "tool": "search_support_articles",
+        "user_notice": "Tell the user that the support knowledge base could not be consulted.",
+    }
+    assert "https://api.usepylon.com" not in result.content
+    assert "kb-123" not in result.content
+    assert "PYLON_API_KEY" not in result.content
+    assert operator_error in caplog.text
     handler.assert_awaited_once()
+
+
+def test_check_pylon_credentials_raises_configuration_error_on_unauthorized():
+    """Unauthorized credential checks raise a distinct configuration error."""
+    response = MagicMock(status_code=401)
+    with patch("src.tools.pylon_tools.requests.get", return_value=response) as mock_get:
+        with patch("src.tools.pylon_tools._get_api_key", return_value="fake-key"):
+            with patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123"):
+                with pytest.raises(PylonCredentialConfigurationError) as context:
+                    check_pylon_credentials()
+
+    assert "HTTP 401" in str(context.value)
+    assert mock_get.call_count == 1
+    mock_get.assert_called_once_with(
+        "https://api.usepylon.com/knowledge-bases/kb-123/collections",
+        headers={"Authorization": "Bearer fake-key", "Accept": "application/json"},
+    )
