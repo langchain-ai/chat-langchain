@@ -72,7 +72,9 @@ class CitationGuardMiddleware(AgentMiddleware):
         if not invalid_urls:
             return response
 
-        repaired_text = self._remove_footer_urls(footer_message.content, invalid_urls)
+        repaired_text = self._remove_footer_urls(
+            self._message_text(footer_message), invalid_urls
+        )
         if not self._urls_in_footer_text(repaired_text):
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],

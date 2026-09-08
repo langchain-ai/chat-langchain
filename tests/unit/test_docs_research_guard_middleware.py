@@ -148,10 +148,16 @@ def test_ungrounded_footer_url_is_stripped_even_when_reachable(monkeypatch):
         return ModelResponse(
             result=[
                 AIMessage(
-                    content=(
-                        f"**Answer**\n\n**Relevant docs:**\n- [Guide]({grounded})\n"
-                        f"- [Other]({invented})"
-                    )
+                    content=[
+                        {
+                            "type": "text",
+                            "text": (
+                                f"**Answer**\n\n**Relevant docs:**\n"
+                                f"- [Guide]({grounded})\n"
+                                f"- [Other]({invented})"
+                            ),
+                        }
+                    ]
                 )
             ]
         )
