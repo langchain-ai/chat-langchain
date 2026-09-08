@@ -16,8 +16,18 @@ from src.middleware.summarization_middleware import CustomSummarizationMiddlewar
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
-from src.tools.pylon_tools import get_support_article_content, search_support_articles
+from src.tools.pylon_tools import (
+    check_pylon_credentials,
+    get_support_article_content,
+    search_support_articles,
+)
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
+
+pylon_readiness = check_pylon_credentials()
+if pylon_readiness["status"] == "unauthorized":
+    raise RuntimeError(
+        "Pylon support knowledge base readiness failed: unauthorized credentials"
+    )
 
 # The MCP docs tools are declared in connectors/mcp.py so the managed runtime
 # owns client lifecycle and appends those tools during compilation.

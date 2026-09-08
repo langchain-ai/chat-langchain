@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -17,6 +18,20 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+PYLON_UNAVAILABLE_MESSAGE = (
+    "Support knowledge base is temporarily unavailable; answer from documentation "
+    "only and tell the user that support-article grounding was unavailable."
+)
+_PYLON_AUTH_FAILURE_TTL_SECONDS = 60
+
+
+class PylonAuthorizationError(Exception):
+    """Raised when Pylon rejects the configured credentials."""
+
+    def __init__(self, status_code: int):
+        """Store the rejected HTTP status code."""
+        super().__init__(PYLON_UNAVAILABLE_MESSAGE)
+        self.status_code = status_code
 
 
 def _get_kb_id() -> str:
@@ -41,11 +56,74 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+_pylon_auth_failure_until = 0.0
+_pylon_auth_failure_status: Optional[int] = None
 
 
 def _get_headers() -> Dict[str, str]:
     """Get API headers with authentication."""
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
+
+
+def _articles_url() -> str:
+    return f"{PYLON_API_BASE_URL}/knowledge-bases/{_get_kb_id()}/articles"
+
+
+def _cached_auth_failure() -> Optional[PylonAuthorizationError]:
+    if (
+        _pylon_auth_failure_status is not None
+        and time.monotonic() < _pylon_auth_failure_until
+    ):
+        return PylonAuthorizationError(_pylon_auth_failure_status)
+    return None
+
+
+def _record_auth_failure(status_code: int, url: str) -> PylonAuthorizationError:
+    global _pylon_auth_failure_status, _pylon_auth_failure_until
+
+    _pylon_auth_failure_status = status_code
+    _pylon_auth_failure_until = time.monotonic() + _PYLON_AUTH_FAILURE_TTL_SECONDS
+    logger.error(
+        "Pylon authorization failed with HTTP %s for %s; verify the credential "
+        "scope and rotate the PYLON_API_KEY if needed.",
+        status_code,
+        url,
+    )
+    return PylonAuthorizationError(status_code)
+
+
+def _raise_for_pylon_response(response: requests.Response, url: str) -> None:
+    status_code = response.status_code
+    if status_code in (401, 403):
+        raise _record_auth_failure(status_code, url)
+    response.raise_for_status()
+
+
+def check_pylon_credentials() -> Dict[str, Any]:
+    """Check Pylon article endpoint access without downloading articles."""
+    cached_failure = _cached_auth_failure()
+    if cached_failure is not None:
+        return {"status": "unauthorized", "http_status": cached_failure.status_code}
+
+    try:
+        url = _articles_url()
+        response = requests.get(url, headers=_get_headers(), params={"limit": 1})
+        if response.status_code in (401, 403):
+            error = _record_auth_failure(response.status_code, url)
+            return {"status": "unauthorized", "http_status": error.status_code}
+        if response.status_code >= 400:
+            logger.error(
+                "Pylon readiness probe failed with HTTP %s for %s",
+                response.status_code,
+                url,
+            )
+            return {"status": "error", "http_status": response.status_code}
+        return {"status": "ok", "http_status": response.status_code}
+    except (ValueError, requests.exceptions.RequestException) as error:
+        logger.error(
+            "Pylon readiness probe could not reach the articles endpoint: %s", error
+        )
+        return {"status": "unreachable", "http_status": None}
 
 
 def _fetch_collections() -> Dict[str, str]:
@@ -62,7 +140,7 @@ def _fetch_collections() -> Dict[str, str]:
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
     response = requests.get(url, headers=_get_headers())
-    response.raise_for_status()
+    _raise_for_pylon_response(response, url)
 
     collections_data = response.json().get("data", [])
 
@@ -87,8 +165,11 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     if _articles_cache is not None:
         return _articles_cache
 
-    kb_id = _get_kb_id()
-    url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/articles"
+    cached_failure = _cached_auth_failure()
+    if cached_failure is not None:
+        raise cached_failure
+
+    url = _articles_url()
     headers = _get_headers()
 
     all_articles: List[Dict[str, Any]] = []
@@ -98,7 +179,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
     while pages_fetched < max_pages:
         response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
+        _raise_for_pylon_response(response, url)
         body = response.json()
 
         page_data = body.get("data", [])
@@ -278,9 +359,12 @@ def search_support_articles(collections: str = "all") -> str:
     except ValueError as e:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
+    except PylonAuthorizationError:
+        return PYLON_UNAVAILABLE_MESSAGE
     except requests.exceptions.RequestException as e:
         # Network/API error
-        return json.dumps({"error": str(e)}, indent=2)
+        logger.error("Pylon article request failed: %s", e)
+        return "Support knowledge base request failed; answer from documentation only."
     except Exception as e:
         # Catch-all for unexpected errors
         return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
@@ -349,9 +433,12 @@ Content:
     except ValueError as e:
         # API key not configured
         return f"Error: {str(e)}"
+    except PylonAuthorizationError:
+        return PYLON_UNAVAILABLE_MESSAGE
     except requests.exceptions.RequestException as e:
         # Network/API error
-        return f"Error fetching article: {str(e)}"
+        logger.error("Pylon article request failed: %s", e)
+        return "Support knowledge base request failed; answer from documentation only."
     except Exception as e:
         # Catch-all for unexpected errors
         return f"Unexpected error: {str(e)}"

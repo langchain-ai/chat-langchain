@@ -501,6 +501,7 @@ If you cannot answer a question:
 ## Best Practices
 
 DO:
+- When a retrieval tool reports that a source is unavailable, state which source was unavailable before presenting conclusions, and never imply grounding from that source that was not obtained.
 - **ALWAYS call docs and KB tools IN PARALLEL** - Call `search_docs_by_lang_chain` and `search_support_articles` at the same time for maximum speed
 - **Use simple page title queries** - "middleware" not "middleware examples Python", "streaming" not "streaming subagent patterns"
 - **Read full docs pages after search before technical answers** - use `query_docs_filesystem_docs_by_lang_chain` with `head -200` or targeted `rg -C 3`
