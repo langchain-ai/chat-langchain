@@ -62,6 +62,9 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
             return False
+        latest_human_text = self._message_text(messages[latest_human_index])
+        if self._is_immediate_response_intent(latest_human_text):
+            return False
         turn_key = self._turn_key(messages)
         if turn_key == _FORCED_TURN.get():
             return False
@@ -108,12 +111,30 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         return bool(
             "```" in text
             or re.search(r"`[^`]+`", text)
-            or re.search(r"\b[A-Z][A-Za-z0-9]+(?:\.[A-Za-z_][A-Za-z0-9_]*)?\b", text)
             or re.search(
                 r"\b(?:api|class|function|method|constructor|parameter|argument|"
                 r"config(?:uration)?|option|property|field|tool call|invoke|returns?)\b",
                 text,
                 re.IGNORECASE,
+            )
+        )
+
+    def _is_immediate_response_intent(self, text: str) -> bool:
+        if "```" in text or re.search(r"`[^`]+`", text) or "?" in text:
+            return False
+        normalized = re.sub(r"\s+", " ", text.strip()).casefold()
+        normalized = normalized.strip(".,!?;:。！？")
+        return bool(
+            re.fullmatch(
+                r"(?:hi|hello(?: there)?|hey|greetings|yo|sup|good morning|"
+                r"good afternoon|good evening|thanks?|thank you|thx|ty|ok|okay|"
+                r"got it|understood|sure|yep|yes|no|cls|你好|您好|嗨|哈喽|"
+                r"早上好|晚上好|谢谢|好的|收到|明白了|了解了)",
+                normalized,
+            )
+            or re.fullmatch(
+                r"(?:what can you do|what are your capabilities|how can you help)",
+                normalized,
             )
         )
 

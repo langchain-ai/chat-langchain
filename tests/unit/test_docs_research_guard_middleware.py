@@ -8,6 +8,57 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 
 
+def test_canned_greeting_response_does_not_trigger_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[AIMessage(content="Hello! How can I help you today?")]
+        )
+
+    request = ModelRequest(model=object(), messages=[HumanMessage(content="hello")])
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+
+
+def test_immediate_response_intents_do_not_trigger_research():
+    middleware = DocsResearchGuardMiddleware()
+
+    for prompt in ("hello", "cls", "你好"):
+        calls: list[ModelRequest] = []
+
+        async def handler(request: ModelRequest) -> ModelResponse:
+            calls.append(request)
+            return ModelResponse(result=[AIMessage(content="Acknowledged.")])
+
+        request = ModelRequest(model=object(), messages=[HumanMessage(content=prompt)])
+        asyncio.run(middleware.awrap_model_call(request, handler))
+
+        assert len(calls) == 1
+
+
+def test_code_bearing_technical_answer_still_triggers_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[AIMessage(content="Use `StateGraph` to define the graph nodes.")]
+        )
+
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I build a graph?")],
+    )
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+
+
 def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     middleware = DocsResearchGuardMiddleware()
     calls: list[ModelRequest] = []
