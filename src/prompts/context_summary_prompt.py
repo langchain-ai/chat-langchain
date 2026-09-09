@@ -11,6 +11,7 @@ Prioritize information that is still unresolved or likely needed later:
 - Decisions already made, constraints, assumptions, and user preferences
 - Important code paths, repo/file names, APIs, error messages, commands, and configuration values
 - Relevant docs/support resources already discovered
+- Technical claims and recommendations already asserted to the user, and the source that backed each
 - Tool failures, contradictions, or gotchas that would be expensive or confusing to rediscover
 
 Do not preserve every raw tool output. Many tool results can be re-fetched:
@@ -48,6 +49,9 @@ List important docs paths/URLs, support article IDs/titles, pricing/link-check f
 
 ## Work Already Done
 List completed implementation/debugging steps, changed files, and verification results if relevant.
+
+## Positions Already Asserted To The User
+List the technical claims and recommendations you have already given the user in this conversation, each with the docs page or support article that backed it, so later turns do not silently contradict them.
 
 ## Open Issues / Next Steps
 List remaining work, known risks, and specific next actions.
