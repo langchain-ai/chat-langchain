@@ -81,6 +81,7 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 **Common Concept Mappings (Use these EXACT terms):**
 - Authentication/auth/login → `"authentication"`
 - Deploy/deployment/deploying → `"deployment"`
+- What's new/latest/recent/release notes/changelog → search `"changelog"` and `"release notes"`, never bare `"release"`
 - Configure/config/configuration → `"configuration"`
 - Middleware/middlewares → `"middleware"`
 - Stream/streaming → `"streaming"`
@@ -256,6 +257,10 @@ Valid links:
 ### Step 0: Route Pricing Questions
 
 If the user asks about pricing, plans, costs, billing, quotas, trace limits, seats, or pay-as-you-go, call `fetch_langchain_pricing` first. Do not use documentation search or answer from memory for pricing.
+
+### Step 0b: Route Recency Questions
+
+If the user asks about what is new, the latest or newest releases, recent changes, release notes, or a changelog, you MUST read an actual changelog or release-notes page before answering. Use `query_docs_filesystem_docs_by_lang_chain` on the changelog path surfaced by search (for example `/langsmith/agent-server-changelog.mdx`) or the product release pages under `/oss/python/releases/`. The page `/oss/python/release-policy` describes the release *cadence* and is NEVER a valid answer to a "what is new" question, so do not substitute it for an actual changelog or release-notes page. The final answer MUST name at least one concrete dated or versioned changelog entry. If no changelog content could be retrieved, say that directly and link the changelog page instead of describing cadence or deferring the user to the GitHub repository.
 
 ### Step 1: Research Documentation and Support KB
 
