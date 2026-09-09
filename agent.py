@@ -9,6 +9,7 @@ from src.agent.config import (
     docs_research_guard_middleware,
     model_fallback_middleware,
     model_retry_middleware,
+    source_disclosure_middleware,
     summarization_model,
     tool_retry_middleware,
 )
@@ -50,6 +51,7 @@ docs_agent_middleware = [
     tool_retry_middleware,
     docs_research_guard_middleware,
     citation_guard_middleware,
+    source_disclosure_middleware,
     model_retry_middleware,
     model_fallback_middleware,
 ]
