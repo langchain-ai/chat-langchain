@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -33,6 +34,17 @@ RETRYABLE_ERROR_MARKERS = (
     "timeout",
     "too many requests",
 )
+
+
+def _sanitize_pylon_error(text: str) -> str:
+    """Remove infrastructure details from a Pylon error."""
+    text = re.sub(r"https?://\S+", "[redacted URL]", text)
+    text = re.sub(
+        r"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}",
+        "[redacted UUID]",
+        text,
+    )
+    return re.sub(r"\b[A-Z][A-Z0-9_]{3,}\b", "[redacted environment variable]", text)
 
 
 class ToolRetryMiddleware(AgentMiddleware[AgentState]):
@@ -139,11 +151,21 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     self._tool_name(request),
                     self._error_text(error),
                 )
-                return self._tool_message(
-                    request,
-                    self._error_text(error),
-                    status="error",
-                )
+                payload = {
+                    "error": "support_kb_unavailable",
+                    "tool": self._tool_name(request),
+                    "message": (
+                        "The support knowledge base is temporarily unavailable "
+                        "for this request."
+                    ),
+                    "user_disclosure_required": True,
+                    "suggestion": (
+                        "Answer from documentation sources only and tell the user "
+                        "that support knowledge base coverage was unavailable for "
+                        "this answer."
+                    ),
+                }
+                return self._tool_message(request, json.dumps(payload), status="error")
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
@@ -156,9 +178,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -184,7 +204,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]
