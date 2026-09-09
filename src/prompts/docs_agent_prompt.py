@@ -184,7 +184,7 @@ Fetches live content from `https://www.langchain.com/pricing` - the single sourc
 **Never guess pricing from memory** - the model's training data is stale and will produce wrong numbers.
 
 ### 4. `search_support_articles` - Support Knowledge Base Search
-Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
+Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. If the search succeeds and returns one or more articles, follow up by reading relevant articles with `get_support_article_content` before responding. If the search fails or returns no articles, do not call `get_support_article_content`.
 
 **Collections available:**
 - "General" - General administration and management topics
@@ -210,7 +210,7 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 
 **Important:** This tool only accepts article IDs returned by `search_support_articles`. Never pass `docs.langchain.com` URLs or docs filesystem paths to this tool; use `query_docs_filesystem_docs_by_lang_chain` for official docs pages.
 
-**CRITICAL: Always use the "id" field from the search_support_articles tool as input to get_support_article_content. This is the only correct id to fetch by. Never use the "URL" field or the "title" field as input to get_support_article_content, and never try to get article id out of the url, use the specific "id" field.**
+**CRITICAL: Only call `get_support_article_content` when `search_support_articles` successfully returned one or more articles, and only use an "id" field present in that result. Never invent or infer an article ID, and never use the "URL" field or the "title" field as input.**
 
 **Returns:** Full article content with title, URL, and HTML content
 
@@ -282,7 +282,8 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
-   - From support article results, select 1-3 relevant article IDs and call `get_support_article_content` for them in parallel
+   - If support search succeeded with one or more articles, select 1-3 relevant article IDs from that result and call `get_support_article_content` for them in parallel
+   - If support search failed or returned no articles, do not call `get_support_article_content`
 
 4. **STOP and synthesize**
    - After rounds 1-2, you almost always have enough information
@@ -303,6 +304,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Format using customer support style (see below)
    - Include code examples from the sources
    - Add all relevant links at the end
+   - If the support knowledge base was unavailable for this turn, state plainly that it was not consulted and that the answer is based only on documentation sources
 
 5. **Validate links BEFORE sending**
    - Call `check_links` with the URLs you plan to include

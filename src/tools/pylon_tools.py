@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -45,6 +46,33 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+_auth_failure_cooldown_until: Optional[float] = None
+_readiness_result: Optional[bool] = None
+
+
+def _auth_failure_cooldown_seconds() -> float:
+    """Get the authentication failure cooldown duration."""
+    try:
+        return max(0.0, float(os.getenv("PYLON_AUTH_FAILURE_COOLDOWN_SECONDS", "300")))
+    except ValueError:
+        return 300.0
+
+
+def _record_auth_failure() -> None:
+    """Record a Pylon authentication failure cooldown."""
+    global _auth_failure_cooldown_until
+    _auth_failure_cooldown_until = (
+        time.monotonic() + _auth_failure_cooldown_seconds()
+    )
+
+
+def _check_auth_failure_cooldown() -> None:
+    """Raise while Pylon authentication failures are cooling down."""
+    if (
+        _auth_failure_cooldown_until is not None
+        and time.monotonic() < _auth_failure_cooldown_until
+    ):
+        raise PylonUnavailableError("Pylon authentication failure cooldown is active.")
 
 
 def _get_headers() -> Dict[str, str]:
@@ -56,6 +84,7 @@ def _raise_for_status(response: requests.Response, url: str) -> None:
     """Raise an operator-facing error for invalid Pylon credentials."""
     status_code = response.status_code
     if status_code in (401, 403):
+        _record_auth_failure()
         raise PylonUnavailableError(
             f"Pylon API returned HTTP {status_code} for {url}; "
             "check or rotate PYLON_API_KEY configuration or credentials."
@@ -65,6 +94,7 @@ def _raise_for_status(response: requests.Response, url: str) -> None:
     except requests.exceptions.RequestException as error:
         response_status = getattr(error.response, "status_code", None)
         if response_status in (401, 403):
+            _record_auth_failure()
             raise PylonUnavailableError(
                 f"Pylon API returned HTTP {response_status} for {url}; "
                 "check or rotate PYLON_API_KEY configuration or credentials."
@@ -83,6 +113,7 @@ def _fetch_collections() -> Dict[str, str]:
     if _collections_cache is not None:
         return _collections_cache
 
+    _check_auth_failure_cooldown()
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
     response = requests.get(url, headers=_get_headers())
@@ -111,6 +142,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     if _articles_cache is not None:
         return _articles_cache
 
+    _check_auth_failure_cooldown()
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/articles"
     headers = _get_headers()
@@ -144,6 +176,32 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
     _articles_cache = all_articles
     return _articles_cache
+
+
+def check_pylon_readiness() -> bool:
+    """Check Pylon configuration and authentication once at startup."""
+    global _readiness_result
+
+    if _readiness_result is not None:
+        return _readiness_result
+
+    try:
+        kb_id = _get_kb_id()
+        api_key = _get_api_key()
+        url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
+        response = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
+        )
+        _raise_for_status(response, url)
+    except (PylonUnavailableError, ValueError, requests.exceptions.RequestException) as error:
+        logger.error("Pylon readiness check failed: %s", error)
+        _readiness_result = False
+        return False
+
+    logger.info("Pylon support knowledge base readiness check passed")
+    _readiness_result = True
+    return True
 
 
 # =============================================================================
