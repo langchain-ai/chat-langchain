@@ -10,6 +10,7 @@ from src.agent.config import (
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
+    support_kb_disclosure_middleware,
     tool_retry_middleware,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
@@ -50,6 +51,7 @@ docs_agent_middleware = [
     tool_retry_middleware,
     docs_research_guard_middleware,
     citation_guard_middleware,
+    support_kb_disclosure_middleware,
     model_retry_middleware,
     model_fallback_middleware,
 ]
