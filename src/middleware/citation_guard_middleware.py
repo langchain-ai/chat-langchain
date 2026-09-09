@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from typing import Any
 
 from langchain.agents.middleware.types import (
@@ -24,6 +25,9 @@ DOCS_TOOLS = frozenset(
 )
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
 _FOOTER_PATTERN = re.compile(r"(?ims)^\s*(?:\*\*)?Relevant docs:\s*(?:\*\*)?.*$")
+_REPAIRED_TURN: ContextVar[str | None] = ContextVar(
+    "citation_guard_repaired_turn", default=None
+)
 _RETRY_INSTRUCTIONS = (
     "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
     "documentation tool results. Call check_links on exactly the final citation list "
@@ -72,22 +76,34 @@ class CitationGuardMiddleware(AgentMiddleware):
         if not invalid_urls:
             return response
 
+        turn_key = self._turn_key(request.messages)
+        if turn_key == _REPAIRED_TURN.get():
+            return response
         repaired_text = self._remove_footer_urls(
             self._message_text(footer_message), invalid_urls
         )
         if not self._urls_in_footer_text(repaired_text):
-            retry_request = request.override(
-                messages=[*request.messages, *self._response_messages(response)],
-                system_message=self._retry_system_message(request),
-            )
-            return await handler(retry_request)
-        return self._replace_footer(response, footer_message, repaired_text)
+            repaired_text = _FOOTER_PATTERN.sub(
+                "", self._message_text(footer_message), count=1
+            ).rstrip()
+            return self._replace_footer(response, footer_message, repaired_text)
+        _REPAIRED_TURN.set(turn_key)
+        retry_request = request.override(
+            messages=[*request.messages, *self._response_messages(response)],
+            system_message=self._retry_system_message(request),
+        )
+        return await handler(retry_request)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
             if getattr(messages[index], "type", None) == "human":
                 return index
         return -1
+
+    def _turn_key(self, messages: list[BaseMessage]) -> str:
+        index = self._latest_human_index(messages)
+        human = messages[index]
+        return str(getattr(human, "id", None) or f"{index}:{human.content!r}")
 
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
@@ -115,12 +131,14 @@ class CitationGuardMiddleware(AgentMiddleware):
         return _URL_PATTERN.findall(match.group(0)) if match else []
 
     def _grounded_urls(self, messages: list[BaseMessage]) -> set[str]:
-        return {
+        grounded_urls = {
             url
             for message in messages
             if isinstance(message, ToolMessage) and message.name in DOCS_TOOLS
             for url in _URL_PATTERN.findall(self._message_text(message))
         }
+        grounded_urls.update(self._valid_urls(messages))
+        return grounded_urls
 
     def _valid_urls(self, messages: list[BaseMessage]) -> set[str]:
         valid_urls: set[str] = set()
