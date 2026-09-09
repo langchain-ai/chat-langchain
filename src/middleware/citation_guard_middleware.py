@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Awaitable, Callable
+from hashlib import sha256
 from typing import Any
 
 from langchain.agents.middleware.types import (
@@ -29,6 +30,7 @@ _RETRY_INSTRUCTIONS = (
     "documentation tool results. Call check_links on exactly the final citation list "
     "before answering. Never construct or recall a documentation URL."
 )
+_REPAIR_ATTEMPTS_KEY = "citation_guard_repair_attempts"
 
 
 class CitationGuardMiddleware(AgentMiddleware):
@@ -55,7 +57,7 @@ class CitationGuardMiddleware(AgentMiddleware):
         footer_urls = self._urls_in_footer(footer_message)
         if not footer_urls:
             return response
-        grounded_urls = self._grounded_urls(turn_messages)
+        grounded_urls = self._grounded_urls(request.messages)
         valid_urls = self._valid_urls(turn_messages)
         unchecked_urls = [
             url for url in footer_urls if url in grounded_urls and url not in valid_urls
@@ -67,7 +69,7 @@ class CitationGuardMiddleware(AgentMiddleware):
         invalid_urls = {
             url
             for url in footer_urls
-            if url not in grounded_urls or url not in valid_urls
+            if url not in grounded_urls | valid_urls
         }
         if not invalid_urls:
             return response
@@ -76,12 +78,31 @@ class CitationGuardMiddleware(AgentMiddleware):
             self._message_text(footer_message), invalid_urls
         )
         if not self._urls_in_footer_text(repaired_text):
+            turn_key = self._turn_key(request, latest_human_index)
+            if self._repair_attempted(request, turn_key):
+                return self._replace_footer(response, footer_message, repaired_text)
+            self._record_repair_attempt(request, turn_key)
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
             )
             return await handler(retry_request)
         return self._replace_footer(response, footer_message, repaired_text)
+
+    def _turn_key(self, request: ModelRequest, human_index: int) -> str:
+        human_message = request.messages[human_index]
+        message_id = getattr(human_message, "id", None)
+        if message_id:
+            return str(message_id)
+        return sha256(self._message_text(human_message).encode()).hexdigest()
+
+    def _repair_attempted(self, request: ModelRequest, turn_key: str) -> bool:
+        attempts = request.state.get(_REPAIR_ATTEMPTS_KEY, {})
+        return bool(attempts.get(turn_key, 0))
+
+    def _record_repair_attempt(self, request: ModelRequest, turn_key: str) -> None:
+        attempts = request.state.setdefault(_REPAIR_ATTEMPTS_KEY, {})
+        attempts[turn_key] = attempts.get(turn_key, 0) + 1
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
@@ -149,6 +170,8 @@ class CitationGuardMiddleware(AgentMiddleware):
             for line in footer.splitlines()
             if not invalid_urls.intersection(_URL_PATTERN.findall(line))
         ]
+        if not any(_URL_PATTERN.findall(line) for line in lines):
+            return text[: match.start()] + text[match.end() :]
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
 
     def _replace_footer(
