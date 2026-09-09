@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import importlib
+
+from langchain_core.messages import SystemMessage
+
 from src.utils import prompt_provenance as provenance
 
 
@@ -82,3 +86,31 @@ def test_resolve_hub_provenance_without_overrides_uses_default_client(monkeypatc
     assert constructed == [{}, {}]
     assert result["prompt_source"].startswith("hub:")
     assert "prompt_commit" not in result
+
+
+def test_guardrails_prompt_import_renders_without_invoke(monkeypatch):
+    monkeypatch.delenv("USE_LOCAL_PROMPTS", raising=False)
+
+    class FakeTemplate:
+        metadata = {"lc_hub_commit_hash": "guardrails-commit"}
+
+        def format_messages(self, *, messages):
+            assert messages == []
+            return [SystemMessage(content="guardrails system prompt")]
+
+        def invoke(self, _input):
+            raise AssertionError("guardrails prompt rendering should not invoke")
+
+    class FakeClient:
+        def pull_prompt(self, hub_name: str):
+            assert hub_name == "public-chat-langchain-guardrails-test:production"
+            return FakeTemplate()
+
+    import langsmith
+
+    monkeypatch.setattr(langsmith, "Client", FakeClient)
+    module = importlib.import_module("src.middleware.guardrails_middleware")
+    importlib.reload(module)
+
+    assert module._GUARDRAILS_SYSTEM_PROMPT == "guardrails system prompt"
+    assert module.guardrails_prompt_commit == "guardrails-commit"
