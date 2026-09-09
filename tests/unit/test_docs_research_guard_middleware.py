@@ -212,7 +212,7 @@ def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):
     assert url in result.result[0].content
 
 
-def test_entirely_ungrounded_footer_retries_with_correction():
+def test_entirely_ungrounded_footer_is_removed_without_retry():
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 
     url = "https://docs.langchain.com/oss/python/langgraph/invented"
@@ -233,9 +233,97 @@ def test_entirely_ungrounded_footer_retries_with_correction():
 
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
-    assert len(calls) == 2
-    assert (
-        "copied verbatim from this turn's documentation tool results"
-        in calls[1].system_prompt
+    assert len(calls) == 1
+    assert "Relevant docs:" not in result.result[0].content
+
+
+def test_ungrounded_retry_footer_is_removed(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+    from src.tools.link_check_tools import LinkCheckResult
+
+    grounded = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    invented = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {grounded}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
     )
-    assert result.result[0].content == calls[1].messages[-1].content
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({invented})"
+                )
+            ]
+        )
+
+    async def check_urls(urls: list[str], timeout: float):
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert "Relevant docs:" not in result.result[0].content
+    assert invented not in result.result[0].content
+
+
+def test_grounded_retry_footer_is_returned_unchanged(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+    from src.tools.link_check_tools import LinkCheckResult
+
+    grounded = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    invented = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {grounded}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+    retry_response = ModelResponse(
+        result=[
+            AIMessage(
+                content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({grounded})"
+            )
+        ]
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        if len(calls) == 1:
+            return ModelResponse(
+                result=[
+                    AIMessage(
+                        content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({invented})"
+                    )
+                ]
+            )
+        return retry_response
+
+    async def check_urls(urls: list[str], timeout: float):
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert result is retry_response
