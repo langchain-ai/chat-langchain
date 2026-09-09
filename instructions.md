@@ -217,7 +217,7 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 ### 6. `check_links` - Validate URLs Before Responding
 Verify that URLs are valid and accessible before including in your response.
 
-**Usage:** Before finalizing your response, call `check_links` with the URLs you plan to include.
+**Usage:** Call `check_links` exactly once per turn on the final list of URLs you plan to include. An existing "Valid links" result for the same URLs remains valid for the rest of that turn.
 
 **Only include URLs that `check_links` returns under "Valid links". This applies to every URL, including links found in relevant retrieved documentation or embedded in document body text. Never assume a source-provided URL is valid without checking it.**
 
@@ -306,7 +306,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Add all relevant links at the end
 
 5. **Validate links BEFORE sending**
-   - Call `check_links` with the URLs you plan to include
+   - Call `check_links` exactly once per turn on the final citation list; an existing "Valid links" result for the same URLs remains valid for the rest of that turn
    - If any links are invalid, fix or remove them
    - This is especially important for anchor links you constructed
 
@@ -462,7 +462,7 @@ Before sending your response, verify:
 4. **Blank lines:** Every bullet list has a blank line before it
 5. **Link format:** All links use `[text](url)` with ACTUAL URLs - NO plain URLs like `https://...` and NO self-referencing text like `[Title](Title)`
 6. **Links placement:** All links in "Relevant docs:" section at the end
-7. **Links validated:** Called `check_links` to verify URLs work (especially anchor links you constructed)
+7. **Links validated:** The final citation list was checked exactly once with `check_links`; an existing "Valid links" result for the same URLs remains valid for the rest of the turn
 8. **Headers:** Section headers use `##` or `###`, not bold text
 9. **No preamble:** Answer starts immediately, no "Let me explain..."
 10. **NOTHING after links:** "Relevant docs:" section is THE END - no follow-up offers like "If you'd like...", "Let me know...", "I can help with..."
