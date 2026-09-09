@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextvars
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -30,9 +29,8 @@ _RETRY_INSTRUCTIONS = (
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
     "then use the retrieved documentation to answer. Do not answer from memory."
 )
-_FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "docs_research_guard_forced_turn", default=None
-)
+_FORCED_MARKER = "docs_research_guard_forced"
+_MAX_FORCED_RETRIES = 1
 
 
 class DocsResearchGuardMiddleware(AgentMiddleware):
@@ -46,10 +44,11 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         """Require fresh research before returning a technical answer."""
         response = await handler(request)
         if self._should_retry(request, response):
-            turn_key = self._turn_key(request.messages)
-            _FORCED_TURN.set(turn_key)
             retry_request = request.override(
-                messages=[*request.messages, *self._response_messages(response)],
+                messages=[
+                    *request.messages,
+                    *self._mark_forced_response(self._response_messages(response)),
+                ],
                 system_message=self._retry_system_message(request),
             )
             return await handler(retry_request)
@@ -62,8 +61,10 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
             return False
-        turn_key = self._turn_key(messages)
-        if turn_key == _FORCED_TURN.get():
+        if (
+            self._forced_retry_count(messages[latest_human_index + 1 :])
+            >= _MAX_FORCED_RETRIES
+        ):
             return False
         response_messages = self._response_messages(response)
         if self._has_pending_tool_calls(response_messages):
@@ -78,16 +79,34 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
                 return index
         return -1
 
-    def _turn_key(self, messages: list[BaseMessage]) -> str:
-        index = self._latest_human_index(messages)
-        human = messages[index]
-        return str(getattr(human, "id", None) or f"{index}:{human.content!r}")
-
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
         if result is not None:
             return list(result)
         return [response]
+
+    def _mark_forced_response(self, messages: list[BaseMessage]) -> list[BaseMessage]:
+        marked = list(messages)
+        for index in range(len(marked) - 1, -1, -1):
+            message = marked[index]
+            if isinstance(message, AIMessage):
+                marked[index] = message.model_copy(
+                    update={
+                        "additional_kwargs": {
+                            **message.additional_kwargs,
+                            _FORCED_MARKER: True,
+                        }
+                    }
+                )
+                break
+        return marked
+
+    def _forced_retry_count(self, messages: list[BaseMessage]) -> int:
+        return sum(
+            isinstance(message, AIMessage)
+            and bool(message.additional_kwargs.get(_FORCED_MARKER))
+            for message in messages
+        )
 
     def _has_pending_tool_calls(self, messages: list[BaseMessage]) -> bool:
         return any(
