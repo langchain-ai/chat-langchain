@@ -83,6 +83,68 @@ def test_check_links_does_not_satisfy_research_requirement():
     assert len(calls) == 2
 
 
+def test_forced_retry_marker_prevents_a_second_retry_after_check_links():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Explain the StateGraph constructor.")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        if len(calls) == 1:
+            return ModelResponse(
+                result=[
+                    AIMessage(
+                        content="The StateGraph constructor accepts configuration options."
+                    )
+                ]
+            )
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="I will validate the answer links.",
+                    tool_calls=[
+                        {
+                            "name": "check_links",
+                            "args": {"urls": []},
+                            "id": "check-links",
+                            "type": "tool_call",
+                        }
+                    ],
+                )
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+    retry_request = calls[1].override(
+        messages=[
+            *calls[1].messages,
+            ToolMessage(
+                content="Links are valid.",
+                name="check_links",
+                tool_call_id="check-links",
+            ),
+        ]
+    )
+
+    async def second_handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="The constructor accepts configuration options after link validation."
+                )
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(retry_request, second_handler))
+
+    assert len(calls) == 3
+    assert calls[1].messages[-1].additional_kwargs["docs_research_guard_forced"] is True
+
+
 def test_retrieved_and_valid_footer_url_passes_through(monkeypatch):
     from src.middleware import citation_guard_middleware as citation_module
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
