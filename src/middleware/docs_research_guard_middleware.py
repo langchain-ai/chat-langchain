@@ -24,6 +24,10 @@ RESEARCH_TOOLS = frozenset(
         "get_support_article_content",
     }
 )
+EXEMPT_TURN_TOOLS = RESEARCH_TOOLS | {"check_links"}
+LANGCHAIN_IDENTIFIERS = frozenset(
+    {"langchain", "langgraph", "langsmith", "deepagents", "fleet", "langserve"}
+)
 RESEARCH_GUARD_DISABLED_ENV = "DOCS_RESEARCH_GUARD_DISABLED"
 _RETRY_INSTRUCTIONS = (
     "Before answering, research this question on this turn. Call "
@@ -44,6 +48,17 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
         """Require fresh research before returning a technical answer."""
+        latest_human_index = self._latest_human_index(request.messages)
+        if latest_human_index >= 0 and self._is_exempt_turn(
+            request.messages[latest_human_index]
+        ):
+            request = request.override(
+                tools=[
+                    tool
+                    for tool in request.tools or []
+                    if self._tool_name(tool) not in EXEMPT_TURN_TOOLS
+                ]
+            )
         response = await handler(request)
         if self._should_retry(request, response):
             turn_key = self._turn_key(request.messages)
@@ -61,6 +76,8 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         messages = request.messages
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
+            return False
+        if self._is_exempt_turn(messages[latest_human_index]):
             return False
         turn_key = self._turn_key(messages)
         if turn_key == _FORCED_TURN.get():
@@ -100,6 +117,29 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             isinstance(message, ToolMessage) and message.name in RESEARCH_TOOLS
             for message in messages
         )
+
+    def _is_exempt_turn(self, message: BaseMessage) -> bool:
+        text = self._message_text(message).strip()
+        if not text or len(text) > 120 or "```" in text:
+            return False
+        normalized = re.sub(r"\s+", " ", text.casefold()).strip("!?。！？，,.")
+        if any(identifier in normalized for identifier in LANGCHAIN_IDENTIFIERS):
+            return False
+        return bool(
+            re.fullmatch(
+                r"(?:hello(?: there)?|hi(?: there)?|hey(?: there)?|你好|您好|早上好|晚上好|"
+                r"thanks?(?: for your help)?|thank you|谢谢|多谢|ok(?:ay)?|got it|understood|"
+                r"sounds good|sure|yes|no|明白了|知道了|收到|好的|"
+                r"cls|你有哪些能力|你能做什么|what can you do|what are your capabilities|"
+                r"please restate|please clarify|请重述|请重新说明|请澄清|能再说一遍吗)",
+                normalized,
+            )
+        )
+
+    def _tool_name(self, tool: Any) -> str:
+        if isinstance(tool, dict):
+            return str(tool.get("name", ""))
+        return str(getattr(tool, "name", ""))
 
     def _is_substantive_technical_answer(self, messages: list[BaseMessage]) -> bool:
         text = "\n".join(self._message_text(message) for message in messages)
