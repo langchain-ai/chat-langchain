@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextvars
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -30,9 +29,6 @@ _RETRY_INSTRUCTIONS = (
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
     "then use the retrieved documentation to answer. Do not answer from memory."
 )
-_FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "docs_research_guard_forced_turn", default=None
-)
 
 
 class DocsResearchGuardMiddleware(AgentMiddleware):
@@ -46,8 +42,6 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         """Require fresh research before returning a technical answer."""
         response = await handler(request)
         if self._should_retry(request, response):
-            turn_key = self._turn_key(request.messages)
-            _FORCED_TURN.set(turn_key)
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
@@ -62,8 +56,15 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
             return False
-        turn_key = self._turn_key(messages)
-        if turn_key == _FORCED_TURN.get():
+        if (
+            request.system_message
+            and _RETRY_INSTRUCTIONS in request.system_message.text
+        ):
+            return False
+        if any(
+            isinstance(message, AIMessage) and self._message_text(message).strip()
+            for message in messages[latest_human_index + 1 :]
+        ):
             return False
         response_messages = self._response_messages(response)
         if self._has_pending_tool_calls(response_messages):
@@ -77,11 +78,6 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             if getattr(messages[index], "type", None) == "human":
                 return index
         return -1
-
-    def _turn_key(self, messages: list[BaseMessage]) -> str:
-        index = self._latest_human_index(messages)
-        human = messages[index]
-        return str(getattr(human, "id", None) or f"{index}:{human.content!r}")
 
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)

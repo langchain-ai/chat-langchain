@@ -3,7 +3,7 @@
 import asyncio
 
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 
@@ -81,6 +81,67 @@ def test_check_links_does_not_satisfy_research_requirement():
     asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert len(calls) == 2
+
+
+def test_retry_instructions_prevent_a_second_research_retry():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Explain the StateGraph constructor.")],
+        system_message=SystemMessage(
+            content=(
+                "Before answering, research this question on this turn. Call "
+                "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
+                "then use the retrieved documentation to answer. Do not answer from memory."
+            )
+        ),
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="The StateGraph constructor accepts configuration options."
+                )
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+
+
+def test_multiple_model_steps_allow_only_one_research_retry():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    first_request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Explain the StateGraph constructor.")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="The StateGraph constructor accepts configuration options."
+                )
+            ]
+        )
+
+    first_response = asyncio.run(middleware.awrap_model_call(first_request, handler))
+    second_request = ModelRequest(
+        model=object(),
+        messages=[*first_request.messages, *first_response.result],
+    )
+    asyncio.run(middleware.awrap_model_call(second_request, handler))
+
+    assert len(calls) == 3
+    assert calls[0].system_message is None
+    assert calls[1].system_message is not None
+    assert calls[2].system_message is None
 
 
 def test_retrieved_and_valid_footer_url_passes_through(monkeypatch):
@@ -239,3 +300,31 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         in calls[1].system_prompt
     )
     assert result.result[0].content == calls[1].messages[-1].content
+
+
+def test_exhausted_citation_retry_strips_invalid_urls_without_regenerating():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            AIMessage(content=f"**Relevant docs:**\n- [Guide]({url})"),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert url not in result.result[0].content
