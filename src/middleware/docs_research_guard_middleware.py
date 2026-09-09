@@ -25,6 +25,11 @@ RESEARCH_TOOLS = frozenset(
     }
 )
 RESEARCH_GUARD_DISABLED_ENV = "DOCS_RESEARCH_GUARD_DISABLED"
+KB_RESEARCH_TOOLS = frozenset(
+    {"search_support_articles", "get_support_article_content"}
+)
+KB_UNAVAILABLE_SENTINEL = "SUPPORT_KB_UNAVAILABLE"
+KB_DISCLOSURE = "Support articles could not be consulted, so this answer is based on official documentation only."
 _RETRY_INSTRUCTIONS = (
     "Before answering, research this question on this turn. Call "
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
@@ -52,8 +57,8 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
             )
-            return await handler(retry_request)
-        return response
+            response = await handler(retry_request)
+        return self._append_kb_disclosure(request, response)
 
     def _should_retry(self, request: ModelRequest, response: ModelResponse) -> bool:
         if os.getenv(RESEARCH_GUARD_DISABLED_ENV, "").lower() in {"1", "true", "yes"}:
@@ -97,9 +102,57 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
 
     def _has_research_tool(self, messages: list[BaseMessage]) -> bool:
         return any(
-            isinstance(message, ToolMessage) and message.name in RESEARCH_TOOLS
+            isinstance(message, ToolMessage)
+            and message.name in RESEARCH_TOOLS
+            and not self._is_failed_kb_result(message)
             for message in messages
         )
+
+    def _is_failed_kb_result(self, message: ToolMessage) -> bool:
+        if message.name not in KB_RESEARCH_TOOLS:
+            return False
+        content = self._message_text(message).strip()
+        return (
+            not content
+            or content == "[]"
+            or content.startswith(KB_UNAVAILABLE_SENTINEL)
+        )
+
+    def _append_kb_disclosure(
+        self, request: ModelRequest, response: ModelResponse
+    ) -> ModelResponse:
+        latest_human_index = self._latest_human_index(request.messages)
+        if latest_human_index < 0:
+            return response
+        turn_messages = request.messages[latest_human_index + 1 :]
+        if not any(
+            isinstance(message, ToolMessage) and self._is_failed_kb_result(message)
+            for message in turn_messages
+        ):
+            return response
+        response_messages = self._response_messages(response)
+        if self._has_pending_tool_calls(response_messages):
+            return response
+        for message in reversed(response_messages):
+            if not isinstance(message, AIMessage):
+                continue
+            text = self._message_text(message)
+            if KB_DISCLOSURE in text:
+                return response
+            content = message.content
+            if isinstance(content, str):
+                updated_content: Any = f"{content}\n\n{KB_DISCLOSURE}"
+            elif isinstance(content, list):
+                updated_content = [*content, {"type": "text", "text": KB_DISCLOSURE}]
+            else:
+                updated_content = f"{text}\n\n{KB_DISCLOSURE}"
+            message_index = response_messages.index(message)
+            response_messages[message_index] = message.model_copy(
+                update={"content": updated_content}
+            )
+            response.result = response_messages
+            return response
+        return response
 
     def _is_substantive_technical_answer(self, messages: list[BaseMessage]) -> bool:
         text = "\n".join(self._message_text(message) for message in messages)

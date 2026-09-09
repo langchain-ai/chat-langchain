@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+SUPPORT_KB_UNAVAILABLE = "SUPPORT_KB_UNAVAILABLE: the support knowledge base could not be reached for this request."
 
 
 class PylonUnavailableError(RuntimeError):
@@ -294,8 +295,9 @@ def search_support_articles(collections: str = "all") -> str:
 
         return json.dumps(result, indent=2)
 
-    except PylonUnavailableError:
-        raise
+    except PylonUnavailableError as error:
+        logger.warning("Pylon support KB unavailable: %s", error)
+        return SUPPORT_KB_UNAVAILABLE
     except ValueError as e:
         raise PylonUnavailableError(str(e)) from e
     except requests.exceptions.RequestException as e:
@@ -361,8 +363,9 @@ Content:
 
         return f"Article ID {article_id} not found in knowledge base."
 
-    except PylonUnavailableError:
-        raise
+    except PylonUnavailableError as error:
+        logger.warning("Pylon support KB unavailable: %s", error)
+        return SUPPORT_KB_UNAVAILABLE
     except ValueError as e:
         raise PylonUnavailableError(str(e)) from e
     except requests.exceptions.RequestException as e:

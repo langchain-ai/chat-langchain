@@ -83,6 +83,42 @@ def test_check_links_does_not_satisfy_research_requirement():
     assert len(calls) == 2
 
 
+def test_failed_support_kb_research_adds_disclosure_to_final_answer():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="What is the self-hosted data retention policy?"),
+            ToolMessage(
+                content=(
+                    "SUPPORT_KB_UNAVAILABLE: the support knowledge base "
+                    "could not be reached for this request."
+                ),
+                name="search_support_articles",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(current_request: ModelRequest) -> ModelResponse:
+        calls.append(current_request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="The self-hosted configuration uses the documented retention setting."
+                )
+            ]
+        )
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert response.result[0].content.endswith(
+        "Support articles could not be consulted, so this answer is based on official documentation only."
+    )
+
+
 def test_retrieved_and_valid_footer_url_passes_through(monkeypatch):
     from src.middleware import citation_guard_middleware as citation_module
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
