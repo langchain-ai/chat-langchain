@@ -8,6 +8,68 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 
 
+def test_exempt_messages_hide_research_tools_and_do_not_retry():
+    middleware = DocsResearchGuardMiddleware()
+    exempt_messages = ["hello", "cls", "你好", "你有哪些能力"]
+    tool_names = [
+        "search_docs_by_lang_chain",
+        "query_docs_filesystem_docs_by_lang_chain",
+        "search_support_articles",
+        "get_support_article_content",
+        "check_links",
+        "unrelated_tool",
+    ]
+
+    for content in exempt_messages:
+        calls: list[ModelRequest] = []
+
+        async def handler(request: ModelRequest) -> ModelResponse:
+            calls.append(request)
+            return ModelResponse(
+                result=[AIMessage(content="Hello!" if content else "")]
+            )
+
+        request = ModelRequest(
+            model=object(),
+            messages=[HumanMessage(content=content)],
+            tools=[{"name": name} for name in tool_names],
+        )
+        response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+        assert response.result[0].content == "Hello!"
+        assert len(calls) == 1
+        assert [tool["name"] for tool in calls[0].tools] == ["unrelated_tool"]
+        assert "Relevant docs:" not in response.result[0].content
+
+
+def test_technical_turn_keeps_research_tools_and_forces_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="The StateGraph constructor accepts configuration options."
+                )
+            ]
+        )
+
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I configure StateGraph?")],
+        tools=[{"name": "search_docs_by_lang_chain"}, {"name": "check_links"}],
+    )
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert [tool["name"] for tool in calls[0].tools] == [
+        "search_docs_by_lang_chain",
+        "check_links",
+    ]
+
+
 def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     middleware = DocsResearchGuardMiddleware()
     calls: list[ModelRequest] = []
