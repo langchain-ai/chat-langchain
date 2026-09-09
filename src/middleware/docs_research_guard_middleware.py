@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextvars
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -30,9 +29,7 @@ _RETRY_INSTRUCTIONS = (
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
     "then use the retrieved documentation to answer. Do not answer from memory."
 )
-_FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "docs_research_guard_forced_turn", default=None
-)
+_FORCED_TURNS_STATE_KEY = "docs_research_guard_forced_turns"
 
 
 class DocsResearchGuardMiddleware(AgentMiddleware):
@@ -47,7 +44,9 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         response = await handler(request)
         if self._should_retry(request, response):
             turn_key = self._turn_key(request.messages)
-            _FORCED_TURN.set(turn_key)
+            forced_turns = request.state.setdefault(_FORCED_TURNS_STATE_KEY, [])
+            if turn_key not in forced_turns:
+                forced_turns.append(turn_key)
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
@@ -63,12 +62,12 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         if latest_human_index < 0:
             return False
         turn_key = self._turn_key(messages)
-        if turn_key == _FORCED_TURN.get():
+        if turn_key in request.state.get(_FORCED_TURNS_STATE_KEY, []):
             return False
         response_messages = self._response_messages(response)
         if self._has_pending_tool_calls(response_messages):
             return False
-        if self._has_research_tool(messages[latest_human_index + 1 :]):
+        if self._has_tool_message(messages[latest_human_index + 1 :]):
             return False
         return self._is_substantive_technical_answer(response_messages)
 
@@ -95,11 +94,8 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             for message in messages
         )
 
-    def _has_research_tool(self, messages: list[BaseMessage]) -> bool:
-        return any(
-            isinstance(message, ToolMessage) and message.name in RESEARCH_TOOLS
-            for message in messages
-        )
+    def _has_tool_message(self, messages: list[BaseMessage]) -> bool:
+        return any(isinstance(message, ToolMessage) for message in messages)
 
     def _is_substantive_technical_answer(self, messages: list[BaseMessage]) -> bool:
         text = "\n".join(self._message_text(message) for message in messages)
