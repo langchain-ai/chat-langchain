@@ -238,4 +238,63 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         "copied verbatim from this turn's documentation tool results"
         in calls[1].system_prompt
     )
-    assert result.result[0].content == calls[1].messages[-1].content
+    assert result.result[0].content == "**Answer**"
+
+
+def test_footer_url_extraction_accepts_heading_variants():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    middleware = CitationGuardMiddleware()
+    url = "https://docs.langchain.com/a"
+
+    for footer in (
+        f"**Relevant docs:**\n- [x]({url})",
+        f"## Relevant docs:\n- [x]({url})",
+        f"Relevant docs:\n- [x]({url})",
+    ):
+        assert middleware._urls_in_footer_text(footer) == [url]
+
+
+def test_fragment_grounded_canonical_footer_does_not_retry(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    canonical_url = "https://docs.langchain.com/oss/python/langgraph/checkpointers"
+    grounded_url = f"{canonical_url}#serialization"
+    calls: list[ModelRequest] = []
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do checkpointers serialize state?"),
+            ToolMessage(
+                content=f"Retrieved URL: {grounded_url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content=f"Valid links:\n- {canonical_url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=f"Answer\n\nRelevant docs:\n- [Guide]({canonical_url})"
+                )
+            ]
+        )
+
+    async def unexpected_check(urls: list[str], timeout: float):
+        raise AssertionError("already-valid canonical URL should not be checked")
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", unexpected_check)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert canonical_url in result.result[0].content

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import contextvars
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -23,12 +25,27 @@ DOCS_TOOLS = frozenset(
     }
 )
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
-_FOOTER_PATTERN = re.compile(r"(?ims)^\s*(?:\*\*)?Relevant docs:\s*(?:\*\*)?.*$")
+_FOOTER_PATTERN = re.compile(
+    r"(?ims)^\s*#{0,3}\s*(?:\*\*)?Relevant docs:\s*(?:\*\*)?.*$"
+)
 _RETRY_INSTRUCTIONS = (
     "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
-    "documentation tool results. Call check_links on exactly the final citation list "
-    "before answering. Never construct or recall a documentation URL."
+    "documentation tool results. Do not re-run check_links on URLs this turn already "
+    "validated; cite only URLs already present in this turn's documentation tool results. "
+    "Never construct or recall a documentation URL."
 )
+_CITATION_REPAIRED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "citation_guard_repaired_turn", default=None
+)
+
+
+def _canonicalize(url: str) -> str:
+    """Return a comparable canonical URL form."""
+    url = url.rstrip("/).,;:")
+    parsed = urlsplit(url)
+    return urlunsplit(
+        (parsed.scheme.lower(), parsed.netloc.lower(), parsed.path, parsed.query, "")
+    ).rstrip("/).,;:")
 
 
 class CitationGuardMiddleware(AgentMiddleware):
@@ -76,11 +93,40 @@ class CitationGuardMiddleware(AgentMiddleware):
             self._message_text(footer_message), invalid_urls
         )
         if not self._urls_in_footer_text(repaired_text):
+            turn_key = self._turn_key(request.messages)
+            if turn_key == _CITATION_REPAIRED_TURN.get():
+                return response
+            _CITATION_REPAIRED_TURN.set(turn_key)
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
             )
-            return await handler(retry_request)
+            retry_response = await handler(retry_request)
+            if self._has_pending_tool_calls(self._response_messages(retry_response)):
+                return retry_response
+            retry_footer_message = self._footer_message(
+                self._response_messages(retry_response)
+            )
+            if retry_footer_message is None:
+                return retry_response
+            retry_footer_urls = self._urls_in_footer(retry_footer_message)
+            retry_invalid_urls = {
+                url
+                for url in retry_footer_urls
+                if url not in grounded_urls or url not in valid_urls
+            }
+            if not retry_invalid_urls:
+                return retry_response
+            retry_repaired_text = self._remove_footer_urls(
+                self._message_text(retry_footer_message), retry_invalid_urls
+            )
+            if not self._urls_in_footer_text(retry_repaired_text):
+                retry_repaired_text = self._remove_footer(
+                    self._message_text(retry_footer_message)
+                )
+            return self._replace_footer(
+                retry_response, retry_footer_message, retry_repaired_text
+            )
         return self._replace_footer(response, footer_message, repaired_text)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
@@ -88,6 +134,11 @@ class CitationGuardMiddleware(AgentMiddleware):
             if getattr(messages[index], "type", None) == "human":
                 return index
         return -1
+
+    def _turn_key(self, messages: list[BaseMessage]) -> str:
+        index = self._latest_human_index(messages)
+        human = messages[index]
+        return str(getattr(human, "id", None) or f"{index}:{human.content!r}")
 
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
@@ -112,11 +163,15 @@ class CitationGuardMiddleware(AgentMiddleware):
 
     def _urls_in_footer_text(self, text: str) -> list[str]:
         match = _FOOTER_PATTERN.search(text)
-        return _URL_PATTERN.findall(match.group(0)) if match else []
+        return (
+            [_canonicalize(url) for url in _URL_PATTERN.findall(match.group(0))]
+            if match
+            else []
+        )
 
     def _grounded_urls(self, messages: list[BaseMessage]) -> set[str]:
         return {
-            url
+            _canonicalize(url)
             for message in messages
             if isinstance(message, ToolMessage) and message.name in DOCS_TOOLS
             for url in _URL_PATTERN.findall(self._message_text(message))
@@ -136,7 +191,9 @@ class CitationGuardMiddleware(AgentMiddleware):
                 if in_valid_section and stripped and not stripped.startswith("-"):
                     in_valid_section = False
                 if in_valid_section:
-                    valid_urls.update(_URL_PATTERN.findall(line))
+                    valid_urls.update(
+                        _canonicalize(url) for url in _URL_PATTERN.findall(line)
+                    )
         return valid_urls
 
     def _remove_footer_urls(self, text: str, invalid_urls: set[str]) -> str:
@@ -147,9 +204,15 @@ class CitationGuardMiddleware(AgentMiddleware):
         lines = [
             line
             for line in footer.splitlines()
-            if not invalid_urls.intersection(_URL_PATTERN.findall(line))
+            if not invalid_urls.intersection(
+                _canonicalize(url) for url in _URL_PATTERN.findall(line)
+            )
         ]
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
+
+    def _remove_footer(self, text: str) -> str:
+        match = _FOOTER_PATTERN.search(text)
+        return text[: match.start()].rstrip() if match else text
 
     def _replace_footer(
         self, response: ModelResponse, message: AIMessage, text: str
