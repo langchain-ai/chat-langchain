@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+PYLON_AUTH_FAILURE_MESSAGE = (
+    "Support knowledge base is temporarily unavailable due to an authentication "
+    "failure; answer from documentation and tell the user the support KB could "
+    "not be consulted."
+)
 
 
 class PylonUnavailableError(RuntimeError):
@@ -53,23 +58,45 @@ def _get_headers() -> Dict[str, str]:
 
 
 def _raise_for_status(response: requests.Response, url: str) -> None:
-    """Raise an operator-facing error for invalid Pylon credentials."""
+    """Raise a safe error for invalid Pylon credentials."""
     status_code = response.status_code
     if status_code in (401, 403):
-        raise PylonUnavailableError(
-            f"Pylon API returned HTTP {status_code} for {url}; "
-            "check or rotate PYLON_API_KEY configuration or credentials."
+        logger.error(
+            "Pylon authentication failure: HTTP %s for %s; check or rotate "
+            "PYLON_API_KEY configuration or credentials.",
+            status_code,
+            url,
         )
+        raise PylonUnavailableError(PYLON_AUTH_FAILURE_MESSAGE)
     try:
         response.raise_for_status()
     except requests.exceptions.RequestException as error:
         response_status = getattr(error.response, "status_code", None)
         if response_status in (401, 403):
-            raise PylonUnavailableError(
-                f"Pylon API returned HTTP {response_status} for {url}; "
-                "check or rotate PYLON_API_KEY configuration or credentials."
-            ) from error
+            logger.error(
+                "Pylon authentication failure: HTTP %s for %s; check or rotate "
+                "PYLON_API_KEY configuration or credentials.",
+                response_status,
+                url,
+            )
+            raise PylonUnavailableError(PYLON_AUTH_FAILURE_MESSAGE) from error
         raise
+
+
+def probe_pylon_health() -> bool:
+    """Probe the Pylon collections endpoint and alert on authentication failures."""
+    try:
+        kb_id = _get_kb_id()
+        url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
+        response = requests.get(url, headers=_get_headers(), timeout=10)
+        _raise_for_status(response, url)
+    except PylonUnavailableError:
+        logger.error("ALERT: Pylon knowledge base health probe failed")
+        return False
+    except Exception:
+        logger.exception("ALERT: Pylon knowledge base health probe failed")
+        return False
+    return True
 
 
 def _fetch_collections() -> Dict[str, str]:
