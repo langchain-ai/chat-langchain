@@ -16,6 +16,8 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
+from src.middleware.retry_helpers import build_repair_request
+
 RESEARCH_TOOLS = frozenset(
     {
         "search_docs_by_lang_chain",
@@ -48,9 +50,11 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         if self._should_retry(request, response):
             turn_key = self._turn_key(request.messages)
             _FORCED_TURN.set(turn_key)
-            retry_request = request.override(
-                messages=[*request.messages, *self._response_messages(response)],
-                system_message=self._retry_system_message(request),
+            retry_request = build_repair_request(
+                request,
+                self._response_messages(response),
+                _RETRY_INSTRUCTIONS,
+                self._retry_system_message(request),
             )
             return await handler(retry_request)
         return response
