@@ -7,6 +7,7 @@ from src.agent.config import (
     GUARDRAILS_MODEL,
     citation_guard_middleware,
     docs_research_guard_middleware,
+    link_check_turn_middleware,
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
@@ -31,6 +32,7 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
+    link_check_turn_middleware,
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
