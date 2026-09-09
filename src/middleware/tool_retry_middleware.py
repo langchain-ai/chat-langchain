@@ -119,7 +119,11 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                 "Try a narrower or related query, use another available source, "
                 "or answer from already retrieved context."
             ),
-            "details": self._error_text(error)[:160],
+            "details": (
+                "support knowledge base unavailable"
+                if isinstance(error, PylonUnavailableError)
+                else self._error_text(error)[:160]
+            ),
         }
         return json.dumps(payload)
 
@@ -134,14 +138,14 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
             try:
                 return await handler(request)
             except PylonUnavailableError as error:
-                logger.warning(
+                logger.error(
                     "Tool %s unavailable: %s",
                     self._tool_name(request),
                     self._error_text(error),
                 )
                 return self._tool_message(
                     request,
-                    self._error_text(error),
+                    self._final_error_content(request, error),
                     status="error",
                 )
             except Exception as error:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextvars
+import json
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -97,9 +98,21 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
 
     def _has_research_tool(self, messages: list[BaseMessage]) -> bool:
         return any(
-            isinstance(message, ToolMessage) and message.name in RESEARCH_TOOLS
+            isinstance(message, ToolMessage)
+            and message.name in RESEARCH_TOOLS
+            and getattr(message, "status", None) != "error"
+            and not self._is_error_envelope(message)
             for message in messages
         )
+
+    def _is_error_envelope(self, message: ToolMessage) -> bool:
+        if not isinstance(message.content, str):
+            return False
+        try:
+            payload = json.loads(message.content)
+        except json.JSONDecodeError:
+            return False
+        return isinstance(payload, dict) and "error" in payload
 
     def _is_substantive_technical_answer(self, messages: list[BaseMessage]) -> bool:
         text = "\n".join(self._message_text(message) for message in messages)

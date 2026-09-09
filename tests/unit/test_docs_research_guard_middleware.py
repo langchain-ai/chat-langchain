@@ -8,6 +8,22 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 
 
+def test_error_research_tool_message_does_not_satisfy_research_requirement():
+    middleware = DocsResearchGuardMiddleware()
+
+    for status in ("error", "success"):
+        assert not middleware._has_research_tool(
+            [
+                ToolMessage(
+                    content='{"error": "Tool unavailable"}',
+                    name="search_support_articles",
+                    tool_call_id="search",
+                    status=status,
+                )
+            ]
+        )
+
+
 def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     middleware = DocsResearchGuardMiddleware()
     calls: list[ModelRequest] = []
