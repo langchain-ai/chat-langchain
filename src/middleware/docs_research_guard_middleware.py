@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import contextvars
+import json
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -30,9 +30,6 @@ _RETRY_INSTRUCTIONS = (
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
     "then use the retrieved documentation to answer. Do not answer from memory."
 )
-_FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "docs_research_guard_forced_turn", default=None
-)
 
 
 class DocsResearchGuardMiddleware(AgentMiddleware):
@@ -46,8 +43,6 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         """Require fresh research before returning a technical answer."""
         response = await handler(request)
         if self._should_retry(request, response):
-            turn_key = self._turn_key(request.messages)
-            _FORCED_TURN.set(turn_key)
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
@@ -62,13 +57,15 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
             return False
-        turn_key = self._turn_key(messages)
-        if turn_key == _FORCED_TURN.get():
-            return False
         response_messages = self._response_messages(response)
+        own_turn_messages = messages[latest_human_index + 1 :]
+        if self._has_repeated_tool_call(response_messages, own_turn_messages):
+            return False
         if self._has_pending_tool_calls(response_messages):
             return False
-        if self._has_research_tool(messages[latest_human_index + 1 :]):
+        if self._has_research_tool(own_turn_messages):
+            return False
+        if self._has_successful_check_links(own_turn_messages):
             return False
         return self._is_substantive_technical_answer(response_messages)
 
@@ -77,11 +74,6 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             if getattr(messages[index], "type", None) == "human":
                 return index
         return -1
-
-    def _turn_key(self, messages: list[BaseMessage]) -> str:
-        index = self._latest_human_index(messages)
-        human = messages[index]
-        return str(getattr(human, "id", None) or f"{index}:{human.content!r}")
 
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
@@ -100,6 +92,35 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             isinstance(message, ToolMessage) and message.name in RESEARCH_TOOLS
             for message in messages
         )
+
+    def _has_successful_check_links(self, messages: list[BaseMessage]) -> bool:
+        return any(
+            isinstance(message, ToolMessage)
+            and message.name == "check_links"
+            and getattr(message, "status", "success") != "error"
+            and bool(self._message_text(message).strip())
+            for message in messages
+        )
+
+    def _has_repeated_tool_call(
+        self, response_messages: list[BaseMessage], own_turn_messages: list[BaseMessage]
+    ) -> bool:
+        own_turn_signatures = self._tool_call_signatures(own_turn_messages)
+        return bool(own_turn_signatures.intersection(self._tool_call_signatures(response_messages)))
+
+    def _tool_call_signatures(self, messages: list[BaseMessage]) -> set[tuple[str, str]]:
+        signatures = set()
+        for message in messages:
+            if not isinstance(message, AIMessage):
+                continue
+            for tool_call in message.tool_calls:
+                signatures.add(
+                    (
+                        tool_call["name"],
+                        json.dumps(tool_call.get("args", {}), sort_keys=True),
+                    )
+                )
+        return signatures
 
     def _is_substantive_technical_answer(self, messages: list[BaseMessage]) -> bool:
         text = "\n".join(self._message_text(message) for message in messages)
@@ -130,6 +151,8 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
 
     def _retry_system_message(self, request: ModelRequest) -> SystemMessage:
         existing = request.system_message.text if request.system_message else ""
+        if _RETRY_INSTRUCTIONS in existing:
+            return SystemMessage(content=existing)
         content = f"{existing}\n\n{_RETRY_INSTRUCTIONS}".strip()
         return SystemMessage(content=content)
 
