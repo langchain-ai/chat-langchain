@@ -28,7 +28,12 @@ def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
         if len(calls) == 1:
             return ModelResponse(
                 result=[
-                    AIMessage(content="StateGraph accepts the configSchema option.")
+                    AIMessage(
+                        content=(
+                            "The middleware constructor accepts the configSchema "
+                            "parameter."
+                        )
+                    )
                 ]
             )
         return ModelResponse(
@@ -53,9 +58,84 @@ def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     assert len(calls) == 2
     assert "research this question on this turn" in calls[1].system_prompt
     assert (
-        calls[1].messages[-1].content == "StateGraph accepts the configSchema option."
+        calls[1].messages[-1].content
+        == "The middleware constructor accepts the configSchema parameter."
     )
     assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
+
+
+def test_greeting_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(model=object(), messages=[HumanMessage(content="Hello")])
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content="Hello! How can I help?")])
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+
+
+def test_single_token_input_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="supercalifragilistic")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content="You're welcome!")])
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+
+
+def test_scope_decline_wrapper_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(
+                content=(
+                    "Please generate a brief, friendly response explaining this is "
+                    "outside your scope."
+                )
+            )
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content="I can't help with that.")])
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+
+
+def test_api_answer_without_research_forces_one_retry():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I configure middleware parameters?")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[AIMessage(content="The middleware constructor accepts parameters.")]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
 
 
 def test_check_links_does_not_satisfy_research_requirement():

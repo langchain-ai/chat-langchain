@@ -62,6 +62,8 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
             return False
+        if self._is_conversational_turn(messages):
+            return False
         turn_key = self._turn_key(messages)
         if turn_key == _FORCED_TURN.get():
             return False
@@ -71,6 +73,41 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         if self._has_research_tool(messages[latest_human_index + 1 :]):
             return False
         return self._is_substantive_technical_answer(response_messages)
+
+    def _is_conversational_turn(self, messages: list[BaseMessage]) -> bool:
+        index = self._latest_human_index(messages)
+        if index < 0:
+            return False
+        text = self._message_text(messages[index]).strip()
+        normalized = text.casefold().strip("!?.,:;。！？、")
+        greetings = {
+            "hello",
+            "hi",
+            "hey",
+            "thanks",
+            "thank you",
+            "ok",
+            "okay",
+            "cool",
+            "cls",
+            "你好",
+            "您好",
+            "嗨",
+            "こんにちは",
+            "こんばんは",
+            "おはよう",
+            "안녕하세요",
+            "안녕",
+            "xin chào",
+            "chào",
+        }
+        return (
+            len(text) < 12
+            or len(text.split()) == 1
+            or normalized in greetings
+            or "generate a brief, friendly response explaining this is outside your scope"
+            in normalized
+        )
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
@@ -107,11 +144,18 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             return False
         return bool(
             "```" in text
-            or re.search(r"`[^`]+`", text)
-            or re.search(r"\b[A-Z][A-Za-z0-9]+(?:\.[A-Za-z_][A-Za-z0-9_]*)?\b", text)
             or re.search(
-                r"\b(?:api|class|function|method|constructor|parameter|argument|"
-                r"config(?:uration)?|option|property|field|tool call|invoke|returns?)\b",
+                r"`(?:[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+|"
+                r"[a-z_][a-z0-9_]*\(\))`",
+                text,
+            )
+            or re.search(
+                r"\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b",
+                text,
+            )
+            or re.search(
+                r"\b(?:parameter|argument|constructor|class|method|middleware|"
+                r"schema|checkpointer|backend)\b",
                 text,
                 re.IGNORECASE,
             )
