@@ -8,8 +8,7 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -17,14 +16,18 @@ import pytest
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
     _check_single_url,
-    _check_urls_async,
-    _format_results,
     check_links,
+    reset_link_check_turn,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_link_check_registry():
+    """Start each test with a fresh per-turn validation registry."""
+    reset_link_check_turn()
 
 
 class _FakeStreamResponse:
@@ -256,3 +259,38 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_check_links_reuses_validated_urls_within_turn():
+    """A valid URL is checked only once during an agent turn."""
+    url = "https://example.com"
+    fake_results = [LinkCheckResult(url=url, valid=True, status_code=200)]
+
+    with patch(
+        "src.tools.link_check_tools._check_urls_async",
+        new=AsyncMock(return_value=fake_results),
+    ) as check_urls:
+        await check_links.ainvoke({"urls": [url]})
+        second_result = await check_links.ainvoke({"urls": [url]})
+
+    check_urls.assert_awaited_once_with([url], 10.0)
+    assert "Already validated on this turn:" in second_result
+    assert url in second_result
+
+
+@pytest.mark.asyncio
+async def test_check_links_reset_allows_validation_on_new_turn():
+    """Resetting the registry allows a URL to be checked on a new turn."""
+    url = "https://example.com"
+    fake_results = [LinkCheckResult(url=url, valid=True, status_code=200)]
+
+    with patch(
+        "src.tools.link_check_tools._check_urls_async",
+        new=AsyncMock(return_value=fake_results),
+    ) as check_urls:
+        await check_links.ainvoke({"urls": [url]})
+        reset_link_check_turn()
+        await check_links.ainvoke({"urls": [url]})
+
+    assert check_urls.await_count == 2
