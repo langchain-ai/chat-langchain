@@ -11,8 +11,47 @@ from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 from src.tools.pylon_tools import (
     PylonUnavailableError,
     _raise_for_status,
+    get_support_article_content,
     search_support_articles,
 )
+
+
+def test_get_support_article_content_rejects_placeholder_without_http_call():
+    """Invalid article IDs return guidance without contacting Pylon."""
+    with patch("src.tools.pylon_tools.requests.get") as mock_get:
+        result = get_support_article_content.invoke({"article_id": "0"})
+
+    assert "search_support_articles" in result
+    assert "copy" in result
+    mock_get.assert_not_called()
+
+
+def test_get_support_article_content_fetches_valid_uuid():
+    """Valid article IDs continue through the normal cached fetch path."""
+    article_id = "123e4567-e89b-12d3-a456-426614174000"
+    article = {
+        "id": article_id,
+        "title": "Troubleshooting",
+        "collection_id": "collection-1",
+        "identifier": "123",
+        "slug": "troubleshooting",
+        "current_published_content_html": "Article content",
+    }
+
+    with (
+        patch(
+            "src.tools.pylon_tools._fetch_all_articles", return_value=[article]
+        ) as mock_fetch_articles,
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"Troubleshooting": "collection-1"},
+        ) as mock_fetch_collections,
+    ):
+        result = get_support_article_content.invoke({"article_id": article_id})
+
+    assert "Article content" in result
+    mock_fetch_articles.assert_called_once_with()
+    mock_fetch_collections.assert_called_once_with()
 
 
 def test_search_support_articles_raises_for_unauthorized_response():

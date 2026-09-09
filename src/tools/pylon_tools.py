@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -17,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+UUID_PATTERN = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+)
 
 
 class PylonUnavailableError(RuntimeError):
@@ -318,6 +322,12 @@ def get_support_article_content(article_id: str) -> str:
     Returns:
         Article content with only: id, title, url, collection, content
     """
+    if not UUID_PATTERN.fullmatch(article_id):
+        return (
+            "Invalid article_id. Call search_support_articles first and copy an "
+            "article id from its output verbatim."
+        )
+
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
