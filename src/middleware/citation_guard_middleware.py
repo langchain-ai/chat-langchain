@@ -78,7 +78,7 @@ class CitationGuardMiddleware(AgentMiddleware):
         if not self._urls_in_footer_text(repaired_text):
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
-                system_message=self._retry_system_message(request),
+                system_message=self._retry_system_message(request, valid_urls),
             )
             return await handler(retry_request)
         return self._replace_footer(response, footer_message, repaired_text)
@@ -175,9 +175,16 @@ class CitationGuardMiddleware(AgentMiddleware):
             return "\n".join(self._content_part_text(value) for value in part)
         return str(part)
 
-    def _retry_system_message(self, request: ModelRequest) -> SystemMessage:
+    def _retry_system_message(
+        self, request: ModelRequest, valid_urls: set[str]
+    ) -> SystemMessage:
         existing = request.system_message.text if request.system_message else ""
-        return SystemMessage(content=f"{existing}\n\n{_RETRY_INSTRUCTIONS}".strip())
+        validated = "\n".join(f"- {url}" for url in sorted(valid_urls)) or "- None"
+        instructions = (
+            f"{_RETRY_INSTRUCTIONS}\nURLs already validated on this turn:\n{validated}\n"
+            "Do not request these URLs again."
+        )
+        return SystemMessage(content=f"{existing}\n\n{instructions}".strip())
 
 
 __all__ = ["CitationGuardMiddleware"]
