@@ -38,12 +38,15 @@ def test_get_support_article_content_fetches_valid_uuid():
         "current_published_content_html": "Article content",
     }
 
-    with patch(
-        "src.tools.pylon_tools._fetch_all_articles", return_value=[article]
-    ) as mock_fetch_articles, patch(
-        "src.tools.pylon_tools._fetch_collections",
-        return_value={"Troubleshooting": "collection-1"},
-    ) as mock_fetch_collections:
+    with (
+        patch(
+            "src.tools.pylon_tools._fetch_all_articles", return_value=[article]
+        ) as mock_fetch_articles,
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"Troubleshooting": "collection-1"},
+        ) as mock_fetch_collections,
+    ):
         result = get_support_article_content.invoke({"article_id": article_id})
 
     assert "Article content" in result
