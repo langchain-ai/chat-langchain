@@ -58,7 +58,7 @@ def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
 
 
-def test_check_links_does_not_satisfy_research_requirement():
+def test_successful_check_links_satisfies_research_requirement():
     middleware = DocsResearchGuardMiddleware()
     calls: list[ModelRequest] = []
 
@@ -78,6 +78,59 @@ def test_check_links_does_not_satisfy_research_requirement():
         )
 
     request = ModelRequest(model=object(), messages=messages)
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+
+
+def test_retry_does_not_repeat_identical_tool_call_on_follow_up_request():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    tool_call = {
+        "name": "check_links",
+        "args": {"urls": ["https://docs.langchain.com/"]},
+        "id": "check-links",
+        "type": "tool_call",
+    }
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content="", tool_calls=[tool_call])])
+
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Can I cite the docs?"),
+            AIMessage(content="", tool_calls=[tool_call]),
+            ToolMessage(
+                content="Link Check Results: 1/1 valid\n\nValid links:\n  - https://docs.langchain.com/",
+                name="check_links",
+                tool_call_id="check-links",
+            ),
+        ],
+    )
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert response.result[0].tool_calls[0]["name"] == "check_links"
+
+
+def test_one_model_call_performs_at_most_one_forced_retry():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(), messages=[HumanMessage(content="Explain the StateGraph constructor.")]
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(content="The StateGraph constructor accepts configuration options.")
+            ]
+        )
+
     asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert len(calls) == 2
