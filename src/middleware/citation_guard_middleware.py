@@ -47,14 +47,53 @@ class CitationGuardMiddleware(AgentMiddleware):
         latest_human_index = self._latest_human_index(request.messages)
         if latest_human_index < 0:
             return response
-        turn_messages = request.messages[latest_human_index + 1 :]
-        footer_message = self._footer_message(self._response_messages(response))
-        if footer_message is None:
+        footer_message, invalid_urls = await self._invalid_footer_urls(request, response)
+        if footer_message is None or not invalid_urls:
             return response
 
+        repaired_text = self._remove_footer_urls(
+            self._message_text(footer_message), invalid_urls
+        )
+        if not self._urls_in_footer_text(repaired_text):
+            if not self._grounded_urls(request.messages[latest_human_index + 1 :]):
+                return self._replace_footer(
+                    response,
+                    footer_message,
+                    _FOOTER_PATTERN.sub("", repaired_text, count=1),
+                )
+            retry_request = request.override(
+                messages=[*request.messages, *self._response_messages(response)],
+                system_message=self._retry_system_message(request),
+            )
+            retry_response = await handler(retry_request)
+            retry_footer_message, retry_invalid_urls = await self._invalid_footer_urls(
+                retry_request, retry_response
+            )
+            if retry_footer_message is None or not retry_invalid_urls:
+                return retry_response
+            retry_repaired_text = self._remove_footer_urls(
+                self._message_text(retry_footer_message), retry_invalid_urls
+            )
+            if not self._urls_in_footer_text(retry_repaired_text):
+                retry_repaired_text = _FOOTER_PATTERN.sub(
+                    "", retry_repaired_text, count=1
+                )
+            return self._replace_footer(
+                retry_response, retry_footer_message, retry_repaired_text
+            )
+        return self._replace_footer(response, footer_message, repaired_text)
+
+    async def _invalid_footer_urls(
+        self, request: ModelRequest, response: ModelResponse
+    ) -> tuple[AIMessage | None, set[str]]:
+        footer_message = self._footer_message(self._response_messages(response))
+        if footer_message is None:
+            return None, set()
         footer_urls = self._urls_in_footer(footer_message)
         if not footer_urls:
-            return response
+            return footer_message, set()
+        latest_human_index = self._latest_human_index(request.messages)
+        turn_messages = request.messages[latest_human_index + 1 :]
         grounded_urls = self._grounded_urls(turn_messages)
         valid_urls = self._valid_urls(turn_messages)
         unchecked_urls = [
@@ -63,25 +102,12 @@ class CitationGuardMiddleware(AgentMiddleware):
         if unchecked_urls:
             results = await _check_urls_async(unchecked_urls, 10.0)
             valid_urls.update(result.url for result in results if result.valid)
-
         invalid_urls = {
             url
             for url in footer_urls
             if url not in grounded_urls or url not in valid_urls
         }
-        if not invalid_urls:
-            return response
-
-        repaired_text = self._remove_footer_urls(
-            self._message_text(footer_message), invalid_urls
-        )
-        if not self._urls_in_footer_text(repaired_text):
-            retry_request = request.override(
-                messages=[*request.messages, *self._response_messages(response)],
-                system_message=self._retry_system_message(request),
-            )
-            return await handler(retry_request)
-        return self._replace_footer(response, footer_message, repaired_text)
+        return footer_message, invalid_urls
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
