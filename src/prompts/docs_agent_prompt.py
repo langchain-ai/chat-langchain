@@ -208,6 +208,8 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 
 **Usage:** After using `search_support_articles`, pick 1-3 most relevant support articles and fetch their content in parallel.
 
+If a support-KB tool reports that the knowledge base is unavailable, include one sentence in the final answer stating that the support knowledge base could not be searched, and do not present the research as complete.
+
 **Important:** This tool only accepts article IDs returned by `search_support_articles`. Never pass `docs.langchain.com` URLs or docs filesystem paths to this tool; use `query_docs_filesystem_docs_by_lang_chain` for official docs pages.
 
 **CRITICAL: Always use the "id" field from the search_support_articles tool as input to get_support_article_content. This is the only correct id to fetch by. Never use the "URL" field or the "title" field as input to get_support_article_content, and never try to get article id out of the url, use the specific "id" field.**
