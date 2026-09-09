@@ -239,3 +239,67 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         in calls[1].system_prompt
     )
     assert result.result[0].content == calls[1].messages[-1].content
+
+
+def test_follow_up_validated_url_does_not_retry():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?", id="first-turn"),
+            ToolMessage(
+                content=f"Retrieved URL: {url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            HumanMessage(content="Can you clarify that?", id="follow-up"),
+            ToolMessage(
+                content=f"Valid links:\n  - {url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert url in result.result[0].content
+
+
+def test_ungrounded_footer_retries_once_then_strips_footer():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I build a graph?", id="turn")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 3
+    assert url not in result.result[0].content
