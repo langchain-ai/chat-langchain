@@ -75,13 +75,27 @@ class CitationGuardMiddleware(AgentMiddleware):
         repaired_text = self._remove_footer_urls(
             self._message_text(footer_message), invalid_urls
         )
-        if not self._urls_in_footer_text(repaired_text):
+        if not self._urls_in_footer_text(repaired_text) and not self._already_retried(
+            request, latest_human_index
+        ):
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
             )
             return await handler(retry_request)
         return self._replace_footer(response, footer_message, repaired_text)
+
+    def _already_retried(self, request: ModelRequest, latest_human_index: int) -> bool:
+        if (
+            request.system_message
+            and _RETRY_INSTRUCTIONS in request.system_message.text
+        ):
+            return True
+        return any(
+            isinstance(message, AIMessage)
+            and "Relevant docs:" in self._message_text(message)
+            for message in request.messages[latest_human_index + 1 :]
+        )
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
