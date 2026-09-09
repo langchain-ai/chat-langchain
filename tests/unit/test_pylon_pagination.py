@@ -203,8 +203,10 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
         with self.assertRaises(self.module.PylonUnavailableError) as context:
             self.module._fetch_all_articles()
 
-        self.assertIn("PYLON_API_KEY", str(context.exception))
-        self.assertIn("/knowledge-bases/kb-123/articles", str(context.exception))
+        self.assertIn("PYLON_API_KEY", context.exception.operator_detail)
+        self.assertIn(
+            "/knowledge-bases/kb-123/articles", context.exception.operator_detail
+        )
         self.assertIsNone(self.module._articles_cache)
 
 
