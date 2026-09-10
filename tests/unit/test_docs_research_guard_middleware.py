@@ -25,6 +25,11 @@ def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
 
     async def handler(request: ModelRequest) -> ModelResponse:
         calls.append(request)
+        if calls[-1].messages[-1].type == "ai":
+            raise ValueError(
+                "does not support model prefilling. The final request turn must be "
+                "a user message or a function response."
+            )
         if len(calls) == 1:
             return ModelResponse(
                 result=[
@@ -52,8 +57,10 @@ def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
 
     assert len(calls) == 2
     assert "research this question on this turn" in calls[1].system_prompt
+    assert isinstance(calls[1].messages[-1], HumanMessage)
+    assert not isinstance(calls[1].messages[-1], AIMessage)
     assert (
-        calls[1].messages[-1].content == "StateGraph accepts the configSchema option."
+        "StateGraph accepts the configSchema option." in calls[1].messages[-1].content
     )
     assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
 
@@ -225,6 +232,11 @@ def test_entirely_ungrounded_footer_retries_with_correction():
 
     async def handler(request: ModelRequest) -> ModelResponse:
         calls.append(request)
+        if calls[-1].messages[-1].type == "ai":
+            raise ValueError(
+                "does not support model prefilling. The final request turn must be "
+                "a user message or a function response."
+            )
         return ModelResponse(
             result=[
                 AIMessage(content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({url})")
@@ -238,4 +250,7 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         "copied verbatim from this turn's documentation tool results"
         in calls[1].system_prompt
     )
-    assert result.result[0].content == calls[1].messages[-1].content
+    assert isinstance(calls[1].messages[-1], HumanMessage)
+    assert not isinstance(calls[1].messages[-1], AIMessage)
+    assert "Relevant docs:" in calls[1].messages[-1].content
+    assert result.result[0].content.startswith("**Answer**")
