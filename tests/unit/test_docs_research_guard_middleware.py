@@ -2,6 +2,7 @@
 
 import asyncio
 
+import pytest
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
@@ -238,4 +239,52 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         "copied verbatim from this turn's documentation tool results"
         in calls[1].system_prompt
     )
+    assert result.result[0].content == calls[1].messages[-1].content
+
+
+@pytest.mark.parametrize("footer_label", ["## Relevant docs:", "### Relevant docs:"])
+def test_heading_footer_with_ungrounded_url_retries_with_correction(footer_label):
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I build a graph?")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[AIMessage(content=f"Answer\n\n{footer_label}\n- {url}")]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert result.result[0].content == calls[1].messages[-1].content
+
+
+def test_unparseable_footer_url_retries_instead_of_passing(monkeypatch):
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I build a graph?")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[AIMessage(content=f"Answer\n\n**Relevant docs:**\n- {url}")]
+        )
+
+    monkeypatch.setattr(middleware, "_urls_in_footer", lambda message: [])
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
     assert result.result[0].content == calls[1].messages[-1].content
