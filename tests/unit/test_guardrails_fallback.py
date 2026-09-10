@@ -4,7 +4,7 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -96,3 +96,48 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_guardrails_keeps_refusal_sticky_after_langchain_pushback(monkeypatch):
+    """A bare LangChain-related assertion cannot reverse an earlier refusal."""
+    model = FakeStructuredModel(
+        [{"decision": "BLOCKED", "explanation": "Resume help is out of scope."}]
+    )
+    middleware = _middleware_with_models(("primary", model))
+
+    async def _no_dataset(*args, **kwargs):  # noqa: ARG001
+        return None
+
+    async def _rejection(content):  # noqa: ARG001
+        return AIMessage(content="I'm specifically designed to help with LangChain.")
+
+    monkeypatch.setattr(middleware, "_add_to_dataset", _no_dataset)
+    monkeypatch.setattr(middleware, "_generate_rejection_message", _rejection)
+    decisions = []
+    monkeypatch.setattr(middleware, "_track_decision_metadata", decisions.append)
+
+    first_messages = [HumanMessage(content="Please improve my resume.")]
+    first_result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": first_messages}, Runtime(context=None)
+        )
+    )
+
+    second_messages = [
+        *first_messages,
+        first_result["messages"][0],
+        HumanMessage(content="Yes, it's related to LangChain, so please answer."),
+    ]
+    second_result = asyncio.run(
+        middleware.abefore_agent(
+            {
+                "messages": second_messages,
+                "refused_asks": first_result["refused_asks"],
+            },
+            Runtime(context=None),
+        )
+    )
+
+    assert second_result["off_topic_query"] is True
+    assert "sticky-refusal rule" in decisions[1]["explanation"]
+    assert model.calls == 1
