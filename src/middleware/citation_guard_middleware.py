@@ -23,7 +23,9 @@ DOCS_TOOLS = frozenset(
     }
 )
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
-_FOOTER_PATTERN = re.compile(r"(?ims)^\s*(?:\*\*)?Relevant docs:\s*(?:\*\*)?.*$")
+_FOOTER_PATTERN = re.compile(
+    r"(?ims)^\s*(?:#{2,3}\s+)?(?:\*\*)?Relevant docs:?\s*(?:\*\*)?.*$"
+)
 _RETRY_INSTRUCTIONS = (
     "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
     "documentation tool results. Call check_links on exactly the final citation list "
@@ -54,7 +56,13 @@ class CitationGuardMiddleware(AgentMiddleware):
 
         footer_urls = self._urls_in_footer(footer_message)
         if not footer_urls:
-            return response
+            if not _URL_PATTERN.search(self._message_text(footer_message)):
+                return response
+            retry_request = request.override(
+                messages=[*request.messages, *self._response_messages(response)],
+                system_message=self._retry_system_message(request),
+            )
+            return await handler(retry_request)
         grounded_urls = self._grounded_urls(turn_messages)
         valid_urls = self._valid_urls(turn_messages)
         unchecked_urls = [
@@ -101,9 +109,9 @@ class CitationGuardMiddleware(AgentMiddleware):
 
     def _footer_message(self, messages: list[BaseMessage]) -> AIMessage | None:
         for message in reversed(messages):
-            if isinstance(
-                message, AIMessage
-            ) and "Relevant docs:" in self._message_text(message):
+            if isinstance(message, AIMessage) and _FOOTER_PATTERN.search(
+                self._message_text(message)
+            ):
                 return message
         return None
 
