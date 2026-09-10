@@ -151,6 +151,7 @@ def test_ungrounded_footer_url_is_stripped_even_when_reachable(monkeypatch):
                     content=[
                         {
                             "type": "text",
+                            "index": 0,
                             "text": (
                                 f"**Answer**\n\n**Relevant docs:**\n"
                                 f"- [Guide]({grounded})\n"
@@ -170,8 +171,59 @@ def test_ungrounded_footer_url_is_stripped_even_when_reachable(monkeypatch):
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert checks == [[grounded]]
-    assert invented not in result.result[0].content
-    assert grounded in result.result[0].content
+    content = result.result[0].content
+    assert isinstance(content, list)
+    assert content[0]["type"] == "text"
+    assert content[0]["index"] == 0
+    assert not content[0]["text"].startswith("text")
+    assert invented not in content[0]["text"]
+    assert grounded in content[0]["text"]
+
+
+def test_ungrounded_footer_url_is_stripped_from_string_content(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+    from src.tools.link_check_tools import LinkCheckResult
+
+    valid = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    invalid = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {valid}",
+                name="query_docs_filesystem_docs_by_lang_chain",
+                tool_call_id="read",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=(
+                        f"**Answer**\n\n**Relevant docs:**\n"
+                        f"- [Guide]({valid})\n"
+                        f"- [Other]({invalid})"
+                    )
+                )
+            ]
+        )
+
+    async def check_urls(urls: list[str], timeout: float):
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    content = result.result[0].content
+    assert isinstance(content, str)
+    assert not content.startswith("text")
+    assert invalid not in content
+    assert valid in content
 
 
 def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):
