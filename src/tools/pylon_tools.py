@@ -128,12 +128,16 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
+def search_support_articles(query: str, collections: str = "all", limit: int = 25) -> str:
+    """Search LangChain support article titles in the Pylon KB by keyword.
 
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
+    Returns at most `limit` matching article titles in structured JSON format so the LLM
+    can decide which ones to fetch. `query` is REQUIRED: titles are keyword-filtered and
+    the full catalog is never returned.
 
     Args:
+        query: Required keyword(s) matched case-insensitively against article titles,
+               e.g. "tracing", "self hosted upgrade". Keep it to 1-3 words.
         collections: Comma-separated list of collection names to filter by.
                     Available collections:
                     - "General" - General administration and management topics
@@ -149,9 +153,11 @@ def search_support_articles(collections: str = "all") -> str:
 
                     Use "all" to search all collections (default)
                     Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
+        limit: Maximum number of articles to return (default 25, hard cap 25).
 
     Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
+        JSON string with structure:
+        {"query": "...", "collections": "...", "total": N, "returned": M, "articles": [...]}
     """
     try:
         # Fetch and cache all articles (includes content)
@@ -161,6 +167,7 @@ def search_support_articles(collections: str = "all") -> str:
         if articles is None or not articles:
             return json.dumps(
                 {
+                    "query": query,
                     "collections": collections,
                     "total": 0,
                     "articles": [],
@@ -253,6 +260,7 @@ def search_support_articles(collections: str = "all") -> str:
         if not published_articles:
             return json.dumps(
                 {
+                    "query": query,
                     "collections": collections,
                     "total": 0,
                     "articles": [],
@@ -265,11 +273,35 @@ def search_support_articles(collections: str = "all") -> str:
         for article in published_articles:
             article.pop("collection_id", None)
 
+        # Keyword-filter on title so the full catalog can never enter the context window
+        tokens = [token for token in query.lower().split() if token]
+        matched_articles = [
+            article
+            for article in published_articles
+            if any(token in article.get("title", "").lower() for token in tokens)
+        ]
+
+        if not matched_articles:
+            return json.dumps(
+                {
+                    "query": query,
+                    "collections": collections,
+                    "total": 0,
+                    "articles": [],
+                    "note": "No articles matched this query. Try a broader or different keyword, or a different collection.",
+                },
+                indent=2,
+            )
+
+        capped_articles = matched_articles[: max(1, min(limit, 25))]
+
         # Return structured JSON format
         result = {
+            "query": query,
             "collections": collections,
-            "total": len(published_articles),
-            "articles": published_articles,
+            "total": len(matched_articles),
+            "returned": len(capped_articles),
+            "articles": capped_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
 
