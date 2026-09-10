@@ -14,12 +14,13 @@ from unittest.mock import MagicMock, call, patch
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_response(data, next_cursor=None):
+def _make_response(data, next_cursor=None, status_code=200):
     """Build a mock requests.Response whose .json() returns a Pylon-shaped body."""
     body = {"data": data}
     if next_cursor is not None:
         body["next"] = next_cursor
     mock_resp = MagicMock()
+    mock_resp.status_code = status_code
     mock_resp.json.return_value = body
     mock_resp.raise_for_status.return_value = None
     return mock_resp
@@ -186,6 +187,25 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_unauthorized_page_does_not_populate_cache(
+        self, mock_get, mock_kb_id, mock_api_key
+    ):
+        """An unauthorized page raises and leaves the article cache empty."""
+        mock_get.side_effect = [
+            _make_response(ARTICLE_PAGE_1, next_cursor="cursor-1"),
+            _make_response([], status_code=401),
+        ]
+
+        with self.assertRaises(self.module.PylonUnavailableError) as context:
+            self.module._fetch_all_articles()
+
+        self.assertIn("PYLON_API_KEY", str(context.exception))
+        self.assertIn("/knowledge-bases/kb-123/articles", str(context.exception))
+        self.assertIsNone(self.module._articles_cache)
 
 
 if __name__ == "__main__":
