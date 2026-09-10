@@ -3,7 +3,7 @@
 from typing import Any
 
 from langchain.agents.middleware import SummarizationMiddleware
-from langchain_core.messages import AnyMessage
+from langchain_core.messages import AnyMessage, HumanMessage
 from langchain_core.messages.utils import get_buffer_string
 from langchain_core.runnables import Runnable
 
@@ -16,6 +16,13 @@ class CustomSummarizationMiddleware(SummarizationMiddleware):
         super().__init__(*args, **kwargs)
         self.summary_model = summary_model
 
+    def _first_human_message(self, messages: list[AnyMessage]) -> AnyMessage | None:
+        """Return the first HumanMessage in the thread, if any."""
+        for m in messages:
+            if isinstance(m, HumanMessage):
+                return m
+        return None
+
     def _create_summary(self, messages_to_summarize: list[AnyMessage]) -> str:
         """Generate a summary using the configured retry/fallback summary model."""
         if not messages_to_summarize:
@@ -24,6 +31,11 @@ class CustomSummarizationMiddleware(SummarizationMiddleware):
         trimmed_messages = self._trim_messages_for_summary(messages_to_summarize)
         if not trimmed_messages:
             return "Previous conversation was too long to summarize."
+
+        # Pin the first HumanMessage so the original request survives summarization.
+        first_human = self._first_human_message(messages_to_summarize)
+        if first_human is not None and first_human not in trimmed_messages:
+            trimmed_messages = [first_human, *trimmed_messages]
 
         formatted_messages = get_buffer_string(trimmed_messages)
 
@@ -44,6 +56,11 @@ class CustomSummarizationMiddleware(SummarizationMiddleware):
         trimmed_messages = self._trim_messages_for_summary(messages_to_summarize)
         if not trimmed_messages:
             return "Previous conversation was too long to summarize."
+
+        # Pin the first HumanMessage so the original request survives summarization.
+        first_human = self._first_human_message(messages_to_summarize)
+        if first_human is not None and first_human not in trimmed_messages:
+            trimmed_messages = [first_human, *trimmed_messages]
 
         formatted_messages = get_buffer_string(trimmed_messages)
 
