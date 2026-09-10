@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -134,14 +135,23 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
             try:
                 return await handler(request)
             except PylonUnavailableError as error:
-                logger.warning(
+                logger.error(
                     "Tool %s unavailable: %s",
                     self._tool_name(request),
                     self._error_text(error),
                 )
                 return self._tool_message(
                     request,
-                    self._error_text(error),
+                    json.dumps(
+                        {
+                            "error": "Support knowledge base unavailable",
+                            "tool": self._tool_name(request),
+                            "user_notice": (
+                                "Tell the user that the support knowledge base "
+                                "could not be consulted."
+                            ),
+                        }
+                    ),
                     status="error",
                 )
             except Exception as error:
@@ -156,9 +166,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -184,7 +192,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]
