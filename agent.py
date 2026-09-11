@@ -6,6 +6,7 @@ from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
     citation_guard_middleware,
+    code_block_guard_middleware,
     docs_research_guard_middleware,
     model_fallback_middleware,
     model_retry_middleware,
@@ -50,6 +51,7 @@ docs_agent_middleware = [
     tool_retry_middleware,
     docs_research_guard_middleware,
     citation_guard_middleware,
+    code_block_guard_middleware,
     model_retry_middleware,
     model_fallback_middleware,
 ]
