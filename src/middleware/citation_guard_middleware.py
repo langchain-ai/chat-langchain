@@ -72,8 +72,8 @@ class CitationGuardMiddleware(AgentMiddleware):
         if not invalid_urls:
             return response
 
-        repaired_text = self._remove_footer_urls(
-            self._message_text(footer_message), invalid_urls
+        repaired_content, repaired_text = self._repair_content(
+            footer_message.content, invalid_urls
         )
         if not self._urls_in_footer_text(repaired_text):
             retry_request = request.override(
@@ -81,7 +81,7 @@ class CitationGuardMiddleware(AgentMiddleware):
                 system_message=self._retry_system_message(request),
             )
             return await handler(retry_request)
-        return self._replace_footer(response, footer_message, repaired_text)
+        return self._replace_footer(response, footer_message, repaired_content)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
@@ -152,16 +152,49 @@ class CitationGuardMiddleware(AgentMiddleware):
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
 
     def _replace_footer(
-        self, response: ModelResponse, message: AIMessage, text: str
+        self, response: ModelResponse, message: AIMessage, content: Any
     ) -> ModelResponse:
         messages = self._response_messages(response)
         index = messages.index(message)
-        messages[index] = message.model_copy(update={"content": text})
+        messages[index] = message.model_copy(update={"content": content})
         response.result = messages
         return response
 
+    def _repair_content(
+        self, content: Any, invalid_urls: set[str]
+    ) -> tuple[Any, str]:
+        if isinstance(content, str):
+            repaired_text = self._remove_footer_urls(content, invalid_urls)
+            return repaired_text, repaired_text
+        if isinstance(content, list):
+            footer_part = self._footer_content_part(content)
+            if footer_part is None:
+                text = self._message_text_from_content(content)
+                return content, text
+            index, key = footer_part
+            part = dict(content[index])
+            repaired_text = self._remove_footer_urls(part[key], invalid_urls)
+            part[key] = repaired_text
+            repaired_content = list(content)
+            repaired_content[index] = part
+            return repaired_content, repaired_text
+        text = self._message_text_from_content(content)
+        return content, text
+
+    def _footer_content_part(self, content: list[Any]) -> tuple[int, str] | None:
+        for key in ("text", "content"):
+            for index, part in enumerate(content):
+                if not isinstance(part, dict):
+                    continue
+                value = part.get(key)
+                if isinstance(value, str) and "Relevant docs:" in value:
+                    return index, key
+        return None
+
     def _message_text(self, message: BaseMessage) -> str:
-        content: Any = getattr(message, "content", "")
+        return self._message_text_from_content(getattr(message, "content", ""))
+
+    def _message_text_from_content(self, content: Any) -> str:
         if isinstance(content, str):
             return content
         if isinstance(content, list):
@@ -170,7 +203,13 @@ class CitationGuardMiddleware(AgentMiddleware):
 
     def _content_part_text(self, part: Any) -> str:
         if isinstance(part, dict):
-            return "\n".join(self._content_part_text(value) for value in part.values())
+            text = part.get("text")
+            if isinstance(text, str):
+                return text
+            content = part.get("content")
+            if isinstance(content, str):
+                return content
+            return ""
         if isinstance(part, list):
             return "\n".join(self._content_part_text(value) for value in part)
         return str(part)
