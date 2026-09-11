@@ -62,5 +62,12 @@ def test_tool_retry_middleware_propagates_pylon_failures():
     result = asyncio.run(invoke())
 
     assert result.status == "error"
-    assert result.content == "unauthorized"
+    assert result.content == (
+        '{"error": "support_knowledge_base_unavailable", '
+        '"tool": "search_support_articles", "instruction": '
+        '"Answer from official documentation only and disclose that the support '
+        'knowledge base was unavailable."}'
+    )
+    assert "PYLON_API_KEY" not in result.content
+    assert "usepylon.com" not in result.content
     handler.assert_awaited_once()

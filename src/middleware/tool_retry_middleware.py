@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -44,6 +45,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
     ):
+        """Configure retry attempts and backoff timing."""
         super().__init__()
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
@@ -71,7 +73,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         text = self._error_text(error)
         status_match = re.search(
             r"\b(?:HTTP|status(?:\s+code)?|error\s+code)[:= ]+"
-            r"(429|500|502|503|504)\b",
+            r"(401|403|429|500|502|503|504)\b",
             text,
             re.IGNORECASE,
         )
@@ -123,25 +125,42 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         }
         return json.dumps(payload)
 
+    def _pylon_error_content(self, request: ToolCallRequest) -> str:
+        tool_name = self._tool_name(request)
+        return json.dumps(
+            {
+                "error": "support_knowledge_base_unavailable",
+                "tool": tool_name,
+                "instruction": (
+                    "Answer from official documentation only and disclose that "
+                    "the support knowledge base was unavailable."
+                ),
+            }
+        )
+
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
+        """Run a tool call with retries and sanitized failure handling."""
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_attempts + 1):
             try:
                 return await handler(request)
             except PylonUnavailableError as error:
-                logger.warning(
-                    "Tool %s unavailable: %s",
-                    self._tool_name(request),
-                    self._error_text(error),
+                logger.error(
+                    "pylon_knowledge_base_auth_failure",
+                    extra={
+                        "tool_name": self._tool_name(request),
+                        "http_status": self._status_code(error),
+                    },
+                    exc_info=True,
                 )
                 return self._tool_message(
                     request,
-                    self._error_text(error),
+                    self._pylon_error_content(request),
                     status="error",
                 )
             except Exception as error:
@@ -156,9 +175,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -184,7 +201,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]

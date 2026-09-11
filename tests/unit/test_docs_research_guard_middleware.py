@@ -83,6 +83,51 @@ def test_check_links_does_not_satisfy_research_requirement():
     assert len(calls) == 2
 
 
+def test_support_kb_error_adds_required_disclosure_to_final_response():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I configure deployment authentication?"),
+            ToolMessage(
+                content='{"error": "support_knowledge_base_unavailable"}',
+                name="search_support_articles",
+                tool_call_id="support-search",
+                status="error",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[AIMessage(content="Use the deployment configuration settings.")]
+        )
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert response.result[0].content.endswith(
+        "Support articles could not be consulted, so this answer is based on official "
+        "documentation only."
+    )
+
+
+def test_support_kb_disclosure_is_not_added_without_current_turn_error():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I configure deployment authentication?")
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(result=[AIMessage(content="Use the deployment settings.")])
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert response.result[0].content == "Use the deployment settings."
+
+
 def test_retrieved_and_valid_footer_url_passes_through(monkeypatch):
     from src.middleware import citation_guard_middleware as citation_module
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
