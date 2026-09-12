@@ -1,7 +1,9 @@
-# Retry middleware for model calls with exponential backoff
+"""Retry middleware for model calls with exponential backoff."""
+
 import asyncio
+import importlib
 import logging
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -11,6 +13,38 @@ from langchain.agents.middleware.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _is_non_retryable(exc: Exception) -> bool:
+    """Return whether an exception should bypass model retries."""
+    message = str(exc)
+    if (
+        "does not support model prefilling" in message
+        or "invalid_request_error" in message
+        or "string_above_max_length" in message
+    ):
+        return True
+
+    exception_types = []
+    for module_name in ("openai", "anthropic"):
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError:
+            continue
+        for type_name in ("BadRequestError",):
+            exception_type = getattr(module, type_name, None)
+            if exception_type is not None:
+                exception_types.append(exception_type)
+
+    if exception_types and isinstance(exc, tuple(exception_types)):
+        return True
+
+    status_code = getattr(exc, "status_code", None)
+    response = getattr(exc, "response", None)
+    if status_code is None and response is not None:
+        status_code = getattr(response, "status_code", None)
+    return status_code == 400
+
 
 # Finish reasons that indicate a retryable failure (not an exception)
 RETRYABLE_FINISH_REASONS = {
@@ -25,12 +59,15 @@ class MalformedResponseError(Exception):
 
 
 class ModelRetryMiddleware(AgentMiddleware):
+    """Retry model calls and malformed responses."""
+
     def __init__(
         self,
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
     ):
+        """Initialize retry timing and attempt limits."""
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
@@ -46,6 +83,7 @@ class ModelRetryMiddleware(AgentMiddleware):
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
+        """Retry model calls that fail with transient errors."""
         last_exception: Exception | None = None
         last_retryable_reason: str | None = None
 
@@ -70,6 +108,9 @@ class ModelRetryMiddleware(AgentMiddleware):
 
             except Exception as e:
                 last_exception = e
+                if _is_non_retryable(e):
+                    logger.warning("Model call failed with non-retryable error: %s", e)
+                    raise
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
                     logger.warning(
@@ -94,4 +135,4 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = ["ModelRetryMiddleware", "MalformedResponseError", "_is_non_retryable"]

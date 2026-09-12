@@ -8,11 +8,14 @@ import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.runnables.retry import RunnableRetry
+from tenacity import retry_if_exception, stop_after_attempt, wait_exponential_jitter
 
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
     ModelRetryMiddleware,
+    _is_non_retryable,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -110,11 +113,26 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
     return response
 
 
+class _RetryingRunnable(RunnableRetry):
+    @property
+    def _kwargs_retrying(self) -> dict:
+        kwargs = {
+            "retry": retry_if_exception(lambda exc: not _is_non_retryable(exc)),
+        }
+        if self.max_attempt_number:
+            kwargs["stop"] = stop_after_attempt(self.max_attempt_number)
+        if self.wait_exponential_jitter:
+            kwargs["wait"] = wait_exponential_jitter(
+                **(self.exponential_jitter_params or {})
+            )
+        return kwargs
+
+
 def _init_retrying_model(model: str) -> Runnable:
-    return (
-        init_chat_model(model=model)
-        | RunnableLambda(_raise_for_retryable_finish_reason)
-    ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
+    bound = init_chat_model(model=model) | RunnableLambda(
+        _raise_for_retryable_finish_reason
+    )
+    return _RetryingRunnable(bound=bound, max_attempt_number=MAX_RETRIES + 1)
 
 
 def init_retry_fallback_model(model: str) -> Runnable:
