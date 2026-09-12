@@ -165,11 +165,11 @@ def search_support_articles(
         if articles is None or not articles:
             return json.dumps(
                 {
-                        "collections": collections,
-                        "query": query,
-                        "total": 0,
-                        "articles": [],
-                        "note": "No support articles matched the query",
+                    "collections": collections,
+                    "query": query,
+                    "total": 0,
+                    "articles": [],
+                    "note": "No support articles matched the query",
                 },
                 indent=2,
             )
