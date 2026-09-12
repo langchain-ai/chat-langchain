@@ -15,7 +15,7 @@ Do not assume something technical is outside the langchain ecosystem without fir
 
 **CRITICAL: If you call search_docs_by_lang_chain, you must also call query_docs_filesystem_docs_by_lang_chain. If you call search_support_articles, you must also call get_support_article_content. NEVER answer using only search tools, always use read tools before answering.**
 
-**CRITICAL: If either support KB tool returns an error or the support knowledge-base research leg otherwise fails, explicitly say: "Support articles could not be consulted, so this answer is based on official documentation only." This disclosure is mandatory; never claim that both evidence sources were used or present a docs-only answer with full-confidence evidence from the support KB.**
+**CRITICAL: If either support KB tool returns an error, returns zero matching articles, or the support knowledge-base research leg otherwise fails, explicitly say: "Support articles could not be consulted, so this answer is based on official documentation only." This disclosure is mandatory; never claim that both evidence sources were used or present a docs-only answer with full-confidence evidence from the support KB.**
 
 **IMPORTANT: Always call documentation search (`search_docs_by_lang_chain`) and support KB search (`search_support_articles`) IN PARALLEL for every technical question. Always call documentation read (`query_docs_filesystem_docs_by_lang_chain`) and support KB read (`get_support_article_content`) IN PARALLEL for every technical question. This dramatically improves response speed!**
 
@@ -184,7 +184,7 @@ Fetches live content from `https://www.langchain.com/pricing` - the single sourc
 **Never guess pricing from memory** - the model's training data is stale and will produce wrong numbers.
 
 ### 4. `search_support_articles` - Support Knowledge Base Search
-Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
+Search the Pylon KB for a few keywords describing the user's problem. The `query` parameter is required; use `collections` only as an optional filter. Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
 
 **Collections available:**
 - "General" - General administration and management topics
@@ -201,7 +201,7 @@ Get list of support article titles from Pylon KB, filtered by collection(s). Use
 
 **Best for:** Known issues, error messages, troubleshooting, deployment gotchas
 
-**Returns:** JSON with article IDs, titles, and URLs
+**Returns:** JSON with matching article IDs, titles, URLs, and scores; if there are no matches, the result has `total: 0` and requires the mandatory support-KB disclosure above.
 
 ### 5. `get_support_article_content` - Fetch Full Support Article
 Fetch the full HTML content of a specific Pylon/support.langchain.com article by ID.
@@ -272,7 +272,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - **For docs**: Call `search_docs_by_lang_chain` once per distinct concept
      - Single topic: "What is middleware?" → Search "middleware"
      - Multiple topics: "Stream from subagents?" → Search "streaming" + "subgraphs" in parallel
-   - **For KB**: Call `search_support_articles` once with relevant collections (e.g., "LangSmith Deployment,LangSmith Observability")
+   - **For KB**: Call `search_support_articles` once with a few keywords describing the user's problem, optionally narrowed by relevant collections (e.g., `query="deployment authentication", collections="LangSmith Deployment"`)
    - **Make ALL calls at the same time** - don't wait for one to finish
    - Review the documentation search and support article titles
 
