@@ -16,6 +16,7 @@ from src.middleware.retry_middleware import (
     MalformedResponseError,
     ModelRetryMiddleware,
 )
+from src.middleware.tool_call_name_guard_middleware import ToolCallNameGuardMiddleware
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
 dotenv.load_dotenv()
@@ -136,6 +137,7 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
+tool_call_name_guard_middleware = ToolCallNameGuardMiddleware()
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 
@@ -160,6 +162,7 @@ __all__ = [
     # Middleware
     "model_retry_middleware",
     "tool_retry_middleware",
+    "tool_call_name_guard_middleware",
     "docs_research_guard_middleware",
     "citation_guard_middleware",
     "model_fallback_middleware",
