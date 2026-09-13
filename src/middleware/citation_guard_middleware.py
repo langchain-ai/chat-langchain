@@ -14,6 +14,7 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
+from src.middleware._content import content_part_text
 from src.tools.link_check_tools import _check_urls_async
 
 DOCS_TOOLS = frozenset(
@@ -81,7 +82,7 @@ class CitationGuardMiddleware(AgentMiddleware):
                 system_message=self._retry_system_message(request),
             )
             return await handler(retry_request)
-        return self._replace_footer(response, footer_message, repaired_text)
+        return self._replace_footer(response, footer_message, invalid_urls)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
@@ -152,11 +153,30 @@ class CitationGuardMiddleware(AgentMiddleware):
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
 
     def _replace_footer(
-        self, response: ModelResponse, message: AIMessage, text: str
+        self, response: ModelResponse, message: AIMessage, invalid_urls: set[str]
     ) -> ModelResponse:
         messages = self._response_messages(response)
         index = messages.index(message)
-        messages[index] = message.model_copy(update={"content": text})
+        content = message.content
+        if isinstance(content, list):
+            updated_content = []
+            for part in content:
+                if (
+                    isinstance(part, dict)
+                    and isinstance(part.get("text"), str)
+                    and "Relevant docs:" in part["text"]
+                ):
+                    updated_part = dict(part)
+                    updated_part["text"] = self._remove_footer_urls(
+                        part["text"], invalid_urls
+                    )
+                    updated_content.append(updated_part)
+                else:
+                    updated_content.append(part)
+            content = updated_content
+        elif isinstance(content, str):
+            content = self._remove_footer_urls(content, invalid_urls)
+        messages[index] = message.model_copy(update={"content": content})
         response.result = messages
         return response
 
@@ -169,11 +189,7 @@ class CitationGuardMiddleware(AgentMiddleware):
         return str(content)
 
     def _content_part_text(self, part: Any) -> str:
-        if isinstance(part, dict):
-            return "\n".join(self._content_part_text(value) for value in part.values())
-        if isinstance(part, list):
-            return "\n".join(self._content_part_text(value) for value in part)
-        return str(part)
+        return content_part_text(part)
 
     def _retry_system_message(self, request: ModelRequest) -> SystemMessage:
         existing = request.system_message.text if request.system_message else ""

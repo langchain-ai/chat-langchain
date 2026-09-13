@@ -16,6 +16,8 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
+from src.middleware._content import content_part_text
+
 RESEARCH_TOOLS = frozenset(
     {
         "search_docs_by_lang_chain",
@@ -122,10 +124,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         if isinstance(content, str):
             return content
         if isinstance(content, list):
-            return "\n".join(
-                block.get("text", "") if isinstance(block, dict) else str(block)
-                for block in content
-            )
+            return "\n".join(content_part_text(block) for block in content)
         return str(content)
 
     def _retry_system_message(self, request: ModelRequest) -> SystemMessage:
