@@ -156,7 +156,22 @@ class CitationGuardMiddleware(AgentMiddleware):
     ) -> ModelResponse:
         messages = self._response_messages(response)
         index = messages.index(message)
-        messages[index] = message.model_copy(update={"content": text})
+        content = message.content
+        if isinstance(content, list):
+            updated_content = list(content)
+            for part_index, part in enumerate(content):
+                if (
+                    isinstance(part, dict)
+                    and isinstance(part.get("text"), str)
+                    and "Relevant docs:" in part["text"]
+                ):
+                    updated_part = dict(part)
+                    updated_part["text"] = text
+                    updated_content[part_index] = updated_part
+                    break
+            messages[index] = message.model_copy(update={"content": updated_content})
+        else:
+            messages[index] = message.model_copy(update={"content": text})
         response.result = messages
         return response
 
@@ -170,7 +185,11 @@ class CitationGuardMiddleware(AgentMiddleware):
 
     def _content_part_text(self, part: Any) -> str:
         if isinstance(part, dict):
-            return "\n".join(self._content_part_text(value) for value in part.values())
+            if part.get("type") == "text" or ("type" not in part and "text" in part):
+                text = part.get("text")
+                return text if isinstance(text, str) else ""
+            content = part.get("content")
+            return content if isinstance(content, str) else ""
         if isinstance(part, list):
             return "\n".join(self._content_part_text(value) for value in part)
         return str(part)
