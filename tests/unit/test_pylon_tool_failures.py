@@ -11,6 +11,7 @@ from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 from src.tools.pylon_tools import (
     PylonUnavailableError,
     _raise_for_status,
+    get_support_article_content,
     search_support_articles,
 )
 
@@ -64,3 +65,23 @@ def test_tool_retry_middleware_propagates_pylon_failures():
     assert result.status == "error"
     assert result.content == "unauthorized"
     handler.assert_awaited_once()
+
+
+@pytest.mark.parametrize("article_id", ["0", "N/A", "00000000-0000-0000-0000-000000000000"])
+def test_get_support_article_content_rejects_invalid_article_ids(article_id):
+    """Invalid article IDs return a corrective provenance error."""
+    with patch("src.tools.pylon_tools._fetch_all_articles") as fetch_articles:
+        result = get_support_article_content.invoke({"article_id": article_id})
+
+    assert "search_support_articles" in result
+    assert "articles[].id" in result
+    fetch_articles.assert_not_called()
+
+
+def test_get_support_article_content_accepts_uuid_shape():
+    """Valid UUIDs proceed to the knowledge-base lookup."""
+    article_id = "123e4567-e89b-12d3-a456-426614174000"
+    with patch("src.tools.pylon_tools._fetch_all_articles", return_value=[]):
+        result = get_support_article_content.invoke({"article_id": article_id})
+
+    assert result == "No articles available in the knowledge base."
