@@ -14,12 +14,14 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
-from src.tools.link_check_tools import _check_urls_async
+from src.tools.link_check_tools import _check_urls_async, begin_link_check_turn
 
 DOCS_TOOLS = frozenset(
     {
         "search_docs_by_lang_chain",
         "query_docs_filesystem_docs_by_lang_chain",
+        "search_support_articles",
+        "get_support_article_content",
     }
 )
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
@@ -40,6 +42,9 @@ class CitationGuardMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
         """Validate and repair documentation citations after model calls."""
+        turn_key = self._turn_key(request.messages)
+        if turn_key is not None:
+            begin_link_check_turn(turn_key)
         response = await handler(request)
         if self._has_pending_tool_calls(self._response_messages(response)):
             return response
@@ -57,9 +62,13 @@ class CitationGuardMiddleware(AgentMiddleware):
             return response
         grounded_urls = self._grounded_urls(turn_messages)
         valid_urls = self._valid_urls(turn_messages)
-        unchecked_urls = [
-            url for url in footer_urls if url in grounded_urls and url not in valid_urls
-        ]
+        unchecked_urls = list(
+            dict.fromkeys(
+                url
+                for url in footer_urls
+                if url in grounded_urls and url not in valid_urls
+            )
+        )
         if unchecked_urls:
             results = await _check_urls_async(unchecked_urls, 10.0)
             valid_urls.update(result.url for result in results if result.valid)
@@ -88,6 +97,13 @@ class CitationGuardMiddleware(AgentMiddleware):
             if getattr(messages[index], "type", None) == "human":
                 return index
         return -1
+
+    def _turn_key(self, messages: list[BaseMessage]) -> str | None:
+        index = self._latest_human_index(messages)
+        if index < 0:
+            return None
+        human = messages[index]
+        return str(getattr(human, "id", None) or f"{index}:{human.content!r}")
 
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
