@@ -9,6 +9,7 @@ from src.agent.config import (
     docs_research_guard_middleware,
     model_fallback_middleware,
     model_retry_middleware,
+    response_sanitizer_middleware,
     summarization_model,
     tool_retry_middleware,
 )
@@ -52,6 +53,7 @@ docs_agent_middleware = [
     citation_guard_middleware,
     model_retry_middleware,
     model_fallback_middleware,
+    response_sanitizer_middleware,
 ]
 
 agent = define_deep_agent(
