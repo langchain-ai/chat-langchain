@@ -1,6 +1,7 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
+import contextvars
 import logging
 import re
 from dataclasses import dataclass
@@ -24,8 +25,9 @@ SOFT_404_DOMAINS = {
     "support.langchain.com",
 }
 
-# Simple in-memory cache
-_cache: dict[str, "LinkCheckResult"] = {}
+_turn_cache: contextvars.ContextVar[tuple[str, dict[str, "LinkCheckResult"]] | None] = (
+    contextvars.ContextVar("link_check_turn_cache", default=None)
+)
 
 
 @dataclass
@@ -36,6 +38,18 @@ class LinkCheckResult:
     status_code: int | None = None
     error: str | None = None
     final_url: str | None = None
+
+
+def begin_link_check_turn(turn_key: str) -> None:
+    """Start or continue the link-check cache for a turn."""
+    current = _turn_cache.get()
+    if current is None or current[0] != turn_key:
+        _turn_cache.set((turn_key, {}))
+
+
+def _current_cache() -> dict[str, LinkCheckResult] | None:
+    current = _turn_cache.get()
+    return current[1] if current is not None else None
 
 
 def _is_valid_url(url: str) -> bool:
@@ -75,13 +89,14 @@ async def _check_single_url(
     timeout: float,
 ) -> LinkCheckResult:
     """Check a single URL for validity."""
-    # Check cache first
-    if url in _cache:
-        return _cache[url]
+    cache = _current_cache()
+    if cache is not None and url in cache:
+        return cache[url]
 
     if not _is_valid_url(url):
         result = LinkCheckResult(url=url, valid=False, error="Invalid URL format")
-        _cache[url] = result
+        if cache is not None:
+            cache[url] = result
         return result
 
     try:
@@ -105,7 +120,8 @@ async def _check_single_url(
                             url=url, valid=False, status_code=200, final_url=final_url,
                             error="Soft 404: Page shows 'not found' content",
                         )
-                        _cache[url] = result
+                        if cache is not None:
+                            cache[url] = result
                         return result
 
                 result = LinkCheckResult(
@@ -128,7 +144,8 @@ async def _check_single_url(
                 final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
             )
 
-        _cache[url] = result
+        if cache is not None:
+            cache[url] = result
         return result
 
     except httpx.TimeoutException:
@@ -141,7 +158,8 @@ async def _check_single_url(
         logger.warning(f"Error checking URL {url}: {e}")
         result = LinkCheckResult(url=url, valid=False, error=f"Error: {str(e)[:50]}")
 
-    _cache[url] = result
+    if cache is not None:
+        cache[url] = result
     return result
 
 

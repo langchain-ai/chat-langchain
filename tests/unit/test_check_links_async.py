@@ -8,8 +8,7 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,12 +16,10 @@ import pytest
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
     _check_single_url,
-    _check_urls_async,
-    _format_results,
+    begin_link_check_turn,
     check_links,
 )
 
@@ -173,6 +170,50 @@ def test_check_links_sync_deduplicates_urls():
     assert len(seen_urls) == 1
     assert seen_urls[0] == ["https://example.com"]
     assert "1/1 valid" in result
+
+
+@pytest.mark.asyncio
+async def test_check_links_caches_exact_urls_within_a_turn(monkeypatch):
+    begin_link_check_turn("turn-1")
+    calls: list[str] = []
+
+    class _Client:
+        async def head(self, url, **kwargs):  # noqa: ARG002
+            calls.append(url)
+            response = MagicMock()
+            response.url = url
+            response.status_code = 200
+            return response
+
+    monkeypatch.setattr(
+        "src.tools.link_check_tools.httpx.AsyncClient",
+        lambda **kwargs: _Client(),
+    )
+    first = await _check_single_url(_Client(), "https://example.com/page#one", 1.0)
+    second = await _check_single_url(_Client(), "https://example.com/page#one", 1.0)
+    different_fragment = await _check_single_url(
+        _Client(), "https://example.com/page#two", 1.0
+    )
+
+    assert first == second
+    assert different_fragment.url.endswith("#two")
+    assert calls == [
+        "https://example.com/page#one",
+        "https://example.com/page#two",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_check_links_cache_is_scoped_to_turn():
+    from src.tools import link_check_tools
+
+    begin_link_check_turn("turn-1")
+    first = LinkCheckResult(url="https://example.com", valid=True)
+    link_check_tools._current_cache()[first.url] = first
+
+    begin_link_check_turn("turn-2")
+
+    assert link_check_tools._current_cache() == {}
 
 
 # ===========================================================================
