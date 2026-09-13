@@ -155,8 +155,42 @@ def test_guardrails_prompt_allows_langchain_resource_questions():
 def test_guardrails_prompt_allows_bare_technical_follow_ups():
     """Layman-terms follow-ups after LangGraph questions must be allowed."""
     assert "in layman terms" in PROMPT_LOWER
-    assert "technical follow-up questions about prior langchain / langgraph" in PROMPT_LOWER
+    assert (
+        "technical follow-up questions about prior langchain / langgraph"
+        in PROMPT_LOWER
+    )
     assert "in-scope technical questions" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_allows_own_agent_evaluation_authoring():
+    """Own-agent datasets and judge configuration must be explicitly allowed."""
+    assert "evaluation & safety testing of the user's own system" in PROMPT_LOWER
+    assert "building langsmith datasets and experiments" in PROMPT_LOWER
+    assert "llm-as-judge system prompts" in PROMPT_LOWER
+    assert "feedback configurations" in PROMPT_LOWER
+    assert "variable mappings" in PROMPT_LOWER
+    assert "red-team test questions" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_allows_defensive_secret_leakage_tests():
+    """Defensive prompt-injection and secret-leakage tests must be allowed."""
+    assert "test inputs designed to probe an agent for secret leakage" in PROMPT_LOWER
+    assert "defensive evaluation and must be allowed" in PROMPT_LOWER
+    assert "simulated prompt-injection or jailbreak test inputs" in PROMPT_LOWER
+    assert (
+        "evaluators that check whether the user's agent leaks secrets" in PROMPT_LOWER
+    )
+
+
+def test_guardrails_prompt_narrows_prompt_extraction_block():
+    """Prompt-writing help for the user's own agent must not be blocked."""
+    assert "this assistant's own system prompt" in PROMPT_LOWER
+    assert (
+        "write a system prompt for their own agent, evaluator, or judge" in PROMPT_LOWER
+    )
+    assert (
+        "red-teaming or evaluating the user's own agent is not covered" in PROMPT_LOWER
+    )
 
 
 # ---------------------------------------------------------------------------
