@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
 }
+NON_RETRYABLE_ERROR_MARKER = "does not support model prefilling"
 
 
 class MalformedResponseError(Exception):
@@ -40,6 +41,9 @@ class ModelRetryMiddleware(AgentMiddleware):
         """Extract finish_reason from response metadata."""
         metadata = getattr(response, "response_metadata", None) or {}
         return metadata.get("finish_reason", "")
+
+    def _is_retryable_exception(self, error: Exception) -> bool:
+        return NON_RETRYABLE_ERROR_MARKER not in str(error).lower()
 
     async def awrap_model_call(
         self,
@@ -70,6 +74,8 @@ class ModelRetryMiddleware(AgentMiddleware):
 
             except Exception as e:
                 last_exception = e
+                if not self._is_retryable_exception(e):
+                    raise
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
                     logger.warning(
