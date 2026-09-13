@@ -156,6 +156,8 @@ def test_ungrounded_footer_url_is_stripped_even_when_reachable(monkeypatch):
                                 f"- [Guide]({grounded})\n"
                                 f"- [Other]({invented})"
                             ),
+                            "index": 0,
+                            "thought_signature": "QUJD",
                         }
                     ]
                 )
@@ -170,8 +172,16 @@ def test_ungrounded_footer_url_is_stripped_even_when_reachable(monkeypatch):
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert checks == [[grounded]]
-    assert invented not in result.result[0].content
-    assert grounded in result.result[0].content
+    content = result.result[0].content
+    assert isinstance(content, list)
+    delivered_text = content[0]["text"]
+    assert content[0]["index"] == 0
+    assert content[0]["thought_signature"] == "QUJD"
+    assert grounded in delivered_text
+    assert invented not in delivered_text
+    assert "text" not in delivered_text
+    assert "0" not in delivered_text
+    assert "QUJD" not in delivered_text
 
 
 def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):

@@ -81,7 +81,7 @@ class CitationGuardMiddleware(AgentMiddleware):
                 system_message=self._retry_system_message(request),
             )
             return await handler(retry_request)
-        return self._replace_footer(response, footer_message, repaired_text)
+        return self._replace_footer(response, footer_message, invalid_urls)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
@@ -152,11 +152,37 @@ class CitationGuardMiddleware(AgentMiddleware):
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
 
     def _replace_footer(
-        self, response: ModelResponse, message: AIMessage, text: str
+        self, response: ModelResponse, message: AIMessage, invalid_urls: set[str]
     ) -> ModelResponse:
         messages = self._response_messages(response)
         index = messages.index(message)
-        messages[index] = message.model_copy(update={"content": text})
+        content = message.content
+        if isinstance(content, str):
+            repaired_content = self._remove_footer_urls(content, invalid_urls)
+        elif isinstance(content, list):
+            rebuilt_blocks = list(content)
+            for block_index in range(len(rebuilt_blocks) - 1, -1, -1):
+                block = rebuilt_blocks[block_index]
+                if not isinstance(block, dict):
+                    continue
+                block_text = block.get("text")
+                if (
+                    not isinstance(block_text, str)
+                    or "Relevant docs:" not in block_text
+                ):
+                    continue
+                rebuilt_block = dict(block)
+                rebuilt_block["text"] = self._remove_footer_urls(
+                    block_text, invalid_urls
+                )
+                rebuilt_blocks[block_index] = rebuilt_block
+                break
+            else:
+                return response
+            repaired_content = rebuilt_blocks
+        else:
+            return response
+        messages[index] = message.model_copy(update={"content": repaired_content})
         response.result = messages
         return response
 
@@ -165,14 +191,23 @@ class CitationGuardMiddleware(AgentMiddleware):
         if isinstance(content, str):
             return content
         if isinstance(content, list):
-            return "\n".join(self._content_part_text(part) for part in content)
+            return "\n".join(
+                text for part in content if (text := self._content_part_text(part))
+            )
         return str(content)
 
     def _content_part_text(self, part: Any) -> str:
         if isinstance(part, dict):
-            return "\n".join(self._content_part_text(value) for value in part.values())
+            text = part.get("text")
+            return (
+                text
+                if part.get("type") in (None, "text") and isinstance(text, str)
+                else ""
+            )
         if isinstance(part, list):
-            return "\n".join(self._content_part_text(value) for value in part)
+            return "\n".join(
+                text for value in part if (text := self._content_part_text(value))
+            )
         return str(part)
 
     def _retry_system_message(self, request: ModelRequest) -> SystemMessage:
