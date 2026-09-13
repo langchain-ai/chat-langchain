@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -57,8 +58,18 @@ class CitationGuardMiddleware(AgentMiddleware):
             return response
         grounded_urls = self._grounded_urls(turn_messages)
         valid_urls = self._valid_urls(turn_messages)
+        replacements = {
+            url: self._without_fragment(url)
+            for url in footer_urls
+            if urlsplit(url).fragment
+            and url not in grounded_urls
+            and self._without_fragment(url) in grounded_urls
+        }
+        urls_to_check = [replacements.get(url, url) for url in footer_urls]
         unchecked_urls = [
-            url for url in footer_urls if url in grounded_urls and url not in valid_urls
+            url
+            for url in urls_to_check
+            if url in grounded_urls and url not in valid_urls
         ]
         if unchecked_urls:
             results = await _check_urls_async(unchecked_urls, 10.0)
@@ -67,14 +78,16 @@ class CitationGuardMiddleware(AgentMiddleware):
         invalid_urls = {
             url
             for url in footer_urls
-            if url not in grounded_urls or url not in valid_urls
+            if replacements.get(url, url) not in grounded_urls
+            or replacements.get(url, url) not in valid_urls
         }
-        if not invalid_urls:
+        if not invalid_urls and not replacements:
             return response
 
-        repaired_text = self._remove_footer_urls(
-            self._message_text(footer_message), invalid_urls
+        repaired_text = self._replace_footer_urls(
+            self._message_text(footer_message), replacements
         )
+        repaired_text = self._remove_footer_urls(repaired_text, invalid_urls)
         if not self._urls_in_footer_text(repaired_text):
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
@@ -115,12 +128,18 @@ class CitationGuardMiddleware(AgentMiddleware):
         return _URL_PATTERN.findall(match.group(0)) if match else []
 
     def _grounded_urls(self, messages: list[BaseMessage]) -> set[str]:
-        return {
-            url
-            for message in messages
-            if isinstance(message, ToolMessage) and message.name in DOCS_TOOLS
-            for url in _URL_PATTERN.findall(self._message_text(message))
-        }
+        grounded_urls: set[str] = set()
+        for message in messages:
+            if not isinstance(message, ToolMessage) or message.name not in DOCS_TOOLS:
+                continue
+            for url in _URL_PATTERN.findall(self._message_text(message)):
+                grounded_urls.add(url)
+                grounded_urls.add(self._without_fragment(url))
+        return grounded_urls
+
+    def _without_fragment(self, url: str) -> str:
+        parsed = urlsplit(url)
+        return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, ""))
 
     def _valid_urls(self, messages: list[BaseMessage]) -> set[str]:
         valid_urls: set[str] = set()
@@ -150,6 +169,17 @@ class CitationGuardMiddleware(AgentMiddleware):
             if not invalid_urls.intersection(_URL_PATTERN.findall(line))
         ]
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
+
+    def _replace_footer_urls(self, text: str, replacements: dict[str, str]) -> str:
+        if not replacements:
+            return text
+        match = _FOOTER_PATTERN.search(text)
+        if not match:
+            return text
+        footer = match.group(0)
+        for source, target in replacements.items():
+            footer = footer.replace(source, target)
+        return text[: match.start()] + footer + text[match.end() :]
 
     def _replace_footer(
         self, response: ModelResponse, message: AIMessage, text: str

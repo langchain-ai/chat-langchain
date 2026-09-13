@@ -212,6 +212,86 @@ def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):
     assert url in result.result[0].content
 
 
+def test_grounded_base_replaces_unseen_footer_anchor(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+    from src.tools.link_check_tools import LinkCheckResult
+
+    base_url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    anchored_url = f"{base_url}#invented-section"
+    checks: list[list[str]] = []
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {base_url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({anchored_url})"
+                )
+            ]
+        )
+
+    async def check_urls(urls: list[str], timeout: float):
+        checks.append(urls)
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert checks == [[base_url]]
+    assert anchored_url not in result.result[0].content
+    assert base_url in result.result[0].content
+
+
+def test_verbatim_docs_anchor_is_preserved(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+    from src.tools.link_check_tools import LinkCheckResult
+
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api#available-section"
+    checks: list[list[str]] = []
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    async def check_urls(urls: list[str], timeout: float):
+        checks.append(urls)
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert checks == [[url]]
+    assert url in result.result[0].content
+
+
 def test_entirely_ungrounded_footer_retries_with_correction():
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 

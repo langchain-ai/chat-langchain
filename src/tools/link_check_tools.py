@@ -1,10 +1,11 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
+import html
 import logging
 import re
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import httpx
 from langchain.tools import tool
@@ -31,6 +32,7 @@ _cache: dict[str, "LinkCheckResult"] = {}
 @dataclass
 class LinkCheckResult:
     """Result of checking a single URL."""
+
     url: str
     valid: bool
     status_code: int | None = None
@@ -61,10 +63,32 @@ def _is_soft_404(content: str) -> bool:
     if "Article Not Found" in content:
         return True
 
-    title_match = re.search(r'<title>(.*?)</title>', content, re.IGNORECASE)
+    title_match = re.search(r"<title>(.*?)</title>", content, re.IGNORECASE)
     if title_match:
         title = title_match.group(1).lower()
-        if any(phrase in title for phrase in ['not found', '404', 'page not found']):
+        if any(phrase in title for phrase in ["not found", "404", "page not found"]):
+            return True
+    return False
+
+
+def _slugify_heading(text: str) -> str:
+    """Convert heading text to a URL fragment slug."""
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text).lower()
+    return re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+
+
+def _has_anchor(content: str, fragment: str) -> bool:
+    """Check whether HTML contains an element id or matching heading slug."""
+    fragment = unquote(fragment)
+    if re.search(
+        rf"\bid\s*=\s*['\"]{re.escape(fragment)}['\"]", content, re.IGNORECASE
+    ):
+        return True
+    for heading in re.findall(
+        r"<h[1-6][^>]*>(.*?)</h[1-6]>", content, re.IGNORECASE | re.DOTALL
+    ):
+        if _slugify_heading(heading) == fragment:
             return True
     return False
 
@@ -85,11 +109,15 @@ async def _check_single_url(
         return result
 
     try:
-        needs_content_check = _needs_soft_404_check(url)
+        parsed_url = urlparse(url)
+        has_fragment = bool(parsed_url.fragment)
+        needs_content_check = _needs_soft_404_check(url) or has_fragment
 
         if needs_content_check:
             # Stream response, only read first chunk for soft 404 detection
-            async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
+            async with client.stream(
+                "GET", url, timeout=timeout, follow_redirects=True
+            ) as response:
                 final_url = str(response.url) if str(response.url) != url else None
                 is_valid = 200 <= response.status_code < 400
 
@@ -97,20 +125,36 @@ async def _check_single_url(
                     content = ""
                     async for chunk in response.aiter_text():
                         content += chunk
-                        if len(content) >= CONTENT_CHECK_BYTES:
+                        if not has_fragment and len(content) >= CONTENT_CHECK_BYTES:
                             break
 
                     if _is_soft_404(content):
                         result = LinkCheckResult(
-                            url=url, valid=False, status_code=200, final_url=final_url,
+                            url=url,
+                            valid=False,
+                            status_code=200,
+                            final_url=final_url,
                             error="Soft 404: Page shows 'not found' content",
+                        )
+                        _cache[url] = result
+                        return result
+                    if has_fragment and not _has_anchor(content, parsed_url.fragment):
+                        result = LinkCheckResult(
+                            url=url,
+                            valid=False,
+                            status_code=200,
+                            final_url=final_url,
+                            error="Anchor not found",
                         )
                         _cache[url] = result
                         return result
 
                 result = LinkCheckResult(
-                    url=url, valid=is_valid, status_code=response.status_code,
-                    final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
+                    url=url,
+                    valid=is_valid,
+                    status_code=response.status_code,
+                    final_url=final_url,
+                    error=None if is_valid else f"HTTP {response.status_code}",
                 )
         else:
             # Use HEAD for non-langchain domains (much faster)
@@ -124,8 +168,11 @@ async def _check_single_url(
             is_valid = 200 <= response.status_code < 400
 
             result = LinkCheckResult(
-                url=url, valid=is_valid, status_code=response.status_code,
-                final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
+                url=url,
+                valid=is_valid,
+                status_code=response.status_code,
+                final_url=final_url,
+                error=None if is_valid else f"HTTP {response.status_code}",
             )
 
         _cache[url] = result
@@ -136,7 +183,9 @@ async def _check_single_url(
     except httpx.TooManyRedirects:
         result = LinkCheckResult(url=url, valid=False, error="Too many redirects")
     except httpx.ConnectError as e:
-        result = LinkCheckResult(url=url, valid=False, error=f"Connection failed: {str(e)[:50]}")
+        result = LinkCheckResult(
+            url=url, valid=False, error=f"Connection failed: {str(e)[:50]}"
+        )
     except Exception as e:
         logger.warning(f"Error checking URL {url}: {e}")
         result = LinkCheckResult(url=url, valid=False, error=f"Error: {str(e)[:50]}")
