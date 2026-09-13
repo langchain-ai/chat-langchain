@@ -11,6 +11,7 @@ from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
+from src.middleware.response_sanitizer_middleware import ResponseSanitizerMiddleware
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -138,6 +139,7 @@ model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
+response_sanitizer_middleware = ResponseSanitizerMiddleware()
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
@@ -162,6 +164,7 @@ __all__ = [
     "tool_retry_middleware",
     "docs_research_guard_middleware",
     "citation_guard_middleware",
+    "response_sanitizer_middleware",
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
