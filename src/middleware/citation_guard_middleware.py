@@ -24,6 +24,8 @@ DOCS_TOOLS = frozenset(
 )
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
 _FOOTER_PATTERN = re.compile(r"(?ims)^\s*(?:\*\*)?Relevant docs:\s*(?:\*\*)?.*$")
+_PROTOCOL_MARKERS = frozenset({"text", "end", "thought"})
+_SIGNATURE_PATTERN = re.compile(r"^[A-Za-z0-9+/=]{40,}$")
 _RETRY_INSTRUCTIONS = (
     "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
     "documentation tool results. Call check_links on exactly the final citation list "
@@ -40,7 +42,7 @@ class CitationGuardMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
         """Validate and repair documentation citations after model calls."""
-        response = await handler(request)
+        response = self._sanitize_response(await handler(request))
         if self._has_pending_tool_calls(self._response_messages(response)):
             return response
 
@@ -80,7 +82,7 @@ class CitationGuardMiddleware(AgentMiddleware):
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
             )
-            return await handler(retry_request)
+            return self._sanitize_response(await handler(retry_request))
         return self._replace_footer(response, footer_message, repaired_text)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
@@ -156,9 +158,21 @@ class CitationGuardMiddleware(AgentMiddleware):
     ) -> ModelResponse:
         messages = self._response_messages(response)
         index = messages.index(message)
-        messages[index] = message.model_copy(update={"content": text})
+        content = message.content
+        if isinstance(content, list):
+            updated_content = [
+                part.copy() if isinstance(part, dict) else part for part in content
+            ]
+            for part in reversed(updated_content):
+                if isinstance(part, dict) and part.get("type") in (None, "text"):
+                    part["text"] = text
+                    break
+            content = updated_content
+        else:
+            content = text
+        messages[index] = message.model_copy(update={"content": content})
         response.result = messages
-        return response
+        return self._sanitize_response(response)
 
     def _message_text(self, message: BaseMessage) -> str:
         content: Any = getattr(message, "content", "")
@@ -170,10 +184,88 @@ class CitationGuardMiddleware(AgentMiddleware):
 
     def _content_part_text(self, part: Any) -> str:
         if isinstance(part, dict):
-            return "\n".join(self._content_part_text(value) for value in part.values())
+            if part.get("type") not in (None, "text"):
+                return ""
+            value = part.get("text", "")
+            return (
+                value
+                if isinstance(value, str)
+                else str(value)
+                if value is not None
+                else ""
+            )
         if isinstance(part, list):
             return "\n".join(self._content_part_text(value) for value in part)
         return str(part)
+
+    def _strip_protocol_artifacts(self, text: str) -> str:
+        lines = text.splitlines(keepends=True)
+        fenced = False
+        line_states: list[bool] = []
+        for line in lines:
+            line_states.append(fenced)
+            if line.strip().startswith("```"):
+                fenced = not fenced
+
+        first_content = 0
+        while first_content < len(lines) and not lines[first_content].strip():
+            first_content += 1
+        while (
+            first_content < len(lines)
+            and not line_states[first_content]
+            and (
+                lines[first_content].strip() in _PROTOCOL_MARKERS
+                or lines[first_content].strip().isdigit()
+            )
+        ):
+            lines[first_content] = ""
+            first_content += 1
+
+        last_content = len(lines) - 1
+        while last_content >= 0 and not lines[last_content].strip():
+            last_content -= 1
+        if (
+            last_content >= 0
+            and not line_states[last_content]
+            and _SIGNATURE_PATTERN.fullmatch(lines[last_content].strip())
+        ):
+            lines[last_content] = ""
+            previous = last_content - 1
+            while previous >= 0 and not lines[previous].strip():
+                previous -= 1
+            if (
+                previous >= 0
+                and not line_states[previous]
+                and lines[previous].strip().isdigit()
+            ):
+                lines[previous] = ""
+        return "".join(lines).strip()
+
+    def _sanitize_response(self, response: ModelResponse) -> ModelResponse:
+        messages = self._response_messages(response)
+        sanitized_messages = []
+        for message in messages:
+            if not isinstance(message, AIMessage):
+                sanitized_messages.append(message)
+                continue
+            content = message.content
+            if isinstance(content, str):
+                content = self._strip_protocol_artifacts(content)
+            elif isinstance(content, list):
+                content = [
+                    {
+                        **part,
+                        "text": self._strip_protocol_artifacts(part["text"]),
+                    }
+                    if isinstance(part, dict)
+                    and part.get("type") in (None, "text")
+                    and isinstance(part.get("text"), str)
+                    else part
+                    for part in content
+                ]
+            sanitized_messages.append(message.model_copy(update={"content": content}))
+        response.result = sanitized_messages
+        return response
 
     def _retry_system_message(self, request: ModelRequest) -> SystemMessage:
         existing = request.system_message.text if request.system_message else ""

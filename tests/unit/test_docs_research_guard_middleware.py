@@ -170,8 +170,9 @@ def test_ungrounded_footer_url_is_stripped_even_when_reachable(monkeypatch):
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert checks == [[grounded]]
-    assert invented not in result.result[0].content
-    assert grounded in result.result[0].content
+    assert result.result[0].content[0]["text"]
+    assert invented not in result.result[0].content[0]["text"]
+    assert grounded in result.result[0].content[0]["text"]
 
 
 def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):
@@ -239,3 +240,57 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         in calls[1].system_prompt
     )
     assert result.result[0].content == calls[1].messages[-1].content
+
+
+def test_gemini_content_part_text_ignores_protocol_metadata():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    part = {
+        "type": "text",
+        "index": 2,
+        "text": "The answer.",
+        "extras": {"signature": "a" * 48},
+    }
+
+    assert CitationGuardMiddleware()._content_part_text(part) == "The answer."
+
+
+def test_footer_repair_preserves_structured_content_parts_and_keys():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    middleware = CitationGuardMiddleware()
+    url = "https://docs.langchain.com/invalid"
+    first_part = {"type": "image_url", "index": 0, "image_url": "image"}
+    text_part = {
+        "type": "text",
+        "index": 1,
+        "text": f"Answer\n\nRelevant docs: {url}",
+        "extras": {"signature": "a" * 48},
+    }
+    message = AIMessage(content=[first_part, text_part])
+    response = ModelResponse(result=[message])
+
+    result = middleware._replace_footer(response, message, "Answer")
+
+    assert result.result[0].content == [
+        first_part,
+        {
+            "type": "text",
+            "index": 1,
+            "text": "Answer",
+            "extras": {"signature": "a" * 48},
+        },
+    ]
+
+
+def test_protocol_artifact_sanitizer_removes_markers_and_signature_not_code():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    signature = "a" * 48
+    text = (
+        f"text\nend\n7\nAnswer\n\n```text\nend\n7\n{signature}\n```\n7\n{signature}\n"
+    )
+
+    result = CitationGuardMiddleware()._strip_protocol_artifacts(text)
+
+    assert result == (f"Answer\n\n```text\nend\n7\n{signature}\n```")
