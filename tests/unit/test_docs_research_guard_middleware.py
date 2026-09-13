@@ -170,8 +170,44 @@ def test_ungrounded_footer_url_is_stripped_even_when_reachable(monkeypatch):
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert checks == [[grounded]]
-    assert invented not in result.result[0].content
-    assert grounded in result.result[0].content
+    rendered = middleware._message_text(result.result[0])
+    assert invented not in rendered
+    assert grounded in rendered
+
+
+def test_footer_repair_preserves_non_text_content_blocks():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    middleware = CitationGuardMiddleware()
+    metadata_block = {"index": 0, "signature": "QUJD"}
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I build a graph?")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=[
+                        {
+                            "type": "text",
+                            "text": "answer\n\n**Relevant docs:**\n- <url>",
+                        },
+                        metadata_block,
+                    ]
+                )
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+    message = result.result[0]
+    rendered = middleware._message_text(message)
+
+    assert "text" not in rendered
+    assert "0" not in rendered
+    assert "QUJD" not in rendered
+    assert message.content[1] == metadata_block
 
 
 def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):
