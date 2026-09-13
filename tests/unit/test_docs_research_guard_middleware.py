@@ -170,8 +170,104 @@ def test_ungrounded_footer_url_is_stripped_even_when_reachable(monkeypatch):
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert checks == [[grounded]]
-    assert invented not in result.result[0].content
-    assert grounded in result.result[0].content
+    assert invented not in result.result[0].content[0]["text"]
+    assert grounded in result.result[0].content[0]["text"]
+
+
+def test_structured_footer_repair_preserves_non_text_parts(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+    from src.tools.link_check_tools import LinkCheckResult
+
+    grounded = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    invented = "https://docs.langchain.com/oss/python/langgraph/invented"
+    signature = "A" * 128
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {grounded}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=[
+                        {
+                            "type": "text",
+                            "text": (
+                                f"Thesis\n\nRelevant docs:\n"
+                                f"- [Guide]({grounded})\n- [Other]({invented})"
+                            ),
+                        },
+                        {"type": "thought_signature", "signature": signature},
+                    ]
+                )
+            ]
+        )
+
+    async def check_urls(urls: list[str], timeout: float):
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+    content = result.result[0].content
+
+    assert isinstance(content, list)
+    assert content[0]["text"] == (f"Thesis\n\nRelevant docs:\n- [Guide]({grounded})")
+    assert "text" not in content[0]["text"].splitlines()
+    assert content[1] == {"type": "thought_signature", "signature": signature}
+    assert signature not in content[0]["text"]
+
+
+def test_plain_string_footer_repair_still_updates_content(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+    from src.tools.link_check_tools import LinkCheckResult
+
+    grounded = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    invented = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {grounded}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=(
+                        f"Thesis\n\nRelevant docs:\n- [Guide]({grounded})\n"
+                        f"- [Other]({invented})"
+                    )
+                )
+            ]
+        )
+
+    async def check_urls(urls: list[str], timeout: float):
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert result.result[0].content == (
+        f"Thesis\n\nRelevant docs:\n- [Guide]({grounded})"
+    )
 
 
 def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):
