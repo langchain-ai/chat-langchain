@@ -22,10 +22,19 @@ def test_search_support_articles_raises_for_unauthorized_response():
         with patch("src.tools.pylon_tools._get_api_key", return_value="fake-key"):
             with patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123"):
                 with pytest.raises(PylonUnavailableError) as context:
-                    search_support_articles.invoke({"collections": "all"})
+                    search_support_articles.invoke({"collections": "General"})
 
     assert "PYLON_API_KEY" in str(context.value)
     assert "api.usepylon.com" in str(context.value)
+
+
+def test_search_support_articles_rejects_all_collection_request():
+    """Unscoped support searches return guidance without fetching the KB."""
+    with patch("src.tools.pylon_tools._fetch_all_articles") as fetch_articles:
+        result = search_support_articles.invoke({"collections": "all"})
+
+    fetch_articles.assert_not_called()
+    assert result == "Please name at least one support collection; do not use 'all'."
 
 
 def test_raise_for_status_detects_unauthorized_http_error_response():

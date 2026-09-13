@@ -153,31 +153,11 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 @tool
 def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+    """Get LangChain support article titles from named Pylon KB collections."""
     try:
+        if not collections or collections.strip().lower() == "all":
+            return "Please name at least one support collection; do not use 'all'."
+
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
 
