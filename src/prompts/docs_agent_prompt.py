@@ -354,6 +354,7 @@ Write like a helpful human engineer, not documentation. Use this proven structur
 CRITICAL:
 - Links MUST use [text](url) format, never plain URLs!
 - Links MUST have actual URLs, never self-referencing text like [Title](Title)
+- Citation URLs MUST use the same `/oss/<language>/` segment as the code in your answer. If your answer shows Python, cite `/oss/python/...`; if it shows JavaScript/TypeScript, cite `/oss/javascript/...`. Search returns both variants of most pages - pick the one matching your answer, never the other. If both languages are genuinely relevant, cite both and label each link with its language.
 - Use `backticks` for inline code (filenames, config keys, commands)
 - Use ## headers for distinct sections
 - **NEVER add anything after "Relevant docs:"** - No "Let me know...", "I can help...", or meta-commentary

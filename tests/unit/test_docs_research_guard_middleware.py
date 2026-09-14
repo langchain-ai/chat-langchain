@@ -239,3 +239,133 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         in calls[1].system_prompt
     )
     assert result.result[0].content == calls[1].messages[-1].content
+
+
+def test_python_footer_url_is_rewritten_to_retrieved_python_twin(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+    from src.tools.link_check_tools import LinkCheckResult
+
+    javascript_url = (
+        "https://docs.langchain.com/oss/javascript/deepagents/customization"
+    )
+    python_url = "https://docs.langchain.com/oss/python/deepagents/customization"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I customize DeepAgents in Python?"),
+            ToolMessage(
+                content=f"Retrieved URLs:\n- {javascript_url}\n- {python_url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=(
+                        "```python\nagent = create_deep_agent()\n```\n\n"
+                        f"**Relevant docs:**\n- [Guide]({javascript_url})"
+                    )
+                )
+            ]
+        )
+
+    async def check_urls(urls: list[str], timeout: float):
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert python_url in result.result[0].content
+    assert javascript_url not in result.result[0].content
+
+
+def test_footer_with_both_language_variants_is_unchanged(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    javascript_url = (
+        "https://docs.langchain.com/oss/javascript/deepagents/customization"
+    )
+    python_url = "https://docs.langchain.com/oss/python/deepagents/customization"
+    middleware = CitationGuardMiddleware()
+    content = (
+        "```python\nagent = create_deep_agent()\n```\n\n**Relevant docs:**\n"
+        f"- [JavaScript]({javascript_url})\n- [Python]({python_url})"
+    )
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I customize DeepAgents?"),
+            ToolMessage(
+                content=f"Retrieved URLs:\n- {javascript_url}\n- {python_url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content=f"Valid links:\n- {javascript_url}\n- {python_url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(result=[AIMessage(content=content)])
+
+    async def unexpected_check(urls: list[str], timeout: float):
+        raise AssertionError("already-valid URLs should not be checked again")
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", unexpected_check)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert result.result[0].content == content
+
+
+def test_javascript_footer_url_is_left_unchanged(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/javascript/deepagents/customization"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I customize DeepAgents in JavaScript?"),
+            ToolMessage(
+                content=f"Retrieved URL: {url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content=f"Valid links:\n- {url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=f"```javascript\nconst agent = createDeepAgent();\n```\n\n**Relevant docs:**\n- [Guide]({url})"
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        citation_module,
+        "_check_urls_async",
+        lambda urls, timeout: (_ for _ in ()).throw(
+            AssertionError("already-valid URL should not be checked again")
+        ),
+    )
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert result.result[0].content.endswith(f"({url})")

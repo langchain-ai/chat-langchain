@@ -24,6 +24,10 @@ DOCS_TOOLS = frozenset(
 )
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
 _FOOTER_PATTERN = re.compile(r"(?ims)^\s*(?:\*\*)?Relevant docs:\s*(?:\*\*)?.*$")
+_CODE_FENCE_LANGUAGE_PATTERN = re.compile(
+    r"```\s*(python|py|typescript|ts|javascript|js)(?:\s|$)", re.IGNORECASE
+)
+_OSS_LANGUAGE_PATTERN = re.compile(r"(/oss/)(python|javascript)(/)")
 _RETRY_INSTRUCTIONS = (
     "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
     "documentation tool results. Call check_links on exactly the final citation list "
@@ -56,6 +60,15 @@ class CitationGuardMiddleware(AgentMiddleware):
         if not footer_urls:
             return response
         grounded_urls = self._grounded_urls(turn_messages)
+        normalized_text = self._normalize_footer_languages(
+            self._message_text(footer_message), grounded_urls
+        )
+        if normalized_text != self._message_text(footer_message):
+            response = self._replace_footer(response, footer_message, normalized_text)
+            footer_message = self._footer_message(self._response_messages(response))
+            if footer_message is None:
+                return response
+            footer_urls = self._urls_in_footer(footer_message)
         valid_urls = self._valid_urls(turn_messages)
         unchecked_urls = [
             url for url in footer_urls if url in grounded_urls and url not in valid_urls
@@ -121,6 +134,49 @@ class CitationGuardMiddleware(AgentMiddleware):
             if isinstance(message, ToolMessage) and message.name in DOCS_TOOLS
             for url in _URL_PATTERN.findall(self._message_text(message))
         }
+
+    def _normalize_footer_languages(self, text: str, grounded_urls: set[str]) -> str:
+        languages = {
+            self._normalize_language(match)
+            for match in _CODE_FENCE_LANGUAGE_PATTERN.findall(text)
+        }
+        if len(languages) != 1:
+            return text
+        answer_language = languages.pop()
+        footer_urls = self._urls_in_footer_text(text)
+        if not footer_urls:
+            return text
+        grounded_without_fragments = {url.split("#", 1)[0] for url in grounded_urls}
+        footer_without_fragments = {url.split("#", 1)[0] for url in footer_urls}
+        replacements: dict[str, str] = {}
+        for url in footer_urls:
+            match = _OSS_LANGUAGE_PATTERN.search(url)
+            if not match or match.group(2) == answer_language:
+                continue
+            twin = _OSS_LANGUAGE_PATTERN.sub(
+                rf"\g<1>{answer_language}\g<3>", url, count=1
+            )
+            if twin.split("#", 1)[0] in footer_without_fragments:
+                continue
+            twin_without_fragment = twin.split("#", 1)[0]
+            if twin_without_fragment in grounded_without_fragments:
+                replacements[url] = next(
+                    grounded_url
+                    for grounded_url in grounded_urls
+                    if grounded_url.split("#", 1)[0] == twin_without_fragment
+                )
+        if not replacements:
+            return text
+        match = _FOOTER_PATTERN.search(text)
+        if not match:
+            return text
+        footer = match.group(0)
+        for source, target in replacements.items():
+            footer = footer.replace(source, target)
+        return text[: match.start()] + footer + text[match.end() :]
+
+    def _normalize_language(self, language: str) -> str:
+        return "python" if language.lower() in {"python", "py"} else "javascript"
 
     def _valid_urls(self, messages: list[BaseMessage]) -> set[str]:
         valid_urls: set[str] = set()
