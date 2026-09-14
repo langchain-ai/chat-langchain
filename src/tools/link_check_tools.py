@@ -1,6 +1,7 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
+import contextvars
 import logging
 import re
 from dataclasses import dataclass
@@ -26,6 +27,14 @@ SOFT_404_DOMAINS = {
 
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
+_validated_urls: contextvars.ContextVar[set[str]] = contextvars.ContextVar(
+    "link_check_validated_urls", default=set()
+)
+
+
+def reset_link_check_turn() -> None:
+    """Reset URLs validated during the current agent turn."""
+    _validated_urls.set(set())
 
 
 @dataclass
@@ -156,15 +165,20 @@ async def _check_urls_async(urls: list[str], timeout: float) -> list[LinkCheckRe
         return list(await asyncio.gather(*tasks))
 
 
-def _format_results(results: list[LinkCheckResult]) -> str:
+def _format_results(
+    results: list[LinkCheckResult], already_validated: list[str] | None = None
+) -> str:
     """Format check results into readable output."""
-    if not results:
+    already_validated = already_validated or []
+    if not results and not already_validated:
         return "No URLs to check."
 
     valid = [r for r in results if r.valid]
     invalid = [r for r in results if not r.valid]
 
-    lines = [f"Link Check Results: {len(valid)}/{len(results)} valid\n"]
+    lines = []
+    if results:
+        lines.append(f"Link Check Results: {len(valid)}/{len(results)} valid\n")
 
     if invalid:
         lines.append("Invalid links:")
@@ -176,6 +190,12 @@ def _format_results(results: list[LinkCheckResult]) -> str:
         for r in valid:
             suffix = f" (→ {r.final_url})" if r.final_url else ""
             lines.append(f"  - {r.url}{suffix}")
+
+    if already_validated:
+        if lines:
+            lines.append("")
+        lines.append("Already validated on this turn:")
+        lines.extend(f"  - {url}" for url in already_validated)
 
     return "\n".join(lines)
 
@@ -198,5 +218,9 @@ async def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
     seen = set()
     unique_urls = [u for u in urls if not (u in seen or seen.add(u))]
 
-    results = await _check_urls_async(unique_urls, timeout)
-    return _format_results(results)
+    validated_urls = _validated_urls.get()
+    already_validated = [url for url in unique_urls if url in validated_urls]
+    urls_to_check = [url for url in unique_urls if url not in validated_urls]
+    results = await _check_urls_async(urls_to_check, timeout) if urls_to_check else []
+    validated_urls.update(result.url for result in results if result.valid)
+    return _format_results(results, already_validated)
