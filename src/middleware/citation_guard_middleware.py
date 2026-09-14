@@ -12,7 +12,7 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
 from src.tools.link_check_tools import _check_urls_async
 
@@ -77,8 +77,11 @@ class CitationGuardMiddleware(AgentMiddleware):
         )
         if not self._urls_in_footer_text(repaired_text):
             retry_request = request.override(
-                messages=[*request.messages, *self._response_messages(response)],
-                system_message=self._retry_system_message(request),
+                messages=[
+                    *request.messages,
+                    *self._response_messages(response),
+                    HumanMessage(content=_RETRY_INSTRUCTIONS),
+                ],
             )
             return await handler(retry_request)
         return self._replace_footer(response, footer_message, repaired_text)
@@ -174,10 +177,5 @@ class CitationGuardMiddleware(AgentMiddleware):
         if isinstance(part, list):
             return "\n".join(self._content_part_text(value) for value in part)
         return str(part)
-
-    def _retry_system_message(self, request: ModelRequest) -> SystemMessage:
-        existing = request.system_message.text if request.system_message else ""
-        return SystemMessage(content=f"{existing}\n\n{_RETRY_INSTRUCTIONS}".strip())
-
 
 __all__ = ["CitationGuardMiddleware"]

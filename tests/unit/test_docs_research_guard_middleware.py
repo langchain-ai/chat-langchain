@@ -51,9 +51,10 @@ def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     response = asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert len(calls) == 2
-    assert "research this question on this turn" in calls[1].system_prompt
+    assert not isinstance(calls[1].messages[-1], AIMessage)
+    assert "research this question on this turn" in calls[1].messages[-1].content
     assert (
-        calls[1].messages[-1].content == "StateGraph accepts the configSchema option."
+        calls[1].messages[-2].content == "StateGraph accepts the configSchema option."
     )
     assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
 
@@ -234,8 +235,9 @@ def test_entirely_ungrounded_footer_retries_with_correction():
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert len(calls) == 2
+    assert not isinstance(calls[1].messages[-1], AIMessage)
     assert (
         "copied verbatim from this turn's documentation tool results"
-        in calls[1].system_prompt
+        in calls[1].messages[-1].content
     )
-    assert result.result[0].content == calls[1].messages[-1].content
+    assert result.result[0].content == calls[1].messages[-2].content
