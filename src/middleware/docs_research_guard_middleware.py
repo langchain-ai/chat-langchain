@@ -30,8 +30,8 @@ _RETRY_INSTRUCTIONS = (
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
     "then use the retrieved documentation to answer. Do not answer from memory."
 )
-_FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "docs_research_guard_forced_turn", default=None
+_RETRY_COUNTS: contextvars.ContextVar[dict[str, int]] = contextvars.ContextVar(
+    "docs_research_guard_retry_counts", default={}
 )
 
 
@@ -47,7 +47,11 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         response = await handler(request)
         if self._should_retry(request, response):
             turn_key = self._turn_key(request.messages)
-            _FORCED_TURN.set(turn_key)
+            retry_counts = dict(_RETRY_COUNTS.get())
+            if retry_counts.get(turn_key, 0) >= 1:
+                return response
+            retry_counts[turn_key] = retry_counts.get(turn_key, 0) + 1
+            _RETRY_COUNTS.set(retry_counts)
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
@@ -61,9 +65,6 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         messages = request.messages
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
-            return False
-        turn_key = self._turn_key(messages)
-        if turn_key == _FORCED_TURN.get():
             return False
         response_messages = self._response_messages(response)
         if self._has_pending_tool_calls(response_messages):
