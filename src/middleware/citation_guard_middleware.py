@@ -12,7 +12,13 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 
 from src.tools.link_check_tools import _check_urls_async
 
@@ -26,8 +32,9 @@ _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
 _FOOTER_PATTERN = re.compile(r"(?ims)^\s*(?:\*\*)?Relevant docs:\s*(?:\*\*)?.*$")
 _RETRY_INSTRUCTIONS = (
     "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
-    "documentation tool results. Call check_links on exactly the final citation list "
-    "before answering. Never construct or recall a documentation URL."
+    "documentation tool results. Reuse check_links results already present in this turn "
+    "and call check_links only for URLs not yet validated. Never construct or recall a "
+    "documentation URL."
 )
 
 
@@ -77,7 +84,15 @@ class CitationGuardMiddleware(AgentMiddleware):
         )
         if not self._urls_in_footer_text(repaired_text):
             retry_request = request.override(
-                messages=[*request.messages, *self._response_messages(response)],
+                messages=[
+                    *request.messages,
+                    HumanMessage(
+                        content=(
+                            f"{_RETRY_INSTRUCTIONS}\n\n"
+                            f"Draft footer to repair:\n{repaired_text}"
+                        )
+                    ),
+                ],
                 system_message=self._retry_system_message(request),
             )
             return await handler(retry_request)
