@@ -80,7 +80,7 @@ def test_check_links_does_not_satisfy_research_requirement():
     request = ModelRequest(model=object(), messages=messages)
     asyncio.run(middleware.awrap_model_call(request, handler))
 
-    assert len(calls) == 2
+    assert len(calls) == 3
 
 
 def test_retrieved_and_valid_footer_url_passes_through(monkeypatch):
@@ -239,3 +239,140 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         in calls[1].system_prompt
     )
     assert result.result[0].content == calls[1].messages[-1].content
+
+
+def test_search_results_satisfy_research_requirement():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Explain StateGraph."),
+            ToolMessage(
+                content="StateGraph combines state and nodes.",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="StateGraph is the graph class described in the docs."
+                )
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+
+
+def test_unread_large_result_pointer_does_not_satisfy_research_requirement():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Explain StateGraph."),
+            ToolMessage(
+                content="/large_tool_results/result-123",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="StateGraph is the graph class described in the docs."
+                )
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 3
+    assert result.result[0].content.startswith("Documentation could not be consulted")
+
+
+def test_check_links_only_is_not_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Explain the StateGraph constructor."),
+            ToolMessage(
+                content="Link is valid", name="check_links", tool_call_id="link"
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="The StateGraph constructor accepts configuration options."
+                )
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 3
+    assert result.result[0].content.startswith("Documentation could not be consulted")
+
+
+def test_ignored_retries_are_bounded_and_sanitized():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I build a graph?")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=f"Use this API:\n\n```python\nStateGraph()\n```\n\nSee {url}."
+                )
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 3
+    assert all(call.tool_choice for call in calls[1:])
+    assert "```" not in result.result[0].content
+    assert url not in result.result[0].content
+    assert result.result[0].content.startswith("Documentation could not be consulted")
+
+
+def test_disabled_env_escape_hatch_skips_enforcement(monkeypatch):
+    monkeypatch.setenv("DOCS_RESEARCH_GUARD_DISABLED", "true")
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Explain the StateGraph constructor.")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content="```python\nStateGraph()\n```")])
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert "```" in result.result[0].content
