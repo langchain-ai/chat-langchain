@@ -5,6 +5,8 @@
 import json
 import logging
 import os
+import re
+import uuid
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -288,18 +290,21 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
+    """Fetch an article using only a non-zero UUID copied verbatim from a relevant articles[].id returned by search_support_articles; call search_support_articles first and skip this tool if no such ID exists."""
+    if not (
+        isinstance(article_id, str)
+        and re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            article_id,
+            re.IGNORECASE,
+        )
+        and uuid.UUID(article_id).int != 0
+    ):
+        return (
+            "Invalid article_id. Call search_support_articles first and copy an "
+            "articles[].id value verbatim."
+        )
 
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
