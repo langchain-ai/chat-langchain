@@ -16,7 +16,7 @@ from src.tools.pylon_tools import (
 )
 
 
-@pytest.mark.parametrize("article_id", ["0", "N/A"])
+@pytest.mark.parametrize("article_id", ["0", "N/A", "none", "null"])
 def test_get_support_article_content_rejects_placeholder_ids(article_id):
     """Placeholder article IDs return guidance to search first."""
     result = get_support_article_content.invoke({"article_id": article_id})
