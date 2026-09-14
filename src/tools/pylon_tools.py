@@ -56,6 +56,9 @@ def _raise_for_status(response: requests.Response, url: str) -> None:
     """Raise an operator-facing error for invalid Pylon credentials."""
     status_code = response.status_code
     if status_code in (401, 403):
+        logger.error(
+            "Pylon API authentication failed with HTTP %s for %s", status_code, url
+        )
         raise PylonUnavailableError(
             f"Pylon API returned HTTP {status_code} for {url}; "
             "check or rotate PYLON_API_KEY configuration or credentials."
@@ -65,11 +68,28 @@ def _raise_for_status(response: requests.Response, url: str) -> None:
     except requests.exceptions.RequestException as error:
         response_status = getattr(error.response, "status_code", None)
         if response_status in (401, 403):
+            logger.error(
+                "Pylon API authentication failed with HTTP %s for %s",
+                response_status,
+                url,
+            )
             raise PylonUnavailableError(
                 f"Pylon API returned HTTP {response_status} for {url}; "
                 "check or rotate PYLON_API_KEY configuration or credentials."
             ) from error
         raise
+
+
+def check_pylon_credentials() -> tuple[bool, str]:
+    """Check Pylon credentials with a lightweight collections request."""
+    try:
+        kb_id = _get_kb_id()
+        url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
+        response = requests.get(url, headers=_get_headers())
+        _raise_for_status(response, url)
+        return True, "Pylon credentials are valid."
+    except Exception as error:
+        return False, str(error) or error.__class__.__name__
 
 
 def _fetch_collections() -> Dict[str, str]:

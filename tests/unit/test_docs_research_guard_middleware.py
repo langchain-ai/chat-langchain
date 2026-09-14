@@ -83,6 +83,18 @@ def test_check_links_does_not_satisfy_research_requirement():
     assert len(calls) == 2
 
 
+def test_errored_research_tool_does_not_satisfy_research_requirement():
+    middleware = DocsResearchGuardMiddleware()
+    message = ToolMessage(
+        content='{"error": "Support knowledge base unavailable"}',
+        name="search_support_articles",
+        tool_call_id="search",
+        status="error",
+    )
+
+    assert middleware._has_research_tool([message]) is False
+
+
 def test_retrieved_and_valid_footer_url_passes_through(monkeypatch):
     from src.middleware import citation_guard_middleware as citation_module
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware

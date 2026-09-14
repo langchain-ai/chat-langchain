@@ -1,6 +1,7 @@
 """Tests for Pylon tool failure propagation."""
 
 import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,6 +12,7 @@ from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 from src.tools.pylon_tools import (
     PylonUnavailableError,
     _raise_for_status,
+    check_pylon_credentials,
     search_support_articles,
 )
 
@@ -45,7 +47,7 @@ def test_raise_for_status_detects_unauthorized_http_error_response():
 
 
 def test_tool_retry_middleware_propagates_pylon_failures():
-    """Pylon outages are marked as tool errors instead of success content."""
+    """Pylon outages return structured model-readable tool errors."""
     request = ToolCallRequest(
         tool_call={"name": "search_support_articles", "id": "call-1"},
         tool=None,
@@ -62,5 +64,25 @@ def test_tool_retry_middleware_propagates_pylon_failures():
     result = asyncio.run(invoke())
 
     assert result.status == "error"
-    assert result.content == "unauthorized"
+    assert json.loads(result.content) == {
+        "error": "Support knowledge base unavailable",
+        "tool": "search_support_articles",
+        "details": "unauthorized",
+        "instruction": (
+            "Answer from documentation only and tell the user the support knowledge "
+            "base could not be consulted this turn."
+        ),
+    }
     handler.assert_awaited_once()
+
+
+def test_check_pylon_credentials_returns_false_on_unauthorized_response():
+    """Credential checks report unauthorized Pylon responses as failures."""
+    response = MagicMock(status_code=401)
+    with patch("src.tools.pylon_tools.requests.get", return_value=response):
+        with patch("src.tools.pylon_tools._get_api_key", return_value="fake-key"):
+            with patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123"):
+                ok, message = check_pylon_credentials()
+
+    assert ok is False
+    assert "HTTP 401" in message

@@ -351,6 +351,8 @@ Write like a helpful human engineer, not documentation. Use this proven structur
 - [Clear doc title](https://full-url-here)
 - [Another doc](https://full-url-here)
 
+If any support-KB tool returned an unavailability or error result on this turn, include a one-line note that the support knowledge base could not be consulted and the response is based on public documentation only.
+
 CRITICAL:
 - Links MUST use [text](url) format, never plain URLs!
 - Links MUST have actual URLs, never self-referencing text like [Title](Title)
