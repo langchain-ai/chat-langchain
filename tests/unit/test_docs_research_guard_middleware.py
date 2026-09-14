@@ -52,9 +52,8 @@ def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
 
     assert len(calls) == 2
     assert "research this question on this turn" in calls[1].system_prompt
-    assert (
-        calls[1].messages[-1].content == "StateGraph accepts the configSchema option."
-    )
+    assert isinstance(calls[1].messages[-1], HumanMessage)
+    assert "StateGraph accepts the configSchema option." in calls[1].messages[-1].content
     assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
 
 
@@ -238,4 +237,6 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         "copied verbatim from this turn's documentation tool results"
         in calls[1].system_prompt
     )
-    assert result.result[0].content == calls[1].messages[-1].content
+    assert isinstance(calls[1].messages[-1], HumanMessage)
+    assert "Draft footer to repair:" in calls[1].messages[-1].content
+    assert url in result.result[0].content

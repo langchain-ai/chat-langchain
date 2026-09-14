@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
 }
+NON_RETRYABLE_ERROR_MESSAGES = ("does not support model prefilling",)
 
 
 class MalformedResponseError(Exception):
@@ -70,6 +71,8 @@ class ModelRetryMiddleware(AgentMiddleware):
 
             except Exception as e:
                 last_exception = e
+                if any(message in str(e) for message in NON_RETRYABLE_ERROR_MESSAGES):
+                    raise
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
                     logger.warning(
