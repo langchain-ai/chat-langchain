@@ -170,8 +170,8 @@ def test_ungrounded_footer_url_is_stripped_even_when_reachable(monkeypatch):
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert checks == [[grounded]]
-    assert invented not in result.result[0].content
-    assert grounded in result.result[0].content
+    assert invented not in result.result[0].content[0]["text"]
+    assert grounded in result.result[0].content[0]["text"]
 
 
 def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):
@@ -239,3 +239,85 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         in calls[1].system_prompt
     )
     assert result.result[0].content == calls[1].messages[-1].content
+
+
+def test_list_content_rewrites_only_text_block_and_drops_invalid_url(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    valid_url = "https://docs.langchain.com/a"
+    invalid_url = "https://bad.example/b"
+    signature = "El4KXAER..."
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Find docs."),
+            ToolMessage(
+                content=f"Retrieved URL: {valid_url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=[
+                        {
+                            "type": "text",
+                            "text": (
+                                "Answer\n\n**Relevant docs:**\n"
+                                f"- [A]({valid_url})\n- [B]({invalid_url})"
+                            ),
+                        },
+                        {"thought_signature": signature},
+                    ]
+                )
+            ]
+        )
+
+    async def check_urls(urls: list[str], timeout: float):
+        from src.tools.link_check_tools import LinkCheckResult
+
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+    message = result.result[0]
+
+    assert isinstance(message.content, list)
+    assert invalid_url not in message.content[0]["text"]
+    extracted_text = middleware._message_text(message)
+    assert "text" not in extracted_text
+    assert signature not in extracted_text
+
+
+def test_plain_string_content_rewrites_footer():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    middleware = CitationGuardMiddleware()
+    repaired = "Answer\n\n**Relevant docs:**"
+    message = AIMessage(content="Answer\n\n**Relevant docs:**\n- [B](https://bad.example/b)")
+    response = ModelResponse(result=[message])
+
+    middleware._replace_footer(response, message, repaired)
+
+    assert response.result[0].content == repaired
+
+
+def test_message_text_ignores_non_text_blocks():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    middleware = CitationGuardMiddleware()
+    message = AIMessage(
+        content=[
+            {"type": "text", "text": "Answer"},
+            {"thought_signature": "El4KXAER..."},
+            {"type": "tool_use", "name": "check_links"},
+        ]
+    )
+
+    assert middleware._message_text(message) == "Answer"
