@@ -8,6 +8,22 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 
 
+def test_bare_greeting_does_not_retry_for_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content="Hello! How can I help?")])
+
+    request = ModelRequest(model=object(), messages=[HumanMessage(content="hello")])
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert response.result[0].tool_calls == []
+    assert response.result[0].content == "Hello! How can I help?"
+
+
 def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     middleware = DocsResearchGuardMiddleware()
     calls: list[ModelRequest] = []

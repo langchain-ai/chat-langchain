@@ -25,6 +25,7 @@ RESEARCH_TOOLS = frozenset(
     }
 )
 RESEARCH_GUARD_DISABLED_ENV = "DOCS_RESEARCH_GUARD_DISABLED"
+_SHORT_TURN_LENGTH = 80
 _RETRY_INSTRUCTIONS = (
     "Before answering, research this question on this turn. Call "
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
@@ -61,6 +62,8 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         messages = request.messages
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
+            return False
+        if not self._has_technical_content(messages[latest_human_index]):
             return False
         turn_key = self._turn_key(messages)
         if turn_key == _FORCED_TURN.get():
@@ -114,6 +117,23 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
                 r"config(?:uration)?|option|property|field|tool call|invoke|returns?)\b",
                 text,
                 re.IGNORECASE,
+            )
+        )
+
+    def _has_technical_content(self, message: BaseMessage) -> bool:
+        text = self._message_text(message).strip()
+        if len(text) > _SHORT_TURN_LENGTH:
+            return True
+        return bool(
+            "```" in text
+            or re.search(r"`[^`]+`", text)
+            or re.search(
+                r"\b(?:[A-Z][a-z]+[A-Z][A-Za-z0-9]*|[A-Za-z][A-Za-z0-9]*_"
+                r"[A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*|"
+                r"(?i:api|class|function|method|constructor|parameter|argument|"
+                r"config(?:uration)?|option|property|field|tool|invoke|"
+                r"return(?:s|ed)?))\b",
+                text,
             )
         )
 
