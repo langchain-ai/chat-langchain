@@ -11,8 +11,57 @@ from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 from src.tools.pylon_tools import (
     PylonUnavailableError,
     _raise_for_status,
+    get_support_article_content,
     search_support_articles,
 )
+
+
+@pytest.mark.parametrize("article_id", ["0", "N/A"])
+def test_get_support_article_content_rejects_placeholder_ids(article_id):
+    """Placeholder article IDs return guidance to search first."""
+    result = get_support_article_content.invoke({"article_id": article_id})
+
+    assert result == (
+        f"Invalid article_id '{article_id}'. Call search_support_articles first "
+        "and copy an `id` from its results."
+    )
+
+
+def test_get_support_article_content_rejects_all_zero_uuid():
+    """The all-zero UUID is not accepted as an article ID."""
+    result = get_support_article_content.invoke(
+        {"article_id": "00000000-0000-0000-0000-000000000000"}
+    )
+
+    assert result.startswith("Invalid article_id '")
+    assert "copy an `id` from its results" in result
+
+
+def test_get_support_article_content_uses_valid_uuid_lookup():
+    """A valid UUID continues through the normal article lookup path."""
+    article_id = "123e4567-e89b-12d3-a456-426614174000"
+    article = {
+        "id": article_id,
+        "title": "Test article",
+        "identifier": "test",
+        "slug": "article",
+        "collection_id": "collection-id",
+        "current_published_content_html": "<p>Content</p>",
+    }
+
+    with patch(
+        "src.tools.pylon_tools._fetch_all_articles", return_value=[article]
+    ) as fetch_articles:
+        with patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"General": "collection-id"},
+        ) as fetch_collections:
+            result = get_support_article_content.invoke({"article_id": article_id})
+
+    fetch_articles.assert_called_once_with()
+    fetch_collections.assert_called_once_with()
+    assert "Title: Test article" in result
+    assert "Content:\n<p>Content</p>" in result
 
 
 def test_search_support_articles_raises_for_unauthorized_response():

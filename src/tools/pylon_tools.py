@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import uuid
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -153,30 +154,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 @tool
 def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+    """Get support article titles; valid collections are General, LangSmith Studio, LangSmith Deployment, LangSmith Evaluation, LangSmith Observability, OSS (LangChain and LangGraph), Troubleshooting, and Self Hosted; use "all" alone to search every collection, never with named collections."""
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -306,18 +284,13 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
-
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
+    """Fetch the full HTML content of a specific Pylon support article."""
+    try:
+        parsed_article_id = uuid.UUID(article_id)
+    except (AttributeError, ValueError, TypeError):
+        return f"Invalid article_id '{article_id}'. Call search_support_articles first and copy an `id` from its results."
+    if parsed_article_id.int == 0:
+        return f"Invalid article_id '{article_id}'. Call search_support_articles first and copy an `id` from its results."
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
