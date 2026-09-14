@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -26,8 +27,12 @@ _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
 _FOOTER_PATTERN = re.compile(r"(?ims)^\s*(?:\*\*)?Relevant docs:\s*(?:\*\*)?.*$")
 _RETRY_INSTRUCTIONS = (
     "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
-    "documentation tool results. Call check_links on exactly the final citation list "
-    "before answering. Never construct or recall a documentation URL."
+    "documentation tool results. Reuse the check_links results already present on this "
+    "turn; only call check_links for citation URLs that have not yet been checked on "
+    "this turn. Never construct or recall a documentation URL."
+)
+_RETRY_COUNTS: contextvars.ContextVar[dict[str, int]] = contextvars.ContextVar(
+    "citation_guard_retry_counts", default={}
 )
 
 
@@ -76,6 +81,12 @@ class CitationGuardMiddleware(AgentMiddleware):
             self._message_text(footer_message), invalid_urls
         )
         if not self._urls_in_footer_text(repaired_text):
+            turn_key = self._turn_key(request.messages)
+            retry_counts = dict(_RETRY_COUNTS.get())
+            if retry_counts.get(turn_key, 0) >= 1:
+                return response
+            retry_counts[turn_key] = retry_counts.get(turn_key, 0) + 1
+            _RETRY_COUNTS.set(retry_counts)
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),
@@ -88,6 +99,11 @@ class CitationGuardMiddleware(AgentMiddleware):
             if getattr(messages[index], "type", None) == "human":
                 return index
         return -1
+
+    def _turn_key(self, messages: list[BaseMessage]) -> str:
+        index = self._latest_human_index(messages)
+        human = messages[index]
+        return str(getattr(human, "id", None) or f"{index}:{human.content!r}")
 
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
