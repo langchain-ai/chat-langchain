@@ -233,9 +233,159 @@ def test_entirely_ungrounded_footer_retries_with_correction():
 
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
-    assert len(calls) == 2
+    assert len(calls) == 3
     assert (
         "copied verbatim from this turn's documentation tool results"
         in calls[1].system_prompt
     )
-    assert result.result[0].content == calls[1].messages[-1].content
+    assert "Relevant docs:" not in result.result[0].content
+
+
+def test_fabricated_fragment_is_not_grounded():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    base_url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    url = f"{base_url}#fabricated-section"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {base_url}\nGraph API overview.",
+                name="query_docs_filesystem_docs_by_lang_chain",
+                tool_call_id="read",
+            ),
+        ],
+    )
+    calls: list[ModelRequest] = []
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"Answer\n\n**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 3
+    assert "Relevant docs:" not in result.result[0].content
+
+
+def test_check_links_invalid_url_is_removed_unconditionally():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content=f"Invalid links:\n- {url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"Answer\n\n**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert url not in result.result[0].content
+
+
+def test_retry_response_is_revalidated_for_new_ungrounded_urls(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    grounded = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    invented = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {grounded}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content=f"Valid links:\n- {grounded}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+    calls: list[ModelRequest] = []
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        if len(calls) == 1:
+            content = f"Answer\n\n**Relevant docs:**\n- [Guide]({invented})"
+        else:
+            content = (
+                f"Answer\n\n**Relevant docs:**\n- [Guide]({grounded})\n"
+                f"- [Invented]({invented})"
+            )
+        return ModelResponse(result=[AIMessage(content=content)])
+
+    async def unexpected_check(urls: list[str], timeout: float):
+        raise AssertionError("the grounded URL was already checked")
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", unexpected_check)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert grounded in result.result[0].content
+    assert invented not in result.result[0].content
+
+
+def test_unresolved_offloaded_evidence_fails_closed(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content="Tool result too large; saved in the filesystem at /missing/docs.txt",
+                name="query_docs_filesystem_docs_by_lang_chain",
+                tool_call_id="read",
+            ),
+        ],
+    )
+
+    class UnresolvedBackend:
+        def read(self, path: str, limit: int):
+            return object()
+
+    monkeypatch.setattr(citation_module, "_FILESYSTEM_BACKEND", UnresolvedBackend())
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"Answer\n\n**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert "Relevant docs:" not in result.result[0].content
