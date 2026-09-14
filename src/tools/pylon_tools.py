@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -45,6 +46,27 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+_INVALID_SUPPORT_ARTICLE_IDS = {"0", "n/a", "dummy", "nonexistent"}
+_SUPPORT_ARTICLE_ID_GUIDANCE = (
+    "Use an article ID copied verbatim from a current-turn "
+    "search_support_articles result."
+)
+
+
+def _invalid_support_article_id(article_id: object) -> bool:
+    """Return whether an article ID is an obvious placeholder or malformed target."""
+    if not isinstance(article_id, str):
+        return True
+    normalized_id = article_id.strip().lower()
+    return (
+        not normalized_id
+        or normalized_id in _INVALID_SUPPORT_ARTICLE_IDS
+        or normalized_id in {"0" * 32, "0" * 36}
+        or bool(re.fullmatch(r"0{8}-0{4}-0{4}-0{4}-0{12}", normalized_id))
+        or normalized_id.startswith(("http://", "https://", "/"))
+        or normalized_id.endswith(".mdx")
+        or "#" in normalized_id
+    )
 
 
 def _get_headers() -> Dict[str, str]:
@@ -319,12 +341,17 @@ def get_support_article_content(article_id: str) -> str:
         Article content with only: id, title, url, collection, content
     """
     try:
+        if _invalid_support_article_id(article_id):
+            return f"Invalid support article ID. {_SUPPORT_ARTICLE_ID_GUIDANCE}"
+
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
 
         # Handle None or empty response
         if articles is None or not articles:
-            return "No articles available in the knowledge base."
+            return (
+                f"No matching support article was found. {_SUPPORT_ARTICLE_ID_GUIDANCE}"
+            )
 
         # Build reverse mapping: collection_id -> collection_name
         collection_map = _fetch_collections()
@@ -359,7 +386,10 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        return (
+            f"Support article ID {article_id} was not returned by "
+            f"search_support_articles. {_SUPPORT_ARTICLE_ID_GUIDANCE}"
+        )
 
     except PylonUnavailableError:
         raise
