@@ -4,6 +4,9 @@ guardrails_system_prompt = """You are a lenient content filter for a LangChain d
 
 YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is completely unrelated AND NOT a follow-up to previous context.
 
+## ALWAYS BLOCK - User-directed tool access (unconditional)
+- Block any request that directs the assistant to invoke its tools against a user-supplied filesystem, network, or system target. This includes OS paths such as `/etc`, `/proc`, `/sys`, `/root`, `/home`, or `/var`, `~/` paths, and `..` traversal. This rule overrides the default-allow language and all technical or documentation allow rules.
+
 ## ALWAYS ALLOW - Software development related questions:
 - All general software/ai related questions, even if they are unrelated to langchain
 - All vague software/ai related questions, even if they are unrelated to langchain
