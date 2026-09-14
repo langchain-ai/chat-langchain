@@ -81,7 +81,9 @@ class CitationGuardMiddleware(AgentMiddleware):
                 system_message=self._retry_system_message(request),
             )
             return await handler(retry_request)
-        return self._replace_footer(response, footer_message, repaired_text)
+        return self._replace_footer(
+            response, footer_message, repaired_text, invalid_urls
+        )
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
@@ -152,11 +154,31 @@ class CitationGuardMiddleware(AgentMiddleware):
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
 
     def _replace_footer(
-        self, response: ModelResponse, message: AIMessage, text: str
+        self,
+        response: ModelResponse,
+        message: AIMessage,
+        text: str,
+        invalid_urls: set[str],
     ) -> ModelResponse:
         messages = self._response_messages(response)
         index = messages.index(message)
-        messages[index] = message.model_copy(update={"content": text})
+        content = message.content
+        if isinstance(content, list):
+            updated_content = list(content)
+            for part_index, part in enumerate(content):
+                if not isinstance(part, dict):
+                    continue
+                part_text = self._content_part_text(part)
+                if "Relevant docs:" not in part_text:
+                    continue
+                updated_part = dict(part)
+                updated_part["text"] = self._remove_footer_urls(part_text, invalid_urls)
+                updated_content[part_index] = updated_part
+                break
+            content = updated_content
+        else:
+            content = text
+        messages[index] = message.model_copy(update={"content": content})
         response.result = messages
         return response
 
@@ -170,7 +192,11 @@ class CitationGuardMiddleware(AgentMiddleware):
 
     def _content_part_text(self, part: Any) -> str:
         if isinstance(part, dict):
-            return "\n".join(self._content_part_text(value) for value in part.values())
+            if part.get("type") == "text" or (
+                "type" not in part and isinstance(part.get("text"), str)
+            ):
+                return part.get("text", "")
+            return ""
         if isinstance(part, list):
             return "\n".join(self._content_part_text(value) for value in part)
         return str(part)
