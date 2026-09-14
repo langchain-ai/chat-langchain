@@ -217,7 +217,7 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 ### 6. `check_links` - Validate URLs Before Responding
 Verify that URLs are valid and accessible before including them in your response.
 
-**Usage:** Before finalizing your response, call `check_links` with the URLs you plan to include.
+**Usage:** At most once per turn, on the final citation list immediately before finalizing your response, call `check_links` with the URLs you plan to include. Never revalidate links already reported valid earlier in the turn.
 
 **Copy citation URLs verbatim from this turn's documentation tool results. Never construct, guess, or recall a docs URL. Call `check_links` on exactly the final citation list, and only include URLs it returns under "Valid links".**
 
@@ -305,7 +305,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Add all relevant links at the end
 
 5. **Validate links BEFORE sending**
-   - Call `check_links` with the URLs you plan to include
+   - Call `check_links` at most once, on the final citation list; never revalidate links already reported valid earlier in the turn
    - If any links are invalid, fix or remove them
    - This is especially important for anchor links you constructed
 
