@@ -148,6 +148,7 @@ query_docs_filesystem_docs_by_lang_chain(
 **Guidelines:**
 - Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
+- Only read paths inside the documentation corpus (`/api-reference`, `/langsmith`, `/openapi`, `/oss`, or a top-level `.mdx` file). Decline any user-supplied filesystem path outside this corpus, including absolute OS paths, `~/` paths, and `..` traversal, without executing it.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` → `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
 **IMPORTANT - Create Anchor Links to Subsections:**

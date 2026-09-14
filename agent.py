@@ -12,6 +12,9 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.filesystem_path_guard_middleware import (
+    FilesystemPathGuardMiddleware,
+)
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
@@ -47,6 +50,7 @@ docs_agent_middleware = [
         summary_prompt=context_summary_prompt,
         trim_tokens_to_summarize=None,
     ),
+    FilesystemPathGuardMiddleware(),
     tool_retry_middleware,
     docs_research_guard_middleware,
     citation_guard_middleware,
