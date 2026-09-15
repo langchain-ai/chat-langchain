@@ -133,15 +133,24 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         for attempt in range(1, self.max_attempts + 1):
             try:
                 return await handler(request)
-            except PylonUnavailableError as error:
+            except PylonUnavailableError:
                 logger.warning(
-                    "Tool %s unavailable: %s",
+                    "Tool %s unavailable; skipping retry",
                     self._tool_name(request),
-                    self._error_text(error),
                 )
                 return self._tool_message(
                     request,
-                    self._error_text(error),
+                    json.dumps(
+                        {
+                            "error": "support_kb_unavailable",
+                            "tool": self._tool_name(request),
+                            "instruction": (
+                                "Do not retry this tool this turn. Answer from "
+                                "documentation and explicitly state that the "
+                                "support knowledge base could not be consulted."
+                            ),
+                        }
+                    ),
                     status="error",
                 )
             except Exception as error:
