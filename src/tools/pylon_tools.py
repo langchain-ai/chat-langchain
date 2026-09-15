@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -306,25 +307,18 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
+    """Fetch an article; article_id MUST be a UUID returned by search_support_articles in this turn, and numeric values, ordinals, indices, slugs, and URLs are invalid."""
+    if not isinstance(article_id, str) or re.fullmatch(
+        r"[0-9a-fA-F-]{36}", article_id
+    ) is None:
+        raise ValueError(
+            f"Invalid article_id {article_id!r}; IDs must be copied verbatim from "
+            "search_support_articles output and must be UUIDs."
+        )
 
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
-
-        # Handle None or empty response
-        if articles is None or not articles:
-            return "No articles available in the knowledge base."
 
         # Build reverse mapping: collection_id -> collection_name
         collection_map = _fetch_collections()
@@ -359,7 +353,10 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        raise ValueError(
+            f"Article ID {article_id} not found in knowledge base; IDs must be "
+            "copied verbatim from search_support_articles output."
+        )
 
     except PylonUnavailableError:
         raise
