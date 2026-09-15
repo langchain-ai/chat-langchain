@@ -15,6 +15,7 @@ from langchain.agents.middleware.types import (
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
 from src.tools.link_check_tools import _check_urls_async
+from src.utils.message_utils import latest_user_message_index
 
 DOCS_TOOLS = frozenset(
     {
@@ -44,7 +45,7 @@ class CitationGuardMiddleware(AgentMiddleware):
         if self._has_pending_tool_calls(self._response_messages(response)):
             return response
 
-        latest_human_index = self._latest_human_index(request.messages)
+        latest_human_index = latest_user_message_index(request.messages)
         if latest_human_index < 0:
             return response
         turn_messages = request.messages[latest_human_index + 1 :]
@@ -82,12 +83,6 @@ class CitationGuardMiddleware(AgentMiddleware):
             )
             return await handler(retry_request)
         return self._replace_footer(response, footer_message, repaired_text)
-
-    def _latest_human_index(self, messages: list[BaseMessage]) -> int:
-        for index in range(len(messages) - 1, -1, -1):
-            if getattr(messages[index], "type", None) == "human":
-                return index
-        return -1
 
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
