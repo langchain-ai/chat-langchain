@@ -62,5 +62,7 @@ def test_tool_retry_middleware_propagates_pylon_failures():
     result = asyncio.run(invoke())
 
     assert result.status == "error"
-    assert result.content == "unauthorized"
+    assert "PYLON_API_KEY" not in result.content
+    assert "api.usepylon.com" not in result.content
+    assert '"user_disclosure_required": true' in result.content
     handler.assert_awaited_once()

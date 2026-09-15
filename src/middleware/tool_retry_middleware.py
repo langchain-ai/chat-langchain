@@ -134,14 +134,23 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
             try:
                 return await handler(request)
             except PylonUnavailableError as error:
+                tool_name = self._tool_name(request)
                 logger.warning(
                     "Tool %s unavailable: %s",
-                    self._tool_name(request),
+                    tool_name,
                     self._error_text(error),
                 )
                 return self._tool_message(
                     request,
-                    self._error_text(error),
+                    json.dumps(
+                        {
+                            "error": "Knowledge base unavailable",
+                            "tool": tool_name,
+                            "message": "The support knowledge base could not be reached for this request.",
+                            "suggestion": "Answer from documentation sources only and tell the user the support knowledge base was unavailable.",
+                            "user_disclosure_required": True,
+                        }
+                    ),
                     status="error",
                 )
             except Exception as error:
