@@ -14,7 +14,13 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 
 SEARCH_TOOLS = frozenset(
     {
@@ -71,7 +77,10 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         while self._attempt_count(turn_key) < _MAX_FORCED_ATTEMPTS:
             self._record_attempt(turn_key)
             retry_request = request.override(
-                messages=[*request.messages, *self._response_messages(response)],
+                messages=[
+                    *request.messages,
+                    HumanMessage(content=_RETRY_INSTRUCTIONS),
+                ],
                 system_message=self._retry_system_message(request),
                 tool_choice={
                     "type": "function",

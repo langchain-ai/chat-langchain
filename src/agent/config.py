@@ -16,6 +16,7 @@ from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
     ModelRetryMiddleware,
+    _ProviderValidationAwareRunnableRetry,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -114,10 +115,11 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 
 def _init_retrying_model(model: str) -> Runnable:
-    return (
-        init_chat_model(model=model)
-        | RunnableLambda(_raise_for_retryable_finish_reason)
-    ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
+    return _ProviderValidationAwareRunnableRetry(
+        bound=init_chat_model(model=model)
+        | RunnableLambda(_raise_for_retryable_finish_reason),
+        max_attempt_number=MAX_RETRIES + 1,
+    )
 
 
 def init_retry_fallback_model(model: str) -> Runnable:

@@ -1,4 +1,5 @@
-# Retry middleware for model calls with exponential backoff
+"""Retry middleware for model calls and provider responses."""
+
 import asyncio
 import logging
 from typing import Awaitable, Callable
@@ -9,6 +10,8 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.runnables.retry import RunnableRetry
+from tenacity import retry_if_exception
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +27,26 @@ class MalformedResponseError(Exception):
     pass
 
 
+class _ProviderValidationAwareRunnableRetry(RunnableRetry):
+    @property
+    def _kwargs_retrying(self) -> dict[str, object]:
+        kwargs = super()._kwargs_retrying
+        kwargs["retry"] = retry_if_exception(
+            lambda exception: not isinstance(exception, ValueError)
+        )
+        return kwargs
+
+
 class ModelRetryMiddleware(AgentMiddleware):
+    """Retry transient model failures and malformed responses."""
+
     def __init__(
         self,
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
     ):
+        """Configure retry attempts and backoff timing."""
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
@@ -46,6 +62,7 @@ class ModelRetryMiddleware(AgentMiddleware):
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
+        """Retry transient failures from the wrapped model handler."""
         last_exception: Exception | None = None
         last_retryable_reason: str | None = None
 
@@ -69,6 +86,8 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
+                if isinstance(e, ValueError):
+                    raise
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
