@@ -87,7 +87,6 @@ class CitationGuardMiddleware(AgentMiddleware):
             retry_request = request.override(
                 messages=[
                     *request.messages,
-                    *self._response_messages(response),
                     HumanMessage(content=_RETRY_INSTRUCTIONS),
                 ],
                 system_message=self._retry_system_message(request),
