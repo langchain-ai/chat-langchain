@@ -23,6 +23,7 @@ from src.prompts.guardrails_prompts import (
 from src.prompts.guardrails_prompts import (
     rejection_system_prompt as _REJECTION_SYSTEM_PROMPT,
 )
+from src.utils.message_utils import latest_user_message_index
 
 logger = logging.getLogger(__name__)
 
@@ -373,25 +374,26 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         Raises:
             GuardrailsClassificationError: If classification fails after retries.
         """
-        # Extract the current query (last human message)
-        current_message = None
+        latest_user_index = latest_user_message_index(messages)
+        current_message = (
+            messages[latest_user_index] if latest_user_index >= 0 else None
+        )
         current_query = None
-        for msg in reversed(messages):
-            if isinstance(msg, HumanMessage):
-                current_message = msg
-                current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
-                    break
+        if current_message is not None:
+            current_query = self._extract_message_text(current_message)
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
-        for msg in reversed(messages[:-1]):  # Exclude current message
+        for msg in reversed(messages[:latest_user_index]):
             if isinstance(msg, HumanMessage):
                 text = self._extract_message_text(msg)
                 if text:

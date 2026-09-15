@@ -22,6 +22,8 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from src.utils.message_utils import latest_user_message_index
+
 SEARCH_TOOLS = frozenset(
     {
         "search_docs_by_lang_chain",
@@ -128,7 +130,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         if os.getenv(RESEARCH_GUARD_DISABLED_ENV, "").lower() in {"1", "true", "yes"}:
             return False
         messages = request.messages
-        latest_human_index = self._latest_human_index(messages)
+        latest_human_index = latest_user_message_index(messages)
         if latest_human_index < 0:
             return False
         if not self._user_turn_has_technical_signal(messages[latest_human_index]):
@@ -141,21 +143,15 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             return False
         return self._is_substantive_technical_answer(response_messages)
 
-    def _latest_human_index(self, messages: list[BaseMessage]) -> int:
-        for index in range(len(messages) - 1, -1, -1):
-            if getattr(messages[index], "type", None) == "human":
-                return index
-        return -1
-
     def _turn_key(self, messages: list[BaseMessage]) -> str:
-        index = self._latest_human_index(messages)
+        index = latest_user_message_index(messages)
         human = messages[index]
         return str(getattr(human, "id", None) or f"{index}:{human.content!r}")
 
     def _turn_messages(
         self, request_messages: list[BaseMessage], response_messages: list[BaseMessage]
     ) -> list[BaseMessage]:
-        latest_human_index = self._latest_human_index(request_messages)
+        latest_human_index = latest_user_message_index(request_messages)
         return [
             *request_messages[latest_human_index + 1 :],
             *response_messages,
