@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib
+from hashlib import sha256
+from pathlib import Path
 
 from langchain_core.messages import SystemMessage
 
@@ -16,13 +18,14 @@ class _FakeTemplate:
 
 def test_get_prompt_provenance_local_mode(monkeypatch):
     monkeypatch.setattr(provenance, "_USE_LOCAL_PROMPTS", True)
+    prompt_text = (Path(__file__).parents[2] / "instructions.md").read_text()
 
     result = provenance.get_prompt_provenance("docs_agent")
     assert result == {
         "prompt_source": "local:instructions.md",
+        "prompt_commit": sha256(prompt_text.encode()).hexdigest(),
         "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
     }
-    assert "prompt_commit" not in result
 
 
 def test_resolve_hub_provenance_uses_prompt_workspace_and_api_key(monkeypatch):
@@ -48,15 +51,15 @@ def test_resolve_hub_provenance_uses_prompt_workspace_and_api_key(monkeypatch):
 
     result = provenance.get_prompt_provenance("docs_agent")
 
-    assert len(constructed) == 2
+    assert len(constructed) == 1
     assert all(
         call.get("workspace_id") == "ebbaf2eb-769b-4505-aca2-d11de10372a4"
         and call.get("api_key") == "lsv2_prompt_test_key"
         for call in constructed
     )
-    assert result["prompt_commit"] == (
-        "commit-for-public-chat-langchain-test:production"
-    )
+    prompt_text = (Path(__file__).parents[2] / "instructions.md").read_text()
+    assert result["prompt_source"] == "local:instructions.md"
+    assert result["prompt_commit"] == sha256(prompt_text.encode()).hexdigest()
     assert result["guardrails_prompt_commit"] == (
         "commit-for-public-chat-langchain-guardrails-test:production"
     )
@@ -83,9 +86,9 @@ def test_resolve_hub_provenance_without_overrides_uses_default_client(monkeypatc
 
     result = provenance.get_prompt_provenance("docs_agent")
 
-    assert constructed == [{}, {}]
-    assert result["prompt_source"].startswith("hub:")
-    assert "prompt_commit" not in result
+    assert constructed == [{}]
+    assert result["prompt_source"] == "local:instructions.md"
+    assert "prompt_commit" in result
 
 
 def test_guardrails_prompt_import_renders_without_invoke(monkeypatch):

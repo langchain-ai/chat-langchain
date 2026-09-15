@@ -1,14 +1,15 @@
-# Prompt provenance lookup for LangSmith trace metadata.
+"""Prompt provenance lookup for LangSmith trace metadata."""
 
 import logging
 import os
 from functools import lru_cache
+from hashlib import sha256
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-#: Workspace that owns the Hub prompts used for ``prompt_source`` /
-#: ``prompt_commit`` provenance. On MDA deploys this is often a different
-#: workspace than ``LANGSMITH_WORKSPACE_ID`` (the deployment's own org).
+#: Workspace that owns the Hub prompts used for guardrails provenance. On MDA
+#: deploys this is often a different workspace than ``LANGSMITH_WORKSPACE_ID``.
 _PROMPT_WORKSPACE_ENV = "LANGSMITH_PROMPT_WORKSPACE_ID"
 
 #: Optional API key for Hub provenance pulls. ``LANGSMITH_API_KEY`` is reserved
@@ -25,13 +26,6 @@ _USE_STAGING = (
     os.getenv("LANGSMITH_HOST_PROJECT_NAME") == "immanuel-chat-langchain-test"
     or os.getenv("LANGSMITH_ENV") == "dev"
 )
-_HUB_PROMPTS: dict[str, str] = {
-    "docs_agent": (
-        "public-chat-langchain-test:staging"
-        if _USE_STAGING
-        else "public-chat-langchain-test:production"
-    ),
-}
 _GUARDRAILS_HUB_PROMPTS: dict[str, str] = {
     "docs_agent": (
         "public-chat-langchain-guardrails-test:staging"
@@ -39,6 +33,7 @@ _GUARDRAILS_HUB_PROMPTS: dict[str, str] = {
         else "public-chat-langchain-guardrails-test:production"
     ),
 }
+_LOCAL_PROMPT_PATH = Path(__file__).parents[2] / "instructions.md"
 
 
 def _prompt_workspace_id() -> str | None:
@@ -100,30 +95,26 @@ def _resolve_hub_provenance(
 
 def get_prompt_provenance(graph_id: str) -> dict[str, str]:
     """Return prompt provenance for a graph_id."""
-    if _USE_LOCAL_PROMPTS and graph_id == "docs_agent":
-        return {
+    if graph_id == "docs_agent":
+        prompt_text = _LOCAL_PROMPT_PATH.read_text()
+        provenance = {
             "prompt_source": "local:instructions.md",
-            "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
+            "prompt_commit": sha256(prompt_text.encode()).hexdigest(),
         }
+        if _USE_LOCAL_PROMPTS:
+            provenance["guardrails_prompt_source"] = (
+                "local:src/prompts/guardrails_prompts.py"
+            )
+            return provenance
 
-    if graph_id in _HUB_PROMPTS:
         workspace_id = _prompt_workspace_id()
         api_key_set = _prompt_api_key() is not None
-        source, commit = _resolve_hub_provenance(
-            _HUB_PROMPTS[graph_id], workspace_id, api_key_set
-        )
         guardrails_source, guardrails_commit = _resolve_hub_provenance(
             _GUARDRAILS_HUB_PROMPTS[graph_id], workspace_id, api_key_set
         )
-        provenance = {
-            "prompt_source": source,
-            "guardrails_prompt_source": guardrails_source,
-        }
-        if commit:
-            provenance["prompt_commit"] = commit
+        provenance["guardrails_prompt_source"] = guardrails_source
         if guardrails_commit:
             provenance["guardrails_prompt_commit"] = guardrails_commit
-
         return provenance
 
     return {}
