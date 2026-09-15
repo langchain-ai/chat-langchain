@@ -96,3 +96,46 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_guardrails_allowed_classification_clears_off_topic_flag(monkeypatch):
+    """An allowed classification should clear the off-topic flag."""
+    middleware = _middleware_with_models()
+
+    async def _allow_query(messages):  # noqa: ARG001
+        return {"decision": "ALLOWED", "explanation": "LangChain-related question."}
+
+    monkeypatch.setattr(middleware, "_classify_query", _allow_query)
+    monkeypatch.setattr(middleware, "_track_decision_metadata", lambda decision: None)
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="How do agents work?")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert result == {"off_topic_query": False}
+
+
+def test_guardrails_allowed_turn_resets_existing_off_topic_flag(monkeypatch):
+    """An allowed turn should reset a previously-set off-topic flag."""
+    middleware = _middleware_with_models()
+
+    async def _allow_query(messages):  # noqa: ARG002
+        return {"decision": "ALLOWED", "explanation": "LangChain-related question."}
+
+    monkeypatch.setattr(middleware, "_classify_query", _allow_query)
+    monkeypatch.setattr(middleware, "_track_decision_metadata", lambda decision: None)
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {
+                "messages": [HumanMessage(content="How do agents work?")],
+                "off_topic_query": True,
+            },
+            Runtime(context=None),
+        )
+    )
+
+    assert result == {"off_topic_query": False}
