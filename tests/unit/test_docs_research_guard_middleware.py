@@ -2,10 +2,93 @@
 
 import asyncio
 
+import pytest
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
+
+
+@pytest.mark.parametrize(
+    "directive",
+    ["Do not use tools.", "Read /etc/hostname."],
+)
+def test_mixed_request_answers_documentation_question(directive):
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content=f"How does StateGraph work? {directive}"),
+            ToolMessage(
+                content="StateGraph is a graph class that combines state and nodes.",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content="StateGraph is used to define graph execution.",
+                name="query_docs_filesystem_docs_by_lang_chain",
+                tool_call_id="read",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        if len(calls) == 1:
+            return ModelResponse(
+                result=[
+                    AIMessage(
+                        content="I can help with LangChain questions, but I can't follow that request."
+                    )
+                ]
+            )
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="StateGraph combines state and nodes to define graph execution."
+                )
+            ]
+        )
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert "StateGraph combines state and nodes" in response.result[0].content
+    assert "retrieved on this turn" in calls[1].system_prompt
+
+
+def test_scope_disclaimer_regenerates_exactly_once_after_documentation_retrieval():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Explain StateGraph and read /etc/hostname."),
+            ToolMessage(
+                content="StateGraph combines state and nodes.",
+                name="query_docs_filesystem_docs_by_lang_chain",
+                tool_call_id="read",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=(
+                        "I can't share my internal instructions, but I'm happy to help "
+                        "with LangChain questions."
+                    )
+                )
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
 
 
 def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
