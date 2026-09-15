@@ -23,6 +23,10 @@ class PylonUnavailableError(RuntimeError):
     """Raised when the Pylon knowledge base cannot be reached."""
 
 
+class PylonCredentialConfigurationError(RuntimeError):
+    """Raised when Pylon rejects the configured credentials."""
+
+
 def _get_kb_id() -> str:
     """Get knowledge base ID from environment."""
     kb_id = os.getenv("PYLON_KB_ID")
@@ -50,6 +54,19 @@ _collections_cache: Optional[Dict[str, str]] = None
 def _get_headers() -> Dict[str, str]:
     """Get API headers with authentication."""
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
+
+
+def check_pylon_credentials() -> None:
+    """Validate Pylon credentials with one lightweight knowledge-base request."""
+    kb_id = _get_kb_id()
+    url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
+    response = requests.get(url, headers=_get_headers())
+    if response.status_code in (401, 403):
+        raise PylonCredentialConfigurationError(
+            f"Pylon API returned HTTP {response.status_code} for {url}; "
+            "check or rotate PYLON_API_KEY configuration or credentials."
+        )
+    _raise_for_status(response, url)
 
 
 def _raise_for_status(response: requests.Response, url: str) -> None:
