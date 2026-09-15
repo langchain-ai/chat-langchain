@@ -67,6 +67,7 @@ class GuardrailsState(AgentState):
     """Extended state schema with off-topic flag."""
 
     off_topic_query: NotRequired[bool]
+    last_blocked_decision: NotRequired[GuardrailsDecision]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -169,9 +170,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -209,7 +208,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
         # while zero-tolerance bullets override the default ALLOW.
         try:
-            guardrails_decision = await self._classify_query(messages)
+            prior_blocked_decision = state.get("last_blocked_decision")
+            if prior_blocked_decision:
+                guardrails_decision = await self._classify_query(
+                    messages, prior_blocked_decision
+                )
+            else:
+                guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
             return {"off_topic_query": False}
@@ -247,13 +252,14 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.info(
                 "Off-topic query detected but block_off_topic=False, allowing..."
             )
-            return None
+            return {"last_blocked_decision": guardrails_decision}
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
+            "last_blocked_decision": guardrails_decision,
             "jump_to": "end",
         }
 
@@ -367,7 +373,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
-    async def _classify_query(self, messages: list) -> GuardrailsDecision:
+    async def _classify_query(
+        self,
+        messages: list,
+        prior_blocked_decision: GuardrailsDecision | None = None,
+    ) -> GuardrailsDecision:
         """Classify query as ALLOWED or BLOCKED.
 
         Raises:
@@ -380,14 +390,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
@@ -406,6 +421,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             context_section = (
                 "\n\nPrevious questions in this conversation:\n"
                 + "\n".join(f"- {q}" for q in recent)
+            )
+        if prior_blocked_decision:
+            context_section += (
+                "\n\nPrior refusal record:\n"
+                "A prior turn in this conversation was refused for this reason: "
+                f"{prior_blocked_decision['explanation']}"
             )
 
         current_content = getattr(current_message, "content", current_query or "")
