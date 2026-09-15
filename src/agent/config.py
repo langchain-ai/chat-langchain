@@ -18,6 +18,9 @@ from src.middleware.retry_middleware import (
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
 )
+from src.middleware.support_kb_disclosure_middleware import (
+    SupportKbDisclosureMiddleware,
+)
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
 dotenv.load_dotenv()
@@ -142,6 +145,7 @@ tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 duplicate_call_guard_middleware = DuplicateCallGuardMiddleware()
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
+support_kb_disclosure_middleware = SupportKbDisclosureMiddleware()
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
@@ -167,6 +171,7 @@ __all__ = [
     "duplicate_call_guard_middleware",
     "docs_research_guard_middleware",
     "citation_guard_middleware",
+    "support_kb_disclosure_middleware",
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
