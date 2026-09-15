@@ -234,7 +234,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return None
+            return {"off_topic_query": False}
 
         # Handle blocked queries
         logger.warning(

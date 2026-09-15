@@ -96,3 +96,66 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_guardrails_allowed_classification_clears_off_topic_flag(monkeypatch):
+    """An allowed query should explicitly clear the off-topic flag."""
+    middleware = _middleware_with_models()
+
+    async def _allow_query(messages):  # noqa: ARG001
+        return {"decision": "ALLOWED", "explanation": "LangChain-related question."}
+
+    monkeypatch.setattr(middleware, "_classify_query", _allow_query)
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {
+                "messages": [HumanMessage(content="How do agents work?")],
+                "off_topic_query": True,
+            },
+            Runtime(context=None),
+        )
+    )
+
+    assert result == {"off_topic_query": False}
+
+
+def test_guardrails_blocked_then_allowed_clears_off_topic_flag(monkeypatch):
+    """An allowed turn should clear a flag set by a previous blocked turn."""
+    middleware = _middleware_with_models()
+    decisions = iter(
+        [
+            {"decision": "BLOCKED", "explanation": "Off-topic question."},
+            {"decision": "ALLOWED", "explanation": "LangChain-related question."},
+        ]
+    )
+
+    async def _classify_query(messages):  # noqa: ARG001
+        return next(decisions)
+
+    async def _generate_rejection_message(content):  # noqa: ARG001
+        return HumanMessage(content="Please ask a LangChain-related question.")
+
+    monkeypatch.setattr(middleware, "_classify_query", _classify_query)
+    monkeypatch.setattr(
+        middleware, "_generate_rejection_message", _generate_rejection_message
+    )
+
+    blocked_result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="What is the weather?")]},
+            Runtime(context=None),
+        )
+    )
+    allowed_result = asyncio.run(
+        middleware.abefore_agent(
+            {
+                "messages": [HumanMessage(content="How do agents work?")],
+                "off_topic_query": blocked_result["off_topic_query"],
+            },
+            Runtime(context=None),
+        )
+    )
+
+    assert blocked_result["off_topic_query"] is True
+    assert allowed_result == {"off_topic_query": False}
