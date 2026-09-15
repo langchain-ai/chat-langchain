@@ -178,3 +178,9 @@ frontend/tsconfig.tsbuildinfo
 
 # macOS
 .DS_Store
+
+# Secret material (never commit)
+*.pem
+*.key
+*.crt
+credentials.json
