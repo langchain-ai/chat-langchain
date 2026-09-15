@@ -23,6 +23,7 @@ DOCS_TOOLS = frozenset(
     }
 )
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
+_MDX_PATH_PATTERN = re.compile(r"/[^\s\"'<>`()]+\.mdx")
 _FOOTER_PATTERN = re.compile(r"(?ims)^\s*(?:\*\*)?Relevant docs:\s*(?:\*\*)?.*$")
 _RETRY_INSTRUCTIONS = (
     "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
@@ -58,16 +59,20 @@ class CitationGuardMiddleware(AgentMiddleware):
         grounded_urls = self._grounded_urls(turn_messages)
         valid_urls = self._valid_urls(turn_messages)
         unchecked_urls = [
-            url for url in footer_urls if url in grounded_urls and url not in valid_urls
+            url
+            for url in footer_urls
+            if self._normalize_url(url) in grounded_urls
+            and self._normalize_url(url) not in valid_urls
         ]
         if unchecked_urls:
             results = await _check_urls_async(unchecked_urls, 10.0)
             valid_urls.update(result.url for result in results if result.valid)
 
         invalid_urls = {
-            url
+            self._normalize_url(url)
             for url in footer_urls
-            if url not in grounded_urls or url not in valid_urls
+            if self._normalize_url(url) not in grounded_urls
+            or self._normalize_url(url) not in valid_urls
         }
         if not invalid_urls:
             return response
@@ -115,12 +120,28 @@ class CitationGuardMiddleware(AgentMiddleware):
         return _URL_PATTERN.findall(match.group(0)) if match else []
 
     def _grounded_urls(self, messages: list[BaseMessage]) -> set[str]:
-        return {
-            url
-            for message in messages
-            if isinstance(message, ToolMessage) and message.name in DOCS_TOOLS
-            for url in _URL_PATTERN.findall(self._message_text(message))
-        }
+        grounded_urls: set[str] = set()
+        for message in messages:
+            if isinstance(message, ToolMessage) and message.name in DOCS_TOOLS:
+                grounded_urls.update(
+                    self._normalize_url(url)
+                    for url in _URL_PATTERN.findall(self._message_text(message))
+                )
+                if message.name == "query_docs_filesystem_docs_by_lang_chain":
+                    grounded_urls.update(
+                        self._filesystem_doc_urls(self._message_text(message))
+                    )
+            if isinstance(message, AIMessage):
+                for tool_call in message.tool_calls:
+                    if (
+                        tool_call.get("name")
+                        != "query_docs_filesystem_docs_by_lang_chain"
+                    ):
+                        continue
+                    args = tool_call.get("args", {})
+                    command = args.get("command", "") if isinstance(args, dict) else ""
+                    grounded_urls.update(self._filesystem_doc_urls(command))
+        return grounded_urls
 
     def _valid_urls(self, messages: list[BaseMessage]) -> set[str]:
         valid_urls: set[str] = set()
@@ -136,8 +157,21 @@ class CitationGuardMiddleware(AgentMiddleware):
                 if in_valid_section and stripped and not stripped.startswith("-"):
                     in_valid_section = False
                 if in_valid_section:
-                    valid_urls.update(_URL_PATTERN.findall(line))
+                    valid_urls.update(
+                        self._normalize_url(url) for url in _URL_PATTERN.findall(line)
+                    )
         return valid_urls
+
+    def _filesystem_doc_urls(self, text: str) -> set[str]:
+        urls = set()
+        for path in _MDX_PATH_PATTERN.findall(text):
+            path = path.rstrip(".,;:!?)]}")
+            path = path.removesuffix(".mdx").removesuffix("/index")
+            urls.add(self._normalize_url(f"https://docs.langchain.com{path}"))
+        return urls
+
+    def _normalize_url(self, url: str) -> str:
+        return url.split("#", 1)[0].rstrip("/")
 
     def _remove_footer_urls(self, text: str, invalid_urls: set[str]) -> str:
         match = _FOOTER_PATTERN.search(text)
@@ -147,7 +181,9 @@ class CitationGuardMiddleware(AgentMiddleware):
         lines = [
             line
             for line in footer.splitlines()
-            if not invalid_urls.intersection(_URL_PATTERN.findall(line))
+            if not invalid_urls.intersection(
+                self._normalize_url(url) for url in _URL_PATTERN.findall(line)
+            )
         ]
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
 
