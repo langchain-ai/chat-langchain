@@ -1,5 +1,6 @@
 """Custom middleware for LangChain agents."""
 
+from src.middleware.code_language_guard_middleware import CodeLanguageGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.retry_middleware import ModelRetryMiddleware
@@ -12,4 +13,5 @@ __all__ = [
     "ToolRetryMiddleware",
     "GuardrailsMiddleware",
     "DocsResearchGuardMiddleware",
+    "CodeLanguageGuardMiddleware",
 ]
