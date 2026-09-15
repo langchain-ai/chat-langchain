@@ -267,6 +267,46 @@ def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):
     assert url in result.result[0].content
 
 
+def test_pricing_footer_url_is_grounded_without_retry(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+    from src.tools.link_check_tools import LinkCheckResult
+
+    url = "https://www.langchain.com/pricing"
+    checks: list[list[str]] = []
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="What are the LangChain plans?"),
+            ToolMessage(
+                content=f"Source: {url}\n\nPricing details",
+                name="fetch_langchain_pricing",
+                tool_call_id="pricing",
+            ),
+        ],
+    )
+    response = ModelResponse(
+        result=[
+            AIMessage(content=f"**Answer**\n\n**Relevant docs:**\n- [Pricing]({url})")
+        ]
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return response
+
+    async def check_urls(urls: list[str], timeout: float):
+        checks.append(urls)
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert result is response
+    assert checks == [[url]]
+    assert url in result.result[0].content
+
+
 def test_entirely_ungrounded_footer_retries_with_correction():
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 
