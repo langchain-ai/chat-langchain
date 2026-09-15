@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -17,10 +18,23 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+KB_UNAVAILABLE_MESSAGE = (
+    "The support knowledge base is temporarily unavailable; answer from "
+    "documentation and tell the user the support knowledge base could not be consulted."
+)
+_KB_UNAVAILABLE_SECONDS = 60
 
 
 class PylonUnavailableError(RuntimeError):
     """Raised when the Pylon knowledge base cannot be reached."""
+
+    def __init__(
+        self, operator_detail: str, model_message: str = KB_UNAVAILABLE_MESSAGE
+    ):
+        """Initialize operator and model-facing error messages."""
+        self.operator_detail = operator_detail
+        self.model_message = model_message
+        super().__init__(model_message)
 
 
 def _get_kb_id() -> str:
@@ -45,6 +59,20 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+_kb_unavailable_until = 0.0
+
+
+def _raise_if_kb_unavailable() -> None:
+    """Raise the safe message while the knowledge-base breaker is open."""
+    if time.monotonic() < _kb_unavailable_until:
+        raise PylonUnavailableError("Pylon knowledge base circuit breaker is open")
+
+
+def _mark_kb_unavailable(operator_detail: str) -> None:
+    """Open the knowledge-base breaker after an authentication failure."""
+    global _kb_unavailable_until
+    _kb_unavailable_until = time.monotonic() + _KB_UNAVAILABLE_SECONDS
+    logger.error("%s", operator_detail)
 
 
 def _get_headers() -> Dict[str, str]:
@@ -53,22 +81,26 @@ def _get_headers() -> Dict[str, str]:
 
 
 def _raise_for_status(response: requests.Response, url: str) -> None:
-    """Raise an operator-facing error for invalid Pylon credentials."""
+    """Raise a safe error for invalid Pylon credentials."""
     status_code = response.status_code
     if status_code in (401, 403):
-        raise PylonUnavailableError(
+        detail = (
             f"Pylon API returned HTTP {status_code} for {url}; "
             "check or rotate PYLON_API_KEY configuration or credentials."
         )
+        _mark_kb_unavailable(detail)
+        raise PylonUnavailableError(detail)
     try:
         response.raise_for_status()
     except requests.exceptions.RequestException as error:
         response_status = getattr(error.response, "status_code", None)
         if response_status in (401, 403):
-            raise PylonUnavailableError(
+            detail = (
                 f"Pylon API returned HTTP {response_status} for {url}; "
                 "check or rotate PYLON_API_KEY configuration or credentials."
-            ) from error
+            )
+            _mark_kb_unavailable(detail)
+            raise PylonUnavailableError(detail) from error
         raise
 
 
@@ -178,6 +210,7 @@ def search_support_articles(collections: str = "all") -> str:
         JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
     """
     try:
+        _raise_if_kb_unavailable()
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
 
@@ -319,6 +352,7 @@ def get_support_article_content(article_id: str) -> str:
         Article content with only: id, title, url, collection, content
     """
     try:
+        _raise_if_kb_unavailable()
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
 
