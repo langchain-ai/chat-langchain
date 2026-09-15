@@ -134,14 +134,21 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
             try:
                 return await handler(request)
             except PylonUnavailableError as error:
-                logger.warning(
-                    "Tool %s unavailable: %s",
-                    self._tool_name(request),
-                    self._error_text(error),
-                )
+                if error.status_code in (401, 403):
+                    logger.error(
+                        "Pylon authorization failure signal: tool=%s status=%s",
+                        self._tool_name(request),
+                        error.status_code,
+                    )
+                else:
+                    logger.warning(
+                        "Tool %s unavailable: %s",
+                        self._tool_name(request),
+                        self._error_text(error),
+                    )
                 return self._tool_message(
                     request,
-                    self._error_text(error),
+                    "The support knowledge base is temporarily unavailable.",
                     status="error",
                 )
             except Exception as error:

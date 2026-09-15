@@ -22,6 +22,11 @@ PYLON_API_BASE_URL = "https://api.usepylon.com"
 class PylonUnavailableError(RuntimeError):
     """Raised when the Pylon knowledge base cannot be reached."""
 
+    def __init__(self, status_code: int | None = None):
+        """Initialize an outage error with its HTTP status when available."""
+        super().__init__("The support knowledge base is temporarily unavailable.")
+        self.status_code = status_code
+
 
 def _get_kb_id() -> str:
     """Get knowledge base ID from environment."""
@@ -53,22 +58,29 @@ def _get_headers() -> Dict[str, str]:
 
 
 def _raise_for_status(response: requests.Response, url: str) -> None:
-    """Raise an operator-facing error for invalid Pylon credentials."""
+    """Raise a neutral error for invalid Pylon credentials."""
     status_code = response.status_code
     if status_code in (401, 403):
-        raise PylonUnavailableError(
-            f"Pylon API returned HTTP {status_code} for {url}; "
-            "check or rotate PYLON_API_KEY configuration or credentials."
+        knowledge_base_url = url
+        marker = "/knowledge-bases/"
+        if marker in url:
+            prefix, suffix = url.split(marker, 1)
+            knowledge_base_url = f"{prefix}{marker}{suffix.split('/', 1)[0]}"
+        logger.error(
+            "Pylon authorization failure: endpoint=%s http_status=%s "
+            "knowledge_base_url=%s remediation=check or rotate PYLON_API_KEY "
+            "configuration or credentials",
+            url,
+            status_code,
+            knowledge_base_url,
         )
+        raise PylonUnavailableError(status_code=status_code)
     try:
         response.raise_for_status()
     except requests.exceptions.RequestException as error:
         response_status = getattr(error.response, "status_code", None)
         if response_status in (401, 403):
-            raise PylonUnavailableError(
-                f"Pylon API returned HTTP {response_status} for {url}; "
-                "check or rotate PYLON_API_KEY configuration or credentials."
-            ) from error
+            _raise_for_status(error.response, url)
         raise
 
 
@@ -297,11 +309,11 @@ def search_support_articles(collections: str = "all") -> str:
     except PylonUnavailableError:
         raise
     except ValueError as e:
-        raise PylonUnavailableError(str(e)) from e
+        raise PylonUnavailableError() from e
     except requests.exceptions.RequestException as e:
-        raise PylonUnavailableError(str(e)) from e
+        raise PylonUnavailableError() from e
     except Exception as e:
-        raise PylonUnavailableError(str(e)) from e
+        raise PylonUnavailableError() from e
 
 
 @tool
@@ -364,11 +376,11 @@ Content:
     except PylonUnavailableError:
         raise
     except ValueError as e:
-        raise PylonUnavailableError(str(e)) from e
+        raise PylonUnavailableError() from e
     except requests.exceptions.RequestException as e:
-        raise PylonUnavailableError(str(e)) from e
+        raise PylonUnavailableError() from e
     except Exception as e:
-        raise PylonUnavailableError(str(e)) from e
+        raise PylonUnavailableError() from e
 
 
 # Backwards-compatible Python import alias. The tool name exposed to the model is
