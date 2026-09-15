@@ -8,6 +8,61 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 
 
+def test_greeting_with_product_names_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Hi")],
+    )
+    response = ModelResponse(
+        result=[
+            AIMessage(
+                content=(
+                    "Hello! How can I help you with LangChain, LangGraph, "
+                    "LangSmith, Fleet, or DeepAgents today?"
+                )
+            )
+        ]
+    )
+
+    assert not middleware._should_retry(request, response)
+
+
+def test_non_latin_greeting_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="こんにちは")],
+    )
+    response = ModelResponse(result=[AIMessage(content="こんにちは！")])
+
+    assert not middleware._should_retry(request, response)
+
+
+def test_technical_answers_still_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I configure this?")],
+    )
+
+    for answer in (
+        "The StateGraph class accepts a config_schema parameter for this setup.",
+        "Use the config_schema parameter to configure the graph before invoking it.",
+        "Create the graph like this:\n```python\ngraph = StateGraph()\n```",
+    ):
+        response = ModelResponse(result=[AIMessage(content=answer)])
+        assert middleware._should_retry(request, response)
+
+
+def test_user_turn_signal_detects_technical_question():
+    middleware = DocsResearchGuardMiddleware()
+
+    assert middleware._user_turn_has_technical_signal(
+        HumanMessage(content="How do I use StateGraph with a config_schema parameter?")
+    )
+
+
 def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     middleware = DocsResearchGuardMiddleware()
     calls: list[ModelRequest] = []
@@ -303,7 +358,9 @@ def test_plain_string_content_rewrites_footer():
 
     middleware = CitationGuardMiddleware()
     repaired = "Answer\n\n**Relevant docs:**"
-    message = AIMessage(content="Answer\n\n**Relevant docs:**\n- [B](https://bad.example/b)")
+    message = AIMessage(
+        content="Answer\n\n**Relevant docs:**\n- [B](https://bad.example/b)"
+    )
     response = ModelResponse(result=[message])
 
     middleware._replace_footer(response, message, repaired)
