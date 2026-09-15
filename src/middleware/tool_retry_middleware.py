@@ -139,9 +139,19 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     self._tool_name(request),
                     self._error_text(error),
                 )
+                content = json.dumps(
+                    {
+                        "error": "support_kb_unavailable",
+                        "message": (
+                            "The support knowledge base could not be reached for this "
+                            "request. Answer from documentation sources and tell the "
+                            "user the support KB was not consulted."
+                        ),
+                    }
+                )
                 return self._tool_message(
                     request,
-                    self._error_text(error),
+                    content,
                     status="error",
                 )
             except Exception as error:
