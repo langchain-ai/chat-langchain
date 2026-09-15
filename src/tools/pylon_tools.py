@@ -100,6 +100,24 @@ def _fetch_collections() -> Dict[str, str]:
     return _collections_cache
 
 
+def check_pylon_health() -> None:
+    """Check Pylon availability without blocking startup."""
+    try:
+        kb_id = _get_kb_id()
+        url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
+        response = requests.get(url, headers=_get_headers(), timeout=10)
+        if response.status_code in (401, 403):
+            logger.error(
+                "Pylon health check failed with HTTP %s; PYLON_API_KEY is likely "
+                "invalid or expired.",
+                response.status_code,
+            )
+            return
+        _raise_for_status(response, url)
+    except Exception as error:
+        logger.error("Pylon health check failed: %s", error)
+
+
 def _fetch_all_articles() -> List[Dict[str, Any]]:
     """Fetch all articles from Pylon API and cache them.
 

@@ -11,8 +11,34 @@ from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 from src.tools.pylon_tools import (
     PylonUnavailableError,
     _raise_for_status,
+    check_pylon_health,
     search_support_articles,
 )
+
+
+def test_check_pylon_health_logs_key_warning_for_unauthorized_response(caplog):
+    """Unauthorized health checks identify the likely credential issue."""
+    response = MagicMock(status_code=401)
+    with patch("src.tools.pylon_tools.requests.get", return_value=response):
+        with patch("src.tools.pylon_tools._get_api_key", return_value="fake-key"):
+            with patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123"):
+                check_pylon_health()
+
+    assert "PYLON_API_KEY" in caplog.text
+    assert "HTTP 401" in caplog.text
+
+
+def test_check_pylon_health_does_not_raise_for_request_failure(caplog):
+    """Health probe failures are logged without blocking startup."""
+    with patch(
+        "src.tools.pylon_tools.requests.get",
+        side_effect=requests.RequestException("connection failed"),
+    ):
+        with patch("src.tools.pylon_tools._get_api_key", return_value="fake-key"):
+            with patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123"):
+                check_pylon_health()
+
+    assert "Pylon health check failed" in caplog.text
 
 
 def test_search_support_articles_raises_for_unauthorized_response():
