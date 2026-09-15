@@ -181,6 +181,21 @@ def test_guardrails_prompt_default_is_still_allow():
     )
 
 
+def test_guardrails_prompt_allows_langsmith_billing_unit_formulas():
+    """LangSmith billing-unit formulas must be classified as ALLOWED."""
+    billing_terms = ["lcu", "lsu", "langchain credits", "seats", "traces"]
+    assert all(term in PROMPT_LOWER for term in billing_terms)
+    assert "billing questions, not math problems" in PROMPT_LOWER
+    assert "even when the message is only a formula or a number" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_allows_unfamiliar_ecosystem_terms():
+    """Bare ecosystem concept queries must be passed through to docs search."""
+    assert 'bare "what is <term>" query must be allowed' in PROMPT_LOWER
+    assert "progressive disclosure" in PROMPT_LOWER
+    assert "docs search—not the classifier" in PROMPT_LOWER
+
+
 # ---------------------------------------------------------------------------
 # Test 6: Prompt must have a zero-tolerance NSFW/explicit content block rule
 # ---------------------------------------------------------------------------
