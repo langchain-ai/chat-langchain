@@ -5,8 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import requests
+from langchain.agents.middleware.types import ModelRequest, ModelResponse
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
+from src.middleware.support_disclosure_middleware import SupportDisclosureMiddleware
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 from src.tools.pylon_tools import (
     PylonUnavailableError,
@@ -64,3 +67,83 @@ def test_tool_retry_middleware_propagates_pylon_failures():
     assert result.status == "error"
     assert result.content == "unauthorized"
     handler.assert_awaited_once()
+
+
+def test_support_outage_disclosure_is_added_after_retry():
+    middleware = SupportDisclosureMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I update my billing details?"),
+            ToolMessage(
+                content="PylonUnavailableError: Pylon API returned HTTP 401",
+                name="search_support_articles",
+                status="error",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[AIMessage(content="Use the billing settings page.")]
+        )
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert response.result[0].content.endswith(
+        "Support articles could not be consulted, so this answer is based on official documentation only."
+    )
+
+
+def test_existing_support_outage_disclosure_is_unchanged():
+    middleware = SupportDisclosureMiddleware()
+    content = (
+        "Support articles could not be consulted; based on official documentation only."
+    )
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I update my billing details?"),
+            ToolMessage(
+                content="PylonUnavailableError",
+                name="get_support_article_content",
+                status="error",
+                tool_call_id="content",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(result=[AIMessage(content=content)])
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert response.result[0].content == content
+
+
+def test_successful_support_tool_does_not_change_answer():
+    middleware = SupportDisclosureMiddleware()
+    content = "Use the billing settings page."
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I update my billing details?"),
+            ToolMessage(
+                content="Article content",
+                name="search_support_articles",
+                status="success",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(result=[AIMessage(content=content)])
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert response.result[0].content == content
