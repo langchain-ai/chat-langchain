@@ -26,8 +26,13 @@ DOCS_TOOLS = frozenset(
     {
         "search_docs_by_lang_chain",
         "query_docs_filesystem_docs_by_lang_chain",
+        "fetch_langchain_pricing",
+        "search_support_articles",
+        "get_support_article_content",
+        "read_file",
     }
 )
+_PRICING_URL = "https://www.langchain.com/pricing"
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
 _FOOTER_PATTERN = re.compile(
     r"(?ims)^\s*(?:(?:\*\*)?Relevant docs:\s*(?:\*\*)?|##\s+Relevant docs:\s*).*$"
@@ -56,28 +61,10 @@ class CitationGuardMiddleware(AgentMiddleware):
         if latest_human_index < 0:
             return response
         turn_messages = request.messages[latest_human_index + 1 :]
-        footer_message = self._footer_message(self._response_messages(response))
-        if footer_message is None:
-            return response
-
-        footer_urls = self._urls_in_footer(footer_message)
-        if not footer_urls:
-            return response
-        grounded_urls = self._grounded_urls(turn_messages)
-        valid_urls = self._valid_urls(turn_messages)
-        unchecked_urls = [
-            url for url in footer_urls if url in grounded_urls and url not in valid_urls
-        ]
-        if unchecked_urls:
-            results = await _check_urls_async(unchecked_urls, 10.0)
-            valid_urls.update(result.url for result in results if result.valid)
-
-        invalid_urls = {
-            url
-            for url in footer_urls
-            if url not in grounded_urls or url not in valid_urls
-        }
-        if not invalid_urls:
+        footer_message, invalid_urls = await self._invalid_footer_urls(
+            response, turn_messages
+        )
+        if footer_message is None or not invalid_urls:
             return response
 
         repaired_text = self._remove_footer_urls(
@@ -91,7 +78,16 @@ class CitationGuardMiddleware(AgentMiddleware):
                 ],
                 system_message=self._retry_system_message(request),
             )
-            return await handler(retry_request)
+            retry_response = await handler(retry_request)
+            retry_footer, retry_invalid_urls = await self._invalid_footer_urls(
+                retry_response, turn_messages
+            )
+            if retry_footer is not None and retry_invalid_urls:
+                retry_text = self._remove_footer_urls(
+                    self._message_text(retry_footer), retry_invalid_urls
+                )
+                return self._replace_footer(retry_response, retry_footer, retry_text)
+            return retry_response
         return self._replace_footer(response, footer_message, repaired_text)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
@@ -126,11 +122,38 @@ class CitationGuardMiddleware(AgentMiddleware):
         return _URL_PATTERN.findall(match.group(0)) if match else []
 
     def _grounded_urls(self, messages: list[BaseMessage]) -> set[str]:
-        return {
+        grounded_urls: set[str] = set()
+        for message in messages:
+            if not isinstance(message, ToolMessage) or message.name not in DOCS_TOOLS:
+                continue
+            grounded_urls.update(_URL_PATTERN.findall(self._message_text(message)))
+            if message.name == "fetch_langchain_pricing" and getattr(
+                message, "status", None
+            ) not in {"error", "failure", "failed"}:
+                grounded_urls.add(_PRICING_URL)
+        return grounded_urls
+
+    async def _invalid_footer_urls(
+        self, response: ModelResponse, turn_messages: list[BaseMessage]
+    ) -> tuple[AIMessage | None, set[str]]:
+        footer_message = self._footer_message(self._response_messages(response))
+        if footer_message is None:
+            return None, set()
+        footer_urls = self._urls_in_footer(footer_message)
+        if not footer_urls:
+            return footer_message, set()
+        grounded_urls = self._grounded_urls(turn_messages)
+        valid_urls = self._valid_urls(turn_messages)
+        unchecked_urls = [
+            url for url in footer_urls if url in grounded_urls and url not in valid_urls
+        ]
+        if unchecked_urls:
+            results = await _check_urls_async(unchecked_urls, 10.0)
+            valid_urls.update(result.url for result in results if result.valid)
+        return footer_message, {
             url
-            for message in messages
-            if isinstance(message, ToolMessage) and message.name in DOCS_TOOLS
-            for url in _URL_PATTERN.findall(self._message_text(message))
+            for url in footer_urls
+            if url not in grounded_urls or url not in valid_urls
         }
 
     def _valid_urls(self, messages: list[BaseMessage]) -> set[str]:
@@ -171,9 +194,9 @@ class CitationGuardMiddleware(AgentMiddleware):
         if isinstance(content, list):
             updated_content = list(content)
             for part_index, part in enumerate(updated_content):
-                if not isinstance(part, dict) or "Relevant docs:" not in self._content_part_text(
-                    part
-                ):
+                if not isinstance(
+                    part, dict
+                ) or "Relevant docs:" not in self._content_part_text(part):
                     continue
                 updated_content[part_index] = {**part, "text": text}
                 break
