@@ -191,7 +191,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Check if query is LangChain-related before processing."""
         messages = state.get("messages", [])
         if not messages:
-            return None
+            return {"off_topic_query": False}
 
         # Extract the current query for all checks below.
         last_message = messages[-1]
@@ -234,7 +234,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return None
+            return {"off_topic_query": False}
 
         # Handle blocked queries
         logger.warning(
@@ -247,7 +247,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.info(
                 "Off-topic query detected but block_off_topic=False, allowing..."
             )
-            return None
+            return {"off_topic_query": False}
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
