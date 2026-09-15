@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -31,6 +32,15 @@ _RETRY_INSTRUCTIONS = (
     "documentation tool results. Call check_links on exactly the final citation list "
     "before answering. Never construct or recall a documentation URL."
 )
+
+
+def _canonical_url(url: str) -> str:
+    url = url.rstrip(".,;:!?")
+    parsed = urlsplit(url)
+    path = parsed.path[:-1] if parsed.path.endswith("/") else parsed.path
+    return urlunsplit(
+        (parsed.scheme.lower(), parsed.netloc.lower(), path, parsed.query, "")
+    )
 
 
 class CitationGuardMiddleware(AgentMiddleware):
@@ -60,16 +70,22 @@ class CitationGuardMiddleware(AgentMiddleware):
         grounded_urls = self._grounded_urls(turn_messages)
         valid_urls = self._valid_urls(turn_messages)
         unchecked_urls = [
-            url for url in footer_urls if url in grounded_urls and url not in valid_urls
+            url
+            for url in footer_urls
+            if _canonical_url(url) in grounded_urls
+            and _canonical_url(url) not in valid_urls
         ]
         if unchecked_urls:
             results = await _check_urls_async(unchecked_urls, 10.0)
-            valid_urls.update(result.url for result in results if result.valid)
+            valid_urls.update(
+                _canonical_url(result.url) for result in results if result.valid
+            )
 
         invalid_urls = {
-            url
+            _canonical_url(url)
             for url in footer_urls
-            if url not in grounded_urls or url not in valid_urls
+            if _canonical_url(url) not in grounded_urls
+            or _canonical_url(url) not in valid_urls
         }
         if not invalid_urls:
             return response
@@ -118,7 +134,7 @@ class CitationGuardMiddleware(AgentMiddleware):
 
     def _grounded_urls(self, messages: list[BaseMessage]) -> set[str]:
         return {
-            url
+            _canonical_url(url)
             for message in messages
             if isinstance(message, ToolMessage) and message.name in DOCS_TOOLS
             for url in _URL_PATTERN.findall(self._message_text(message))
@@ -138,7 +154,9 @@ class CitationGuardMiddleware(AgentMiddleware):
                 if in_valid_section and stripped and not stripped.startswith("-"):
                     in_valid_section = False
                 if in_valid_section:
-                    valid_urls.update(_URL_PATTERN.findall(line))
+                    valid_urls.update(
+                        _canonical_url(url) for url in _URL_PATTERN.findall(line)
+                    )
         return valid_urls
 
     def _remove_footer_urls(self, text: str, invalid_urls: set[str]) -> str:
@@ -149,7 +167,9 @@ class CitationGuardMiddleware(AgentMiddleware):
         lines = [
             line
             for line in footer.splitlines()
-            if not invalid_urls.intersection(_URL_PATTERN.findall(line))
+            if not invalid_urls.intersection(
+                _canonical_url(url) for url in _URL_PATTERN.findall(line)
+            )
         ]
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
 

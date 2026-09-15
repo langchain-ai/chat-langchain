@@ -212,6 +212,143 @@ def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):
     assert url in result.result[0].content
 
 
+def test_anchored_retrieval_url_is_accepted_and_retained(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+    from src.tools.link_check_tools import LinkCheckResult
+
+    retrieved = "https://docs.langchain.com/oss/python/langgraph/graph-api#stategraph"
+    cited = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    checks: list[list[str]] = []
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {retrieved}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({cited})"
+                )
+            ]
+        )
+
+    async def check_urls(urls: list[str], timeout: float):
+        checks.append(urls)
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert checks == [[cited]]
+    assert cited in result.result[0].content
+
+
+def test_valid_links_trailing_slash_is_accepted():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    middleware = CitationGuardMiddleware()
+    response = ModelResponse(
+        result=[
+            AIMessage(content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({url})")
+        ]
+    )
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content=f"Valid links:\n  - {url}/",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return response
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert result.result[0].content.endswith(f"({url})")
+
+
+def test_language_path_mismatch_is_rejected():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    javascript_url = "https://docs.langchain.com/oss/javascript/langgraph/graph-api"
+    python_url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {javascript_url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content=f"Valid links:\n  - {python_url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        content = "**Answer**"
+        if len(calls) == 1:
+            content += f"\n\n**Relevant docs:**\n- [Guide]({python_url})"
+        return ModelResponse(result=[AIMessage(content=content)])
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert python_url not in result.result[0].content
+
+
+def test_footer_is_dropped_when_no_documentation_evidence_exists():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I build a graph?")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        content = "**Answer**"
+        if len(calls) == 1:
+            content += f"\n\n**Relevant docs:**\n- [Guide]({url})"
+        return ModelResponse(result=[AIMessage(content=content)])
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert url not in result.result[0].content
+
+
 def test_entirely_ungrounded_footer_retries_with_correction():
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 
