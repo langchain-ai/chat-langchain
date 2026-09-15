@@ -1,6 +1,7 @@
 """Tests for Pylon tool failure propagation."""
 
 import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -45,7 +46,7 @@ def test_raise_for_status_detects_unauthorized_http_error_response():
 
 
 def test_tool_retry_middleware_propagates_pylon_failures():
-    """Pylon outages are marked as tool errors instead of success content."""
+    """Pylon outages disclose the unavailable support source to the model."""
     request = ToolCallRequest(
         tool_call={"name": "search_support_articles", "id": "call-1"},
         tool=None,
@@ -62,5 +63,34 @@ def test_tool_retry_middleware_propagates_pylon_failures():
     result = asyncio.run(invoke())
 
     assert result.status == "error"
-    assert result.content == "unauthorized"
+    payload = json.loads(result.content)
+    assert "support knowledge base could not be consulted" in payload["suggestion"]
     handler.assert_awaited_once()
+
+
+def test_unauthorized_articles_endpoint_returns_disclosure_tool_message():
+    """Unauthorized article searches produce a structured disclosure error."""
+    response = MagicMock(status_code=401)
+    request = ToolCallRequest(
+        tool_call={"name": "search_support_articles", "id": "call-2"},
+        tool=None,
+        state=None,
+        runtime=None,
+    )
+
+    with patch("src.tools.pylon_tools.requests.get", return_value=response):
+        with patch("src.tools.pylon_tools._get_api_key", return_value="fake-key"):
+            with patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123"):
+
+                async def handler(_request):
+                    return search_support_articles.invoke({"collections": "all"})
+
+                result = asyncio.run(
+                    ToolRetryMiddleware(max_attempts=3).awrap_tool_call(
+                        request, handler
+                    )
+                )
+
+    assert result.status == "error"
+    payload = json.loads(result.content)
+    assert "support knowledge base could not be consulted" in payload["suggestion"]
