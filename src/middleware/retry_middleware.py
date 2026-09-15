@@ -9,6 +9,8 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.runnables.retry import RunnableRetry
+from tenacity import retry_if_exception
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,16 @@ class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
 
     pass
+
+
+class _ProviderValidationAwareRunnableRetry(RunnableRetry):
+    @property
+    def _kwargs_retrying(self) -> dict[str, object]:
+        kwargs = super()._kwargs_retrying
+        kwargs["retry"] = retry_if_exception(
+            lambda exception: not isinstance(exception, ValueError)
+        )
+        return kwargs
 
 
 class ModelRetryMiddleware(AgentMiddleware):
@@ -69,6 +81,8 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
+                if isinstance(e, ValueError):
+                    raise
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
