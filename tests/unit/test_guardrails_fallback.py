@@ -88,6 +88,13 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
 
     monkeypatch.setattr(middleware, "_classify_query", _raise_classification_error)
 
+    metadata = []
+    monkeypatch.setattr(
+        guardrails_module,
+        "update_root_run_metadata",
+        lambda runtime, values: metadata.append(values),
+    )
+
     result = asyncio.run(
         middleware.abefore_agent(
             {"messages": [HumanMessage(content="How do agents work?")]},
@@ -96,3 +103,34 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+    assert metadata[-1] == {
+        "guardrail_decision": "allowed",
+        "guardrail_fallback": True,
+    }
+
+
+def test_guardrails_records_normal_decision_on_root_metadata(monkeypatch):
+    middleware = _middleware_with_models()
+
+    async def _classify_query(messages):  # noqa: ARG001
+        return {"decision": "BLOCKED", "explanation": "Off topic."}
+
+    monkeypatch.setattr(middleware, "_classify_query", _classify_query)
+    metadata = []
+    monkeypatch.setattr(
+        guardrails_module,
+        "update_root_run_metadata",
+        lambda runtime, values: metadata.append(values),
+    )
+
+    asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="Unrelated question")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert metadata[-1] == {
+        "guardrail_decision": "blocked",
+        "guardrail_fallback": False,
+    }

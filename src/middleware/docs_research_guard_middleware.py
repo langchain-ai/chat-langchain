@@ -16,6 +16,11 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
+from src.utils.trace_root_metadata import (
+    ensure_guard_retry_count,
+    increment_guard_retry_count,
+)
+
 SEARCH_TOOLS = frozenset(
     {
         "search_docs_by_lang_chain",
@@ -62,6 +67,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
         """Require fresh research before returning a technical answer."""
+        ensure_guard_retry_count(request.runtime, request.messages)
         response = await handler(request)
         if not self._should_retry(request, response):
             self._clear_attempts(self._turn_key(request.messages))
@@ -70,6 +76,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         turn_key = self._turn_key(request.messages)
         while self._attempt_count(turn_key) < _MAX_FORCED_ATTEMPTS:
             self._record_attempt(turn_key)
+            increment_guard_retry_count(request.runtime, request.messages)
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),

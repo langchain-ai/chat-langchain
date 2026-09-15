@@ -61,3 +61,21 @@ def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch
 
     metadata = build_docs_agent_trace_metadata()
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+
+
+def test_build_docs_agent_trace_metadata_uses_bounded_environment(monkeypatch):
+    monkeypatch.setenv("APP_ENVIRONMENT", "invalid")
+    monkeypatch.setenv("LANGSMITH_LANGGRAPH_API_VARIANT", "preview")
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "preview"
+
+
+def test_build_docs_agent_trace_metadata_defaults_invalid_environment(monkeypatch):
+    monkeypatch.setenv("APP_ENVIRONMENT", "invalid")
+    monkeypatch.setenv("LANGSMITH_LANGGRAPH_API_VARIANT", "unknown")
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "development"
