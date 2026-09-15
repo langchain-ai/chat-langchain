@@ -152,6 +152,13 @@ def test_guardrails_prompt_allows_langchain_resource_questions():
     assert "which to use" in PROMPT_LOWER
 
 
+def test_guardrails_prompt_allows_langchain_project_authorship_questions():
+    """Questions about LangChain authorship must match an allow criterion."""
+    assert "who created/founded it" in PROMPT_LOWER
+    assert "subject being langchain / langgraph / langsmith / fleet / deepagents" in PROMPT_LOWER
+    assert "authorship, history, company, or licensing" in PROMPT_LOWER
+
+
 def test_guardrails_prompt_allows_bare_technical_follow_ups():
     """Layman-terms follow-ups after LangGraph questions must be allowed."""
     assert "in layman terms" in PROMPT_LOWER
