@@ -23,7 +23,9 @@ DOCS_TOOLS = frozenset(
     }
 )
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
-_FOOTER_PATTERN = re.compile(r"(?ims)^\s*(?:\*\*)?Relevant docs:\s*(?:\*\*)?.*$")
+_FOOTER_PATTERN = re.compile(
+    r"(?ims)^\s*(?:(?:\*\*)?Relevant docs:\s*(?:\*\*)?|##\s+Relevant docs:\s*).*$"
+)
 _RETRY_INSTRUCTIONS = (
     "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
     "documentation tool results. Call check_links on exactly the final citation list "
@@ -91,7 +93,7 @@ class CitationGuardMiddleware(AgentMiddleware):
 
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
-        return list(result) if result is not None else [response]
+        return list(result) if result is not None else []
 
     def _has_pending_tool_calls(self, messages: list[BaseMessage]) -> bool:
         return any(
@@ -156,7 +158,20 @@ class CitationGuardMiddleware(AgentMiddleware):
     ) -> ModelResponse:
         messages = self._response_messages(response)
         index = messages.index(message)
-        messages[index] = message.model_copy(update={"content": text})
+        content = message.content
+        if isinstance(content, list):
+            updated_content = list(content)
+            for part_index, part in enumerate(updated_content):
+                if not isinstance(part, dict) or "Relevant docs:" not in self._content_part_text(
+                    part
+                ):
+                    continue
+                updated_content[part_index] = {**part, "text": text}
+                break
+            content = updated_content
+        else:
+            content = text
+        messages[index] = message.model_copy(update={"content": content})
         response.result = messages
         return response
 
@@ -165,12 +180,16 @@ class CitationGuardMiddleware(AgentMiddleware):
         if isinstance(content, str):
             return content
         if isinstance(content, list):
-            return "\n".join(self._content_part_text(part) for part in content)
+            return "\n".join(
+                text for part in content if (text := self._content_part_text(part))
+            )
         return str(content)
 
     def _content_part_text(self, part: Any) -> str:
         if isinstance(part, dict):
-            return "\n".join(self._content_part_text(value) for value in part.values())
+            if part.get("type") == "text" or "text" in part:
+                return str(part.get("text", ""))
+            return ""
         if isinstance(part, list):
             return "\n".join(self._content_part_text(value) for value in part)
         return str(part)
