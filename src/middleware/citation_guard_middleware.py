@@ -15,6 +15,10 @@ from langchain.agents.middleware.types import (
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
 from src.tools.link_check_tools import _check_urls_async
+from src.utils.trace_root_metadata import (
+    ensure_guard_retry_count,
+    increment_guard_retry_count,
+)
 
 DOCS_TOOLS = frozenset(
     {
@@ -42,6 +46,7 @@ class CitationGuardMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
         """Validate and repair documentation citations after model calls."""
+        ensure_guard_retry_count(request.runtime, request.messages)
         response = await handler(request)
         if self._has_pending_tool_calls(self._response_messages(response)):
             return response
@@ -78,6 +83,7 @@ class CitationGuardMiddleware(AgentMiddleware):
             self._message_text(footer_message), invalid_urls
         )
         if not self._urls_in_footer_text(repaired_text):
+            increment_guard_retry_count(request.runtime, request.messages)
             retry_request = request.override(
                 messages=[*request.messages, *self._response_messages(response)],
                 system_message=self._retry_system_message(request),

@@ -23,6 +23,10 @@ from src.prompts.guardrails_prompts import (
 from src.prompts.guardrails_prompts import (
     rejection_system_prompt as _REJECTION_SYSTEM_PROMPT,
 )
+from src.utils.trace_root_metadata import (
+    ensure_guard_retry_count,
+    update_root_run_metadata,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +196,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         messages = state.get("messages", [])
         if not messages:
             return None
+        ensure_guard_retry_count(runtime, messages)
 
         # Extract the current query for all checks below.
         last_message = messages[-1]
@@ -212,12 +217,23 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
+            update_root_run_metadata(
+                runtime,
+                {"guardrail_decision": "allowed", "guardrail_fallback": True},
+            )
             return {"off_topic_query": False}
 
         decision = guardrails_decision["decision"]
         explanation = guardrails_decision["explanation"]
 
         # Track in LangSmith metadata
+        update_root_run_metadata(
+            runtime,
+            {
+                "guardrail_decision": decision.lower(),
+                "guardrail_fallback": False,
+            },
+        )
         self._track_decision_metadata(guardrails_decision)
 
         # Sample to dataset for evaluation (100% blocked, 10% allowed)
