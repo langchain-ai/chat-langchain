@@ -72,7 +72,7 @@ def test_check_links_does_not_satisfy_research_requirement():
         return ModelResponse(
             result=[
                 AIMessage(
-                    content="The StateGraph constructor accepts configuration options."
+                    content="The `StateGraph()` constructor accepts configuration options."
                 )
             ]
         )
@@ -342,8 +342,47 @@ def test_search_results_satisfy_research_requirement():
         calls.append(request)
         return ModelResponse(
             result=[
+                AIMessage(content="StateGraph is the graph class described in the docs.")
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+
+
+def test_greeting_does_not_trigger_forced_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(), messages=[HumanMessage(content="Hello!")]
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[AIMessage(content="Hello! How can I help you with LangChain?")]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert calls[0].tool_choice is None
+
+
+def test_capability_blurb_without_concrete_signal_does_not_trigger_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(), messages=[HumanMessage(content="What can you do?")]
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
                 AIMessage(
-                    content="StateGraph is the graph class described in the docs."
+                    content="I can answer questions and help explain concepts clearly."
                 )
             ]
         )
@@ -351,6 +390,27 @@ def test_search_results_satisfy_research_requirement():
     asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert len(calls) == 1
+
+
+def test_code_or_docs_url_answer_triggers_research_without_prior_tools():
+    for answer in (
+        "Use `StateGraph()` to define the graph.",
+        "See https://docs.langchain.com/oss/python/langgraph/graph-api.",
+    ):
+        middleware = DocsResearchGuardMiddleware()
+        calls: list[ModelRequest] = []
+        request = ModelRequest(
+            model=object(), messages=[HumanMessage(content="How do I build a graph?")]
+        )
+
+        async def handler(request: ModelRequest) -> ModelResponse:
+            calls.append(request)
+            return ModelResponse(result=[AIMessage(content=answer)])
+
+        asyncio.run(middleware.awrap_model_call(request, handler))
+
+        assert len(calls) == 3
+        assert all(call.tool_choice for call in calls[1:])
 
 
 def test_unread_large_result_pointer_does_not_satisfy_research_requirement():
@@ -373,7 +433,7 @@ def test_unread_large_result_pointer_does_not_satisfy_research_requirement():
         return ModelResponse(
             result=[
                 AIMessage(
-                    content="StateGraph is the graph class described in the docs."
+                    content="Use `StateGraph()` as described in the docs."
                 )
             ]
         )
@@ -402,7 +462,7 @@ def test_check_links_only_is_not_research():
         return ModelResponse(
             result=[
                 AIMessage(
-                    content="The StateGraph constructor accepts configuration options."
+                    content="The `StateGraph()` constructor accepts configuration options."
                 )
             ]
         )

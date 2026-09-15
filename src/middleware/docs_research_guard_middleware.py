@@ -44,6 +44,19 @@ _DISCLOSURE = (
 _MAX_FORCED_ATTEMPTS = 2
 _DOCS_URL_PATTERN = re.compile(r"https://docs\.langchain\.com/[^\s<>\]\)\"']+")
 _CODE_BLOCK_PATTERN = re.compile(r"```.*?(?:```|$)", re.DOTALL)
+_INLINE_CODE_PATTERN = re.compile(r"`([^`]+)`")
+_API_IDENTIFIER_PATTERN = re.compile(
+    r"\b(?:[A-Za-z_]\w*[._][A-Za-z_]\w*|[a-z][A-Za-z0-9]*[A-Z][A-Za-z0-9]*|"
+    r"[A-Za-z_]\w*\([^)]*\))"
+)
+_CONVERSATIONAL_PATTERN = re.compile(
+    r"^(?:hi|hello|hey|greetings|good morning|good afternoon|good evening|"
+    r"thanks|thank you|thx|你好|您好|嗨|哈喽|こんにちは|こんばんは|おはよう|"
+    r"안녕하세요|안녕|감사합니다|고마워요?|what can you do|what can you help with|"
+    r"what do you do|who are you|tell me about yourself|what products do you support|"
+    r"what is lang(?:chain|graph)|what is langsmith)(?: there| everyone)?$",
+    re.IGNORECASE,
+)
 _LARGE_RESULT_POINTER_PATTERN = re.compile(r"^/large_tool_results/[^\s]+$")
 _FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "docs_research_guard_forced_turn", default=None
@@ -102,13 +115,21 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
             return False
+        turn_key = self._turn_key(messages)
+        human_text = self._message_text(messages[latest_human_index])
+        if self._is_conversational_turn(human_text):
+            self._clear_attempts(turn_key)
+            return False
         response_messages = self._response_messages(response)
         if self._has_pending_tool_calls(response_messages):
             return False
         current_turn = self._turn_messages(messages, response_messages)
         if self._has_research_tool(current_turn):
             return False
-        return self._is_substantive_technical_answer(response_messages)
+        if not self._is_substantive_technical_answer(response_messages):
+            self._clear_attempts(turn_key)
+            return False
+        return True
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
@@ -172,19 +193,18 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
 
     def _is_substantive_technical_answer(self, messages: list[BaseMessage]) -> bool:
         text = "\n".join(self._message_text(message) for message in messages)
-        if len(text.strip()) < 40:
-            return False
-        return bool(
-            "```" in text
-            or re.search(r"`[^`]+`", text)
-            or re.search(r"\b[A-Z][A-Za-z0-9]+(?:\.[A-Za-z_][A-Za-z0-9_]*)?\b", text)
-            or re.search(
-                r"\b(?:api|class|function|method|constructor|parameter|argument|"
-                r"config(?:uration)?|option|property|field|tool call|invoke|returns?)\b",
-                text,
-                re.IGNORECASE,
-            )
-        )
+        if "```" in text or _DOCS_URL_PATTERN.search(text):
+            return True
+        if any(
+            re.search(r"[._()]|[a-z][A-Z]", code)
+            for code in _INLINE_CODE_PATTERN.findall(text)
+        ):
+            return True
+        return bool(_API_IDENTIFIER_PATTERN.search(text))
+
+    def _is_conversational_turn(self, text: str) -> bool:
+        normalized = re.sub(r"[\W_]+", " ", text, flags=re.UNICODE).strip()
+        return len(normalized) <= 45 and bool(_CONVERSATIONAL_PATTERN.fullmatch(normalized))
 
     def _message_text(self, message: BaseMessage) -> str:
         content: Any = getattr(message, "content", "")
