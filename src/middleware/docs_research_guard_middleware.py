@@ -44,7 +44,9 @@ _DISCLOSURE = (
 _MAX_FORCED_ATTEMPTS = 2
 _DOCS_URL_PATTERN = re.compile(r"https://docs\.langchain\.com/[^\s<>\]\)\"']+")
 _CODE_BLOCK_PATTERN = re.compile(r"```.*?(?:```|$)", re.DOTALL)
-_LARGE_RESULT_POINTER_PATTERN = re.compile(r"^/large_tool_results/[^\s]+$")
+_LARGE_RESULT_POINTER_PATTERN = re.compile(
+    r"/large_tool_results/(?P<call_id>[^\s`'\"]+)"
+)
 _FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "docs_research_guard_forced_turn", default=None
 )
@@ -143,19 +145,46 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         )
 
     def _has_research_tool(self, messages: list[BaseMessage]) -> bool:
-        tool_messages = [
-            message
-            for message in messages
-            if isinstance(message, ToolMessage)
-            and message.name in RESEARCH_TOOLS
-            and self._has_usable_content(message)
-        ]
-        for index, message in enumerate(tool_messages):
-            if not self._is_large_result_pointer(message):
+        for index, message in enumerate(messages):
+            if (
+                not isinstance(message, ToolMessage)
+                or message.name not in RESEARCH_TOOLS
+                or not self._has_usable_content(message)
+            ):
+                continue
+            pointer_call_id = self._is_large_result_pointer(message)
+            if pointer_call_id is None:
                 return True
-            if any(
-                later.name == "read_file" and not self._is_large_result_pointer(later)
-                for later in tool_messages[index + 1 :]
+            later_messages = messages[index + 1 :]
+            later_read_files = [
+                later
+                for later in later_messages
+                if (
+                    isinstance(later, ToolMessage)
+                    and later.name == "read_file"
+                    and self._has_usable_content(later)
+                    and self._is_large_result_pointer(later) is None
+                )
+            ]
+            if not later_read_files:
+                continue
+            for later in later_read_files:
+                if pointer_call_id in self._message_text(later):
+                    return True
+                if pointer_call_id in str(getattr(later, "tool_call_id", "")):
+                    return True
+            read_file_calls = [
+                tool_call
+                for later in later_messages
+                if isinstance(later, AIMessage)
+                for tool_call in later.tool_calls
+                if tool_call.get("name") == "read_file"
+            ]
+            if any(pointer_call_id in str(tool_call) for tool_call in read_file_calls):
+                return True
+            if not any(
+                "/large_tool_results/" in str(tool_call) or "call_" in str(tool_call)
+                for tool_call in read_file_calls
             ):
                 return True
         return False
@@ -165,10 +194,12 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             self._message_text(message).strip()
         )
 
-    def _is_large_result_pointer(self, message: ToolMessage) -> bool:
-        return bool(
-            _LARGE_RESULT_POINTER_PATTERN.fullmatch(self._message_text(message).strip())
-        )
+    def _is_large_result_pointer(self, message: ToolMessage) -> str | None:
+        text = self._message_text(message)
+        if "Tool result too large" not in text:
+            return None
+        match = _LARGE_RESULT_POINTER_PATTERN.search(text)
+        return match.group("call_id") if match else None
 
     def _is_substantive_technical_answer(self, messages: list[BaseMessage]) -> bool:
         text = "\n".join(self._message_text(message) for message in messages)
