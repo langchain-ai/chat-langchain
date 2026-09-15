@@ -4,7 +4,7 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -96,3 +96,32 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_guardrails_resets_off_topic_flag_after_allowed_turn(monkeypatch):
+    """An allowed turn should clear a prior blocked-turn flag."""
+    middleware = _middleware_with_models()
+    decisions = iter(
+        [
+            {"decision": "BLOCKED", "explanation": "Outside the documentation scope."},
+            {"decision": "ALLOWED", "explanation": "LangChain-related question."},
+        ]
+    )
+
+    async def _classify_query(messages):  # noqa: ARG001
+        return next(decisions)
+
+    async def _generate_rejection_message(content):  # noqa: ARG001
+        return AIMessage(content="I can only help with LangChain documentation.")
+
+    monkeypatch.setattr(middleware, "_classify_query", _classify_query)
+    monkeypatch.setattr(
+        middleware, "_generate_rejection_message", _generate_rejection_message
+    )
+    state = {"messages": [HumanMessage(content="First question")]}
+
+    blocked_result = asyncio.run(middleware.abefore_agent(state, Runtime(context=None)))
+    allowed_result = asyncio.run(middleware.abefore_agent(state, Runtime(context=None)))
+
+    assert blocked_result["off_topic_query"] is True
+    assert allowed_result["off_topic_query"] is False
