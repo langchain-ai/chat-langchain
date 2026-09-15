@@ -22,7 +22,7 @@ def test_search_support_articles_raises_for_unauthorized_response():
         with patch("src.tools.pylon_tools._get_api_key", return_value="fake-key"):
             with patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123"):
                 with pytest.raises(PylonUnavailableError) as context:
-                    search_support_articles.invoke({"collections": "all"})
+                    search_support_articles.invoke({"query": "deployment", "collections": "all"})
 
     assert "PYLON_API_KEY" in str(context.value)
     assert "api.usepylon.com" in str(context.value)
