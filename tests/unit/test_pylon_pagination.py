@@ -200,11 +200,12 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
             _make_response([], status_code=401),
         ]
 
-        with self.assertRaises(self.module.PylonUnavailableError) as context:
+        with self.assertRaises(self.module.PylonAuthError) as context:
             self.module._fetch_all_articles()
 
-        self.assertIn("PYLON_API_KEY", str(context.exception))
-        self.assertIn("/knowledge-bases/kb-123/articles", str(context.exception))
+        self.assertEqual(
+            str(context.exception), "Pylon API authentication failed with HTTP 401"
+        )
         self.assertIsNone(self.module._articles_cache)
 
 
