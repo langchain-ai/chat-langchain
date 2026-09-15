@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState, useEffect, useMemo, useRef } from "react"
+import { Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
@@ -10,6 +10,7 @@ import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import {
   addStoredGuestThreadId,
   getStoredGuestThreadIds,
+  pruneStoredGuestThreadIds,
   removeStoredGuestThreadId,
 } from "@/lib/hooks/threads/guest-thread-storage"
 import { useLangGraphAuth, useClientProfile } from "@/lib/hooks/auth"
@@ -48,8 +49,19 @@ function DashboardContent() {
     threadId: string
     ownerId: string | null
   } | null>(null)
-  const [guestThreadIds, setGuestThreadIds] = useState<string[]>(() =>
-    typeof window === "undefined" ? [] : getStoredGuestThreadIds()
+  // Stored thread ids are scoped to the guest actor that created them, so the
+  // list stays empty until that identity is known.
+  const [guestThreadIds, setGuestThreadIds] = useState<string[]>([])
+
+  useEffect(() => {
+    setGuestThreadIds(getStoredGuestThreadIds(guestUserId))
+  }, [guestUserId])
+
+  const forgetUnreachableGuestThreadIds = useCallback(
+    (unreachableIds: string[]) => {
+      setGuestThreadIds(pruneStoredGuestThreadIds(guestUserId, unreachableIds))
+    },
+    [guestUserId]
   )
   const previousUserIdRef = useRef<string | null>(null)
 
@@ -63,6 +75,9 @@ function DashboardContent() {
   } = useThreads(userId || undefined, authToken || undefined, {
     threadIds: isCurrentUserGuest ? guestThreadIds : undefined,
     authRegion,
+    onUnreachableThreadIds: isCurrentUserGuest
+      ? forgetUnreachableGuestThreadIds
+      : undefined,
   })
   const {
     threads: guestThreads,
@@ -73,7 +88,11 @@ function DashboardContent() {
   } = useThreads(
     shouldLoadGuestThreads ? guestUserId || undefined : undefined,
     shouldLoadGuestThreads ? guestToken || undefined : undefined,
-    { threadIds: guestThreadIds, authRegion }
+    {
+      threadIds: guestThreadIds,
+      authRegion,
+      onUnreachableThreadIds: forgetUnreachableGuestThreadIds,
+    }
   )
 
   const threads = useMemo(() => {
@@ -206,7 +225,9 @@ function DashboardContent() {
         : deletePrimaryThread
 
     if (threadOwnerId === guestUserId || threadOwnerId?.startsWith("user-")) {
-      setGuestThreadIds(removeStoredGuestThreadId(threadIdToDelete))
+      setGuestThreadIds(
+        removeStoredGuestThreadId(threadOwnerId || guestUserId, threadIdToDelete)
+      )
     }
 
     deleteForOwner(threadIdToDelete, () => {
@@ -256,7 +277,7 @@ function DashboardContent() {
       : addPrimaryOptimisticThread
 
     if (isGuestOwnedThread) {
-      setGuestThreadIds(addStoredGuestThreadId(threadId))
+      setGuestThreadIds(addStoredGuestThreadId(ownerId, threadId))
     }
 
     // Clear the new thread flag once the thread has been initialized (first message sent)

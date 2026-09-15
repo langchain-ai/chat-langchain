@@ -50,6 +50,33 @@ function isHttpStatusError(error: unknown, status: number): boolean {
   return error instanceof Error && error.message.includes(String(status))
 }
 
+/**
+ * Statuses that mean "this one thread is not readable by the current actor":
+ * deleted (404), or owned by a different actor (403, which is what per-actor
+ * thread scoping returns after a guest identity rotates). Neither ever means
+ * the user has no history.
+ */
+const UNREACHABLE_THREAD_STATUSES = [403, 404]
+
+function classifyThreadFetchError(
+  error: unknown
+): "prunable" | "unreachable" | "failed" {
+  const status = getErrorStatus(error)
+  if (status !== null) {
+    return UNREACHABLE_THREAD_STATUSES.includes(status) ? "prunable" : "failed"
+  }
+
+  // No numeric status, so fall back to the message - but treat that as
+  // low-confidence. Thread ids are UUIDs and routinely contain digit runs like
+  // "404", so a match here hides the thread without forgetting its id.
+  const mentionsStatus =
+    error instanceof Error &&
+    UNREACHABLE_THREAD_STATUSES.some((candidate) =>
+      error.message.includes(String(candidate))
+    )
+  return mentionsStatus ? "unreachable" : "failed"
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -87,6 +114,19 @@ export interface Thread {
   values?: Record<string, any>
 }
 
+/**
+ * Result of resolving one stored thread id.
+ * - `ok`: the thread loaded.
+ * - `unreachable`: authoritatively not readable; `prunable` marks the cases
+ *   confident enough to forget the id locally.
+ * - `failed`: anything else (network, 5xx, auth outage) - never interpreted as
+ *   an absence of history.
+ */
+type ThreadFetchOutcome =
+  | { kind: "ok"; thread: Thread }
+  | { kind: "unreachable"; threadId: string; prunable: boolean }
+  | { kind: "failed"; threadId: string; error: unknown }
+
 // ============================================================================
 // Hook Implementation
 // ============================================================================
@@ -107,6 +147,11 @@ export interface Thread {
 interface UseThreadsOptions {
   threadIds?: string[]
   authRegion?: AuthRegion
+  /**
+   * Called with thread ids the backend confirms this identity cannot read, so
+   * the caller can stop re-requesting them on every load.
+   */
+  onUnreachableThreadIds?: (threadIds: string[]) => void
 }
 
 export function useThreads(
@@ -148,33 +193,82 @@ export function useThreads(
       const client = createLangGraphClient(authToken, authRegion)
 
       logger.info('Fetching threads for user:', id)
-      const userThreads = options.threadIds
-        ? await Promise.all(
-            options.threadIds.map(async (threadId) => {
-              try {
-                return (await client.threads.get(threadId)) as any as Thread
-              } catch (error) {
-                if (isHttpStatusError(error, 404)) {
-                  logger.debug(`Thread ${threadId} not found (404)`)
-                  return null
-                }
-                throw error
+
+      let userThreads: Thread[]
+      if (options.threadIds) {
+        const outcomes: ThreadFetchOutcome[] = await Promise.all(
+          options.threadIds.map(async (threadId): Promise<ThreadFetchOutcome> => {
+            try {
+              const thread = (await client.threads.get(threadId)) as any as Thread
+              return { kind: "ok", thread }
+            } catch (error) {
+              const classification = classifyThreadFetchError(error)
+              if (classification === "failed") {
+                return { kind: "failed", threadId, error }
               }
-            })
-          ).then((results) => results.filter((thread): thread is Thread => Boolean(thread)))
-        : ((await client.threads.search({
-            metadata: {
-              user_id: id,
-            },
-            limit: THREAD_FETCH_LIMIT,
-          })) as any[] as Thread[])
+              // 403 here means the thread belongs to a different actor - the
+              // signal that this guest identity rotated - while 404 means it is
+              // genuinely gone. Worth telling apart in the field.
+              logger.debug(
+                `Thread ${threadId} not readable by this identity (status ${
+                  getErrorStatus(error) ?? "unknown"
+                })`
+              )
+              return {
+                kind: "unreachable",
+                threadId,
+                prunable: classification === "prunable",
+              }
+            }
+          })
+        )
+
+        const failures = outcomes.filter(
+          (outcome): outcome is Extract<ThreadFetchOutcome, { kind: "failed" }> =>
+            outcome.kind === "failed"
+        )
+        if (failures.length > 0) {
+          // A transient failure is not evidence the user has no history, so
+          // leave whatever is already on screen in place.
+          logger.error('Error fetching threads:', failures[0].error)
+          return
+        }
+
+        const prunable = outcomes
+          .filter(
+            (outcome): outcome is Extract<ThreadFetchOutcome, { kind: "unreachable" }> =>
+              outcome.kind === "unreachable"
+          )
+          .filter((outcome) => outcome.prunable)
+          .map((outcome) => outcome.threadId)
+        if (prunable.length > 0) {
+          logger.info(
+            `Forgetting ${prunable.length} stored thread id(s) this identity cannot read`
+          )
+          options.onUnreachableThreadIds?.(prunable)
+        }
+
+        userThreads = outcomes
+          .filter(
+            (outcome): outcome is Extract<ThreadFetchOutcome, { kind: "ok" }> =>
+              outcome.kind === "ok"
+          )
+          .map((outcome) => outcome.thread)
+      } else {
+        userThreads = (await client.threads.search({
+          metadata: {
+            user_id: id,
+          },
+          limit: THREAD_FETCH_LIMIT,
+        })) as any[] as Thread[]
+      }
 
       logger.info('Fetched threads:', userThreads.length)
 
       setThreads(userThreads.filter(hasThreadState))
     } catch (error) {
+      // Preserve the current list rather than blanking the sidebar on failure.
       logger.error('Error fetching threads:', error)
-      setThreads([])
     } finally {
       if (!silent) {
         setIsLoading(false)

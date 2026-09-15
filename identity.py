@@ -45,7 +45,12 @@ def _providers() -> list[dict]:
         entries.append(provider)
     # Anonymous visitors: MDA issues + verifies signed guest tokens itself
     # (POST /identity/guest), replacing the frontend guest-token route.
-    entries.append(providers.guest(ttl="24h", actor_prefix="guest:"))
+    # Guest history is addressable only while the actor id in the guest token
+    # stays put: threads are actor-scoped, so a re-issued token with a new
+    # subject orphans every thread that guest created. A 24h ttl rotated that
+    # identity (and so the visible history) roughly daily. 720h == 30d, spelled
+    # in hours because "24h" is the only unit spelling known to be accepted.
+    entries.append(providers.guest(ttl="720h", actor_prefix="guest:"))
     configured = [
         e.get("discovery_url") or e.get("issuer")
         for e in entries
