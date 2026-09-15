@@ -104,6 +104,7 @@ async def fetch_langchain_pricing() -> str:
                 return _cached_text
         return f"Error: Could not fetch pricing information. Direct the user to {PRICING_URL} for current pricing."
 
+    text = f"Source: {PRICING_URL}\n\n{text}"
     with _cache_lock:
         _cached_text = text
         _cached_at = time.monotonic()

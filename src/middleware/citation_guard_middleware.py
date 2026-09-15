@@ -26,6 +26,7 @@ DOCS_TOOLS = frozenset(
     {
         "search_docs_by_lang_chain",
         "query_docs_filesystem_docs_by_lang_chain",
+        "fetch_langchain_pricing",
     }
 )
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
