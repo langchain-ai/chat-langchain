@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import random
+import re
 from typing import Any, Literal
 
 import langsmith as ls
@@ -48,6 +49,79 @@ _GUARDRAILS_PROMPT_HUB_NAME = (
 
 # Cache for dataset ID to avoid repeated lookups
 _dataset_id_cache: str | None = None
+
+_CONTENT_ADJACENT_OFFER_PATTERN = re.compile(
+    r"\b(?:ask me about how to|i can help|if you(?:'|’)d like,? ask|you can ask|"
+    r"feel free to ask about|build|write|design|set up|structure|generate)\b",
+    re.IGNORECASE,
+)
+_DECLINED_CONTENT_TERMS = {
+    "story",
+    "storytelling",
+    "chapter",
+    "character",
+    "roleplay",
+    "role-play",
+    "fiction",
+    "narrative",
+    "scene",
+    "plot",
+    "creative writing",
+    "poem",
+    "poetry",
+    "erotica",
+}
+_STOPWORDS = {
+    "a",
+    "about",
+    "an",
+    "and",
+    "are",
+    "can",
+    "could",
+    "do",
+    "for",
+    "from",
+    "how",
+    "i",
+    "in",
+    "is",
+    "it",
+    "me",
+    "my",
+    "of",
+    "on",
+    "or",
+    "please",
+    "should",
+    "that",
+    "the",
+    "this",
+    "to",
+    "what",
+    "with",
+    "would",
+    "you",
+}
+_PRODUCT_NAMES = {"langchain", "langgraph", "langsmith", "deep", "agents"}
+
+
+def _offers_content_adjacent_workaround(text: str, declined_query: str) -> bool:
+    """Detect a redirect that offers help with declined content."""
+    if not _CONTENT_ADJACENT_OFFER_PATTERN.search(text):
+        return False
+
+    normalized_text = text.casefold()
+    if any(term in normalized_text for term in _DECLINED_CONTENT_TERMS):
+        return True
+
+    query_tokens = {
+        token
+        for token in re.findall(r"[a-z0-9]+", declined_query.casefold())
+        if len(token) > 2 and token not in _STOPWORDS and token not in _PRODUCT_NAMES
+    }
+    response_tokens = set(re.findall(r"[a-z0-9]+", normalized_text))
+    return bool(query_tokens & response_tokens)
 
 
 class GuardrailsDecision(TypedDict):
@@ -179,6 +253,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 self.llm.ainvoke(prompt),
                 timeout=GUARDRAILS_TIMEOUT_SECONDS,
             )
+            response_text = self._content_to_safe_text(response.content)
+            declined_query = self._content_to_safe_text(content)
+            if _offers_content_adjacent_workaround(response_text, declined_query):
+                logger.warning("Rejection model offered a content-adjacent workaround")
+                return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
             return AIMessage(id=response.id, content=response.content)
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")
