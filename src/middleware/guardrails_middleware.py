@@ -1,9 +1,11 @@
 """Lenient guardrails middleware to filter only egregious misuse."""
 
 import asyncio
+import difflib
 import logging
 import os
 import random
+import re
 from typing import Any, Literal
 
 import langsmith as ls
@@ -67,6 +69,7 @@ class GuardrailsState(AgentState):
     """Extended state schema with off-topic flag."""
 
     off_topic_query: NotRequired[bool]
+    refused_asks: NotRequired[list[str]]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -179,10 +182,17 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 self.llm.ainvoke(prompt),
                 timeout=GUARDRAILS_TIMEOUT_SECONDS,
             )
-            return AIMessage(id=response.id, content=response.content)
+            return AIMessage(
+                id=response.id,
+                content=response.content,
+                additional_kwargs={"guardrails_rejection": True},
+            )
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")
-            return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
+            return AIMessage(
+                content=_FALLBACK_REJECTION_MESSAGE,
+                additional_kwargs={"guardrails_rejection": True},
+            )
 
     @hook_config(can_jump_to=["end"])
     async def abefore_agent(
@@ -203,16 +213,26 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         safe_last_content = self._content_to_safe_text(last_content)
         query_preview = safe_last_content[:100]
 
+        sticky_explanation = self._sticky_refusal_explanation(
+            safe_last_content, state.get("refused_asks", [])
+        )
+
         # One classifier, every turn. Covers topic relevance + zero-tolerance
         # categories (NSFW, fiction, harmful-use-case, prompt-extraction,
         # social-pressure). The prompt's lenient follow-up rules keep legit
         # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
         # while zero-tolerance bullets override the default ALLOW.
-        try:
-            guardrails_decision = await self._classify_query(messages)
-        except GuardrailsClassificationError:
-            logger.error("Guardrails check failed after retries; allowing query.")
-            return {"off_topic_query": False}
+        if sticky_explanation:
+            guardrails_decision = {
+                "decision": "BLOCKED",
+                "explanation": sticky_explanation,
+            }
+        else:
+            try:
+                guardrails_decision = await self._classify_query(messages)
+            except GuardrailsClassificationError:
+                logger.error("Guardrails check failed after retries; allowing query.")
+                return {"off_topic_query": False}
 
         decision = guardrails_decision["decision"]
         explanation = guardrails_decision["explanation"]
@@ -251,11 +271,75 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
+        refused_asks = [*state.get("refused_asks", []), safe_last_content[:500]]
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
+            "refused_asks": refused_asks[-10:],
             "jump_to": "end",
         }
+
+    def _sticky_refusal_explanation(
+        self, query: str, refused_asks: list[str]
+    ) -> str | None:
+        """Return a sticky-refusal explanation when a refusal is being reversed."""
+        if not refused_asks or self._adds_in_scope_technical_content(query):
+            return None
+
+        normalized_query = self._normalize_query(query)
+        for refused_ask in refused_asks:
+            similarity = difflib.SequenceMatcher(
+                None, normalized_query, self._normalize_query(refused_ask)
+            ).ratio()
+            if similarity >= 0.72 or self._is_refusal_pushback(query):
+                return (
+                    "This request remains blocked under the sticky-refusal rule: "
+                    "asserting that it is related to LangChain does not reverse a "
+                    "prior scope refusal."
+                )
+        return None
+
+    def _normalize_query(self, text: str) -> str:
+        """Normalize text for near-restatement comparison."""
+        return " ".join(re.findall(r"[a-z0-9]+", text.lower()))
+
+    def _is_refusal_pushback(self, text: str) -> bool:
+        """Identify unsupported attempts to reverse a prior refusal."""
+        return bool(
+            re.search(
+                r"\b(?:related|relevant|about)\s+(?:to\s+)?langchain\b.*\b(?:answer|help|respond)\b",
+                text,
+                re.IGNORECASE,
+            )
+        )
+
+    def _adds_in_scope_technical_content(self, text: str) -> bool:
+        """Return whether text adds a substantive technical request."""
+        technical_terms = {
+            "agent",
+            "api",
+            "application",
+            "code",
+            "config",
+            "configure",
+            "debug",
+            "deploy",
+            "error",
+            "function",
+            "graph",
+            "integration",
+            "middleware",
+            "model",
+            "python",
+            "retrieval",
+            "sdk",
+            "streaming",
+            "tool",
+            "trace",
+            "typescript",
+            "workflow",
+        }
+        return bool(technical_terms.intersection(self._normalize_query(text).split()))
 
     def _content_to_safe_text(self, content) -> str:
         """Convert multimodal content to text without leaking encoded media."""
@@ -389,15 +473,29 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ):
             return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
 
+        current_index = messages.index(current_message)
+
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
-        for msg in reversed(messages[:-1]):  # Exclude current message
+        prior_refusals = []
+        for msg in reversed(messages[:current_index]):
             if isinstance(msg, HumanMessage):
                 text = self._extract_message_text(msg)
                 if text:
                     prior_queries.append(text[:200])  # Truncate for brevity
                     if len(prior_queries) == 3:
-                        break
+                        continue
+            elif isinstance(msg, AIMessage):
+                text = self._extract_message_text(msg)
+                if text and (
+                    msg.additional_kwargs.get("guardrails_rejection")
+                    or self._looks_like_rejection(text)
+                ):
+                    prior_refusals.append(text[:300])
+                    if len(prior_refusals) == 2:
+                        continue
+            if len(prior_queries) == 3 and len(prior_refusals) == 2:
+                break
 
         # Build the classification prompt
         context_section = ""
@@ -406,6 +504,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             context_section = (
                 "\n\nPrevious questions in this conversation:\n"
                 + "\n".join(f"- {q}" for q in recent)
+            )
+        if prior_refusals:
+            recent_refusals = list(reversed(prior_refusals))
+            context_section += (
+                "\n\nPrior assistant refusals in this conversation:\n"
+                + "\n".join(f"- {refusal}" for refusal in recent_refusals)
             )
 
         current_content = getattr(current_message, "content", current_query or "")
@@ -466,6 +570,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         raise GuardrailsClassificationError(
             f"Guardrails classification failed after retries: {last_exception}"
+        )
+
+    def _looks_like_rejection(self, text: str) -> bool:
+        """Return whether assistant text matches the standard scope refusal shape."""
+        lowered = text.lower()
+        return "outside my scope" in lowered or (
+            "specifically designed to help with langchain" in lowered
         )
 
     def _track_decision_metadata(self, decision: GuardrailsDecision) -> None:
