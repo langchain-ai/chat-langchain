@@ -123,6 +123,129 @@ def test_retrieved_and_valid_footer_url_passes_through(monkeypatch):
     assert result.result[0].content.endswith(f"({url})")
 
 
+def test_filesystem_read_path_grounds_footer_url_without_retry():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/overview"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "query_docs_filesystem_docs_by_lang_chain",
+                        "args": {
+                            "command": "head -100 /oss/python/langgraph/overview.mdx"
+                        },
+                        "id": "read",
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            ToolMessage(
+                content="# Overview",
+                name="query_docs_filesystem_docs_by_lang_chain",
+                tool_call_id="read",
+            ),
+            ToolMessage(
+                content=f"Valid links:\n  - {url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[AIMessage(content=f"**Relevant docs:**\n- [Guide]({url})")]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert url in result.result[0].content
+
+
+def test_unread_footer_url_is_stripped():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    grounded_url = "https://docs.langchain.com/oss/python/langgraph/overview"
+    unread_url = "https://docs.langchain.com/oss/python/langgraph/unread"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "query_docs_filesystem_docs_by_lang_chain",
+                        "args": {
+                            "command": "head -100 /oss/python/langgraph/overview.mdx"
+                        },
+                        "id": "read",
+                        "type": "tool_call",
+                    }
+                ],
+            ),
+            ToolMessage(
+                content="# Overview",
+                name="query_docs_filesystem_docs_by_lang_chain",
+                tool_call_id="read",
+            ),
+            ToolMessage(
+                content=f"Valid links:\n  - {grounded_url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=(
+                        f"**Relevant docs:**\n- [Guide]({grounded_url})\n"
+                        f"- [Unread]({unread_url})"
+                    )
+                )
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert grounded_url in result.result[0].content
+    assert unread_url not in result.result[0].content
+
+
+def test_filesystem_index_path_maps_to_parent_url():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    middleware = CitationGuardMiddleware()
+    message = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "query_docs_filesystem_docs_by_lang_chain",
+                "args": {"command": "head -100 /oss/python/langgraph/index.mdx"},
+                "id": "read",
+                "type": "tool_call",
+            }
+        ],
+    )
+
+    assert middleware._grounded_urls([message]) == {
+        "https://docs.langchain.com/oss/python/langgraph"
+    }
+
+
 def test_ungrounded_footer_url_is_stripped_even_when_reachable(monkeypatch):
     from src.middleware import citation_guard_middleware as citation_module
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
