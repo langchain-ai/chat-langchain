@@ -91,7 +91,7 @@ operations go through the managed identity and connector surface.
 ```txt
 ├── agent.py                    # Managed Deep Agent entrypoint
 ├── identity.py                 # MDA identity contract (Supabase + guest)
-├── instructions.md             # Managed Deep Agent system prompt
+├── _mda_entry.py               # Managed Deep Agent runtime entrypoint
 ├── connectors/
 │   ├── langsmith.py            # LangSmith feedback + trace connector
 │   └── mcp.py                  # Managed MCP docs connector
@@ -103,7 +103,7 @@ operations go through the managed identity and connector surface.
 │   │   ├── pricing_tools.py    # Pricing fetch
 │   │   └── link_check_tools.py # URL validation
 │   ├── prompts/
-│   │   ├── docs_agent_prompt.py # Hub push / eval mirror of instructions.md
+│   │   ├── docs_agent_prompt.py # Managed Deep Agent system prompt and Hub source
 │   │   ├── guardrails_prompts.py
 │   │   └── context_summary_prompt.py
 │   └── middleware/
