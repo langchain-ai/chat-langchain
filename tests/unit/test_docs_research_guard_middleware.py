@@ -518,3 +518,106 @@ def test_disabled_env_escape_hatch_skips_enforcement(monkeypatch):
 
     assert len(calls) == 1
     assert "```" in result.result[0].content
+
+
+def test_citation_retry_keeps_original_turn_tool_results(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    calls: list[ModelRequest] = []
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Retrieved URL: {url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(current_request: ModelRequest) -> ModelResponse:
+        calls.append(current_request)
+        if len(calls) == 1:
+            return ModelResponse(
+                result=[
+                    AIMessage(
+                        content="**Answer**\n\n**Relevant docs:**\n- [Guide](https://bad.example/guide)"
+                    )
+                ]
+            )
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    async def check_urls(urls: list[str], timeout: float):
+        from src.tools.link_check_tools import LinkCheckResult
+
+        return [LinkCheckResult(url=url, valid=True) for url in urls]
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", check_urls)
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert calls[1].messages[-1].additional_kwargs["guard_injected"] is True
+    assert middleware._latest_human_index(calls[1].messages) == 0
+    assert middleware._grounded_urls(calls[1].messages) == {url}
+
+
+def test_citation_repair_budget_removes_footer_after_two_retries():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(), messages=[HumanMessage(content="How do I build a graph?")]
+    )
+    calls = 0
+
+    async def handler(_request: ModelRequest) -> ModelResponse:
+        nonlocal calls
+        calls += 1
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"Answer\n\n**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    first = asyncio.run(middleware.awrap_model_call(request, handler))
+    second = asyncio.run(middleware.awrap_model_call(request, handler))
+    third = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert calls == 5
+    assert "Relevant docs:" in first.result[0].content
+    assert "Relevant docs:" in second.result[0].content
+    assert "Relevant docs:" not in third.result[0].content
+    assert request.state["citation_guard_attempts"] == {}
+
+
+def test_synthetic_humans_are_ignored_by_research_and_guardrails_guards():
+    from src.middleware.guardrails_middleware import GuardrailsMiddleware
+
+    messages = [
+        HumanMessage(content="How do I build a graph?"),
+        ToolMessage(
+            content="Retrieved docs",
+            name="search_docs_by_lang_chain",
+            tool_call_id="search",
+        ),
+        HumanMessage(
+            content="research this turn",
+            additional_kwargs={"guard_injected": True},
+        ),
+    ]
+    docs_middleware = DocsResearchGuardMiddleware()
+    guardrails_middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+
+    assert docs_middleware._latest_human_index(messages) == 0
+    assert docs_middleware._turn_key(messages).startswith("0:")
+    assert guardrails_middleware._is_real_human(messages[0])
+    assert not guardrails_middleware._is_real_human(messages[-1])

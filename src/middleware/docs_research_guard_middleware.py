@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import contextvars
 import os
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from langchain.agents.middleware import AgentState
 from langchain.agents.middleware.types import (
     AgentMiddleware,
+    ExtendedModelResponse,
     ModelCallResult,
     ModelRequest,
     ModelResponse,
@@ -21,6 +22,8 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
+from langgraph.types import Command
+from typing_extensions import NotRequired
 
 SEARCH_TOOLS = frozenset(
     {
@@ -71,16 +74,18 @@ _TECHNICAL_IDENTIFIER_PATTERN = re.compile(
     r"(?:^|\s)(?:\$\s*)?(?:python(?:3)?|pip|uv|npm|pnpm|poetry|git|curl)\s+\S+",
     re.MULTILINE,
 )
-_FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "docs_research_guard_forced_turn", default=None
-)
-_FORCED_ATTEMPTS: contextvars.ContextVar[dict[str, int]] = contextvars.ContextVar(
-    "docs_research_guard_forced_attempts", default={}
-)
+
+
+class DocsResearchGuardState(AgentState):
+    """State fields used by the documentation research guard."""
+
+    docs_research_guard_attempts: NotRequired[dict[str, int]]
 
 
 class DocsResearchGuardMiddleware(AgentMiddleware):
     """Force fresh documentation research before terminal technical answers."""
+
+    state_schema = DocsResearchGuardState
 
     async def awrap_model_call(
         self,
@@ -89,17 +94,21 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
     ) -> ModelCallResult:
         """Require fresh research before returning a technical answer."""
         response = await handler(request)
-        if not self._should_retry(request, response):
-            self._clear_attempts(self._turn_key(request.messages))
-            return response
-
         turn_key = self._turn_key(request.messages)
-        while self._attempt_count(turn_key) < _MAX_FORCED_ATTEMPTS:
-            self._record_attempt(turn_key)
+        attempts = self._attempts(request.state)
+        if not self._should_retry(request, response):
+            attempts.pop(turn_key, None)
+            return self._stateful_response(request, response, attempts)
+
+        while attempts.get(turn_key, 0) < _MAX_FORCED_ATTEMPTS:
+            attempts[turn_key] = attempts.get(turn_key, 0) + 1
             retry_request = request.override(
                 messages=[
                     *request.messages,
-                    HumanMessage(content=_RETRY_INSTRUCTIONS),
+                    HumanMessage(
+                        content=_RETRY_INSTRUCTIONS,
+                        additional_kwargs={"guard_injected": True},
+                    ),
                 ],
                 system_message=self._retry_system_message(request),
                 tool_choice={
@@ -109,20 +118,22 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             )
             response = await handler(retry_request)
             if self._has_pending_tool_calls(self._response_messages(response)):
-                return response
+                return self._stateful_response(request, response, attempts)
             if self._has_research_tool(
                 self._turn_messages(request.messages, self._response_messages(response))
             ):
-                self._clear_attempts(turn_key)
-                return response
+                attempts.pop(turn_key, None)
+                return self._stateful_response(request, response, attempts)
             if not self._is_substantive_technical_answer(
                 self._response_messages(response)
             ):
-                self._clear_attempts(turn_key)
-                return response
+                attempts.pop(turn_key, None)
+                return self._stateful_response(request, response, attempts)
 
-        self._clear_attempts(turn_key)
-        return self._sanitize_response(request, response)
+        attempts.pop(turn_key, None)
+        return self._stateful_response(
+            request, self._sanitize_response(request, response), attempts
+        )
 
     def _should_retry(self, request: ModelRequest, response: ModelResponse) -> bool:
         if os.getenv(RESEARCH_GUARD_DISABLED_ENV, "").lower() in {"1", "true", "yes"}:
@@ -143,9 +154,14 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
-            if getattr(messages[index], "type", None) == "human":
+            if self._is_real_human(messages[index]):
                 return index
         return -1
+
+    def _is_real_human(self, message: BaseMessage) -> bool:
+        return getattr(message, "type", None) == "human" and not getattr(
+            message, "additional_kwargs", {}
+        ).get("guard_injected", False)
 
     def _turn_key(self, messages: list[BaseMessage]) -> str:
         index = self._latest_human_index(messages)
@@ -239,21 +255,18 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         content = f"{existing}\n\n{_RETRY_INSTRUCTIONS}".strip()
         return SystemMessage(content=content)
 
-    def _attempt_count(self, turn_key: str) -> int:
-        return _FORCED_ATTEMPTS.get().get(turn_key, 0)
+    def _attempts(self, state: Any) -> dict[str, int]:
+        attempts = state.get("docs_research_guard_attempts", {})
+        return dict(attempts)
 
-    def _record_attempt(self, turn_key: str) -> None:
-        attempts = dict(_FORCED_ATTEMPTS.get())
-        attempts[turn_key] = attempts.get(turn_key, 0) + 1
-        _FORCED_ATTEMPTS.set(attempts)
-        _FORCED_TURN.set(turn_key)
-
-    def _clear_attempts(self, turn_key: str) -> None:
-        attempts = dict(_FORCED_ATTEMPTS.get())
-        attempts.pop(turn_key, None)
-        _FORCED_ATTEMPTS.set(attempts)
-        if _FORCED_TURN.get() == turn_key:
-            _FORCED_TURN.set(None)
+    def _stateful_response(
+        self, request: ModelRequest, response: ModelResponse, attempts: dict[str, int]
+    ) -> ModelCallResult:
+        update = {"docs_research_guard_attempts": attempts}
+        if request.runtime is None:
+            request.state.update(update)
+            return response
+        return ExtendedModelResponse(response, Command(update=update))
 
     def _sanitize_response(
         self, request: ModelRequest, response: ModelResponse

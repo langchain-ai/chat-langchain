@@ -6,8 +6,10 @@ import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from langchain.agents.middleware import AgentState
 from langchain.agents.middleware.types import (
     AgentMiddleware,
+    ExtendedModelResponse,
     ModelCallResult,
     ModelRequest,
     ModelResponse,
@@ -19,6 +21,8 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
+from langgraph.types import Command
+from typing_extensions import NotRequired
 
 from src.tools.link_check_tools import _check_urls_async
 
@@ -37,10 +41,19 @@ _RETRY_INSTRUCTIONS = (
     "documentation tool results. Call check_links on exactly the final citation list "
     "before answering. Never construct or recall a documentation URL."
 )
+_MAX_REPAIR_ATTEMPTS = 2
+
+
+class CitationGuardState(AgentState):
+    """State fields used by the citation guard."""
+
+    citation_guard_attempts: NotRequired[dict[str, int]]
 
 
 class CitationGuardMiddleware(AgentMiddleware):
     """Keep documentation citations grounded in current-turn evidence."""
+
+    state_schema = CitationGuardState
 
     async def awrap_model_call(
         self,
@@ -55,14 +68,18 @@ class CitationGuardMiddleware(AgentMiddleware):
         latest_human_index = self._latest_human_index(request.messages)
         if latest_human_index < 0:
             return response
+        turn_key = self._turn_key(request.messages)
+        attempts = self._attempts(request.state)
         turn_messages = request.messages[latest_human_index + 1 :]
         footer_message = self._footer_message(self._response_messages(response))
         if footer_message is None:
-            return response
+            attempts.pop(turn_key, None)
+            return self._stateful_response(request, response, attempts)
 
         footer_urls = self._urls_in_footer(footer_message)
         if not footer_urls:
-            return response
+            attempts.pop(turn_key, None)
+            return self._stateful_response(request, response, attempts)
         grounded_urls = self._grounded_urls(turn_messages)
         valid_urls = self._valid_urls(turn_messages)
         unchecked_urls = [
@@ -78,27 +95,71 @@ class CitationGuardMiddleware(AgentMiddleware):
             if url not in grounded_urls or url not in valid_urls
         }
         if not invalid_urls:
-            return response
+            attempts.pop(turn_key, None)
+            return self._stateful_response(request, response, attempts)
 
         repaired_text = self._remove_footer_urls(
             self._message_text(footer_message), invalid_urls
         )
-        if not self._urls_in_footer_text(repaired_text):
-            retry_request = request.override(
-                messages=[
-                    *request.messages,
-                    HumanMessage(content=_RETRY_INSTRUCTIONS),
-                ],
-                system_message=self._retry_system_message(request),
+        if self._urls_in_footer_text(repaired_text):
+            attempts.pop(turn_key, None)
+            return self._stateful_response(
+                request,
+                self._replace_footer(response, footer_message, repaired_text),
+                attempts,
             )
-            return await handler(retry_request)
-        return self._replace_footer(response, footer_message, repaired_text)
+        if attempts.get(turn_key, 0) >= _MAX_REPAIR_ATTEMPTS:
+            attempts.pop(turn_key, None)
+            return self._stateful_response(
+                request,
+                self._remove_footer(response, footer_message),
+                attempts,
+            )
+        attempts[turn_key] = attempts.get(turn_key, 0) + 1
+        retry_request = request.override(
+            messages=[
+                *request.messages,
+                HumanMessage(
+                    content=_RETRY_INSTRUCTIONS,
+                    additional_kwargs={"guard_injected": True},
+                ),
+            ],
+            system_message=self._retry_system_message(request),
+        )
+        retry_response = await handler(retry_request)
+        return self._stateful_response(request, retry_response, attempts)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
-            if getattr(messages[index], "type", None) == "human":
+            if self._is_real_human(messages[index]):
                 return index
         return -1
+
+    def _is_real_human(self, message: BaseMessage) -> bool:
+        return getattr(message, "type", None) == "human" and not getattr(
+            message, "additional_kwargs", {}
+        ).get("guard_injected", False)
+
+    def _turn_key(self, messages: list[BaseMessage]) -> str:
+        index = self._latest_human_index(messages)
+        if index < 0:
+            return "no-human-message"
+        human = messages[index]
+        return f"{index}:{getattr(human, 'id', None) or human.content!r}"
+
+    def _attempts(self, state: Any) -> dict[str, int]:
+        attempts = state.get("citation_guard_attempts", {})
+        return dict(attempts)
+
+    def _stateful_response(
+        self, request: ModelRequest, response: ModelResponse, attempts: dict[str, int]
+    ) -> ModelCallResult:
+        attempts = {key: value for key, value in attempts.items() if value is not None}
+        update = {"citation_guard_attempts": attempts}
+        if request.runtime is None:
+            request.state.update(update)
+            return response
+        return ExtendedModelResponse(response, Command(update=update))
 
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
@@ -171,9 +232,9 @@ class CitationGuardMiddleware(AgentMiddleware):
         if isinstance(content, list):
             updated_content = list(content)
             for part_index, part in enumerate(updated_content):
-                if not isinstance(part, dict) or "Relevant docs:" not in self._content_part_text(
-                    part
-                ):
+                if not isinstance(
+                    part, dict
+                ) or "Relevant docs:" not in self._content_part_text(part):
                     continue
                 updated_content[part_index] = {**part, "text": text}
                 break
@@ -183,6 +244,11 @@ class CitationGuardMiddleware(AgentMiddleware):
         messages[index] = message.model_copy(update={"content": content})
         response.result = messages
         return response
+
+    def _remove_footer(
+        self, response: ModelResponse, message: AIMessage
+    ) -> ModelResponse:
+        return self._replace_footer(response, message, "")
 
     def _message_text(self, message: BaseMessage) -> str:
         content: Any = getattr(message, "content", "")
