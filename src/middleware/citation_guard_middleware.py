@@ -32,10 +32,10 @@ _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
 _FOOTER_PATTERN = re.compile(
     r"(?ims)^\s*(?:(?:\*\*)?Relevant docs:\s*(?:\*\*)?|##\s+Relevant docs:\s*).*$"
 )
+_MAX_REPAIR_ATTEMPTS = 2
 _RETRY_INSTRUCTIONS = (
     "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
-    "documentation tool results. Call check_links on exactly the final citation list "
-    "before answering. Never construct or recall a documentation URL."
+    "documentation tool results. Never construct or recall a documentation URL."
 )
 
 
@@ -52,7 +52,7 @@ class CitationGuardMiddleware(AgentMiddleware):
         if self._has_pending_tool_calls(self._response_messages(response)):
             return response
 
-        latest_human_index = self._latest_human_index(request.messages)
+        latest_human_index = self._latest_real_human_index(request.messages)
         if latest_human_index < 0:
             return response
         turn_messages = request.messages[latest_human_index + 1 :]
@@ -64,7 +64,7 @@ class CitationGuardMiddleware(AgentMiddleware):
         if not footer_urls:
             return response
         grounded_urls = self._grounded_urls(turn_messages)
-        valid_urls = self._valid_urls(turn_messages)
+        valid_urls = self._valid_urls(request.messages)
         unchecked_urls = [
             url for url in footer_urls if url in grounded_urls and url not in valid_urls
         ]
@@ -84,6 +84,12 @@ class CitationGuardMiddleware(AgentMiddleware):
             self._message_text(footer_message), invalid_urls
         )
         if not self._urls_in_footer_text(repaired_text):
+            if self._repair_attempts(request.messages) >= _MAX_REPAIR_ATTEMPTS:
+                return self._replace_footer(
+                    response,
+                    footer_message,
+                    self._remove_footer(self._message_text(footer_message)),
+                )
             retry_request = request.override(
                 messages=[
                     *request.messages,
@@ -94,11 +100,19 @@ class CitationGuardMiddleware(AgentMiddleware):
             return await handler(retry_request)
         return self._replace_footer(response, footer_message, repaired_text)
 
-    def _latest_human_index(self, messages: list[BaseMessage]) -> int:
+    def _latest_real_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
-            if getattr(messages[index], "type", None) == "human":
+            message = messages[index]
+            if isinstance(message, HumanMessage) and message.content != _RETRY_INSTRUCTIONS:
                 return index
         return -1
+
+    def _repair_attempts(self, messages: list[BaseMessage]) -> int:
+        latest_human_index = self._latest_real_human_index(messages)
+        return sum(
+            isinstance(message, HumanMessage) and message.content == _RETRY_INSTRUCTIONS
+            for message in messages[latest_human_index + 1 :]
+        )
 
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
@@ -136,7 +150,11 @@ class CitationGuardMiddleware(AgentMiddleware):
     def _valid_urls(self, messages: list[BaseMessage]) -> set[str]:
         valid_urls: set[str] = set()
         for message in messages:
-            if not isinstance(message, ToolMessage) or message.name != "check_links":
+            is_link_check = isinstance(message, ToolMessage) and message.name == "check_links"
+            is_summary = getattr(message, "additional_kwargs", {}).get(
+                "lc_source"
+            ) == "summarization"
+            if not is_link_check and not is_summary:
                 continue
             in_valid_section = False
             for line in self._message_text(message).splitlines():
@@ -149,6 +167,10 @@ class CitationGuardMiddleware(AgentMiddleware):
                 if in_valid_section:
                     valid_urls.update(_URL_PATTERN.findall(line))
         return valid_urls
+
+    def _remove_footer(self, text: str) -> str:
+        match = _FOOTER_PATTERN.search(text)
+        return text[: match.start()] + text[match.end() :] if match else text
 
     def _remove_footer_urls(self, text: str, invalid_urls: set[str]) -> str:
         match = _FOOTER_PATTERN.search(text)

@@ -299,6 +299,68 @@ def test_entirely_ungrounded_footer_retries_with_correction():
     assert result.result[0].content.startswith("**Answer**")
 
 
+def test_missing_current_turn_grounding_stops_after_two_repairs():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I build a graph?"),
+            ToolMessage(
+                content=f"Valid links:\n- {url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"**Answer**\n\n**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    current_request = request
+    for _ in range(3):
+        result = asyncio.run(middleware.awrap_model_call(current_request, handler))
+        current_request = calls[-1]
+
+    assert sum(
+        isinstance(message, HumanMessage)
+        and message.content == "Rewrite the Relevant docs footer using only URLs copied "
+        "verbatim from this turn's documentation tool results. Never construct or recall "
+        "a documentation URL."
+        for message in current_request.messages
+    ) == 2
+    assert "Relevant docs:" not in result.result[0].content
+    assert "check_links" not in middleware._retry_system_message(current_request).content
+
+
+def test_historical_summary_valid_link_is_reused_without_grounding():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    middleware = CitationGuardMiddleware()
+    messages = [
+        ToolMessage(
+            content=f"Valid links:\n- {url}",
+            name="check_links",
+            tool_call_id="check",
+        ),
+        HumanMessage(
+            content=f"Here is a summary of the conversation to date:\n\nValid links:\n- {url}",
+            additional_kwargs={"lc_source": "summarization"},
+        ),
+    ]
+
+    assert middleware._valid_urls(messages) == {url}
+
+
 def test_list_content_rewrites_only_text_block_and_drops_invalid_url(monkeypatch):
     from src.middleware import citation_guard_middleware as citation_module
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
