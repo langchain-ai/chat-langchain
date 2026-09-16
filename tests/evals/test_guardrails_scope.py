@@ -14,12 +14,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
 from src.prompts.docs_agent_prompt import docs_agent_prompt
+from src.prompts.guardrails_prompts import rejection_system_prompt
 
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
 
 PROMPT_LOWER = _GUARDRAILS_SYSTEM_PROMPT.lower()
+REJECTION_PROMPT_LOWER = rejection_system_prompt.lower()
 
 # Data science libraries that should be restricted when used without LangChain context
 PURE_DS_LIBRARIES = [
@@ -179,6 +181,33 @@ def test_guardrails_prompt_default_is_still_allow():
         "'YOUR DEFAULT IS TO ALLOW' or 'when uncertain, ALWAYS choose ALLOWED' "
         "language from the prompt."
     )
+
+
+def test_guardrails_prompt_allows_langsmith_billing_unit_formulas():
+    """LangSmith billing-unit formulas must be classified as ALLOWED."""
+    query = "LCCs = (Total LCUs x 1.50) + (Total LSUs x 1.00)."
+    billing_terms = ["lcu", "lsu", "langchain credits", "seats", "traces"]
+    assert all(term in PROMPT_LOWER for term in billing_terms)
+    assert "lcc" in query.lower()
+    assert all(term in query.lower() for term in ["lcu", "lsu"])
+    assert "billing questions, not math problems" in PROMPT_LOWER
+    assert "even when the message is only a formula or a number" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_allows_unfamiliar_ecosystem_terms():
+    """Bare ecosystem concept queries must be passed through to docs search."""
+    query = "what is progressive disclosure"
+    assert 'bare "what is <term>" query must be allowed' in PROMPT_LOWER
+    assert query.split()[-1] in PROMPT_LOWER
+    assert "progressive disclosure" in PROMPT_LOWER
+    assert "docs search—not the classifier" in PROMPT_LOWER
+
+
+def test_rejection_prompt_does_not_reoffer_declined_requests_as_implementations():
+    """Refusals must not suggest implementation or code workarounds."""
+    assert "never suggest re-asking the declined request" in REJECTION_PROMPT_LOWER
+    assert "implementation, workflow" in REJECTION_PROMPT_LOWER
+    assert "how to compute this in code" in REJECTION_PROMPT_LOWER
 
 
 # ---------------------------------------------------------------------------
