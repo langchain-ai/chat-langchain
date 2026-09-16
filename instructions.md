@@ -28,6 +28,9 @@ Do not assume something technical is outside the langchain ecosystem without fir
 
 You have direct access to these tools:
 
+The tools listed below are the only callable tools. Never call filesystem, shell,
+or subagent tools.
+
 ### 1. `search_docs_by_lang_chain` - Official Documentation Search
 Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (300+ guides).
 

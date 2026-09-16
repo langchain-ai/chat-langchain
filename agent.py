@@ -1,5 +1,6 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+from deepagents.middleware.filesystem import FilesystemPermission
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -16,6 +17,7 @@ from src.agent.config import (
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
+from src.middleware.tool_allowlist_middleware import ToolAllowlistMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -32,6 +34,7 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
+    ToolAllowlistMiddleware(),
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
@@ -56,6 +59,11 @@ docs_agent_middleware = [
     model_fallback_middleware,
 ]
 
+docs_agent_permissions = [
+    FilesystemPermission(operations=["read"], paths=["/large_tool_results/**"]),
+    FilesystemPermission(operations=["read", "write"], paths=["/**"], mode="deny"),
+]
+
 agent = define_deep_agent(
     name="docs_agent",
     # Keep this literal so `mda deploy` can infer the provider package and
@@ -63,6 +71,7 @@ agent = define_deep_agent(
     model="google_genai:gemini-3.5-flash-lite",
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
+    permissions=docs_agent_permissions,
     # The current public app does not have cross-thread user memory. Keep MDA
     # managed memory off until identity scoping is ready.
     disable_memory=True,
