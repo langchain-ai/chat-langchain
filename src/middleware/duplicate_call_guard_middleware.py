@@ -1,7 +1,7 @@
 """Suppress duplicate tool calls within a single human turn."""
 
 import json
-from collections.abc import Awaitable, Callable, Mapping, MutableMapping
+from collections.abc import Awaitable, Callable, MutableMapping
 from typing import Any, NotRequired
 
 from langchain.agents.middleware import AgentMiddleware
@@ -30,10 +30,6 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
 
     state_schema = _GuardState
 
-    def __init__(self) -> None:
-        """Initialize shared per-turn state."""
-        self._turn_states: dict[str, dict[str, Any]] = {}
-
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
@@ -41,7 +37,7 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
     ) -> ToolMessage | Command:
         """Handle a tool call with per-turn duplicate suppression."""
         tool_name = str(request.tool_call.get("name", "unknown_tool"))
-        turn_state = _shared_turn_state(request.state, self._turn_states)
+        turn_state = _shared_turn_state(request.state)
         seen_calls = turn_state["seen_calls"]
 
         if tool_name == "check_links" and turn_state["check_links_called"]:
@@ -86,21 +82,11 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
         )
 
 
-def _shared_turn_state(
-    state: Any, registry: dict[str, dict[str, Any]] | None = None
-) -> dict[str, Any]:
-    messages = list(state.get("messages", [])) if isinstance(state, Mapping) else []
-    turn_key = _turn_key(messages)
+def _shared_turn_state(state: Any) -> dict[str, Any]:
     if not isinstance(state, MutableMapping):
-        return registry.setdefault(turn_key, _new_turn_state()) if registry else _new_turn_state()
-    if registry is not None:
-        turn_state = registry.setdefault(turn_key, _new_turn_state())
-    else:
-        turn_state = None
+        return _new_turn_state()
+    turn_key = _turn_key(list(state.get("messages", [])))
     turns = state.setdefault(_TURN_STATE_KEY, {})
-    if turn_state is not None:
-        turns[turn_key] = turn_state
-        return turn_state
     return turns.setdefault(turn_key, _new_turn_state())
 
 

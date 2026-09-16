@@ -12,17 +12,24 @@ from src.middleware.duplicate_call_guard_middleware import (
 )
 
 
-def _request(name: str, call_id: str, args: dict, content: str = "Question"):
+def _request(
+    name: str,
+    call_id: str,
+    args: dict,
+    content: str = "Question",
+    state: dict | None = None,
+):
     return ToolCallRequest(
         tool_call={"name": name, "id": call_id, "args": args},
         tool=None,
-        state={"messages": [HumanMessage(content=content)]},
+        state=state or {"messages": [HumanMessage(content=content)]},
         runtime=None,
     )
 
 
 def test_identical_call_returns_cached_content_with_current_call_identity():
     middleware = DuplicateCallGuardMiddleware()
+    state = {"messages": [HumanMessage(content="Question")]}
     calls = []
 
     async def handler(request):
@@ -35,10 +42,10 @@ def test_identical_call_returns_cached_content_with_current_call_identity():
 
     async def invoke():
         first = await middleware.awrap_tool_call(
-            _request("search_docs", "call-1", {"query": "middleware"}), handler
+            _request("search_docs", "call-1", {"query": "middleware"}, state=state), handler
         )
         second = await middleware.awrap_tool_call(
-            _request("search_docs", "call-2", {"query": "middleware"}), handler
+            _request("search_docs", "call-2", {"query": "middleware"}, state=state), handler
         )
         return first, second
 
@@ -54,6 +61,7 @@ def test_identical_call_returns_cached_content_with_current_call_identity():
 
 def test_different_arguments_pass_through_for_non_budgeted_tools():
     middleware = DuplicateCallGuardMiddleware()
+    state = {"messages": [HumanMessage(content="Question")]}
     calls = []
 
     async def handler(request):
@@ -66,10 +74,10 @@ def test_different_arguments_pass_through_for_non_budgeted_tools():
 
     async def invoke():
         await middleware.awrap_tool_call(
-            _request("search_docs", "call-1", {"query": "first"}), handler
+            _request("search_docs", "call-1", {"query": "first"}, state=state), handler
         )
         await middleware.awrap_tool_call(
-            _request("search_docs", "call-2", {"query": "second"}), handler
+            _request("search_docs", "call-2", {"query": "second"}, state=state), handler
         )
 
     asyncio.run(invoke())
@@ -79,6 +87,7 @@ def test_different_arguments_pass_through_for_non_budgeted_tools():
 
 def test_failed_call_is_not_cached_and_can_be_retried():
     middleware = DuplicateCallGuardMiddleware()
+    state = {"messages": [HumanMessage(content="Question")]}
     attempts = 0
 
     async def handler(request):
@@ -93,11 +102,11 @@ def test_failed_call_is_not_cached_and_can_be_retried():
         )
 
     async def invoke():
-        request = _request("search_docs", "call-1", {"query": "retry"})
+        request = _request("search_docs", "call-1", {"query": "retry"}, state=state)
         with pytest.raises(RuntimeError):
             await middleware.awrap_tool_call(request, handler)
         return await middleware.awrap_tool_call(
-            _request("search_docs", "call-2", {"query": "retry"}), handler
+            _request("search_docs", "call-2", {"query": "retry"}, state=state), handler
         )
 
     result = asyncio.run(invoke())
@@ -108,6 +117,7 @@ def test_failed_call_is_not_cached_and_can_be_retried():
 
 def test_check_links_allows_one_invocation_per_turn():
     middleware = DuplicateCallGuardMiddleware()
+    state = {"messages": [HumanMessage(content="Question")]}
     calls = []
 
     async def handler(request):
@@ -120,11 +130,11 @@ def test_check_links_allows_one_invocation_per_turn():
 
     async def invoke():
         first = await middleware.awrap_tool_call(
-            _request("check_links", "call-1", {"urls": ["https://one.example"]}),
+            _request("check_links", "call-1", {"urls": ["https://one.example"]}, state=state),
             handler,
         )
         second = await middleware.awrap_tool_call(
-            _request("check_links", "call-2", {"urls": ["https://two.example"]}),
+            _request("check_links", "call-2", {"urls": ["https://two.example"]}, state=state),
             handler,
         )
         return first, second
