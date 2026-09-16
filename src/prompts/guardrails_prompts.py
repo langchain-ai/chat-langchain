@@ -69,6 +69,9 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 
 These clearly off-topic bullets do not override an applicable ALWAYS ALLOW criterion for genuine LangChain ecosystem questions, LangChain resource questions, or short follow-ups to an in-scope technical conversation. ALWAYS BLOCK - Zero Tolerance and ALWAYS BLOCK - Regardless of technical context or conversation history remain unconditional and override ALWAYS ALLOW criteria.
 
+## ALWAYS BLOCK - Third-party or competing product adoption:
+- Questions asking whether or how to adopt, configure, self-host, price, license, or choose a third-party or competing LLM or observability platform. Examples: "Can I host Langfuse instead of LangSmith?" or "which open-source observability tool should I pick?"
+
 ## ALWAYS BLOCK - Clearly off-topic requests (block even when short/ambiguous):
 - Creative writing tasks: completing sentences, writing poems, stories, haikus, birthday messages
 - General non-technical knowledge / trivia: geography, history, sports scores, celebrities, cooking, recipes, health symptoms, unless the question is about LangChain products, documentation, API references, changelogs, or other LangChain resources.
