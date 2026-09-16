@@ -169,9 +169,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -367,6 +365,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
+    def _is_real_human(self, message: Any) -> bool:
+        return isinstance(message, HumanMessage) and not message.additional_kwargs.get(
+            "guard_injected", False
+        )
+
     async def _classify_query(self, messages: list) -> GuardrailsDecision:
         """Classify query as ALLOWED or BLOCKED.
 
@@ -377,22 +380,29 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         current_message = None
         current_query = None
         for msg in reversed(messages):
-            if isinstance(msg, HumanMessage):
+            if self._is_real_human(msg):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
-        for msg in reversed(messages[:-1]):  # Exclude current message
-            if isinstance(msg, HumanMessage):
+        for msg in reversed(messages):
+            if msg is current_message:
+                continue
+            if self._is_real_human(msg):
                 text = self._extract_message_text(msg)
                 if text:
                     prior_queries.append(text[:200])  # Truncate for brevity
