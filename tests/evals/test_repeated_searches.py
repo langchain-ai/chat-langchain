@@ -3,6 +3,15 @@ from langsmith import testing as t
 from src.prompts.docs_agent_prompt import docs_agent_prompt
 
 
+def test_prompt_requires_code_symbols_to_be_grounded():
+    """Prompt must ground install targets and code symbols in read docs."""
+    prompt_lower = docs_agent_prompt.lower()
+
+    assert "never invent package names, module paths, classes, or constructor arguments" in prompt_lower
+    assert "every `pip install` / `npm install` target" in prompt_lower
+    assert "code symbols grounded" in prompt_lower
+
+
 @pytest.mark.langsmith
 def test_prompt_instructs_agent_to_avoid_repeat_searches():
     """Prompt must instruct agent not to repeat searches already in conversation."""
