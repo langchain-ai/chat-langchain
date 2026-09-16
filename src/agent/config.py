@@ -18,6 +18,7 @@ from src.middleware.retry_middleware import (
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
 )
+from src.middleware.tool_call_budget_middleware import ToolCallBudgetMiddleware
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
 dotenv.load_dotenv()
@@ -139,6 +140,7 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
+tool_call_budget_middleware = ToolCallBudgetMiddleware(max_tool_calls=12)
 duplicate_call_guard_middleware = DuplicateCallGuardMiddleware()
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
