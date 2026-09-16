@@ -2,9 +2,11 @@
 # Tools:
 #   - search_support_articles
 #   - get_support_article_content
+import html
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -152,31 +154,8 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+def search_support_articles(query: str, collections: str = "all") -> str:
+    """Search published LangChain support articles using keyword text from the user's question and optional collection filters."""
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -185,12 +164,13 @@ def search_support_articles(collections: str = "all") -> str:
         if articles is None or not articles:
             return json.dumps(
                 {
+                    "query": query,
                     "collections": collections,
-                    "total": 0,
+                    "total_matched": 0,
+                    "returned": 0,
                     "articles": [],
                     "note": "No articles returned from API",
-                },
-                indent=2,
+                }
             )
 
         # Filter to only PUBLIC visibility articles with valid titles
@@ -216,14 +196,22 @@ def search_support_articles(collections: str = "all") -> str:
                         "id": article.get("id"),
                         "title": article.get("title", ""),
                         "url": support_url,
-                        "collection_id": article.get(
-                            "collection_id"
-                        ),  # Keep for filtering, will be set later
+                        "collection_id": article.get("collection_id"),
+                        "body": article.get("current_published_content_html", ""),
                     }
                 )
 
         if not published_articles:
-            return "No published articles available in the knowledge base."
+            return json.dumps(
+                {
+                    "query": query,
+                    "collections": collections,
+                    "total_matched": 0,
+                    "returned": 0,
+                    "articles": [],
+                    "note": "Support articles could not be consulted. Answer from official documentation and emit the mandatory Support articles could not be consulted disclosure.",
+                }
+            )
 
         # Fetch collection map for naming
         collection_map = _fetch_collections()
@@ -250,8 +238,7 @@ def search_support_articles(collections: str = "all") -> str:
                         return json.dumps(
                             {
                                 "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
+                            }
                         )
 
             # Filter articles by collection_id
@@ -269,30 +256,65 @@ def search_support_articles(collections: str = "all") -> str:
             coll_id = article.get("collection_id")
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
-        if not published_articles:
-            return json.dumps(
+        query_keywords = set(re.findall(r"\b[\w'-]+\b", query.casefold()))
+        ranked_articles = []
+        for article in published_articles:
+            title_keywords = set(
+                re.findall(r"\b[\w'-]+\b", article["title"].casefold())
+            )
+            body_text = html.unescape(
+                re.sub(r"<[^>]+>", " ", article["body"] or "")
+            )
+            body_keywords = set(re.findall(r"\b[\w'-]+\b", body_text.casefold()))
+            title_matches = query_keywords & title_keywords
+            body_matches = query_keywords & body_keywords
+            score = len(title_matches) * 3 + len(body_matches)
+            if score == 0:
+                continue
+
+            matching_terms = title_matches or body_matches
+            match_positions = [
+                body_text.casefold().find(term) for term in matching_terms
+            ]
+            match_positions = [position for position in match_positions if position >= 0]
+            snippet_start = max(0, min(match_positions) - 100) if match_positions else 0
+            snippet = body_text[snippet_start : snippet_start + 300].strip()
+            ranked_articles.append(
                 {
-                    "collections": collections,
-                    "total": 0,
-                    "articles": [],
-                    "note": "No articles found",
-                },
-                indent=2,
+                    "score": score,
+                    "article": {
+                        "id": article["id"],
+                        "title": article["title"],
+                        "url": article["url"],
+                        "collection": article["collection"],
+                        "snippet": snippet,
+                    },
+                }
             )
 
-        # Clean up collection_id from output (internal field)
-        for article in published_articles:
-            article.pop("collection_id", None)
+        ranked_articles.sort(key=lambda item: item["score"], reverse=True)
+        if not ranked_articles:
+            return json.dumps(
+                {
+                    "query": query,
+                    "collections": collections,
+                    "total_matched": 0,
+                    "returned": 0,
+                    "articles": [],
+                    "note": "Support articles could not be consulted. Answer from official documentation and emit the mandatory Support articles could not be consulted disclosure.",
+                }
+            )
 
-        # Return structured JSON format
+        articles_to_return = [item["article"] for item in ranked_articles[:10]]
         result = {
+            "query": query,
             "collections": collections,
-            "total": len(published_articles),
-            "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "total_matched": len(ranked_articles),
+            "returned": len(articles_to_return),
+            "articles": articles_to_return,
         }
 
-        return json.dumps(result, indent=2)
+        return json.dumps(result)
 
     except PylonUnavailableError:
         raise
