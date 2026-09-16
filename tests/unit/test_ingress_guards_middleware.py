@@ -12,6 +12,7 @@ os.environ["USE_LOCAL_PROMPTS"] = "1"
 from src.middleware.ingress_guards_middleware import (
     MAX_MESSAGE_CHARS,
     IngressGuardsMiddleware,
+    _redact_secrets,
 )
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
@@ -34,6 +35,50 @@ def test_before_agent_noop_when_under_cap():
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_redact_secrets_in_curl_api_key():
+    text = 'curl -H "X-Api-Key: lsv2_sk_1234567890abcdef" https://example.com'
+
+    assert "lsv2_sk_" not in _redact_secrets(text)
+    assert "<REDACTED_API_KEY>" in _redact_secrets(text)
+
+
+def test_redact_assignment_uri_and_path_identifiers():
+    text = (
+        "password=correct-horse-battery-staple "
+        "postgresql://alice:correct-horse-battery-staple@db.internal/app "
+        "/home/alice@corp.internal/project"
+    )
+
+    redacted = _redact_secrets(text)
+
+    assert "correct-horse-battery-staple" not in redacted
+    assert redacted.count("<REDACTED_PASSWORD>") == 2
+    assert "<REDACTED_PERSONAL_IDENTIFIER>" in redacted
+
+
+def test_redact_secrets_preserves_placeholders():
+    text = "password=YOUR_PASSWORD_HERE key=sk-example-xxxxxxxxxxxxxxxxxxxx"
+
+    assert _redact_secrets(text) == text
+
+
+def test_before_agent_sanitizes_text_blocks_and_preserves_truncation_cap():
+    middleware = IngressGuardsMiddleware()
+    content = [
+        {"type": "text", "text": "token=ghp_123456789012345678901234567890"},
+        "x" * MAX_MESSAGE_CHARS,
+    ]
+    human = HumanMessage(content=content, id="h1")
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content[0]["text"] == "token=<REDACTED_TOKEN>"
+    assert len(update["messages"][0].content[1]) == MAX_MESSAGE_CHARS - len(
+        "token=<REDACTED_TOKEN>"
+    )
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
