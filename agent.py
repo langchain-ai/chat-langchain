@@ -13,6 +13,7 @@ from src.agent.config import (
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
+from src.middleware.tool_result_cap_middleware import ToolResultCapMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -46,6 +47,9 @@ docs_agent_middleware = [
         trim_tokens_to_summarize=None,
     ),
     tool_retry_middleware,
+    # Keep unbounded search payloads (notably the remote MCP docs search) out of
+    # the message history so they cannot trigger mid-turn summarization.
+    ToolResultCapMiddleware(),
     model_retry_middleware,
     model_fallback_middleware,
 ]
