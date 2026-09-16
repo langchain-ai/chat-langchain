@@ -31,7 +31,11 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 
 ## ALWAYS ALLOW - Follow-ups & Context:
 - Technical follow-up questions about prior LangChain / LangGraph / LangSmith / Deep Agents responses
-- Bare reformat or simplify requests such as "in layman terms", "simpler", "shorter", or "in Python instead" when the listed previous questions in the conversation are in-scope technical questions.
+- Short messages with no standalone subject that refer back to the assistant's previous answer, including pronoun or anaphoric references such as "what do these two mean" or "the third one"
+- Elaboration requests such as "give me an example" or "explain more simply" when they refer to the assistant's previous in-scope answer
+- Requests to restate or translate the assistant's previous in-scope answer into another language
+- Bare reformat or simplify requests such as "in layman terms", "simpler", "shorter", or "in Python instead" when the recent conversation is an in-scope technical conversation
+- A request to answer in a different language is a restatement of the previous in-scope turn, not a fresh off-topic query, and must never be classified as one
 - Questions about code the assistant just showed
 - Requests for different formats or languages (Python/JS) of a technical answer
 - Clarification questions on a previous technical answer
