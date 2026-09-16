@@ -1,20 +1,19 @@
 """Suppress duplicate tool calls within a single human turn."""
 
-import asyncio
-import contextvars
 import json
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
-from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware import AgentMiddleware, AgentState
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
-_TurnState = tuple[str, dict[tuple[str, str], str], set[str]]
-_TURN_STATE: contextvars.ContextVar[_TurnState | None] = contextvars.ContextVar(
-    "duplicate_call_guard_turn_state", default=None
-)
+_MAX_TOOL_CALLS_PER_TURN = 12
+_TURN_KEY = "_duplicate_call_guard_turn"
+_SEEN_CALLS_KEY = "_duplicate_call_guard_seen_calls"
+_BUDGET_TOOLS_KEY = "_duplicate_call_guard_budget_tools"
+_CALL_COUNT_KEY = "_duplicate_call_guard_call_count"
 _DUPLICATE_NOTE = (
     "This exact tool call was already made on this turn; do not repeat it."
 )
@@ -24,8 +23,19 @@ _CHECK_LINKS_REFUSAL = (
 )
 
 
+class DuplicateCallGuardState(AgentState, total=False):
+    """State persisted by the duplicate-call guard."""
+
+    _duplicate_call_guard_turn: str
+    _duplicate_call_guard_seen_calls: dict[str, str]
+    _duplicate_call_guard_budget_tools: set[str]
+    _duplicate_call_guard_call_count: int
+
+
 class DuplicateCallGuardMiddleware(AgentMiddleware):
     """Suppress duplicate calls and enforce the check_links turn budget."""
+
+    state_schema = DuplicateCallGuardState
 
     async def awrap_tool_call(
         self,
@@ -34,44 +44,56 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
     ) -> ToolMessage | Command:
         """Handle a tool call with per-turn duplicate suppression."""
         tool_name = str(request.tool_call.get("name", "unknown_tool"))
-        turn_state = self._turn_state(request)
-        seen_calls = turn_state[1]
+        state = self._state_for_turn(request)
+        seen_calls = state[_SEEN_CALLS_KEY]
 
-        if tool_name == "check_links" and "check_links" in turn_state[2]:
-            return self._tool_message(request, _CHECK_LINKS_REFUSAL)
+        if tool_name == "check_links" and tool_name in state[_BUDGET_TOOLS_KEY]:
+            return self._command(request, self._tool_message(request, _CHECK_LINKS_REFUSAL), state)
 
-        call_key = (tool_name, self._canonical_args(request.tool_call.get("args", {})))
+        call_key = self._call_key(request)
         cached_content = seen_calls.get(call_key)
         if cached_content is not None:
-            return self._tool_message(
+            return self._command(
                 request,
-                f"{_DUPLICATE_NOTE}\n{cached_content}",
+                self._tool_message(request, f"{_DUPLICATE_NOTE}\n{cached_content}"),
+                state,
             )
 
+        if state[_CALL_COUNT_KEY] >= _MAX_TOOL_CALLS_PER_TURN:
+            return self._command(
+                request,
+                self._tool_message(
+                    request,
+                    "The per-turn tool budget is exhausted. Finalize your answer now.",
+                ),
+                state,
+            )
+
+        state[_CALL_COUNT_KEY] += 1
         if tool_name == "check_links":
-            turn_state[2].add("check_links")
+            state[_BUDGET_TOOLS_KEY].add("check_links")
 
         result = await handler(request)
         if isinstance(result, ToolMessage) and result.status == "success":
             seen_calls[call_key] = self._content_text(result.content)
-        return result
+        return self._command(request, result, state)
 
-    def _turn_state(self, request: ToolCallRequest) -> _TurnState:
-        turn_key = f"{self._execution_key(request)}:{self._turn_key(request.state)}"
-        current = _TURN_STATE.get()
-        if current is None or current[0] != turn_key:
-            current = (turn_key, {}, set())
-            _TURN_STATE.set(current)
-        return current
-
-    def _execution_key(self, request: ToolCallRequest) -> str:
-        runtime = request.runtime
-        config = getattr(runtime, "config", None)
-        run_id = config.get("run_id") if isinstance(config, Mapping) else None
-        if run_id:
-            return f"run:{run_id}"
-        task = asyncio.current_task()
-        return f"task:{id(task)}"
+    def _state_for_turn(self, request: ToolCallRequest) -> dict[str, Any]:
+        state = request.state if isinstance(request.state, dict) else {}
+        turn_key = self._turn_key(state)
+        if state.get(_TURN_KEY) != turn_key:
+            state.update(
+                {
+                    _TURN_KEY: turn_key,
+                    _SEEN_CALLS_KEY: {},
+                    _BUDGET_TOOLS_KEY: set(),
+                    _CALL_COUNT_KEY: 0,
+                }
+            )
+        state.setdefault(_SEEN_CALLS_KEY, {})
+        state.setdefault(_BUDGET_TOOLS_KEY, set())
+        state.setdefault(_CALL_COUNT_KEY, 0)
+        return state
 
     def _turn_key(self, state: Any) -> str:
         messages = self._messages(state)
@@ -91,10 +113,31 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
     def _canonical_args(self, args: Any) -> str:
         return json.dumps(args, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
+    def _call_key(self, request: ToolCallRequest) -> str:
+        return "\x00".join(
+            (
+                str(request.tool_call.get("name", "unknown_tool")),
+                self._canonical_args(request.tool_call.get("args", {})),
+            )
+        )
+
     def _content_text(self, content: Any) -> str:
         if isinstance(content, str):
             return content
         return json.dumps(content, ensure_ascii=False, default=str)
+
+    def _command(
+        self, request: ToolCallRequest, result: ToolMessage | Command, state: dict[str, Any]
+    ) -> ToolMessage | Command:
+        if isinstance(result, Command):
+            update = result.update if isinstance(result.update, Mapping) else {}
+            return Command(
+                graph=result.graph,
+                update={**update, **state},
+                resume=result.resume,
+                goto=result.goto,
+            )
+        return Command(update={**state, "messages": [result]})
 
     def _tool_message(self, request: ToolCallRequest, content: str) -> ToolMessage:
         return ToolMessage(
