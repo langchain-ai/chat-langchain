@@ -299,6 +299,72 @@ def test_entirely_ungrounded_footer_retries_with_correction():
     assert result.result[0].content.startswith("**Answer**")
 
 
+def test_follow_up_turn_uses_grounding_from_prior_turn(monkeypatch):
+    from src.middleware import citation_guard_middleware as citation_module
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Find the graph API docs."),
+            ToolMessage(
+                content=f"Retrieved URL: {url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            HumanMessage(content="Can you summarize that page?"),
+            ToolMessage(
+                content=f"Valid links:\n- {url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"Answer\n\n**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    async def unexpected_check(urls: list[str], timeout: float):
+        raise AssertionError("the current-turn check_links result should be reused")
+
+    monkeypatch.setattr(citation_module, "_check_urls_async", unexpected_check)
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert url in result.result[0].content
+
+
+def test_ungrounded_footer_is_stripped_after_one_retry():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    url = "https://docs.langchain.com/oss/python/langgraph/invented"
+    middleware = CitationGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I build a graph?")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(content=f"Answer\n\n**Relevant docs:**\n- [Guide]({url})")
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert url not in result.result[0].content
+    assert result.result[0].content.startswith("Answer")
+
+
 def test_list_content_rewrites_only_text_block_and_drops_invalid_url(monkeypatch):
     from src.middleware import citation_guard_middleware as citation_module
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
