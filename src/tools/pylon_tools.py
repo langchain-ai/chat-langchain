@@ -2,9 +2,12 @@
 # Tools:
 #   - search_support_articles
 #   - get_support_article_content
+import html
 import json
 import logging
 import os
+import re
+from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -17,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+
+
+class PylonUnavailableError(RuntimeError):
+    """Raised when the Pylon knowledge base cannot be reached."""
 
 
 def _get_kb_id() -> str:
@@ -43,9 +50,83 @@ _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
 
 
+def _collection_names_match(requested: str, available: str) -> bool:
+    """Compare collection names without depending on parenthetical word order."""
+    requested = " ".join(requested.strip().casefold().split())
+    available = " ".join(available.strip().casefold().split())
+    if requested == available:
+        return True
+
+    requested_match = re.fullmatch(r"(.*?)\s*\(([^()]*)\)", requested)
+    available_match = re.fullmatch(r"(.*?)\s*\(([^()]*)\)", available)
+    if not requested_match or not available_match:
+        return False
+
+    requested_prefix, requested_words = requested_match.groups()
+    available_prefix, available_words = available_match.groups()
+    return requested_prefix.strip() == available_prefix.strip() and set(
+        requested_words.split()
+    ) == set(available_words.split())
+
+
+def _article_matches_id(article: Dict[str, Any], article_id: str) -> bool:
+    """Match an article against any supported identifier form."""
+    requested_id = str(article_id).strip().casefold()
+    identifier = str(article.get("identifier", "")).strip()
+    slug = str(article.get("slug", "")).strip()
+    identifiers = {
+        str(article.get("id", "")).strip(),
+        identifier,
+        slug,
+        f"{identifier}-{slug}" if identifier and slug else "",
+    }
+    return requested_id in {value.casefold() for value in identifiers if value}
+
+
+def _article_suggestions(articles: List[Dict[str, Any]], article_id: str) -> str:
+    """Return close article title and UUID suggestions for an unknown ID."""
+    requested_id = str(article_id).strip().casefold()
+    ranked_articles = sorted(
+        articles,
+        key=lambda article: max(
+            SequenceMatcher(
+                None,
+                requested_id,
+                str(article.get(field, "")).strip().casefold(),
+            ).ratio()
+            for field in ("id", "identifier", "slug", "title")
+        ),
+        reverse=True,
+    )[:3]
+    return "; ".join(
+        f"{article.get('title', 'Untitled')} (ID: {article.get('id')})"
+        for article in ranked_articles
+    )
+
+
 def _get_headers() -> Dict[str, str]:
     """Get API headers with authentication."""
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
+
+
+def _raise_for_status(response: requests.Response, url: str) -> None:
+    """Raise an operator-facing error for invalid Pylon credentials."""
+    status_code = response.status_code
+    if status_code in (401, 403):
+        raise PylonUnavailableError(
+            f"Pylon API returned HTTP {status_code} for {url}; "
+            "check or rotate PYLON_API_KEY configuration or credentials."
+        )
+    try:
+        response.raise_for_status()
+    except requests.exceptions.RequestException as error:
+        response_status = getattr(error.response, "status_code", None)
+        if response_status in (401, 403):
+            raise PylonUnavailableError(
+                f"Pylon API returned HTTP {response_status} for {url}; "
+                "check or rotate PYLON_API_KEY configuration or credentials."
+            ) from error
+        raise
 
 
 def _fetch_collections() -> Dict[str, str]:
@@ -62,7 +143,7 @@ def _fetch_collections() -> Dict[str, str]:
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
     response = requests.get(url, headers=_get_headers())
-    response.raise_for_status()
+    _raise_for_status(response, url)
 
     collections_data = response.json().get("data", [])
 
@@ -98,7 +179,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
     while pages_fetched < max_pages:
         response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
+        _raise_for_status(response, url)
         body = response.json()
 
         page_data = body.get("data", [])
@@ -128,31 +209,8 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+def search_support_articles(query: str, collections: str = "all") -> str:
+    """Search published LangChain support articles using keyword text from the user's question and optional collection filters."""
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -161,12 +219,13 @@ def search_support_articles(collections: str = "all") -> str:
         if articles is None or not articles:
             return json.dumps(
                 {
+                    "query": query,
                     "collections": collections,
-                    "total": 0,
+                    "total_matched": 0,
+                    "returned": 0,
                     "articles": [],
                     "note": "No articles returned from API",
-                },
-                indent=2,
+                }
             )
 
         # Filter to only PUBLIC visibility articles with valid titles
@@ -190,24 +249,28 @@ def search_support_articles(collections: str = "all") -> str:
                 published_articles.append(
                     {
                         "id": article.get("id"),
+                        "article_id": article.get("id"),
                         "title": article.get("title", ""),
                         "url": support_url,
-                        "collection_id": article.get(
-                            "collection_id"
-                        ),  # Keep for filtering, will be set later
+                        "collection_id": article.get("collection_id"),
+                        "body": article.get("current_published_content_html", ""),
                     }
                 )
 
         if not published_articles:
-            return "No published articles available in the knowledge base."
+            return json.dumps(
+                {
+                    "query": query,
+                    "collections": collections,
+                    "total_matched": 0,
+                    "returned": 0,
+                    "articles": [],
+                    "note": "Support articles could not be consulted. Answer from official documentation and emit the mandatory Support articles could not be consulted disclosure.",
+                }
+            )
 
         # Fetch collection map for naming
-        try:
-            collection_map = _fetch_collections()
-        except Exception as e:
-            return json.dumps(
-                {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
-            )
+        collection_map = _fetch_collections()
 
         # Filter by collection ID if specified
         if collections.lower() != "all":
@@ -217,23 +280,22 @@ def search_support_articles(collections: str = "all") -> str:
             # Get collection IDs for requested collections
             collection_ids = []
             for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
-                else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                matched_collection = next(
+                    (
+                        key
+                        for key in collection_map
+                        if _collection_names_match(coll_name, key)
+                    ),
+                    None,
+                )
+                if matched_collection is None:
+                    return json.dumps(
+                        {
+                            "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
+                        },
+                        indent=2,
+                    )
+                collection_ids.append(collection_map[matched_collection])
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -250,40 +312,75 @@ def search_support_articles(collections: str = "all") -> str:
             coll_id = article.get("collection_id")
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
-        if not published_articles:
-            return json.dumps(
+        query_keywords = set(re.findall(r"\b[\w'-]+\b", query.casefold()))
+        ranked_articles = []
+        for article in published_articles:
+            title_keywords = set(
+                re.findall(r"\b[\w'-]+\b", article["title"].casefold())
+            )
+            body_text = html.unescape(re.sub(r"<[^>]+>", " ", article["body"] or ""))
+            body_keywords = set(re.findall(r"\b[\w'-]+\b", body_text.casefold()))
+            title_matches = query_keywords & title_keywords
+            body_matches = query_keywords & body_keywords
+            score = len(title_matches) * 3 + len(body_matches)
+            if score == 0:
+                continue
+
+            matching_terms = title_matches or body_matches
+            match_positions = [
+                body_text.casefold().find(term) for term in matching_terms
+            ]
+            match_positions = [
+                position for position in match_positions if position >= 0
+            ]
+            snippet_start = max(0, min(match_positions) - 100) if match_positions else 0
+            snippet = body_text[snippet_start : snippet_start + 300].strip()
+            ranked_articles.append(
                 {
-                    "collections": collections,
-                    "total": 0,
-                    "articles": [],
-                    "note": "No articles found",
-                },
-                indent=2,
+                    "score": score,
+                    "article": {
+                        "id": article["id"],
+                        "article_id": article["id"],
+                        "title": article["title"],
+                        "url": article["url"],
+                        "collection": article["collection"],
+                        "snippet": snippet,
+                    },
+                }
             )
 
-        # Clean up collection_id from output (internal field)
-        for article in published_articles:
-            article.pop("collection_id", None)
+        ranked_articles.sort(key=lambda item: item["score"], reverse=True)
+        if not ranked_articles:
+            return json.dumps(
+                {
+                    "query": query,
+                    "collections": collections,
+                    "total_matched": 0,
+                    "returned": 0,
+                    "articles": [],
+                    "note": "Support articles could not be consulted. Answer from official documentation and emit the mandatory Support articles could not be consulted disclosure.",
+                }
+            )
 
-        # Return structured JSON format
+        articles_to_return = [item["article"] for item in ranked_articles[:10]]
         result = {
+            "query": query,
             "collections": collections,
-            "total": len(published_articles),
-            "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "total_matched": len(ranked_articles),
+            "returned": len(articles_to_return),
+            "articles": articles_to_return,
         }
 
-        return json.dumps(result, indent=2)
+        return json.dumps(result)
 
+    except PylonUnavailableError:
+        raise
     except ValueError as e:
-        # API key not configured
-        return json.dumps({"error": str(e)}, indent=2)
+        raise PylonUnavailableError(str(e)) from e
     except requests.exceptions.RequestException as e:
-        # Network/API error
-        return json.dumps({"error": str(e)}, indent=2)
+        raise PylonUnavailableError(str(e)) from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        raise PylonUnavailableError(str(e)) from e
 
 
 @tool
@@ -306,18 +403,15 @@ def get_support_article_content(article_id: str) -> str:
 
         # Handle None or empty response
         if articles is None or not articles:
-            return "Error: No articles available from API. Check PYLON_API_KEY configuration."
+            return "No articles available in the knowledge base."
 
         # Build reverse mapping: collection_id -> collection_name
-        try:
-            collection_map = _fetch_collections()
-            collection_id_to_name = {v: k for k, v in collection_map.items()}
-        except Exception:
-            collection_id_to_name = {}
+        collection_map = _fetch_collections()
+        collection_id_to_name = {v: k for k, v in collection_map.items()}
 
         # Find the article by ID
         for article in articles:
-            if article.get("id") == article_id:
+            if _article_matches_id(article, article_id):
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -344,17 +438,20 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        suggestions = _article_suggestions(articles, article_id)
+        return (
+            f"Article ID {article_id} not found in knowledge base. "
+            f"Closest matches: {suggestions}"
+        )
 
+    except PylonUnavailableError:
+        raise
     except ValueError as e:
-        # API key not configured
-        return f"Error: {str(e)}"
+        raise PylonUnavailableError(str(e)) from e
     except requests.exceptions.RequestException as e:
-        # Network/API error
-        return f"Error fetching article: {str(e)}"
+        raise PylonUnavailableError(str(e)) from e
     except Exception as e:
-        # Catch-all for unexpected errors
-        return f"Unexpected error: {str(e)}"
+        raise PylonUnavailableError(str(e)) from e
 
 
 # Backwards-compatible Python import alias. The tool name exposed to the model is
