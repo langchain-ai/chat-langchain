@@ -56,17 +56,21 @@ class CitationGuardMiddleware(AgentMiddleware):
         if latest_human_index < 0:
             return response
         turn_messages = request.messages[latest_human_index + 1 :]
-        footer_message = self._footer_message(self._response_messages(response))
-        if footer_message is None:
+        final_message = self._final_message(self._response_messages(response))
+        if final_message is None:
             return response
 
-        footer_urls = self._urls_in_footer(footer_message)
-        if not footer_urls:
-            return response
+        response_text = self._message_text(final_message)
+        response_urls = _URL_PATTERN.findall(response_text)
         grounded_urls = self._grounded_urls(turn_messages)
+        if not response_urls:
+            if grounded_urls:
+                return await self._retry(request, handler)
+            return response
+
         valid_urls = self._valid_urls(turn_messages)
         unchecked_urls = [
-            url for url in footer_urls if url in grounded_urls and url not in valid_urls
+            url for url in response_urls if url in grounded_urls and url not in valid_urls
         ]
         if unchecked_urls:
             results = await _check_urls_async(unchecked_urls, 10.0)
@@ -74,25 +78,16 @@ class CitationGuardMiddleware(AgentMiddleware):
 
         invalid_urls = {
             url
-            for url in footer_urls
+            for url in response_urls
             if url not in grounded_urls or url not in valid_urls
         }
         if not invalid_urls:
             return response
 
-        repaired_text = self._remove_footer_urls(
-            self._message_text(footer_message), invalid_urls
-        )
-        if not self._urls_in_footer_text(repaired_text):
-            retry_request = request.override(
-                messages=[
-                    *request.messages,
-                    HumanMessage(content=_RETRY_INSTRUCTIONS),
-                ],
-                system_message=self._retry_system_message(request),
-            )
-            return await handler(retry_request)
-        return self._replace_footer(response, footer_message, repaired_text)
+        repaired_text = self._remove_urls(response_text, invalid_urls)
+        if not _URL_PATTERN.findall(repaired_text) and grounded_urls:
+            return await self._retry(request, handler)
+        return self._replace_message(response, final_message, invalid_urls)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
@@ -109,6 +104,12 @@ class CitationGuardMiddleware(AgentMiddleware):
             isinstance(message, AIMessage) and bool(message.tool_calls)
             for message in messages
         )
+
+    def _final_message(self, messages: list[BaseMessage]) -> AIMessage | None:
+        for message in reversed(messages):
+            if isinstance(message, AIMessage):
+                return message
+        return None
 
     def _footer_message(self, messages: list[BaseMessage]) -> AIMessage | None:
         for message in reversed(messages):
@@ -161,6 +162,51 @@ class CitationGuardMiddleware(AgentMiddleware):
             if not invalid_urls.intersection(_URL_PATTERN.findall(line))
         ]
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
+
+    def _remove_urls(self, text: str, invalid_urls: set[str]) -> str:
+        return _URL_PATTERN.sub(
+            lambda match: "" if match.group(0) in invalid_urls else match.group(0),
+            text,
+        )
+
+    def _replace_message(
+        self, response: ModelResponse, message: AIMessage, invalid_urls: set[str]
+    ) -> ModelResponse:
+        messages = self._response_messages(response)
+        index = messages.index(message)
+        content = message.content
+        if isinstance(content, list):
+            updated_content = list(content)
+            for part_index, part in enumerate(updated_content):
+                if not isinstance(part, dict):
+                    continue
+                part_text = self._content_part_text(part)
+                if not part_text:
+                    continue
+                updated_content[part_index] = {
+                    **part,
+                    "text": self._remove_urls(part_text, invalid_urls),
+                }
+            content = updated_content
+        else:
+            content = self._remove_urls(self._message_text(message), invalid_urls)
+        messages[index] = message.model_copy(update={"content": content})
+        response.result = messages
+        return response
+
+    async def _retry(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelCallResult:
+        retry_request = request.override(
+            messages=[
+                *request.messages,
+                HumanMessage(content=_RETRY_INSTRUCTIONS),
+            ],
+            system_message=self._retry_system_message(request),
+        )
+        return await handler(retry_request)
 
     def _replace_footer(
         self, response: ModelResponse, message: AIMessage, text: str
