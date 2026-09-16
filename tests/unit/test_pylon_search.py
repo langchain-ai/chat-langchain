@@ -26,7 +26,9 @@ def _article(article_id, title, body, collection_id="collection-general"):
 
 def _search(articles, query, collections="all"):
     with patch("src.tools.pylon_tools._fetch_all_articles", return_value=articles):
-        with patch("src.tools.pylon_tools._fetch_collections", return_value=COLLECTIONS):
+        with patch(
+            "src.tools.pylon_tools._fetch_collections", return_value=COLLECTIONS
+        ):
             return json.loads(
                 search_support_articles.invoke(
                     {"query": query, "collections": collections}
@@ -51,7 +53,13 @@ def test_title_matches_rank_above_body_matches():
 
 def test_body_only_match_returns_matching_snippet():
     result = _search(
-        [_article("body", "How to configure an agent", "Use the tracing callback setting here.")],
+        [
+            _article(
+                "body",
+                "How to configure an agent",
+                "Use the tracing callback setting here.",
+            )
+        ],
         "callback",
     )
 
@@ -103,4 +111,7 @@ def test_search_caps_results_at_ten():
     assert result["total_matched"] == 12
     assert result["returned"] == 10
     assert len(result["articles"]) == 10
-    assert all(set(article) == {"id", "title", "url", "collection", "snippet"} for article in result["articles"])
+    assert all(
+        set(article) == {"id", "article_id", "title", "url", "collection", "snippet"}
+        for article in result["articles"]
+    )
