@@ -6,7 +6,10 @@ import pytest
 from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
-from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.duplicate_call_guard_middleware import (
+    DuplicateCallGuardMiddleware,
+    consume_repair_budget,
+)
 
 
 def _request(name: str, call_id: str, args: dict, content: str = "Question"):
@@ -131,3 +134,52 @@ def test_check_links_allows_one_invocation_per_turn():
     assert len(calls) == 1
     assert first.content == "validated"
     assert "may only be called once per turn" in second.content
+
+
+def test_separate_asyncio_tasks_share_turn_budget_and_cache():
+    middleware = DuplicateCallGuardMiddleware()
+    state = {"messages": [HumanMessage(id="turn-1", content="Question")]}
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        await asyncio.sleep(0)
+        return ToolMessage(
+            content="validated",
+            name=request.tool_call["name"],
+            tool_call_id=request.tool_call["id"],
+        )
+
+    async def invoke(request):
+        return await middleware.awrap_tool_call(request, handler)
+
+    async def run():
+        requests = [
+            ToolCallRequest(
+                tool_call={
+                    "name": "check_links",
+                    "id": f"call-{index}",
+                    "args": {"urls": ["https://one.example"]},
+                },
+                tool=None,
+                state=state,
+                runtime=None,
+            )
+            for index in range(2)
+        ]
+        return await asyncio.gather(*(invoke(request) for request in requests))
+
+    first, second = asyncio.run(run())
+
+    assert len(calls) == 1
+    assert "validated" in first.content
+    assert "may only be called once per turn" in second.content
+
+
+def test_repair_budget_is_shared_by_model_guards_for_one_human_message():
+    messages = [HumanMessage(id="turn-2", content="Question")]
+    state = {"messages": messages}
+
+    assert consume_repair_budget(state, messages)
+    assert consume_repair_budget(state, messages)
+    assert not consume_repair_budget(state, messages)

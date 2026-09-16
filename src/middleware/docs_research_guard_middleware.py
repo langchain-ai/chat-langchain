@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextvars
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -21,6 +20,8 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
+
+from src.middleware.duplicate_call_guard_middleware import consume_repair_budget
 
 SEARCH_TOOLS = frozenset(
     {
@@ -47,7 +48,6 @@ _DISCLOSURE = (
     "Documentation could not be consulted on this turn, so the following answer "
     "may contain unverified information."
 )
-_MAX_FORCED_ATTEMPTS = 2
 _DOCS_URL_PATTERN = re.compile(r"https://docs\.langchain\.com/[^\s<>\]\)\"']+")
 _CODE_BLOCK_PATTERN = re.compile(r"```.*?(?:```|$)", re.DOTALL)
 _LARGE_RESULT_POINTER_PATTERN = re.compile(r"^/large_tool_results/[^\s]+$")
@@ -71,14 +71,6 @@ _TECHNICAL_IDENTIFIER_PATTERN = re.compile(
     r"(?:^|\s)(?:\$\s*)?(?:python(?:3)?|pip|uv|npm|pnpm|poetry|git|curl)\s+\S+",
     re.MULTILINE,
 )
-_FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "docs_research_guard_forced_turn", default=None
-)
-_FORCED_ATTEMPTS: contextvars.ContextVar[dict[str, int]] = contextvars.ContextVar(
-    "docs_research_guard_forced_attempts", default={}
-)
-
-
 class DocsResearchGuardMiddleware(AgentMiddleware):
     """Force fresh documentation research before terminal technical answers."""
 
@@ -90,12 +82,11 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         """Require fresh research before returning a technical answer."""
         response = await handler(request)
         if not self._should_retry(request, response):
-            self._clear_attempts(self._turn_key(request.messages))
             return response
 
-        turn_key = self._turn_key(request.messages)
-        while self._attempt_count(turn_key) < _MAX_FORCED_ATTEMPTS:
-            self._record_attempt(turn_key)
+        for _ in range(2):
+            if not consume_repair_budget(request.state, request.messages):
+                break
             retry_request = request.override(
                 messages=[
                     *request.messages,
@@ -113,15 +104,12 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             if self._has_research_tool(
                 self._turn_messages(request.messages, self._response_messages(response))
             ):
-                self._clear_attempts(turn_key)
                 return response
             if not self._is_substantive_technical_answer(
                 self._response_messages(response)
             ):
-                self._clear_attempts(turn_key)
                 return response
 
-        self._clear_attempts(turn_key)
         return self._sanitize_response(request, response)
 
     def _should_retry(self, request: ModelRequest, response: ModelResponse) -> bool:
@@ -238,22 +226,6 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         existing = request.system_message.text if request.system_message else ""
         content = f"{existing}\n\n{_RETRY_INSTRUCTIONS}".strip()
         return SystemMessage(content=content)
-
-    def _attempt_count(self, turn_key: str) -> int:
-        return _FORCED_ATTEMPTS.get().get(turn_key, 0)
-
-    def _record_attempt(self, turn_key: str) -> None:
-        attempts = dict(_FORCED_ATTEMPTS.get())
-        attempts[turn_key] = attempts.get(turn_key, 0) + 1
-        _FORCED_ATTEMPTS.set(attempts)
-        _FORCED_TURN.set(turn_key)
-
-    def _clear_attempts(self, turn_key: str) -> None:
-        attempts = dict(_FORCED_ATTEMPTS.get())
-        attempts.pop(turn_key, None)
-        _FORCED_ATTEMPTS.set(attempts)
-        if _FORCED_TURN.get() == turn_key:
-            _FORCED_TURN.set(None)
 
     def _sanitize_response(
         self, request: ModelRequest, response: ModelResponse

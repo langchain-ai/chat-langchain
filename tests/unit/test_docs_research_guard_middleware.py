@@ -267,7 +267,7 @@ def test_grounded_unchecked_footer_url_is_validated_before_passing(monkeypatch):
     assert url in result.result[0].content
 
 
-def test_entirely_ungrounded_footer_retries_with_correction():
+def test_entirely_ungrounded_footer_is_stripped_without_retry():
     from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 
     url = "https://docs.langchain.com/oss/python/langgraph/invented"
@@ -288,15 +288,9 @@ def test_entirely_ungrounded_footer_retries_with_correction():
 
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
-    assert len(calls) == 2
-    assert (
-        "copied verbatim from this turn's documentation tool results"
-        in calls[1].system_prompt
-    )
-    assert calls[1].messages[:-1] == request.messages
-    assert isinstance(calls[1].messages[-1], HumanMessage)
-    assert "Rewrite the Relevant docs footer" in calls[1].messages[-1].content
+    assert len(calls) == 1
     assert result.result[0].content.startswith("**Answer**")
+    assert url not in result.result[0].content
 
 
 def test_list_content_rewrites_only_text_block_and_drops_invalid_url(monkeypatch):

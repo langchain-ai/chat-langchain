@@ -1,20 +1,17 @@
 """Suppress duplicate tool calls within a single human turn."""
 
-import asyncio
-import contextvars
 import json
-from collections.abc import Awaitable, Callable, Mapping
-from typing import Any
+from collections.abc import Awaitable, Callable, Mapping, MutableMapping
+from typing import Any, NotRequired
 
 from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware.types import AgentState
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
-_TurnState = tuple[str, dict[tuple[str, str], str], set[str]]
-_TURN_STATE: contextvars.ContextVar[_TurnState | None] = contextvars.ContextVar(
-    "duplicate_call_guard_turn_state", default=None
-)
+_TURN_STATE_KEY = "_chat_langchain_turn_state"
+_REPAIR_BUDGET = 2
 _DUPLICATE_NOTE = (
     "This exact tool call was already made on this turn; do not repeat it."
 )
@@ -24,8 +21,18 @@ _CHECK_LINKS_REFUSAL = (
 )
 
 
+class _GuardState(AgentState):
+    _chat_langchain_turn_state: NotRequired[dict[str, dict[str, Any]]]
+
+
 class DuplicateCallGuardMiddleware(AgentMiddleware):
     """Suppress duplicate calls and enforce the check_links turn budget."""
+
+    state_schema = _GuardState
+
+    def __init__(self) -> None:
+        """Initialize shared per-turn state."""
+        self._turn_states: dict[str, dict[str, Any]] = {}
 
     async def awrap_tool_call(
         self,
@@ -34,10 +41,10 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
     ) -> ToolMessage | Command:
         """Handle a tool call with per-turn duplicate suppression."""
         tool_name = str(request.tool_call.get("name", "unknown_tool"))
-        turn_state = self._turn_state(request)
-        seen_calls = turn_state[1]
+        turn_state = _shared_turn_state(request.state, self._turn_states)
+        seen_calls = turn_state["seen_calls"]
 
-        if tool_name == "check_links" and "check_links" in turn_state[2]:
+        if tool_name == "check_links" and turn_state["check_links_called"]:
             return self._tool_message(request, _CHECK_LINKS_REFUSAL)
 
         call_key = (tool_name, self._canonical_args(request.tool_call.get("args", {})))
@@ -49,44 +56,19 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
             )
 
         if tool_name == "check_links":
-            turn_state[2].add("check_links")
+            turn_state["check_links_called"] = True
+        seen_calls[call_key] = None
 
-        result = await handler(request)
+        try:
+            result = await handler(request)
+        except Exception:
+            seen_calls.pop(call_key, None)
+            raise
         if isinstance(result, ToolMessage) and result.status == "success":
             seen_calls[call_key] = self._content_text(result.content)
-        return result
-
-    def _turn_state(self, request: ToolCallRequest) -> _TurnState:
-        turn_key = f"{self._execution_key(request)}:{self._turn_key(request.state)}"
-        current = _TURN_STATE.get()
-        if current is None or current[0] != turn_key:
-            current = (turn_key, {}, set())
-            _TURN_STATE.set(current)
-        return current
-
-    def _execution_key(self, request: ToolCallRequest) -> str:
-        runtime = request.runtime
-        config = getattr(runtime, "config", None)
-        run_id = config.get("run_id") if isinstance(config, Mapping) else None
-        if run_id:
-            return f"run:{run_id}"
-        task = asyncio.current_task()
-        return f"task:{id(task)}"
-
-    def _turn_key(self, state: Any) -> str:
-        messages = self._messages(state)
-        for index in range(len(messages) - 1, -1, -1):
-            message = messages[index]
-            if isinstance(message, HumanMessage) or getattr(message, "type", None) == "human":
-                return f"{index}:{getattr(message, 'id', None)}:{message.content!r}"
-        return "no-human-message"
-
-    def _messages(self, state: Any) -> list[BaseMessage]:
-        if isinstance(state, Mapping):
-            messages = state.get("messages", [])
         else:
-            messages = getattr(state, "messages", state or [])
-        return list(messages)
+            seen_calls.pop(call_key, None)
+        return result
 
     def _canonical_args(self, args: Any) -> str:
         return json.dumps(args, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -102,3 +84,55 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
             name=request.tool_call.get("name", "unknown_tool"),
             tool_call_id=request.tool_call.get("id", ""),
         )
+
+
+def _shared_turn_state(
+    state: Any, registry: dict[str, dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    messages = list(state.get("messages", [])) if isinstance(state, Mapping) else []
+    turn_key = _turn_key(messages)
+    if not isinstance(state, MutableMapping):
+        return registry.setdefault(turn_key, _new_turn_state()) if registry else _new_turn_state()
+    if registry is not None:
+        turn_state = registry.setdefault(turn_key, _new_turn_state())
+    else:
+        turn_state = None
+    turns = state.setdefault(_TURN_STATE_KEY, {})
+    if turn_state is not None:
+        turns[turn_key] = turn_state
+        return turn_state
+    return turns.setdefault(turn_key, _new_turn_state())
+
+
+def _new_turn_state() -> dict[str, Any]:
+    return {"seen_calls": {}, "check_links_called": False, "repair_count": 0}
+
+
+def _turn_key(messages: list[BaseMessage]) -> str:
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        if isinstance(message, HumanMessage) or getattr(message, "type", None) == "human":
+            return str(getattr(message, "id", None) or f"{index}:{message.content!r}")
+    return "no-human-message"
+
+
+def consume_repair_budget(state: Any, messages: list[BaseMessage]) -> bool:
+    """Consume one shared repair attempt for the current human turn."""
+    turn_state = _shared_turn_state_for_messages(state, messages)
+    if turn_state["repair_count"] >= _REPAIR_BUDGET:
+        return False
+    turn_state["repair_count"] += 1
+    return True
+
+
+def _shared_turn_state_for_messages(
+    state: Any, messages: list[BaseMessage]
+) -> dict[str, Any]:
+    if not isinstance(state, MutableMapping):
+        return {"seen_calls": {}, "check_links_called": False, "repair_count": 0}
+    turn_key = _turn_key(messages)
+    turns = state.setdefault(_TURN_STATE_KEY, {})
+    return turns.setdefault(
+        turn_key,
+        {"seen_calls": {}, "check_links_called": False, "repair_count": 0},
+    )
