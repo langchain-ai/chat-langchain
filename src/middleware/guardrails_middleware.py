@@ -64,9 +64,10 @@ class GuardrailsClassificationError(Exception):
 
 
 class GuardrailsState(AgentState):
-    """Extended state schema with off-topic flag."""
+    """Extended state schema with guardrails metadata."""
 
     off_topic_query: NotRequired[bool]
+    guardrails_refused_request: NotRequired[str]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -209,7 +210,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
         # while zero-tolerance bullets override the default ALLOW.
         try:
-            guardrails_decision = await self._classify_query(messages)
+            refused_request_marker = state.get("guardrails_refused_request")
+            if refused_request_marker:
+                guardrails_decision = await self._classify_query(
+                    messages, refused_request_marker
+                )
+            else:
+                guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
             return {"off_topic_query": False}
@@ -254,6 +261,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
+            "guardrails_refused_request": (
+                "A previous request was refused by guardrails. Keep that refusal "
+                "if the user reissues the request in a different format."
+            ),
             "jump_to": "end",
         }
 
@@ -367,7 +378,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
-    async def _classify_query(self, messages: list) -> GuardrailsDecision:
+    async def _classify_query(
+        self, messages: list, refused_request_marker: str | None = None
+    ) -> GuardrailsDecision:
         """Classify query as ALLOWED or BLOCKED.
 
         Raises:
@@ -406,6 +419,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             context_section = (
                 "\n\nPrevious questions in this conversation:\n"
                 + "\n".join(f"- {q}" for q in recent)
+            )
+        if refused_request_marker:
+            context_section += (
+                "\n\nPreviously refused in this conversation:\n"
+                + refused_request_marker
             )
 
         current_content = getattr(current_message, "content", current_query or "")
