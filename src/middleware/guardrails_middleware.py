@@ -57,6 +57,13 @@ class GuardrailsDecision(TypedDict):
     explanation: str
 
 
+class GuardrailTurn(TypedDict):
+    """Decision recorded for a classified human turn."""
+
+    query: str
+    decision: Literal["ALLOWED", "BLOCKED"]
+
+
 class GuardrailsClassificationError(Exception):
     """Raised when guardrails classification fails after retries."""
 
@@ -64,9 +71,10 @@ class GuardrailsClassificationError(Exception):
 
 
 class GuardrailsState(AgentState):
-    """Extended state schema with off-topic flag."""
+    """Extended state schema with guardrail metadata."""
 
     off_topic_query: NotRequired[bool]
+    guardrail_history: NotRequired[list[GuardrailTurn]]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -209,13 +217,24 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
         # while zero-tolerance bullets override the default ALLOW.
         try:
-            guardrails_decision = await self._classify_query(messages)
+            guardrail_history = state.get("guardrail_history", [])
+            if guardrail_history:
+                guardrails_decision = await self._classify_query(
+                    messages, guardrail_history
+                )
+            else:
+                guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
+            if state.get("guardrail_history"):
+                return {"off_topic_query": False, "guardrail_history": []}
             return {"off_topic_query": False}
 
         decision = guardrails_decision["decision"]
         explanation = guardrails_decision["explanation"]
+        guardrail_history = self._append_guardrail_turn(
+            state.get("guardrail_history", []), safe_last_content, decision
+        )
 
         # Track in LangSmith metadata
         self._track_decision_metadata(guardrails_decision)
@@ -234,7 +253,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return None
+            return {"guardrail_history": guardrail_history}
 
         # Handle blocked queries
         logger.warning(
@@ -247,15 +266,25 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.info(
                 "Off-topic query detected but block_off_topic=False, allowing..."
             )
-            return None
+            return {"guardrail_history": guardrail_history}
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
+            "guardrail_history": guardrail_history,
             "jump_to": "end",
         }
+
+    def _append_guardrail_turn(
+        self, history: list[GuardrailTurn], query: str, decision: str
+    ) -> list[GuardrailTurn]:
+        """Append a turn and retain only recent classifier context."""
+        return [
+            *history[-2:],
+            {"query": query[:200], "decision": decision},
+        ]
 
     def _content_to_safe_text(self, content) -> str:
         """Convert multimodal content to text without leaking encoded media."""
@@ -367,7 +396,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
-    async def _classify_query(self, messages: list) -> GuardrailsDecision:
+    async def _classify_query(
+        self, messages: list, guardrail_history: list[GuardrailTurn] | None = None
+    ) -> GuardrailsDecision:
         """Classify query as ALLOWED or BLOCKED.
 
         Raises:
@@ -389,23 +420,15 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ):
             return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
 
-        # Build context from previous human messages (for follow-up detection)
-        prior_queries = []
-        for msg in reversed(messages[:-1]):  # Exclude current message
-            if isinstance(msg, HumanMessage):
-                text = self._extract_message_text(msg)
-                if text:
-                    prior_queries.append(text[:200])  # Truncate for brevity
-                    if len(prior_queries) == 3:
-                        break
-
-        # Build the classification prompt
+        # Build context from prior classified turns for follow-up detection.
         context_section = ""
-        if prior_queries:
-            recent = list(reversed(prior_queries))  # Restore chronological order.
+        if guardrail_history:
             context_section = (
-                "\n\nPrevious questions in this conversation:\n"
-                + "\n".join(f"- {q}" for q in recent)
+                "\n\nPrevious questions and guardrail decisions in this conversation:\n"
+                + "\n".join(
+                    f"- [{turn['decision']}] {turn['query']}"
+                    for turn in guardrail_history[-3:]
+                )
             )
 
         current_content = getattr(current_message, "content", current_query or "")
