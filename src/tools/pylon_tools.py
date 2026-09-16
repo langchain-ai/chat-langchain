@@ -5,6 +5,8 @@
 import json
 import logging
 import os
+import re
+from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -45,6 +47,61 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+
+
+def _collection_names_match(requested: str, available: str) -> bool:
+    """Compare collection names without depending on parenthetical word order."""
+    requested = " ".join(requested.strip().casefold().split())
+    available = " ".join(available.strip().casefold().split())
+    if requested == available:
+        return True
+
+    requested_match = re.fullmatch(r"(.*?)\s*\(([^()]*)\)", requested)
+    available_match = re.fullmatch(r"(.*?)\s*\(([^()]*)\)", available)
+    if not requested_match or not available_match:
+        return False
+
+    requested_prefix, requested_words = requested_match.groups()
+    available_prefix, available_words = available_match.groups()
+    return (
+        requested_prefix.strip() == available_prefix.strip()
+        and set(requested_words.split()) == set(available_words.split())
+    )
+
+
+def _article_matches_id(article: Dict[str, Any], article_id: str) -> bool:
+    """Match an article against any supported identifier form."""
+    requested_id = str(article_id).strip().casefold()
+    identifier = str(article.get("identifier", "")).strip()
+    slug = str(article.get("slug", "")).strip()
+    identifiers = {
+        str(article.get("id", "")).strip(),
+        identifier,
+        slug,
+        f"{identifier}-{slug}" if identifier and slug else "",
+    }
+    return requested_id in {value.casefold() for value in identifiers if value}
+
+
+def _article_suggestions(articles: List[Dict[str, Any]], article_id: str) -> str:
+    """Return close article title and UUID suggestions for an unknown ID."""
+    requested_id = str(article_id).strip().casefold()
+    ranked_articles = sorted(
+        articles,
+        key=lambda article: max(
+            SequenceMatcher(
+                None,
+                requested_id,
+                str(article.get(field, "")).strip().casefold(),
+            ).ratio()
+            for field in ("id", "identifier", "slug", "title")
+        ),
+        reverse=True,
+    )[:3]
+    return "; ".join(
+        f"{article.get('title', 'Untitled')} (ID: {article.get('id')})"
+        for article in ranked_articles
+    )
 
 
 def _get_headers() -> Dict[str, str]:
@@ -214,6 +271,7 @@ def search_support_articles(collections: str = "all") -> str:
                 published_articles.append(
                     {
                         "id": article.get("id"),
+                        "article_id": article.get("id"),
                         "title": article.get("title", ""),
                         "url": support_url,
                         "collection_id": article.get(
@@ -236,23 +294,22 @@ def search_support_articles(collections: str = "all") -> str:
             # Get collection IDs for requested collections
             collection_ids = []
             for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
-                else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                matched_collection = next(
+                    (
+                        key
+                        for key in collection_map
+                        if _collection_names_match(coll_name, key)
+                    ),
+                    None,
+                )
+                if matched_collection is None:
+                    return json.dumps(
+                        {
+                            "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
+                        },
+                        indent=2,
+                    )
+                collection_ids.append(collection_map[matched_collection])
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -332,7 +389,7 @@ def get_support_article_content(article_id: str) -> str:
 
         # Find the article by ID
         for article in articles:
-            if article.get("id") == article_id:
+            if _article_matches_id(article, article_id):
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
                 coll_id = article.get("collection_id")
@@ -359,7 +416,11 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        suggestions = _article_suggestions(articles, article_id)
+        return (
+            f"Article ID {article_id} not found in knowledge base. "
+            f"Closest matches: {suggestions}"
+        )
 
     except PylonUnavailableError:
         raise
