@@ -37,6 +37,7 @@ def test_before_agent_noop_when_under_cap():
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
+    monkeypatch.setenv("GIT_SHA", "git-sha")
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
     monkeypatch.setattr(
@@ -53,11 +54,14 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
         == "local:src/prompts/guardrails_prompts.py"
     )
     assert metadata["LANGSMITH_AGENT_VERSION"] == "rev-a"
+    assert metadata["expected_revision"] == "git-sha"
 
 
 def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch):
+    monkeypatch.delenv("GIT_SHA", raising=False)
     monkeypatch.delenv("LANGCHAIN_REVISION_ID", raising=False)
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "host-rev")
 
     metadata = build_docs_agent_trace_metadata()
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+    assert metadata["expected_revision"] == "host-rev"

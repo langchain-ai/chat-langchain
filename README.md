@@ -128,6 +128,9 @@ The agent uses a docs-first research strategy:
 
 ### Managed Deep Agents
 
+Production must deploy from the default branch. Merged fixes are not live until
+the production deployment revision advances to include them.
+
 ```bash
 mda deploy .
 ```
