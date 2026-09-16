@@ -37,6 +37,8 @@ _RETRY_INSTRUCTIONS = (
     "documentation tool results. Call check_links on exactly the final citation list "
     "before answering. Never construct or recall a documentation URL."
 )
+_REPAIR_ATTEMPTS_KEY = "citation_guard_repair_attempts"
+_REPAIR_TURN_KEY = "citation_guard_repair_turn"
 
 
 class CitationGuardMiddleware(AgentMiddleware):
@@ -63,36 +65,84 @@ class CitationGuardMiddleware(AgentMiddleware):
         footer_urls = self._urls_in_footer(footer_message)
         if not footer_urls:
             return response
-        grounded_urls = self._grounded_urls(turn_messages)
+        grounded_urls = self._grounded_urls(request.messages)
         valid_urls = self._valid_urls(turn_messages)
-        unchecked_urls = [
-            url for url in footer_urls if url in grounded_urls and url not in valid_urls
-        ]
-        if unchecked_urls:
-            results = await _check_urls_async(unchecked_urls, 10.0)
-            valid_urls.update(result.url for result in results if result.valid)
-
-        invalid_urls = {
-            url
-            for url in footer_urls
-            if url not in grounded_urls or url not in valid_urls
-        }
+        invalid_urls = await self._invalid_footer_urls(
+            footer_urls, grounded_urls, valid_urls
+        )
         if not invalid_urls:
             return response
 
         repaired_text = self._remove_footer_urls(
             self._message_text(footer_message), invalid_urls
         )
-        if not self._urls_in_footer_text(repaired_text):
-            retry_request = request.override(
-                messages=[
-                    *request.messages,
-                    HumanMessage(content=_RETRY_INSTRUCTIONS),
-                ],
-                system_message=self._retry_system_message(request),
-            )
-            return await handler(retry_request)
-        return self._replace_footer(response, footer_message, repaired_text)
+        if self._urls_in_footer_text(repaired_text):
+            return self._replace_footer(response, footer_message, repaired_text)
+
+        state = dict(request.state or {})
+        turn_key = self._repair_turn_key(request)
+        repair_attempts = state.get(_REPAIR_ATTEMPTS_KEY, 0)
+        if state.get(_REPAIR_TURN_KEY) != turn_key:
+            repair_attempts = 0
+        if repair_attempts >= 1:
+            return self._replace_footer(response, footer_message, repaired_text)
+
+        state[_REPAIR_ATTEMPTS_KEY] = repair_attempts + 1
+        state[_REPAIR_TURN_KEY] = turn_key
+        request.state[_REPAIR_ATTEMPTS_KEY] = repair_attempts + 1
+        request.state[_REPAIR_TURN_KEY] = turn_key
+        retry_request = request.override(
+            messages=[
+                *request.messages,
+                HumanMessage(content=_RETRY_INSTRUCTIONS),
+            ],
+            state=state,
+            system_message=self._retry_system_message(request),
+        )
+        retry_response = await handler(retry_request)
+        retry_footer_message = self._footer_message(
+            self._response_messages(retry_response)
+        )
+        if retry_footer_message is None:
+            return retry_response
+        retry_footer_urls = self._urls_in_footer(retry_footer_message)
+        retry_invalid_urls = await self._invalid_footer_urls(
+            retry_footer_urls, grounded_urls, valid_urls
+        )
+        if not retry_invalid_urls:
+            return retry_response
+        retry_text = self._remove_footer_urls(
+            self._message_text(retry_footer_message), retry_invalid_urls
+        )
+        return self._replace_footer(retry_response, retry_footer_message, retry_text)
+
+    async def _invalid_footer_urls(
+        self,
+        footer_urls: list[str],
+        grounded_urls: set[str],
+        valid_urls: set[str],
+    ) -> set[str]:
+        unchecked_urls = [
+            url for url in footer_urls if url in grounded_urls and url not in valid_urls
+        ]
+        if unchecked_urls:
+            results = await _check_urls_async(unchecked_urls, 10.0)
+            valid_urls.update(result.url for result in results if result.valid)
+        return {
+            url
+            for url in footer_urls
+            if url not in grounded_urls or url not in valid_urls
+        }
+
+    def _repair_turn_key(self, request: ModelRequest) -> str:
+        messages = request.state.get("messages") if request.state else None
+        return self._turn_key(messages or request.messages)
+
+    def _turn_key(self, messages: list[BaseMessage]) -> str:
+        for message in reversed(messages):
+            if getattr(message, "type", None) == "human":
+                return f"{getattr(message, 'id', None)}:{self._message_text(message)}"
+        return "no-human-message"
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
