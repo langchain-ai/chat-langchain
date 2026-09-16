@@ -32,6 +32,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 ## ALWAYS ALLOW - Follow-ups & Context:
 - Technical follow-up questions about prior LangChain / LangGraph / LangSmith / Deep Agents responses
 - Bare reformat or simplify requests such as "in layman terms", "simpler", "shorter", or "in Python instead" when the listed previous questions in the conversation are in-scope technical questions.
+- A short or referential current turn, such as a bare "explain in Korean", a translation or simplify request, or a demonstrative such as "these two", "that", or "it", whose referent is the assistant's most recent answer must be ALLOWED when that answer is in-scope; the "Language help" block rule does not apply to these follow-ups.
 - Questions about code the assistant just showed
 - Requests for different formats or languages (Python/JS) of a technical answer
 - Clarification questions on a previous technical answer

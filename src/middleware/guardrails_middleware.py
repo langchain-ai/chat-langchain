@@ -391,22 +391,38 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
+        prior_assistant_answer = None
         for msg in reversed(messages[:-1]):  # Exclude current message
             if isinstance(msg, HumanMessage):
                 text = self._extract_message_text(msg)
-                if text:
+                if text and len(prior_queries) < 3:
                     prior_queries.append(text[:200])  # Truncate for brevity
-                    if len(prior_queries) == 3:
-                        break
+            elif isinstance(msg, AIMessage) and not getattr(msg, "tool_calls", None):
+                text = self._extract_message_text(msg)
+                if text and prior_assistant_answer is None:
+                    prior_assistant_answer = self._content_to_safe_text(msg.content)[
+                        :400
+                    ]
+
+            if len(prior_queries) == 3 and prior_assistant_answer:
+                break
 
         # Build the classification prompt
         context_section = ""
-        if prior_queries:
-            recent = list(reversed(prior_queries))  # Restore chronological order.
-            context_section = (
-                "\n\nPrevious questions in this conversation:\n"
-                + "\n".join(f"- {q}" for q in recent)
-            )
+        if prior_queries or prior_assistant_answer:
+            context_parts = []
+            if prior_queries:
+                recent = list(reversed(prior_queries))  # Restore chronological order.
+                context_parts.append(
+                    "Previous questions in this conversation:\n"
+                    + "\n".join(f"- {q}" for q in recent)
+                )
+            if prior_assistant_answer:
+                context_parts.append(
+                    "Assistant's most recent answer (the likely referent of a short follow-up):\n"
+                    + prior_assistant_answer
+                )
+            context_section = "\n\n" + "\n\n".join(context_parts)
 
         current_content = getattr(current_message, "content", current_query or "")
         prompt = [
