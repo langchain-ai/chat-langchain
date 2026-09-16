@@ -13,7 +13,10 @@ from src.middleware.ingress_guards_middleware import (
     MAX_MESSAGE_CHARS,
     IngressGuardsMiddleware,
 )
-from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
+from src.utils.trace_root_metadata import (
+    build_docs_agent_trace_metadata,
+    user_id_from_config,
+)
 
 
 def test_before_agent_truncates_oversized_human_message():
@@ -47,6 +50,8 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
     metadata = build_docs_agent_trace_metadata()
 
     assert metadata["source_type"] == "Chat-LangChain"
+    assert metadata["environment"] == "production"
+    assert metadata["user_id"] == "anonymous"
     assert metadata["prompt_source"] == "local:instructions.md"
     assert (
         metadata["guardrails_prompt_source"]
@@ -61,3 +66,33 @@ def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch
 
     metadata = build_docs_agent_trace_metadata()
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+
+
+def test_build_docs_agent_trace_metadata_uses_explicit_environment(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_ENVIRONMENT", "staging")
+    monkeypatch.setenv("ENVIRONMENT", "production")
+
+    metadata = build_docs_agent_trace_metadata(user_id="user@example.com")
+
+    assert metadata["environment"] == "staging"
+    assert metadata["user_id"] == "user@example.com"
+
+
+def test_build_docs_agent_trace_metadata_classifies_preview(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("LANGSMITH_LANGGRAPH_GIT_REF", "feature/preview")
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "preview"
+
+
+def test_user_id_from_config_uses_request_actor():
+    config = {
+        "configurable": {
+            "langgraph_auth_user": {"mda_actor_id": "guest:abc123"}
+        }
+    }
+
+    assert user_id_from_config(config) == "guest:abc123"
