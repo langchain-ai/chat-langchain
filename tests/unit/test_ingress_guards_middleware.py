@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from types import SimpleNamespace
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
 
@@ -34,6 +34,48 @@ def test_before_agent_noop_when_under_cap():
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_redacts_langsmith_key():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content="curl -H 'x-api-key: lsv2_sk_1234567890abcdef_123456'",
+        id="h1",
+    )
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == "curl -H 'x-api-key: <REDACTED_API_KEY>'"
+
+
+def test_before_agent_preserves_postgresql_example():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content="postgresql://postgres:postgres@localhost:5432/postgres",
+        id="h1",
+    )
+
+    assert middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_redacts_replayed_messages():
+    middleware = IngressGuardsMiddleware()
+    key = "lsv2_sk_1234567890abcdef_123456"
+    state = {
+        "messages": [
+            HumanMessage(content="original", id="h1"),
+            AIMessage(content=f"I saw {key}", id="a1"),
+            ToolMessage(content=[{"type": "text", "text": f"tool saw {key}"}], tool_call_id="t1", id="t1"),
+        ]
+    }
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert [message.id for message in update["messages"]] == ["a1", "t1"]
+    assert update["messages"][0].content == "I saw <REDACTED_API_KEY>"
+    assert update["messages"][1].content == [{"type": "text", "text": "tool saw <REDACTED_API_KEY>"}]
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
