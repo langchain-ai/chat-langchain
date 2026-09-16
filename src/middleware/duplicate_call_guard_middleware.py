@@ -1,20 +1,36 @@
 """Suppress duplicate tool calls within a single human turn."""
 
-import asyncio
-import contextvars
 import json
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
-from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware import AgentMiddleware, AgentState
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
+from typing_extensions import NotRequired, TypedDict
 
-_TurnState = tuple[str, dict[tuple[str, str], str], set[str]]
-_TURN_STATE: contextvars.ContextVar[_TurnState | None] = contextvars.ContextVar(
-    "duplicate_call_guard_turn_state", default=None
+from src.middleware.citation_guard_middleware import (
+    _RETRY_INSTRUCTIONS as _CITATION_RETRY_INSTRUCTIONS,
 )
+from src.middleware.docs_research_guard_middleware import (
+    _RETRY_INSTRUCTIONS as _RESEARCH_RETRY_INSTRUCTIONS,
+)
+
+_TurnCallKey = tuple[str, str]
+
+
+class _TurnState(TypedDict):
+    calls: dict[_TurnCallKey, str]
+    budget_markers: set[str]
+
+
+class DuplicateCallGuardState(AgentState):
+    """State schema for duplicate-call records."""
+
+    duplicate_call_guard: NotRequired[dict[str, _TurnState]]
+
+
 _DUPLICATE_NOTE = (
     "This exact tool call was already made on this turn; do not repeat it."
 )
@@ -22,10 +38,13 @@ _CHECK_LINKS_REFUSAL = (
     "check_links may only be called once per turn. Finalize using the links "
     "already validated."
 )
+_SUMMARY_PREFIX = "Here is a summary of the conversation to date"
 
 
-class DuplicateCallGuardMiddleware(AgentMiddleware):
+class DuplicateCallGuardMiddleware(AgentMiddleware[DuplicateCallGuardState]):
     """Suppress duplicate calls and enforce the check_links turn budget."""
+
+    state_schema = DuplicateCallGuardState
 
     async def awrap_tool_call(
         self,
@@ -34,10 +53,12 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
     ) -> ToolMessage | Command:
         """Handle a tool call with per-turn duplicate suppression."""
         tool_name = str(request.tool_call.get("name", "unknown_tool"))
-        turn_state = self._turn_state(request)
-        seen_calls = turn_state[1]
+        turn_key = f"{self._execution_key(request)}:{self._turn_key(request.state)}"
+        persisted = self._persisted_state(request.state)
+        turn_state = persisted.get(turn_key, {"calls": {}, "budget_markers": set()})
+        seen_calls = turn_state["calls"]
 
-        if tool_name == "check_links" and "check_links" in turn_state[2]:
+        if tool_name == "check_links" and "check_links" in turn_state["budget_markers"]:
             return self._tool_message(request, _CHECK_LINKS_REFUSAL)
 
         call_key = (tool_name, self._canonical_args(request.tool_call.get("args", {})))
@@ -48,21 +69,31 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
                 f"{_DUPLICATE_NOTE}\n{cached_content}",
             )
 
+        updated_turn_state: _TurnState = {
+            "calls": dict(seen_calls),
+            "budget_markers": set(turn_state["budget_markers"]),
+        }
         if tool_name == "check_links":
-            turn_state[2].add("check_links")
+            updated_turn_state["budget_markers"].add("check_links")
 
         result = await handler(request)
-        if isinstance(result, ToolMessage) and result.status == "success":
-            seen_calls[call_key] = self._content_text(result.content)
-        return result
+        if not isinstance(result, ToolMessage) or result.status != "success":
+            return result
 
-    def _turn_state(self, request: ToolCallRequest) -> _TurnState:
-        turn_key = f"{self._execution_key(request)}:{self._turn_key(request.state)}"
-        current = _TURN_STATE.get()
-        if current is None or current[0] != turn_key:
-            current = (turn_key, {}, set())
-            _TURN_STATE.set(current)
-        return current
+        updated_turn_state["calls"][call_key] = self._content_text(result.content)
+        updated_state = dict(persisted)
+        updated_state[turn_key] = updated_turn_state
+        return Command(
+            update={
+                "duplicate_call_guard": updated_state,
+                "messages": [result],
+            }
+        )
+
+    def _persisted_state(self, state: Any) -> dict[str, _TurnState]:
+        if isinstance(state, Mapping):
+            return dict(state.get("duplicate_call_guard", {}))
+        return dict(getattr(state, "duplicate_call_guard", {}) or {})
 
     def _execution_key(self, request: ToolCallRequest) -> str:
         runtime = request.runtime
@@ -70,15 +101,26 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
         run_id = config.get("run_id") if isinstance(config, Mapping) else None
         if run_id:
             return f"run:{run_id}"
-        task = asyncio.current_task()
-        return f"task:{id(task)}"
+        return "no-run-id"
 
     def _turn_key(self, state: Any) -> str:
         messages = self._messages(state)
         for index in range(len(messages) - 1, -1, -1):
             message = messages[index]
-            if isinstance(message, HumanMessage) or getattr(message, "type", None) == "human":
-                return f"{index}:{getattr(message, 'id', None)}:{message.content!r}"
+            if (
+                not isinstance(message, HumanMessage)
+                and getattr(message, "type", None) != "human"
+            ):
+                continue
+            content = str(getattr(message, "content", ""))
+            if (
+                content == _CITATION_RETRY_INSTRUCTIONS
+                or content == _RESEARCH_RETRY_INSTRUCTIONS
+            ):
+                continue
+            if content.startswith(_SUMMARY_PREFIX):
+                continue
+            return f"{index}:{getattr(message, 'id', None)}:{message.content!r}"
         return "no-human-message"
 
     def _messages(self, state: Any) -> list[BaseMessage]:
@@ -89,7 +131,9 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
         return list(messages)
 
     def _canonical_args(self, args: Any) -> str:
-        return json.dumps(args, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return json.dumps(
+            args, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
 
     def _content_text(self, content: Any) -> str:
         if isinstance(content, str):
