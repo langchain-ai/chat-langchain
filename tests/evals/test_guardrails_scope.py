@@ -6,13 +6,19 @@ LangChain context by blocking/redirecting them.
 
 """
 
+import asyncio
 import os
 import sys
+
+from langchain_core.messages import AIMessage, HumanMessage
 
 # Ensure src is on the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
+from src.middleware.guardrails_middleware import (
+    _GUARDRAILS_SYSTEM_PROMPT,
+    GuardrailsMiddleware,
+)
 from src.prompts.docs_agent_prompt import docs_agent_prompt
 from src.prompts.guardrails_prompts import rejection_system_prompt
 
@@ -22,6 +28,25 @@ from src.prompts.guardrails_prompts import rejection_system_prompt
 
 PROMPT_LOWER = _GUARDRAILS_SYSTEM_PROMPT.lower()
 REJECTION_PROMPT_LOWER = rejection_system_prompt.lower()
+
+
+class _ContextAwareClassifier:
+    def __init__(self, expected_answer: str):
+        self.expected_answer = expected_answer
+
+    def with_structured_output(self, schema):  # noqa: ARG002
+        return self
+
+    async def ainvoke(self, prompt, config=None):  # noqa: ARG002
+        decision = "ALLOWED" if self.expected_answer in prompt[1].content else "BLOCKED"
+        return {"decision": decision, "explanation": "Follow-up context was checked."}
+
+
+def _classify_follow_up(messages, expected_answer: str):
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    middleware.classifier_llms = [("test", _ContextAwareClassifier(expected_answer))]
+    return asyncio.run(middleware._classify_query(messages))
+
 
 # Data science libraries that should be restricted when used without LangChain context
 PURE_DS_LIBRARIES = [
@@ -157,8 +182,58 @@ def test_guardrails_prompt_allows_langchain_resource_questions():
 def test_guardrails_prompt_allows_bare_technical_follow_ups():
     """Layman-terms follow-ups after LangGraph questions must be allowed."""
     assert "in layman terms" in PROMPT_LOWER
-    assert "technical follow-up questions about prior langchain / langgraph" in PROMPT_LOWER
+    assert (
+        "technical follow-up questions about prior langchain / langgraph"
+        in PROMPT_LOWER
+    )
     assert "in-scope technical questions" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_allows_bare_language_follow_up_to_assistant_answer():
+    """A bare language request referring to an in-scope answer is allowed."""
+    assert 'bare "explain in korean"' in PROMPT_LOWER
+    assert "assistant's most recent answer" in PROMPT_LOWER
+    assert "must be allowed" in PROMPT_LOWER
+    assert 'language help" block rule does not apply' in PROMPT_LOWER
+
+
+def test_guardrails_prompt_allows_demonstrative_follow_up_to_assistant_answer():
+    """A demonstrative follow-up referring to an in-scope answer is allowed."""
+    assert 'a demonstrative such as "these two", "that", or "it"' in PROMPT_LOWER
+    assert "whose referent" in PROMPT_LOWER
+    assert "when that answer is in-scope" in PROMPT_LOWER
+
+
+def test_bare_language_follow_up_to_in_scope_answer_is_allowed():
+    """A bare language follow-up receives the prior in-scope answer context."""
+    answer = "LangChain agents use tools to complete tasks."
+    result = _classify_follow_up(
+        [
+            HumanMessage(content="How do LangChain agents use tools?"),
+            AIMessage(content=answer),
+            HumanMessage(content="explain in Korean"),
+        ],
+        answer,
+    )
+
+    assert result["decision"] == "ALLOWED"
+
+
+def test_demonstrative_follow_up_to_two_in_scope_answers_is_allowed():
+    """A demonstrative follow-up receives the latest in-scope answer context."""
+    answer = "The two concepts are LangGraph state and LangChain runnables."
+    result = _classify_follow_up(
+        [
+            HumanMessage(content="What is LangGraph state?"),
+            AIMessage(content="LangGraph state stores graph data."),
+            HumanMessage(content="What are LangChain runnables?"),
+            AIMessage(content=answer),
+            HumanMessage(content="what do these two mean"),
+        ],
+        answer,
+    )
+
+    assert result["decision"] == "ALLOWED"
 
 
 # ---------------------------------------------------------------------------

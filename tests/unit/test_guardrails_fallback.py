@@ -4,7 +4,7 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -34,6 +34,14 @@ class FakeStructuredModel:
         return outcome
 
 
+class CapturingStructuredModel(FakeStructuredModel):
+    """Fake model that retains the latest classifier prompt."""
+
+    async def ainvoke(self, prompt, config=None):
+        self.prompt = prompt
+        return await super().ainvoke(prompt, config)
+
+
 def _middleware_with_models(*models: tuple[str, FakeStructuredModel]) -> GuardrailsMiddleware:
     middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
     middleware.classifier_llms = list(models)
@@ -58,6 +66,38 @@ def test_guardrails_falls_back_after_primary_retries(monkeypatch):
     assert result["decision"] == "ALLOWED"
     assert primary.calls == 2
     assert fallback.calls == 1
+
+
+def test_guardrails_classifier_prompt_includes_safe_prior_assistant_answer():
+    """Classifier context includes a recent assistant answer without media data."""
+    model = CapturingStructuredModel(
+        [{"decision": "ALLOWED", "explanation": "Technical follow-up."}]
+    )
+    middleware = _middleware_with_models(("primary", model))
+    messages = [
+        HumanMessage(content="How do LangGraph checkpointers work?"),
+        AIMessage(
+            content=[
+                {
+                    "type": "text",
+                    "text": "Checkpointers persist graph state between runs.",
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,secret"},
+                },
+            ]
+        ),
+        HumanMessage(content="explain in Korean"),
+    ]
+
+    result = asyncio.run(middleware._classify_query(messages))
+
+    assert result["decision"] == "ALLOWED"
+    classifier_content = model.prompt[1].content
+    assert "Assistant's most recent answer" in classifier_content
+    assert "Checkpointers persist graph state between runs." in classifier_content
+    assert "data:image/png;base64,secret" not in classifier_content
 
 
 def test_guardrails_raises_after_all_models_exhaust_retries(monkeypatch):
