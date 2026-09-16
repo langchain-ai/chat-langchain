@@ -389,23 +389,32 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ):
             return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
 
-        # Build context from previous human messages (for follow-up detection)
-        prior_queries = []
+        # Build context from recent user and assistant messages for follow-up detection.
+        prior_turns = []
+        user_turns = 0
+        assistant_turns = 0
         for msg in reversed(messages[:-1]):  # Exclude current message
-            if isinstance(msg, HumanMessage):
+            if isinstance(msg, HumanMessage) and user_turns < 2:
                 text = self._extract_message_text(msg)
                 if text:
-                    prior_queries.append(text[:200])  # Truncate for brevity
-                    if len(prior_queries) == 3:
-                        break
+                    prior_turns.append(("User", text[:300]))
+                    user_turns += 1
+            elif isinstance(msg, AIMessage) and assistant_turns < 2:
+                text = self._extract_message_text(msg)
+                if text:
+                    prior_turns.append(("Assistant", text[:500]))
+                    assistant_turns += 1
+
+            if user_turns == 2 and assistant_turns == 2:
+                break
 
         # Build the classification prompt
         context_section = ""
-        if prior_queries:
-            recent = list(reversed(prior_queries))  # Restore chronological order.
+        if prior_turns:
+            recent = list(reversed(prior_turns))  # Restore chronological order.
             context_section = (
-                "\n\nPrevious questions in this conversation:\n"
-                + "\n".join(f"- {q}" for q in recent)
+                "\n\nRecent conversation:\n"
+                + "\n".join(f"{speaker}: {text}" for speaker, text in recent)
             )
 
         current_content = getattr(current_message, "content", current_query or "")
