@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextvars
+import logging
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -21,6 +22,10 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai.chat_models.base import BaseChatOpenAI
+
+logger = logging.getLogger(__name__)
 
 SEARCH_TOOLS = frozenset(
     {
@@ -102,12 +107,16 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
                     HumanMessage(content=_RETRY_INSTRUCTIONS),
                 ],
                 system_message=self._retry_system_message(request),
-                tool_choice={
-                    "type": "function",
-                    "function": {"name": "search_docs_by_lang_chain"},
-                },
+                tool_choice=self._forced_tool_choice(request.model),
             )
-            response = await handler(retry_request)
+            try:
+                response = await handler(retry_request)
+            except Exception:
+                logger.exception(
+                    "Forced documentation research attempt failed; retrying without "
+                    "tool choice"
+                )
+                response = await handler(retry_request.override(tool_choice=None))
             if self._has_pending_tool_calls(self._response_messages(response)):
                 return response
             if self._has_research_tool(
@@ -123,6 +132,21 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
 
         self._clear_attempts(turn_key)
         return self._sanitize_response(request, response)
+
+    def _forced_tool_choice(self, model: Any) -> str | dict[str, Any]:
+        if isinstance(model, ChatGoogleGenerativeAI):
+            return {
+                "function_calling_config": {
+                    "mode": "any",
+                    "allowed_function_names": ["search_docs_by_lang_chain"],
+                }
+            }
+        if isinstance(model, BaseChatOpenAI):
+            return {
+                "type": "function",
+                "function": {"name": "search_docs_by_lang_chain"},
+            }
+        return "search_docs_by_lang_chain"
 
     def _should_retry(self, request: ModelRequest, response: ModelResponse) -> bool:
         if os.getenv(RESEARCH_GUARD_DISABLED_ENV, "").lower() in {"1", "true", "yes"}:

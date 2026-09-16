@@ -4,6 +4,8 @@ import asyncio
 
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 
@@ -478,7 +480,7 @@ def test_ignored_retries_are_bounded_and_sanitized():
     calls: list[ModelRequest] = []
     url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
     request = ModelRequest(
-        model=object(),
+        model=ChatOpenAI(model="gpt-4o-mini", api_key="test"),
         messages=[HumanMessage(content="How do I build a graph?")],
     )
 
@@ -495,10 +497,53 @@ def test_ignored_retries_are_bounded_and_sanitized():
     result = asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert len(calls) == 3
-    assert all(call.tool_choice for call in calls[1:])
+    assert all(
+        call.tool_choice
+        == {
+            "type": "function",
+            "function": {"name": "search_docs_by_lang_chain"},
+        }
+        for call in calls[1:]
+    )
     assert "```" not in result.result[0].content
     assert url not in result.result[0].content
     assert result.result[0].content.startswith("Documentation could not be consulted")
+
+
+def test_forced_retry_uses_google_tool_choice_config():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key="test"),
+        messages=[HumanMessage(content="How do I build a graph?")],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=(
+                        "Use this API:\n\n```python\nStateGraph()\n```\n\n"
+                        "See https://docs.langchain.com/oss/python/langgraph/graph-api."
+                    )
+                )
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 3
+    assert all(
+        call.tool_choice
+        == {
+            "function_calling_config": {
+                "mode": "any",
+                "allowed_function_names": ["search_docs_by_lang_chain"],
+            }
+        }
+        for call in calls[1:]
+    )
 
 
 def test_disabled_env_escape_hatch_skips_enforcement(monkeypatch):
