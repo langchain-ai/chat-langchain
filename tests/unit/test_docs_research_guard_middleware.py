@@ -110,6 +110,55 @@ def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     assert calls[1].messages[:-1] == messages
     assert isinstance(calls[1].messages[-1], HumanMessage)
     assert "research this question on this turn" in calls[1].messages[-1].content
+    assert calls[1].tool_choice == "search_docs_by_lang_chain"
+    assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
+
+
+def test_forced_retry_tool_choice_matches_google_style_binding():
+    middleware = DocsResearchGuardMiddleware()
+
+    class GoogleStyleModel:
+        def bind_tools(self, tools, *, tool_choice):
+            if not isinstance(tool_choice, str):
+                raise ValueError("Unrecognized tool choice format")
+            return self
+
+    calls: list[ModelRequest] = []
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        if request.tool_choice is not None:
+            request.model.bind_tools([], tool_choice=request.tool_choice)
+            return ModelResponse(
+                result=[
+                    AIMessage(
+                        content="I verified the documentation.",
+                        tool_calls=[
+                            {
+                                "name": "search_docs_by_lang_chain",
+                                "args": {"query": "stategraph"},
+                                "id": "fresh-search",
+                                "type": "tool_call",
+                            }
+                        ],
+                    )
+                ]
+            )
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="The StateGraph constructor accepts configuration options."
+                )
+            ]
+        )
+
+    request = ModelRequest(
+        model=GoogleStyleModel(),
+        messages=[HumanMessage(content="How do I build a graph?")],
+    )
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
     assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
 
 

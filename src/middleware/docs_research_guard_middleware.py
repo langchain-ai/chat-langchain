@@ -38,6 +38,7 @@ READ_TOOLS = frozenset(
 )
 RESEARCH_TOOLS = SEARCH_TOOLS | READ_TOOLS
 RESEARCH_GUARD_DISABLED_ENV = "DOCS_RESEARCH_GUARD_DISABLED"
+FORCED_RESEARCH_TOOL_NAME = "search_docs_by_lang_chain"
 _RETRY_INSTRUCTIONS = (
     "Before answering, research this question on this turn. Call "
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
@@ -102,10 +103,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
                     HumanMessage(content=_RETRY_INSTRUCTIONS),
                 ],
                 system_message=self._retry_system_message(request),
-                tool_choice={
-                    "type": "function",
-                    "function": {"name": "search_docs_by_lang_chain"},
-                },
+                tool_choice=FORCED_RESEARCH_TOOL_NAME,
             )
             response = await handler(retry_request)
             if self._has_pending_tool_calls(self._response_messages(response)):

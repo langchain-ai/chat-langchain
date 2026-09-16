@@ -24,11 +24,12 @@ ARTICLE = {
     ["uuid-123", "12345", "12345-troubleshooting-login"],
 )
 def test_get_support_article_content_resolves_supported_identifiers(article_id):
-    with patch(
-        "src.tools.pylon_tools._fetch_all_articles", return_value=[ARTICLE]
-    ), patch(
-        "src.tools.pylon_tools._fetch_collections",
-        return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+    with (
+        patch("src.tools.pylon_tools._fetch_all_articles", return_value=[ARTICLE]),
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+        ),
     ):
         result = get_support_article_content.invoke({"article_id": article_id})
 
@@ -38,12 +39,15 @@ def test_get_support_article_content_resolves_supported_identifiers(article_id):
 
 def test_get_support_article_content_suggests_closest_articles_on_miss():
     other_article = {**ARTICLE, "id": "uuid-456", "title": "Resetting Login"}
-    with patch(
-        "src.tools.pylon_tools._fetch_all_articles",
-        return_value=[ARTICLE, other_article],
-    ), patch(
-        "src.tools.pylon_tools._fetch_collections",
-        return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+    with (
+        patch(
+            "src.tools.pylon_tools._fetch_all_articles",
+            return_value=[ARTICLE, other_article],
+        ),
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+        ),
     ):
         result = get_support_article_content.invoke({"article_id": "login-help"})
 
@@ -53,17 +57,18 @@ def test_get_support_article_content_suggests_closest_articles_on_miss():
 
 
 def test_search_support_articles_normalizes_parenthetical_collection_words():
-    with patch(
-        "src.tools.pylon_tools._fetch_all_articles", return_value=[ARTICLE]
-    ), patch(
-        "src.tools.pylon_tools._fetch_collections",
-        return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+    with (
+        patch("src.tools.pylon_tools._fetch_all_articles", return_value=[ARTICLE]),
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+        ),
     ):
         result = search_support_articles.invoke(
-            {"collections": " OSS (LangGraph and LangChain) "}
+            {"query": "login", "collections": " OSS (LangGraph and LangChain) "}
         )
 
     payload = json.loads(result)
-    assert payload["total"] == 1
+    assert payload["total_matched"] == 1
     assert payload["articles"][0]["id"] == "uuid-123"
     assert payload["articles"][0]["article_id"] == "uuid-123"
