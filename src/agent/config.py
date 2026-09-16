@@ -139,7 +139,7 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
-duplicate_call_guard_middleware = DuplicateCallGuardMiddleware()
+duplicate_call_guard_middleware = DuplicateCallGuardMiddleware(max_tool_calls=32)
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 

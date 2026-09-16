@@ -5,6 +5,7 @@ import asyncio
 import pytest
 from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
+from langgraph.types import Command
 
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
 
@@ -47,6 +48,65 @@ def test_identical_call_returns_cached_content_with_current_call_identity():
     assert second.name == "search_docs"
     assert "already made on this turn" in second.content
     assert "cached result" in second.content
+
+
+def test_concurrent_identical_calls_only_execute_once():
+    middleware = DuplicateCallGuardMiddleware()
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        await asyncio.sleep(0.01)
+        return ToolMessage(
+            content="concurrent result",
+            name=request.tool_call["name"],
+            tool_call_id=request.tool_call["id"],
+        )
+
+    async def invoke():
+        return await asyncio.gather(
+            middleware.awrap_tool_call(
+                _request("search_docs", "call-1", {"query": "middleware"}),
+                handler,
+            ),
+            middleware.awrap_tool_call(
+                _request("search_docs", "call-2", {"query": "middleware"}),
+                handler,
+            ),
+        )
+
+    first, second = asyncio.run(invoke())
+
+    assert len(calls) == 1
+    assert first.tool_call_id == "call-1"
+    assert second.tool_call_id == "call-2"
+    assert "already made on this turn" in first.content or "already made on this turn" in second.content
+
+
+def test_tool_call_ceiling_ends_graph_with_final_note():
+    middleware = DuplicateCallGuardMiddleware(max_tool_calls=1)
+
+    async def handler(request):
+        return ToolMessage(
+            content="result",
+            name=request.tool_call["name"],
+            tool_call_id=request.tool_call["id"],
+        )
+
+    async def invoke():
+        await middleware.awrap_tool_call(
+            _request("search_docs", "call-1", {"query": "middleware"}),
+            handler,
+        )
+        return await middleware.awrap_tool_call(
+            _request("search_docs", "call-2", {"query": "other"}), handler
+        )
+
+    result = asyncio.run(invoke())
+
+    assert isinstance(result, Command)
+    assert result.goto == "__end__"
+    assert "per-turn tool-call limit" in result.update["messages"][1].content
 
 
 def test_different_arguments_pass_through_for_non_budgeted_tools():
