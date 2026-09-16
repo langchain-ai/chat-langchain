@@ -1,8 +1,11 @@
-# Prompt provenance lookup for LangSmith trace metadata.
+"""Prompt provenance lookup for LangSmith trace metadata."""
 
 import logging
 import os
 from functools import lru_cache
+from hashlib import sha256
+
+from src.prompts.docs_agent_prompt import docs_agent_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,10 @@ _GUARDRAILS_HUB_PROMPTS: dict[str, str] = {
         if _USE_STAGING
         else "public-chat-langchain-guardrails-test:production"
     ),
+}
+_SERVED_PROMPT_METADATA = {
+    "served_prompt": "repo:src/prompts/docs_agent_prompt.py",
+    "served_prompt_hash": sha256(docs_agent_prompt.encode()).hexdigest()[:12],
 }
 
 
@@ -104,6 +111,7 @@ def get_prompt_provenance(graph_id: str) -> dict[str, str]:
         return {
             "prompt_source": "local:instructions.md",
             "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
+            **_SERVED_PROMPT_METADATA,
         }
 
     if graph_id in _HUB_PROMPTS:
@@ -118,6 +126,7 @@ def get_prompt_provenance(graph_id: str) -> dict[str, str]:
         provenance = {
             "prompt_source": source,
             "guardrails_prompt_source": guardrails_source,
+            **_SERVED_PROMPT_METADATA,
         }
         if commit:
             provenance["prompt_commit"] = commit

@@ -91,7 +91,7 @@ operations go through the managed identity and connector surface.
 ```txt
 ├── agent.py                    # Managed Deep Agent entrypoint
 ├── identity.py                 # MDA identity contract (Supabase + guest)
-├── instructions.md             # Managed Deep Agent system prompt
+├── instructions.md             # Generated mirror of the source-of-truth prompt
 ├── connectors/
 │   ├── langsmith.py            # LangSmith feedback + trace connector
 │   └── mcp.py                  # Managed MCP docs connector
@@ -103,7 +103,7 @@ operations go through the managed identity and connector surface.
 │   │   ├── pricing_tools.py    # Pricing fetch
 │   │   └── link_check_tools.py # URL validation
 │   ├── prompts/
-│   │   ├── docs_agent_prompt.py # Hub push / eval mirror of instructions.md
+│   │   ├── docs_agent_prompt.py # Source of truth for the docs agent prompt
 │   │   ├── guardrails_prompts.py
 │   │   └── context_summary_prompt.py
 │   └── middleware/
@@ -113,6 +113,11 @@ operations go through the managed identity and connector surface.
 ├── frontend/                   # Next.js public chat UI
 └── pyproject.toml              # Python project config
 ```
+
+`src/prompts/docs_agent_prompt.py` is the source of truth for the docs agent
+system prompt. `instructions.md` is generated from it by
+`scripts/sync_instructions.py` and kept byte-identical as a compatibility
+mirror.
 
 ## How It Works
 

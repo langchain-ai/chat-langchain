@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import importlib
+from hashlib import sha256
 
 from langchain_core.messages import SystemMessage
 
+from src.prompts.docs_agent_prompt import docs_agent_prompt
 from src.utils import prompt_provenance as provenance
 
 
@@ -21,6 +23,8 @@ def test_get_prompt_provenance_local_mode(monkeypatch):
     assert result == {
         "prompt_source": "local:instructions.md",
         "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
+        "served_prompt": "repo:src/prompts/docs_agent_prompt.py",
+        "served_prompt_hash": sha256(docs_agent_prompt.encode()).hexdigest()[:12],
     }
     assert "prompt_commit" not in result
 
@@ -60,6 +64,10 @@ def test_resolve_hub_provenance_uses_prompt_workspace_and_api_key(monkeypatch):
     assert result["guardrails_prompt_commit"] == (
         "commit-for-public-chat-langchain-guardrails-test:production"
     )
+    assert result["served_prompt"] == "repo:src/prompts/docs_agent_prompt.py"
+    assert result["served_prompt_hash"] == sha256(
+        docs_agent_prompt.encode()
+    ).hexdigest()[:12]
 
 
 def test_resolve_hub_provenance_without_overrides_uses_default_client(monkeypatch):
