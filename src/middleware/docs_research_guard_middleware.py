@@ -44,6 +44,11 @@ _RETRY_INSTRUCTIONS = (
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
     "then use the retrieved documentation to answer. Do not answer from memory."
 )
+_SUPPORT_RETRY_INSTRUCTIONS = (
+    "Before answering, research this question on this turn. Call "
+    "search_support_articles and get_support_article_content, then use the "
+    "retrieved support article to answer. Do not answer from memory."
+)
 _DISCLOSURE = (
     "Documentation could not be consulted on this turn, so the following answer "
     "may contain unverified information."
@@ -95,15 +100,22 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             return response
 
         turn_key = self._turn_key(request.messages)
+        attempted_tools: set[str] = set()
         while self._attempt_count(turn_key) < _MAX_FORCED_ATTEMPTS:
             self._record_attempt(turn_key)
+            current_turn = self._turn_messages(
+                request.messages, self._response_messages(response)
+            )
+            forced_tool = self._missing_research_tool(current_turn, attempted_tools)
+            attempted_tools.add(forced_tool)
+            retry_instructions = self._retry_instructions(forced_tool)
             retry_request = request.override(
                 messages=[
                     *request.messages,
-                    HumanMessage(content=_RETRY_INSTRUCTIONS),
+                    HumanMessage(content=retry_instructions),
                 ],
-                system_message=self._retry_system_message(request),
-                tool_choice=FORCED_RESEARCH_TOOL_NAME,
+                system_message=self._retry_system_message(request, retry_instructions),
+                tool_choice=forced_tool,
             )
             response = await handler(retry_request)
             if self._has_pending_tool_calls(self._response_messages(response)):
@@ -172,22 +184,78 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         )
 
     def _has_research_tool(self, messages: list[BaseMessage]) -> bool:
-        tool_messages = [
+        return any(
+            self._has_research_pair(messages, search_tool, read_tool)
+            for search_tool, read_tool in (
+                (
+                    "search_docs_by_lang_chain",
+                    "query_docs_filesystem_docs_by_lang_chain",
+                ),
+                ("search_support_articles", "get_support_article_content"),
+            )
+        )
+
+    def _has_research_pair(
+        self, messages: list[BaseMessage], search_tool: str, read_tool: str
+    ) -> bool:
+        usable_messages = [
             message
             for message in messages
-            if isinstance(message, ToolMessage)
-            and message.name in RESEARCH_TOOLS
-            and self._has_usable_content(message)
+            if isinstance(message, ToolMessage) and self._has_usable_content(message)
         ]
-        for index, message in enumerate(tool_messages):
-            if not self._is_large_result_pointer(message):
-                return True
-            if any(
-                later.name == "read_file" and not self._is_large_result_pointer(later)
-                for later in tool_messages[index + 1 :]
-            ):
-                return True
-        return False
+        search_messages = [
+            message for message in usable_messages if message.name == search_tool
+        ]
+        if not search_messages:
+            return False
+        if any(
+            message.name == read_tool and not self._is_large_result_pointer(message)
+            for message in usable_messages
+        ):
+            return True
+        return any(
+            self._is_large_result_pointer(message)
+            and any(
+                later.name == "read_file"
+                and not self._is_large_result_pointer(later)
+                for later in usable_messages[index + 1 :]
+            )
+            for index, message in enumerate(usable_messages)
+            if message.name == search_tool
+        )
+
+    def _missing_research_tool(
+        self, messages: list[BaseMessage], attempted_tools: set[str]
+    ) -> str:
+        usable_searches = {
+            message.name
+            for message in messages
+            if isinstance(message, ToolMessage)
+            and message.name in SEARCH_TOOLS
+            and self._has_usable_content(message)
+        }
+        if not usable_searches:
+            return FORCED_RESEARCH_TOOL_NAME
+        missing_tools = []
+        if "search_docs_by_lang_chain" in usable_searches and not self._has_research_pair(
+            messages,
+            "search_docs_by_lang_chain",
+            "query_docs_filesystem_docs_by_lang_chain",
+        ):
+            missing_tools.append("query_docs_filesystem_docs_by_lang_chain")
+        if "search_support_articles" in usable_searches and not self._has_research_pair(
+            messages, "search_support_articles", "get_support_article_content"
+        ):
+            missing_tools.append("get_support_article_content")
+        for tool_name in missing_tools:
+            if tool_name not in attempted_tools:
+                return tool_name
+        return missing_tools[0] if missing_tools else FORCED_RESEARCH_TOOL_NAME
+
+    def _retry_instructions(self, forced_tool: str) -> str:
+        if forced_tool == "get_support_article_content":
+            return _SUPPORT_RETRY_INSTRUCTIONS
+        return _RETRY_INSTRUCTIONS
 
     def _has_usable_content(self, message: ToolMessage) -> bool:
         return message.status not in {"error", "failure", "failed"} and bool(
@@ -232,9 +300,11 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             )
         return str(content)
 
-    def _retry_system_message(self, request: ModelRequest) -> SystemMessage:
+    def _retry_system_message(
+        self, request: ModelRequest, retry_instructions: str
+    ) -> SystemMessage:
         existing = request.system_message.text if request.system_message else ""
-        content = f"{existing}\n\n{_RETRY_INSTRUCTIONS}".strip()
+        content = f"{existing}\n\n{retry_instructions}".strip()
         return SystemMessage(content=content)
 
     def _attempt_count(self, turn_key: str) -> int:
