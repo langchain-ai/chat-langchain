@@ -20,6 +20,7 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from src.middleware.duplicate_call_guard_middleware import consume_repair_budget
 from src.tools.link_check_tools import _check_urls_async
 
 DOCS_TOOLS = frozenset(
@@ -83,7 +84,11 @@ class CitationGuardMiddleware(AgentMiddleware):
         repaired_text = self._remove_footer_urls(
             self._message_text(footer_message), invalid_urls
         )
-        if not self._urls_in_footer_text(repaired_text):
+        if (
+            self._has_docs_tool(turn_messages)
+            and self._urls_in_footer_text(repaired_text)
+            and consume_repair_budget(request.state, request.messages)
+        ):
             retry_request = request.override(
                 messages=[
                     *request.messages,
@@ -91,7 +96,26 @@ class CitationGuardMiddleware(AgentMiddleware):
                 ],
                 system_message=self._retry_system_message(request),
             )
-            return await handler(retry_request)
+            retry_response = await handler(retry_request)
+            if self._has_pending_tool_calls(self._response_messages(retry_response)):
+                return retry_response
+            retry_footer = self._footer_message(self._response_messages(retry_response))
+            if retry_footer is None:
+                return retry_response
+            retry_invalid_urls = {
+                url
+                for url in self._urls_in_footer(retry_footer)
+                if url not in grounded_urls or url not in valid_urls
+            }
+            if retry_invalid_urls:
+                return self._replace_footer(
+                    retry_response,
+                    retry_footer,
+                    self._remove_footer_urls(
+                        self._message_text(retry_footer), retry_invalid_urls
+                    ),
+                )
+            return retry_response
         return self._replace_footer(response, footer_message, repaired_text)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
@@ -132,6 +156,12 @@ class CitationGuardMiddleware(AgentMiddleware):
             if isinstance(message, ToolMessage) and message.name in DOCS_TOOLS
             for url in _URL_PATTERN.findall(self._message_text(message))
         }
+
+    def _has_docs_tool(self, messages: list[BaseMessage]) -> bool:
+        return any(
+            isinstance(message, ToolMessage) and message.name in DOCS_TOOLS
+            for message in messages
+        )
 
     def _valid_urls(self, messages: list[BaseMessage]) -> set[str]:
         valid_urls: set[str] = set()

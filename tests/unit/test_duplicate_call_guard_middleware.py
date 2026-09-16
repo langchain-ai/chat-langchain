@@ -6,20 +6,30 @@ import pytest
 from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
-from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.duplicate_call_guard_middleware import (
+    DuplicateCallGuardMiddleware,
+    consume_repair_budget,
+)
 
 
-def _request(name: str, call_id: str, args: dict, content: str = "Question"):
+def _request(
+    name: str,
+    call_id: str,
+    args: dict,
+    content: str = "Question",
+    state: dict | None = None,
+):
     return ToolCallRequest(
         tool_call={"name": name, "id": call_id, "args": args},
         tool=None,
-        state={"messages": [HumanMessage(content=content)]},
+        state=state or {"messages": [HumanMessage(content=content)]},
         runtime=None,
     )
 
 
 def test_identical_call_returns_cached_content_with_current_call_identity():
     middleware = DuplicateCallGuardMiddleware()
+    state = {"messages": [HumanMessage(content="Question")]}
     calls = []
 
     async def handler(request):
@@ -32,10 +42,10 @@ def test_identical_call_returns_cached_content_with_current_call_identity():
 
     async def invoke():
         first = await middleware.awrap_tool_call(
-            _request("search_docs", "call-1", {"query": "middleware"}), handler
+            _request("search_docs", "call-1", {"query": "middleware"}, state=state), handler
         )
         second = await middleware.awrap_tool_call(
-            _request("search_docs", "call-2", {"query": "middleware"}), handler
+            _request("search_docs", "call-2", {"query": "middleware"}, state=state), handler
         )
         return first, second
 
@@ -51,6 +61,7 @@ def test_identical_call_returns_cached_content_with_current_call_identity():
 
 def test_different_arguments_pass_through_for_non_budgeted_tools():
     middleware = DuplicateCallGuardMiddleware()
+    state = {"messages": [HumanMessage(content="Question")]}
     calls = []
 
     async def handler(request):
@@ -63,10 +74,10 @@ def test_different_arguments_pass_through_for_non_budgeted_tools():
 
     async def invoke():
         await middleware.awrap_tool_call(
-            _request("search_docs", "call-1", {"query": "first"}), handler
+            _request("search_docs", "call-1", {"query": "first"}, state=state), handler
         )
         await middleware.awrap_tool_call(
-            _request("search_docs", "call-2", {"query": "second"}), handler
+            _request("search_docs", "call-2", {"query": "second"}, state=state), handler
         )
 
     asyncio.run(invoke())
@@ -76,6 +87,7 @@ def test_different_arguments_pass_through_for_non_budgeted_tools():
 
 def test_failed_call_is_not_cached_and_can_be_retried():
     middleware = DuplicateCallGuardMiddleware()
+    state = {"messages": [HumanMessage(content="Question")]}
     attempts = 0
 
     async def handler(request):
@@ -90,11 +102,11 @@ def test_failed_call_is_not_cached_and_can_be_retried():
         )
 
     async def invoke():
-        request = _request("search_docs", "call-1", {"query": "retry"})
+        request = _request("search_docs", "call-1", {"query": "retry"}, state=state)
         with pytest.raises(RuntimeError):
             await middleware.awrap_tool_call(request, handler)
         return await middleware.awrap_tool_call(
-            _request("search_docs", "call-2", {"query": "retry"}), handler
+            _request("search_docs", "call-2", {"query": "retry"}, state=state), handler
         )
 
     result = asyncio.run(invoke())
@@ -105,6 +117,7 @@ def test_failed_call_is_not_cached_and_can_be_retried():
 
 def test_check_links_allows_one_invocation_per_turn():
     middleware = DuplicateCallGuardMiddleware()
+    state = {"messages": [HumanMessage(content="Question")]}
     calls = []
 
     async def handler(request):
@@ -117,11 +130,11 @@ def test_check_links_allows_one_invocation_per_turn():
 
     async def invoke():
         first = await middleware.awrap_tool_call(
-            _request("check_links", "call-1", {"urls": ["https://one.example"]}),
+            _request("check_links", "call-1", {"urls": ["https://one.example"]}, state=state),
             handler,
         )
         second = await middleware.awrap_tool_call(
-            _request("check_links", "call-2", {"urls": ["https://two.example"]}),
+            _request("check_links", "call-2", {"urls": ["https://two.example"]}, state=state),
             handler,
         )
         return first, second
@@ -131,3 +144,52 @@ def test_check_links_allows_one_invocation_per_turn():
     assert len(calls) == 1
     assert first.content == "validated"
     assert "may only be called once per turn" in second.content
+
+
+def test_separate_asyncio_tasks_share_turn_budget_and_cache():
+    middleware = DuplicateCallGuardMiddleware()
+    state = {"messages": [HumanMessage(id="turn-1", content="Question")]}
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        await asyncio.sleep(0)
+        return ToolMessage(
+            content="validated",
+            name=request.tool_call["name"],
+            tool_call_id=request.tool_call["id"],
+        )
+
+    async def invoke(request):
+        return await middleware.awrap_tool_call(request, handler)
+
+    async def run():
+        requests = [
+            ToolCallRequest(
+                tool_call={
+                    "name": "check_links",
+                    "id": f"call-{index}",
+                    "args": {"urls": ["https://one.example"]},
+                },
+                tool=None,
+                state=state,
+                runtime=None,
+            )
+            for index in range(2)
+        ]
+        return await asyncio.gather(*(invoke(request) for request in requests))
+
+    first, second = asyncio.run(run())
+
+    assert len(calls) == 1
+    assert "validated" in first.content
+    assert "may only be called once per turn" in second.content
+
+
+def test_repair_budget_is_shared_by_model_guards_for_one_human_message():
+    messages = [HumanMessage(id="turn-2", content="Question")]
+    state = {"messages": messages}
+
+    assert consume_repair_budget(state, messages)
+    assert consume_repair_budget(state, messages)
+    assert not consume_repair_budget(state, messages)
