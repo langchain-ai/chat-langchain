@@ -21,6 +21,21 @@ RETRYABLE_FINISH_REASONS = {
 }
 
 
+def _is_non_retryable(exc: BaseException) -> bool:
+    """Return whether an exception represents a deterministic rejection."""
+    if isinstance(exc, ValueError):
+        return True
+
+    status_code = getattr(exc, "status_code", None)
+    if status_code is None:
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+    if status_code in {400, 401, 403, 404, 413, 422}:
+        return True
+
+    exception_name = type(exc).__name__
+    return exception_name.endswith(("InvalidRequestError", "BadRequestError"))
+
+
 class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
 
@@ -32,7 +47,7 @@ class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     def _kwargs_retrying(self) -> dict[str, object]:
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
-            lambda exception: not isinstance(exception, ValueError)
+            lambda exception: not _is_non_retryable(exception)
         )
         return kwargs
 
@@ -86,7 +101,8 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if _is_non_retryable(e):
+                    logger.warning("non-retryable provider rejection: %s", e)
                     raise
                 last_exception = e
                 if attempt < self.max_retries:
