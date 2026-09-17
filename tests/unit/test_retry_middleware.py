@@ -11,6 +11,14 @@ from src.middleware.retry_middleware import (
 )
 
 
+class AnthropicInvalidRequestError(Exception):
+    status_code = 400
+
+
+class OpenAIInvalidRequestError(Exception):
+    status_code = 400
+
+
 def test_provider_validation_error_is_not_retried():
     middleware = ModelRetryMiddleware(max_retries=2, initial_delay=0)
     calls = 0
@@ -21,6 +29,30 @@ def test_provider_validation_error_is_not_retried():
         raise ValueError("unsupported request shape")
 
     with pytest.raises(ValueError, match="unsupported request shape"):
+        asyncio.run(
+            middleware.awrap_model_call(
+                ModelRequest(model=object(), messages=[HumanMessage(content="Hi")]),
+                handler,
+            )
+        )
+
+    assert calls == 1
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [AnthropicInvalidRequestError, OpenAIInvalidRequestError],
+)
+def test_provider_400_is_not_retried(error_type):
+    middleware = ModelRetryMiddleware(max_retries=2, initial_delay=0)
+    calls = 0
+
+    async def handler(request: ModelRequest):
+        nonlocal calls
+        calls += 1
+        raise error_type("invalid_request_error: unsupported request shape")
+
+    with pytest.raises(error_type, match="invalid_request_error"):
         asyncio.run(
             middleware.awrap_model_call(
                 ModelRequest(model=object(), messages=[HumanMessage(content="Hi")]),
@@ -44,6 +76,24 @@ def test_model_retry_wrapper_does_not_retry_provider_validation_error():
     )
 
     with pytest.raises(ValueError, match="unsupported request shape"):
+        runnable.invoke("request")
+
+    assert calls == 1
+
+
+def test_model_retry_wrapper_does_not_retry_provider_400():
+    calls = 0
+
+    def invoke(_input):
+        nonlocal calls
+        calls += 1
+        raise OpenAIInvalidRequestError("invalid_request_error")
+
+    runnable = _ProviderValidationAwareRunnableRetry(
+        bound=RunnableLambda(invoke), max_attempt_number=3
+    )
+
+    with pytest.raises(OpenAIInvalidRequestError, match="invalid_request_error"):
         runnable.invoke("request")
 
     assert calls == 1
