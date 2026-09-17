@@ -5,11 +5,15 @@
 import json
 import logging
 import os
+import threading
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
 from langchain.tools import tool
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 load_dotenv()
 
@@ -41,11 +45,52 @@ def _get_api_key() -> str:
 
 _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
+_session: Optional[requests.Session] = None
+_articles_backoff_until: float = 0.0
+
+# Reentrant because _get_session() is called while the cache lock is held.
+_cache_lock = threading.RLock()
+
+ARTICLES_BACKOFF_SECONDS = 60.0
 
 
 def _get_headers() -> Dict[str, str]:
     """Get API headers with authentication."""
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
+
+
+def _get_session() -> requests.Session:
+    """Get a shared session that retries 429/5xx responses with backoff."""
+    global _session
+
+    with _cache_lock:
+        if _session is None:
+            session = requests.Session()
+            retry = Retry(
+                total=3,
+                backoff_factor=1.0,
+                status_forcelist=(429, 500, 502, 503, 504),
+                respect_retry_after_header=True,
+                allowed_methods=frozenset(["GET"]),
+            )
+            session.mount("https://", HTTPAdapter(max_retries=retry))
+            _session = session
+
+    return _session
+
+
+def _session_get(url: str, **kwargs: Any) -> requests.Response:
+    """Issue a GET request through the shared retrying session."""
+    return _get_session().get(url, **kwargs)
+
+
+def _is_retryable_request_error(error: requests.exceptions.RequestException) -> bool:
+    """Check whether a transport failure should be retried instead of reported."""
+    status = getattr(getattr(error, "response", None), "status_code", None)
+    if status is None:
+        # Connection resets, timeouts and exhausted retries carry no response.
+        return True
+    return status == 429 or status >= 500
 
 
 def _fetch_collections() -> Dict[str, str]:
@@ -56,24 +101,25 @@ def _fetch_collections() -> Dict[str, str]:
     """
     global _collections_cache
 
-    if _collections_cache is not None:
+    with _cache_lock:
+        if _collections_cache is not None:
+            return _collections_cache
+
+        kb_id = _get_kb_id()
+        url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
+        response = _session_get(url, headers=_get_headers())
+        response.raise_for_status()
+
+        collections_data = response.json().get("data", [])
+
+        # Build mapping of collection names to IDs (only public collections)
+        _collections_cache = {
+            coll["title"]: coll["id"]
+            for coll in collections_data
+            if coll.get("visibility_config", {}).get("visibility") == "public"
+        }
+
         return _collections_cache
-
-    kb_id = _get_kb_id()
-    url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
-    response = requests.get(url, headers=_get_headers())
-    response.raise_for_status()
-
-    collections_data = response.json().get("data", [])
-
-    # Build mapping of collection names to IDs (only public collections)
-    _collections_cache = {
-        coll["title"]: coll["id"]
-        for coll in collections_data
-        if coll.get("visibility_config", {}).get("visibility") == "public"
-    }
-
-    return _collections_cache
 
 
 def _fetch_all_articles() -> List[Dict[str, Any]]:
@@ -82,44 +128,65 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     Follows pagination cursors until all pages are retrieved, with a safety
     cap of 10 pages (~1000 articles) to prevent infinite loops.
     """
-    global _articles_cache
+    global _articles_cache, _articles_backoff_until
 
-    if _articles_cache is not None:
+    # The lock serialises the pagination walk so concurrent callers wait for one
+    # in-flight fetch instead of each hammering the endpoint with ten requests.
+    with _cache_lock:
+        if _articles_cache is not None:
+            return _articles_cache
+
+        if time.monotonic() < _articles_backoff_until:
+            raise requests.exceptions.RetryError(
+                "Pylon articles endpoint returned too many requests; backing off before retrying"
+            )
+
+        kb_id = _get_kb_id()
+        url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/articles"
+        headers = _get_headers()
+
+        all_articles: List[Dict[str, Any]] = []
+        max_pages = 10
+        pages_fetched = 0
+        params: Dict[str, Any] = {}
+
+        while pages_fetched < max_pages:
+            try:
+                response = _session_get(url, headers=headers, params=params)
+                response.raise_for_status()
+            except requests.exceptions.RequestException:
+                _articles_backoff_until = time.monotonic() + ARTICLES_BACKOFF_SECONDS
+                if all_articles:
+                    # Keep the pages already retrieved; restarting the walk against a
+                    # throttled endpoint only deepens the rate limit.
+                    logger.warning(
+                        "Pylon article pagination failed after %d page(s); caching partial results",
+                        pages_fetched,
+                    )
+                    _articles_cache = all_articles
+                    return _articles_cache
+                raise
+            body = response.json()
+
+            page_data = body.get("data", [])
+            all_articles.extend(page_data)
+            pages_fetched += 1
+
+            # Resolve next-page cursor from common Pylon/REST pagination shapes
+            next_cursor = (
+                body.get("next")
+                or body.get("meta", {}).get("next")
+                or body.get("links", {}).get("next")
+                or body.get("pagination", {}).get("cursor")
+            )
+
+            if not next_cursor:
+                break
+
+            params = {"cursor": next_cursor}
+
+        _articles_cache = all_articles
         return _articles_cache
-
-    kb_id = _get_kb_id()
-    url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/articles"
-    headers = _get_headers()
-
-    all_articles: List[Dict[str, Any]] = []
-    max_pages = 10
-    pages_fetched = 0
-    params: Dict[str, Any] = {}
-
-    while pages_fetched < max_pages:
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
-        body = response.json()
-
-        page_data = body.get("data", [])
-        all_articles.extend(page_data)
-        pages_fetched += 1
-
-        # Resolve next-page cursor from common Pylon/REST pagination shapes
-        next_cursor = (
-            body.get("next")
-            or body.get("meta", {}).get("next")
-            or body.get("links", {}).get("next")
-            or body.get("pagination", {}).get("cursor")
-        )
-
-        if not next_cursor:
-            break
-
-        params = {"cursor": next_cursor}
-
-    _articles_cache = all_articles
-    return _articles_cache
 
 
 # =============================================================================
@@ -204,6 +271,12 @@ def search_support_articles(collections: str = "all") -> str:
         # Fetch collection map for naming
         try:
             collection_map = _fetch_collections()
+        except requests.exceptions.RequestException as e:
+            if _is_retryable_request_error(e):
+                raise
+            return json.dumps(
+                {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
+            )
         except Exception as e:
             return json.dumps(
                 {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
@@ -279,7 +352,10 @@ def search_support_articles(collections: str = "all") -> str:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
     except requests.exceptions.RequestException as e:
-        # Network/API error
+        # Retryable transport failures must propagate so tool_retry_middleware retries
+        # them; returning the error text lets the model treat it as a valid observation.
+        if _is_retryable_request_error(e):
+            raise
         return json.dumps({"error": str(e)}, indent=2)
     except Exception as e:
         # Catch-all for unexpected errors
@@ -350,7 +426,10 @@ Content:
         # API key not configured
         return f"Error: {str(e)}"
     except requests.exceptions.RequestException as e:
-        # Network/API error
+        # Retryable transport failures must propagate so tool_retry_middleware retries
+        # them; returning the error text lets the model treat it as a valid observation.
+        if _is_retryable_request_error(e):
+            raise
         return f"Error fetching article: {str(e)}"
     except Exception as e:
         # Catch-all for unexpected errors
