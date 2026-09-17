@@ -18,6 +18,29 @@ RETRYABLE_FINISH_REASONS = {
 }
 
 
+def _is_deterministic_request_error(error: Exception) -> bool:
+    """Return whether an error is caused by an invalid request shape."""
+    message = str(error).lower()
+    if isinstance(error, ValueError) and any(
+        term in message
+        for term in ("tool choice", "tool_choice", "tool schema", "tool_schema")
+    ):
+        return True
+
+    status_code = getattr(error, "status_code", None)
+    error_type = getattr(error, "type", None)
+    response = getattr(error, "response", None)
+    if response is not None:
+        status_code = status_code or getattr(response, "status_code", None)
+        response_text = getattr(response, "text", "")
+        message = f"{message} {response_text}".lower()
+
+    return (
+        status_code == 400
+        and (error_type == "invalid_request_error" or "invalid_request_error" in message)
+    )
+
+
 class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
 
@@ -70,6 +93,8 @@ class ModelRetryMiddleware(AgentMiddleware):
 
             except Exception as e:
                 last_exception = e
+                if _is_deterministic_request_error(e):
+                    raise
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
                     logger.warning(
