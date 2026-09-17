@@ -2,12 +2,19 @@
 
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
+from langchain.agents.middleware.model_fallback import (
+    _sanitize_request_for_fallback,
+    _supports_anthropic_cache_control,
+)
+from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
+from langgraph.errors import GraphBubbleUp
 
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
@@ -17,6 +24,8 @@ from src.middleware.retry_middleware import (
     MalformedResponseError,
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
+    _ProviderValidationAwareRunnableWithFallbacks,
+    is_non_retryable_request_error,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -128,7 +137,82 @@ def init_retry_fallback_model(model: str) -> Runnable:
     fallback_models = [
         _init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS
     ]
-    return primary_model.with_fallbacks(fallback_models)
+    return _ProviderValidationAwareRunnableWithFallbacks(
+        runnable=primary_model,
+        fallbacks=fallback_models,
+    )
+
+
+class _ProviderValidationAwareModelFallbackMiddleware(ModelFallbackMiddleware):
+    """Stop model fallback on provider request-validation errors."""
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        """Run model fallbacks while preserving request-validation errors."""
+        first_exception = None
+        try:
+            return handler(request)
+        except GraphBubbleUp:
+            raise
+        except Exception as exception:
+            if is_non_retryable_request_error(exception):
+                raise
+            first_exception = exception
+
+        for fallback_model in self.models:
+            fallback_request = (
+                request
+                if _supports_anthropic_cache_control(fallback_model)
+                else _sanitize_request_for_fallback(request)
+            )
+            try:
+                return handler(fallback_request.override(model=fallback_model))
+            except GraphBubbleUp:
+                raise
+            except Exception as exception:
+                if is_non_retryable_request_error(exception):
+                    raise
+
+        if first_exception is None:
+            raise RuntimeError("No error stored at end of fallbacks.")
+        raise first_exception
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelResponse:
+        """Run async model fallbacks while preserving validation errors."""
+        first_exception = None
+        try:
+            return await handler(request)
+        except GraphBubbleUp:
+            raise
+        except Exception as exception:
+            if is_non_retryable_request_error(exception):
+                raise
+            first_exception = exception
+
+        for fallback_model in self.models:
+            fallback_request = (
+                request
+                if _supports_anthropic_cache_control(fallback_model)
+                else _sanitize_request_for_fallback(request)
+            )
+            try:
+                return await handler(fallback_request.override(model=fallback_model))
+            except GraphBubbleUp:
+                raise
+            except Exception as exception:
+                if is_non_retryable_request_error(exception):
+                    raise
+
+        if first_exception is None:
+            raise RuntimeError("No error stored at end of fallbacks.")
+        raise first_exception
 
 
 summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
@@ -143,7 +227,9 @@ duplicate_call_guard_middleware = DuplicateCallGuardMiddleware()
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = _ProviderValidationAwareModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
