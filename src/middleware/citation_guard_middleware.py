@@ -183,7 +183,10 @@ class CitationGuardMiddleware(AgentMiddleware):
             for line in footer.splitlines()
             if not invalid_urls.intersection(_URL_PATTERN.findall(line))
         ]
-        return text[: match.start()] + "\n".join(lines) + text[match.end() :]
+        rebuilt_footer = "\n".join(lines)
+        if not self._urls_in_footer_text(rebuilt_footer):
+            return (text[: match.start()] + text[match.end() :]).rstrip()
+        return text[: match.start()] + rebuilt_footer + text[match.end() :]
 
     def _replace_footer(
         self, response: ModelResponse, message: AIMessage, text: str

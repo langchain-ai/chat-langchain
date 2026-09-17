@@ -72,4 +72,31 @@ def test_retry_response_strips_ungrounded_footer_url(monkeypatch):
 
     assert len(calls) == 2
     assert retry_url not in result.result[0].content
-    assert result.result[0].content == "Answer\n\n**Relevant docs:**"
+    assert "Relevant docs:" not in result.result[0].content
+
+
+def test_remove_footer_urls_keeps_grounded_urls():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    valid_url = "https://docs.langchain.com/guide"
+    invalid_url = "https://docs.langchain.com/invented"
+    text = (
+        f"Answer\n\n**Relevant docs:**\n- [Guide]({valid_url})\n"
+        f"- [Invented]({invalid_url})"
+    )
+
+    result = CitationGuardMiddleware()._remove_footer_urls(text, {invalid_url})
+
+    assert result == f"Answer\n\n**Relevant docs:**\n- [Guide]({valid_url})"
+
+
+def test_remove_footer_urls_drops_empty_footer():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    invalid_url = "https://docs.langchain.com/invented"
+    text = f"Answer\n\n**Relevant docs:**\n- [Invented]({invalid_url})"
+
+    result = CitationGuardMiddleware()._remove_footer_urls(text, {invalid_url})
+
+    assert result == "Answer"
+    assert "Relevant docs:" not in result
