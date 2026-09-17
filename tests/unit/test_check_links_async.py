@@ -8,23 +8,22 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+import socket
+from unittest.mock import patch
 
 import pytest
+
+from src.tools.link_check_tools import (
+    LinkCheckResult,
+    _cache,
+    _check_single_url,
+    check_links,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
-from src.tools.link_check_tools import (
-    LinkCheckResult,
-    _check_single_url,
-    _check_urls_async,
-    _format_results,
-    check_links,
-)
 
 
 class _FakeStreamResponse:
@@ -33,6 +32,7 @@ class _FakeStreamResponse:
     def __init__(self, url: str, status_code: int, content: str):
         self.url = url
         self.status_code = status_code
+        self.headers = {}
         self._content = content
 
     async def __aenter__(self):
@@ -54,6 +54,26 @@ class _FakeStreamingClient:
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
         return _FakeStreamResponse(url, self.status_code, self.content)
+
+
+class _FakeHeadResponse:
+    def __init__(self, status_code: int, headers: dict[str, str] | None = None):
+        self.status_code = status_code
+        self.headers = headers or {}
+
+
+class _FakeHeadClient:
+    def __init__(self, responses: dict[str, _FakeHeadResponse]):
+        self.responses = responses
+        self.requested_urls: list[str] = []
+
+    async def head(self, url: str, **kwargs):  # noqa: ARG002
+        self.requested_urls.append(url)
+        return self.responses[url]
+
+    async def get(self, url: str, **kwargs):  # noqa: ARG002
+        self.requested_urls.append(url)
+        return self.responses[url]
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +276,75 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_allowed_docs_url_is_checked(monkeypatch):
+    """Allowed documentation hosts still reach the HTTP checker."""
+    _cache.clear()
+    monkeypatch.setattr("src.tools.link_check_tools._is_blocked_address", lambda host: False)
+
+    result = await _check_single_url(
+        _FakeStreamingClient("<html><body>Documentation</body></html>"),
+        "https://docs.langchain.com/",
+        timeout=1.0,
+    )
+
+    assert result.valid
+    assert result.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_disallowed_host_is_rejected_without_network_call():
+    """Unallowlisted hosts are rejected before the client is used."""
+    _cache.clear()
+
+    class _NoNetworkClient:
+        def stream(self, *args, **kwargs):  # noqa: ARG002
+            raise AssertionError("network should not be called")
+
+    result = await _check_single_url(
+        _NoNetworkClient(), "https://github.com/langchain-ai/langchain", timeout=1.0
+    )
+
+    assert not result.valid
+    assert result.error == "Host not allowed for link validation"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("blocked_address", ["127.0.0.1", "169.254.169.254"])
+async def test_non_public_resolved_host_is_rejected(monkeypatch, blocked_address):
+    """Hosts resolving to loopback or metadata addresses are not fetched."""
+    _cache.clear()
+    monkeypatch.setattr(
+        "src.tools.link_check_tools.socket.getaddrinfo",
+        lambda host, port: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (blocked_address, 0))],
+    )
+
+    class _NoNetworkClient:
+        async def head(self, *args, **kwargs):  # noqa: ARG002
+            raise AssertionError("network should not be called")
+
+    result = await _check_single_url(
+        _NoNetworkClient(), f"https://docs.langchain.com/{blocked_address}", timeout=1.0
+    )
+
+    assert not result.valid
+    assert result.error == "Host resolves to a non-public address"
+
+
+@pytest.mark.asyncio
+async def test_redirect_to_disallowed_host_is_rejected_without_following(monkeypatch):
+    """Redirect targets are revalidated before a subsequent request."""
+    _cache.clear()
+    monkeypatch.setattr("src.tools.link_check_tools._is_blocked_address", lambda host: False)
+    source_url = "https://docs.langsmith.com/redirect"
+    client = _FakeHeadClient({
+        source_url: _FakeHeadResponse(302, {"location": "https://github.com/"}),
+    })
+
+    result = await _check_single_url(client, source_url, timeout=1.0)
+
+    assert not result.valid
+    assert result.error == "Host not allowed for link validation"
+    assert client.requested_urls == [source_url]
