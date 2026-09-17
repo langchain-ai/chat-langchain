@@ -20,6 +20,7 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from src.middleware.docs_research_guard_middleware import _is_large_result_pointer
 from src.tools.link_check_tools import _check_urls_async
 
 DOCS_TOOLS = frozenset(
@@ -125,6 +126,8 @@ class CitationGuardMiddleware(AgentMiddleware):
         grounded_urls: set[str] = set()
         for message in messages:
             if not isinstance(message, ToolMessage) or message.name not in DOCS_TOOLS:
+                continue
+            if _is_large_result_pointer(self._message_text(message)):
                 continue
             grounded_urls.update(_URL_PATTERN.findall(self._message_text(message)))
             if message.name == "fetch_langchain_pricing" and getattr(

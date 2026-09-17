@@ -470,7 +470,12 @@ def test_unread_large_result_pointer_does_not_satisfy_research_requirement():
         messages=[
             HumanMessage(content="Explain StateGraph."),
             ToolMessage(
-                content="/large_tool_results/result-123",
+                content=(
+                    "Tool result too large, the result of this tool call call_123 was "
+                    "saved in the filesystem at this path: /large_tool_results/call_123\n\n"
+                    "You can read the result from the filesystem by using the read_file "
+                    "tool, but make sure to only read part of the result at a time."
+                ),
                 name="search_docs_by_lang_chain",
                 tool_call_id="search",
             ),
@@ -491,6 +496,47 @@ def test_unread_large_result_pointer_does_not_satisfy_research_requirement():
 
     assert len(calls) == 3
     assert result.result[0].content.startswith("Documentation could not be consulted")
+
+
+def test_reading_large_result_pointer_satisfies_research_requirement():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Explain StateGraph."),
+            ToolMessage(
+                content=(
+                    "Tool result too large, the result of this tool call call_123 was "
+                    "saved in the filesystem at this path: /large_tool_results/call_123\n\n"
+                    "You can read the result from the filesystem by using the read_file "
+                    "tool, but make sure to only read part of the result at a time."
+                ),
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content="Title: StateGraph\nLink: https://docs.langchain.com/graph",
+                name="read_file",
+                tool_call_id="read",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="StateGraph is the graph class described in the docs."
+                )
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert result.result[0].content == "StateGraph is the graph class described in the docs."
 
 
 def test_check_links_only_is_not_research():

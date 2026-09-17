@@ -51,7 +51,11 @@ _DISCLOSURE = (
 _MAX_FORCED_ATTEMPTS = 2
 _DOCS_URL_PATTERN = re.compile(r"https://docs\.langchain\.com/[^\s<>\]\)\"']+")
 _CODE_BLOCK_PATTERN = re.compile(r"```.*?(?:```|$)", re.DOTALL)
-_LARGE_RESULT_POINTER_PATTERN = re.compile(r"^/large_tool_results/[^\s]+$")
+_LARGE_RESULT_POINTER_PATTERN = re.compile(r"/large_tool_results/[^\s]+")
+_RETRIEVED_DOC_CONTENT_PATTERN = re.compile(
+    r"https://docs\.langchain\.com/|(?:^|\n)\s*(?:Title|Link):",
+    re.IGNORECASE,
+)
 _NONTECHNICAL_USER_TURN_PATTERN = re.compile(
     r"(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|hola|bonjour|salut|"
     r"你好|您好|こんにちは|こんばんは|привет|здравствуйте|what\s+can\s+you\s+do|"
@@ -78,6 +82,13 @@ _FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 _FORCED_ATTEMPTS: contextvars.ContextVar[dict[str, int]] = contextvars.ContextVar(
     "docs_research_guard_forced_attempts", default={}
 )
+
+
+def _is_large_result_pointer(text: str) -> bool:
+    return bool(
+        _LARGE_RESULT_POINTER_PATTERN.search(text)
+        and not _RETRIEVED_DOC_CONTENT_PATTERN.search(text)
+    )
 
 
 class DocsResearchGuardMiddleware(AgentMiddleware):
@@ -195,9 +206,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         )
 
     def _is_large_result_pointer(self, message: ToolMessage) -> bool:
-        return bool(
-            _LARGE_RESULT_POINTER_PATTERN.fullmatch(self._message_text(message).strip())
-        )
+        return _is_large_result_pointer(self._message_text(message))
 
     def _is_substantive_technical_answer(self, messages: list[BaseMessage]) -> bool:
         text = "\n".join(self._message_text(message) for message in messages)
