@@ -23,6 +23,7 @@ from src.prompts.guardrails_prompts import (
 from src.prompts.guardrails_prompts import (
     rejection_system_prompt as _REJECTION_SYSTEM_PROMPT,
 )
+from src.utils.root_run_metadata import set_root_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -232,6 +233,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         decision = guardrails_decision["decision"]
         explanation = guardrails_decision["explanation"]
+        set_root_metadata(
+            guardrail_decision="blocked" if decision == "BLOCKED" else "allowed"
+        )
         guardrail_history = self._append_guardrail_turn(
             state.get("guardrail_history", []), safe_last_content, decision
         )

@@ -3,9 +3,11 @@
 import logging
 import os
 from dataclasses import dataclass
+from typing import Awaitable, Callable
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
+from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -19,6 +21,7 @@ from src.middleware.retry_middleware import (
     _ProviderValidationAwareRunnableRetry,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
+from src.utils.root_run_metadata import set_root_metadata
 
 dotenv.load_dotenv()
 
@@ -131,6 +134,51 @@ def init_retry_fallback_model(model: str) -> Runnable:
     return primary_model.with_fallbacks(fallback_models)
 
 
+def _model_key(model: object) -> str | None:
+    """Return the configured short key for a chat model instance."""
+    candidates = {
+        getattr(model, attribute, None)
+        for attribute in ("model_name", "model", "model_id")
+    }
+    for key, config in MODELS.items():
+        model_id = config.id.split(":", 1)[-1]
+        if key in candidates or config.id in candidates or model_id in candidates:
+            return key
+    return None
+
+
+class AnswerModelFallbackMiddleware(ModelFallbackMiddleware):
+    """Record the configured key for the model that returns a response."""
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        """Record the successful synchronous model attempt."""
+        def tracking_handler(attempt: ModelRequest) -> ModelResponse:
+            response = handler(attempt)
+            if model_key := _model_key(attempt.model):
+                set_root_metadata(answer_model=model_key)
+            return response
+
+        return super().wrap_model_call(request, tracking_handler)
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelResponse:
+        """Record the successful asynchronous model attempt."""
+        async def tracking_handler(attempt: ModelRequest) -> ModelResponse:
+            response = await handler(attempt)
+            if model_key := _model_key(attempt.model):
+                set_root_metadata(answer_model=model_key)
+            return response
+
+        return await super().awrap_model_call(request, tracking_handler)
+
+
 summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 
 # =============================================================================
@@ -143,7 +191,9 @@ duplicate_call_guard_middleware = DuplicateCallGuardMiddleware()
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = AnswerModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -168,6 +218,7 @@ __all__ = [
     "docs_research_guard_middleware",
     "citation_guard_middleware",
     "model_fallback_middleware",
+    "AnswerModelFallbackMiddleware",
     # Config
     "MAX_RETRIES",
     "logger",
