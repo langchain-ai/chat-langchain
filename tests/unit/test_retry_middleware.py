@@ -7,6 +7,7 @@ from langchain_core.runnables import RunnableLambda
 
 from src.middleware.retry_middleware import (
     ModelRetryMiddleware,
+    ProviderValidationAwareModelFallbackMiddleware,
     _ProviderValidationAwareRunnableRetry,
 )
 
@@ -47,3 +48,64 @@ def test_model_retry_wrapper_does_not_retry_provider_validation_error():
         runnable.invoke("request")
 
     assert calls == 1
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [
+        type("BadRequestError", (Exception,), {"__module__": "openai"}),
+        type("BadRequestError", (Exception,), {"__module__": "anthropic"}),
+    ],
+)
+def test_provider_bad_request_does_not_retry_or_fallback(error_type):
+    primary_model = object()
+    fallback_model = object()
+    fallback = ProviderValidationAwareModelFallbackMiddleware(fallback_model)
+    retry = ModelRetryMiddleware(max_retries=2, initial_delay=0)
+    calls = []
+
+    async def provider_handler(request):
+        calls.append(request.model)
+        raise error_type("invalid request")
+
+    async def retry_handler(request):
+        return await retry.awrap_model_call(request, provider_handler)
+
+    with pytest.raises(error_type):
+        asyncio.run(
+            fallback.awrap_model_call(
+                ModelRequest(
+                    model=primary_model, messages=[HumanMessage(content="Hi")]
+                ),
+                retry_handler,
+            )
+        )
+
+    assert calls == [primary_model]
+
+
+def test_transient_error_retries_and_falls_back():
+    primary_model = object()
+    fallback_model = object()
+    fallback = ProviderValidationAwareModelFallbackMiddleware(fallback_model)
+    retry = ModelRetryMiddleware(max_retries=2, initial_delay=0)
+    calls = []
+
+    async def provider_handler(request):
+        calls.append(request.model)
+        if request.model is primary_model:
+            raise TimeoutError("temporary failure")
+        return "success"
+
+    async def retry_handler(request):
+        return await retry.awrap_model_call(request, provider_handler)
+
+    result = asyncio.run(
+        fallback.awrap_model_call(
+            ModelRequest(model=primary_model, messages=[HumanMessage(content="Hi")]),
+            retry_handler,
+        )
+    )
+
+    assert result == "success"
+    assert calls == [primary_model, primary_model, primary_model, fallback_model]
