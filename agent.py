@@ -30,11 +30,15 @@ docs_agent_tools = [
     fetch_langchain_pricing,
     check_links,
 ]
+docs_agent_tool_names = {tool.name for tool in docs_agent_tools} | {
+    "search_docs_by_lang_chain",
+    "query_docs_filesystem_docs_by_lang_chain",
+}
 
 docs_agent_middleware = [
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
-    IngressGuardsMiddleware(),
+    IngressGuardsMiddleware(registered_tool_names=docs_agent_tool_names),
     GuardrailsMiddleware(
         model=GUARDRAILS_MODEL.id,
         fallback_model=DEFAULT_MODEL.id,
