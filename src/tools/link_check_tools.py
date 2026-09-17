@@ -15,6 +15,7 @@ DEFAULT_TIMEOUT = 10.0
 MAX_REDIRECTS = 5
 USER_AGENT = "LangChain-LinkChecker/1.0"
 CONTENT_CHECK_BYTES = 8192  # Only read first 8KB for soft 404 detection
+REACHABLE_NON_GET_STATUSES = {401, 403, 405}
 
 # Domains known to have soft 404s (return 200 with "not found" content)
 SOFT_404_DOMAINS = {
@@ -91,9 +92,12 @@ async def _check_single_url(
             # Stream response, only read first chunk for soft 404 detection
             async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
                 final_url = str(response.url) if str(response.url) != url else None
-                is_valid = 200 <= response.status_code < 400
+                is_valid = (
+                    200 <= response.status_code < 400
+                    or response.status_code in REACHABLE_NON_GET_STATUSES
+                )
 
-                if is_valid and response.status_code == 200:
+                if response.status_code == 200:
                     content = ""
                     async for chunk in response.aiter_text():
                         content += chunk
@@ -121,7 +125,10 @@ async def _check_single_url(
                 response = await client.get(url, timeout=timeout, follow_redirects=True)
 
             final_url = str(response.url) if str(response.url) != url else None
-            is_valid = 200 <= response.status_code < 400
+            is_valid = (
+                200 <= response.status_code < 400
+                or response.status_code in REACHABLE_NON_GET_STATUSES
+            )
 
             result = LinkCheckResult(
                 url=url, valid=is_valid, status_code=response.status_code,
@@ -174,7 +181,14 @@ def _format_results(results: list[LinkCheckResult]) -> str:
     if valid:
         lines.append("Valid links:")
         for r in valid:
-            suffix = f" (→ {r.final_url})" if r.final_url else ""
+            suffix_parts = []
+            if r.final_url:
+                suffix_parts.append(f"→ {r.final_url}")
+            if r.status_code == 405:
+                suffix_parts.append("reachable, method not allowed")
+            elif r.status_code in {401, 403}:
+                suffix_parts.append("reachable, access restricted")
+            suffix = f" ({', '.join(suffix_parts)})" if suffix_parts else ""
             lines.append(f"  - {r.url}{suffix}")
 
     return "\n".join(lines)
