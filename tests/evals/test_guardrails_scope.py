@@ -203,6 +203,17 @@ def test_guardrails_prompt_allows_unfamiliar_ecosystem_terms():
     assert "docs search—not the classifier" in PROMPT_LOWER
 
 
+def test_guardrails_prompt_allows_in_scope_reformats_and_language_requests():
+    """Known in-scope follow-ups and ecosystem terms must be allowed."""
+    allowed_queries = [
+        "explain evaluator in simple words",
+        "hello, ejemplo de artefacto",
+        "speak french ?",
+    ]
+    for query in allowed_queries:
+        assert query in PROMPT_LOWER
+
+
 def test_rejection_prompt_does_not_reoffer_declined_requests_as_implementations():
     """Refusals must not suggest implementation or code workarounds."""
     assert "never suggest re-asking the declined request" in REJECTION_PROMPT_LOWER

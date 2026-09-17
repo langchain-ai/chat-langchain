@@ -1,6 +1,7 @@
 """Lenient guardrails middleware to filter only egregious misuse."""
 
 import asyncio
+import hashlib
 import logging
 import os
 import random
@@ -48,6 +49,9 @@ _GUARDRAILS_PROMPT_HUB_NAME = (
 
 # Cache for dataset ID to avoid repeated lookups
 _dataset_id_cache: str | None = None
+_LOCAL_GUARDRAILS_PROMPT_SHA256 = hashlib.sha256(
+    _LOCAL_GUARDRAILS_SYSTEM_PROMPT.encode()
+).hexdigest()
 
 
 class GuardrailsDecision(TypedDict):
@@ -80,28 +84,45 @@ class GuardrailsState(AgentState):
 if _USE_LOCAL_PROMPTS:
     _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
     guardrails_prompt_commit = None
+    guardrails_prompt_matches_repo = True
+    guardrails_prompt_sha256 = _LOCAL_GUARDRAILS_PROMPT_SHA256
     guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
     logger.info("Using local guardrails prompt because USE_LOCAL_PROMPTS is enabled")
 else:
     _langsmith_client = Client()
     try:
         _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
-        _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.format_messages(messages=[])[
-            0
-        ].content
+        pulled_prompt = _prompt_template.format_messages(messages=[])[0].content
+        guardrails_prompt_sha256 = hashlib.sha256(pulled_prompt.encode()).hexdigest()
         guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
             "lc_hub_commit_hash"
         )
-        guardrails_prompt_source = f"hub:{_GUARDRAILS_PROMPT_HUB_NAME}"
-        logger.info(
-            f"Loaded guardrails prompt from hub: {_GUARDRAILS_PROMPT_HUB_NAME} @ {(guardrails_prompt_commit or '')[:8]}"
+        guardrails_prompt_matches_repo = (
+            guardrails_prompt_sha256 == _LOCAL_GUARDRAILS_PROMPT_SHA256
         )
+        if guardrails_prompt_matches_repo:
+            _GUARDRAILS_SYSTEM_PROMPT = pulled_prompt
+            guardrails_prompt_source = f"hub:{_GUARDRAILS_PROMPT_HUB_NAME}"
+            logger.info(
+                f"Loaded guardrails prompt from hub: {_GUARDRAILS_PROMPT_HUB_NAME} @ {(guardrails_prompt_commit or '')[:8]}"
+            )
+        else:
+            _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
+            guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
+            logger.error(
+                "Guardrails Hub prompt does not match the reviewed repository prompt "
+                "(hub_sha256=%s, repo_sha256=%s); using local prompt",
+                guardrails_prompt_sha256,
+                _LOCAL_GUARDRAILS_PROMPT_SHA256,
+            )
     except Exception:
         logger.warning(
             f"Failed to pull guardrails prompt from hub ({_GUARDRAILS_PROMPT_HUB_NAME}), falling back to local file"
         )
         _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
         guardrails_prompt_commit = None
+        guardrails_prompt_matches_repo = True
+        guardrails_prompt_sha256 = _LOCAL_GUARDRAILS_PROMPT_SHA256
         guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
 
 

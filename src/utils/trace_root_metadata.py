@@ -17,9 +17,9 @@ _PROVENANCE_GRAPH_ID = "docs_agent"
 def build_docs_agent_trace_metadata(
     *,
     graph_id: str = _PROVENANCE_GRAPH_ID,
-) -> dict[str, str]:
+) -> dict[str, str | bool]:
     """Return metadata that should land on the root LangSmith run."""
-    metadata: dict[str, str] = {
+    metadata: dict[str, str | bool] = {
         "source_type": "Chat-LangChain",
         **get_prompt_provenance(graph_id),
     }
