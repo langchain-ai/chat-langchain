@@ -8,6 +8,10 @@ connector = define_mcp_servers(
         "langchain-docs": {
             "transport": "http",
             "url": "https://docs.langchain.com/mcp",
+            # Only append the docs-search tools; never export any tool the docs
+            # agent is not scoped for. Matched against the raw MCP tool name
+            # before any managed prefix/alias is applied.
+            "include_tools": ["search_docs", "fetch_docs"],
         },
     },
 )
