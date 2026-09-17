@@ -4,6 +4,11 @@ import asyncio
 import logging
 from typing import Awaitable, Callable
 
+from langchain.agents.middleware import ModelFallbackMiddleware
+from langchain.agents.middleware.model_fallback import (
+    _sanitize_request_for_fallback,
+    _supports_anthropic_cache_control,
+)
 from langchain.agents.middleware.types import (
     AgentMiddleware,
     ModelCallResult,
@@ -11,6 +16,7 @@ from langchain.agents.middleware.types import (
     ModelResponse,
 )
 from langchain_core.runnables.retry import RunnableRetry
+from langgraph.errors import GraphBubbleUp
 from tenacity import retry_if_exception
 
 logger = logging.getLogger(__name__)
@@ -19,6 +25,27 @@ logger = logging.getLogger(__name__)
 RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
 }
+
+_logged_permanent_request_errors: set[int] = set()
+
+
+def _is_permanent_request_error(exc: BaseException) -> bool:
+    """Return whether an exception indicates a permanently invalid request."""
+    response = getattr(exc, "response", None)
+    is_permanent = (
+        isinstance(exc, ValueError)
+        or getattr(exc, "status_code", None) == 400
+        or getattr(response, "status_code", None) == 400
+        or type(exc).__name__.endswith("BadRequestError")
+        or "invalid_request_error" in str(exc).lower()
+    )
+    if is_permanent and id(exc) not in _logged_permanent_request_errors:
+        _logged_permanent_request_errors.add(id(exc))
+        provider = (
+            getattr(exc, "provider", None) or type(exc).__module__.split(".", 1)[0]
+        )
+        logger.error("Permanent %s request error: %s", provider, exc)
+    return is_permanent
 
 
 class MalformedResponseError(Exception):
@@ -32,9 +59,69 @@ class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     def _kwargs_retrying(self) -> dict[str, object]:
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
-            lambda exception: not isinstance(exception, ValueError)
+            lambda exception: not _is_permanent_request_error(exception)
         )
         return kwargs
+
+
+class PermanentRequestAwareModelFallbackMiddleware(ModelFallbackMiddleware):
+    """Skip fallback models for permanently invalid requests."""
+
+    def wrap_model_call(self, request, handler):
+        """Try fallback models only for non-permanent failures."""
+        try:
+            return handler(request)
+        except GraphBubbleUp:
+            raise
+        except Exception as exc:
+            if _is_permanent_request_error(exc):
+                raise
+            last_exception = exc
+
+        for fallback_model in self.models:
+            fallback_request = (
+                request
+                if _supports_anthropic_cache_control(fallback_model)
+                else _sanitize_request_for_fallback(request)
+            )
+            try:
+                return handler(fallback_request.override(model=fallback_model))
+            except GraphBubbleUp:
+                raise
+            except Exception as exc:
+                if _is_permanent_request_error(exc):
+                    raise
+                last_exception = exc
+
+        raise last_exception
+
+    async def awrap_model_call(self, request, handler):
+        """Try fallback models only for non-permanent failures asynchronously."""
+        try:
+            return await handler(request)
+        except GraphBubbleUp:
+            raise
+        except Exception as exc:
+            if _is_permanent_request_error(exc):
+                raise
+            last_exception = exc
+
+        for fallback_model in self.models:
+            fallback_request = (
+                request
+                if _supports_anthropic_cache_control(fallback_model)
+                else _sanitize_request_for_fallback(request)
+            )
+            try:
+                return await handler(fallback_request.override(model=fallback_model))
+            except GraphBubbleUp:
+                raise
+            except Exception as exc:
+                if _is_permanent_request_error(exc):
+                    raise
+                last_exception = exc
+
+        raise last_exception
 
 
 class ModelRetryMiddleware(AgentMiddleware):
@@ -86,7 +173,7 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if _is_permanent_request_error(e):
                     raise
                 last_exception = e
                 if attempt < self.max_retries:
@@ -113,4 +200,8 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = [
+    "ModelRetryMiddleware",
+    "MalformedResponseError",
+    "PermanentRequestAwareModelFallbackMiddleware",
+]

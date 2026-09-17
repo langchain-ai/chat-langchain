@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -16,6 +15,7 @@ from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
     ModelRetryMiddleware,
+    PermanentRequestAwareModelFallbackMiddleware,
     _ProviderValidationAwareRunnableRetry,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
@@ -143,7 +143,9 @@ duplicate_call_guard_middleware = DuplicateCallGuardMiddleware()
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = PermanentRequestAwareModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
