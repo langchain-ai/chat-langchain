@@ -21,6 +21,17 @@ RETRYABLE_FINISH_REASONS = {
 }
 
 
+def _is_non_retryable(exc: BaseException) -> bool:
+    """Return whether an exception represents a deterministic request failure."""
+    exception_name = type(exc).__name__
+    return (
+        isinstance(exc, ValueError)
+        or exception_name.endswith(("InvalidRequestError", "BadRequestError"))
+        or getattr(exc, "status_code", None) == 400
+        or "invalid_request_error" in str(exc)
+    )
+
+
 class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
 
@@ -32,7 +43,7 @@ class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     def _kwargs_retrying(self) -> dict[str, object]:
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
-            lambda exception: not isinstance(exception, ValueError)
+            lambda exception: not _is_non_retryable(exception)
         )
         return kwargs
 
@@ -86,7 +97,7 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if _is_non_retryable(e):
                     raise
                 last_exception = e
                 if attempt < self.max_retries:
