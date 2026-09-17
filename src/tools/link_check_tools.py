@@ -69,6 +69,11 @@ def _is_soft_404(content: str) -> bool:
     return False
 
 
+def _is_valid_status(status_code: int) -> bool:
+    """Check if an HTTP status indicates a valid link."""
+    return 200 <= status_code < 400 or status_code == 405
+
+
 async def _check_single_url(
     client: httpx.AsyncClient,
     url: str,
@@ -91,7 +96,7 @@ async def _check_single_url(
             # Stream response, only read first chunk for soft 404 detection
             async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
                 final_url = str(response.url) if str(response.url) != url else None
-                is_valid = 200 <= response.status_code < 400
+                is_valid = _is_valid_status(response.status_code)
 
                 if is_valid and response.status_code == 200:
                     content = ""
@@ -121,7 +126,7 @@ async def _check_single_url(
                 response = await client.get(url, timeout=timeout, follow_redirects=True)
 
             final_url = str(response.url) if str(response.url) != url else None
-            is_valid = 200 <= response.status_code < 400
+            is_valid = _is_valid_status(response.status_code)
 
             result = LinkCheckResult(
                 url=url, valid=is_valid, status_code=response.status_code,

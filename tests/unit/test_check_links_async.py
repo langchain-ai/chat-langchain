@@ -20,6 +20,7 @@ import pytest
 
 from src.tools.link_check_tools import (
     LinkCheckResult,
+    _cache,
     _check_single_url,
     _check_urls_async,
     _format_results,
@@ -54,6 +55,28 @@ class _FakeStreamingClient:
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
         return _FakeStreamResponse(url, self.status_code, self.content)
+
+
+class _FakeResponse:
+    """Minimal HTTP response for non-streaming _check_single_url tests."""
+
+    def __init__(self, url: str, status_code: int):
+        self.url = url
+        self.status_code = status_code
+
+
+class _FakeHeadClient:
+    """Minimal client that exercises the HEAD and GET fallback path."""
+
+    def __init__(self, head_status: int, get_status: int):
+        self.head_status = head_status
+        self.get_status = get_status
+
+    async def head(self, url: str, **kwargs):  # noqa: ARG002
+        return _FakeResponse(url, self.head_status)
+
+    async def get(self, url: str, **kwargs):  # noqa: ARG002
+        return _FakeResponse(url, self.get_status)
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +279,56 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_soft_404_domain_405_is_valid_without_content_inspection():
+    """A soft-404 domain returning 405 should be treated as a valid endpoint."""
+    url = "https://docs.langchain.com/mcp"
+    _cache.pop(url, None)
+
+    result = await _check_single_url(
+        _FakeStreamingClient("<title>not found</title>", status_code=405),
+        url,
+        timeout=1.0,
+    )
+
+    assert result.valid
+    assert result.status_code == 405
+    assert result.error is None
+    assert _cache[url] is result
+
+
+@pytest.mark.asyncio
+async def test_non_soft_404_domain_405_after_get_fallback_is_valid():
+    """A 405 from both HEAD and GET should be treated as a valid endpoint."""
+    url = "https://example.com/mcp"
+    _cache.pop(url, None)
+
+    result = await _check_single_url(
+        _FakeHeadClient(head_status=405, get_status=405),
+        url,
+        timeout=1.0,
+    )
+
+    assert result.valid
+    assert result.status_code == 405
+    assert result.error is None
+    assert _cache[url] is result
+
+
+@pytest.mark.asyncio
+async def test_non_soft_404_domain_404_is_invalid():
+    """A genuine 404 should remain invalid."""
+    url = "https://example.com/missing"
+    _cache.pop(url, None)
+
+    result = await _check_single_url(
+        _FakeHeadClient(head_status=404, get_status=404),
+        url,
+        timeout=1.0,
+    )
+
+    assert not result.valid
+    assert result.status_code == 404
+    assert result.error == "HTTP 404"
