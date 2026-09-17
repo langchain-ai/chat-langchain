@@ -20,6 +20,7 @@ import pytest
 
 from src.tools.link_check_tools import (
     LinkCheckResult,
+    _cache,
     _check_single_url,
     _check_urls_async,
     _format_results,
@@ -54,6 +55,19 @@ class _FakeStreamingClient:
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
         return _FakeStreamResponse(url, self.status_code, self.content)
+
+
+class _FakeHeadClient:
+    """Minimal client that exercises the HEAD/GET path."""
+
+    def __init__(self, status_code: int):
+        self.status_code = status_code
+
+    async def head(self, url: str, **kwargs):  # noqa: ARG002
+        return _FakeStreamResponse(url, self.status_code, "")
+
+    async def get(self, url: str, **kwargs):  # noqa: ARG002
+        return _FakeStreamResponse(url, self.status_code, "")
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +270,57 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_docs_method_not_allowed_is_valid():
+    """A docs endpoint rejecting GET is still reachable for citation purposes."""
+    url = "https://docs.langchain.com/mcp"
+    _cache.pop(url, None)
+
+    result = await _check_single_url(
+        _FakeStreamingClient("", status_code=405), url, timeout=1.0
+    )
+
+    assert result.valid
+    assert result.status_code == 405
+    assert _cache[url] == result
+    assert "reachable, method not allowed" in _format_results([result])
+
+
+@pytest.mark.asyncio
+async def test_reference_method_not_allowed_is_valid():
+    """A reference endpoint rejecting HEAD and GET is still reachable."""
+    url = "https://reference.langchain.com/mcp"
+    _cache.pop(url, None)
+
+    result = await _check_single_url(_FakeHeadClient(405), url, timeout=1.0)
+
+    assert result.valid
+    assert result.status_code == 405
+
+
+@pytest.mark.asyncio
+async def test_genuine_not_found_is_invalid():
+    """A genuine 404 remains an invalid link."""
+    url = "https://reference.langchain.com/missing"
+    _cache.pop(url, None)
+
+    result = await _check_single_url(_FakeHeadClient(404), url, timeout=1.0)
+
+    assert not result.valid
+    assert result.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_soft_not_found_page_is_invalid():
+    """A soft 404 page returning 200 remains an invalid link."""
+    url = "https://docs.langchain.com/missing"
+    _cache.pop(url, None)
+
+    result = await _check_single_url(
+        _FakeStreamingClient("<title>Page Not Found</title>"), url, timeout=1.0
+    )
+
+    assert not result.valid
+    assert result.status_code == 200
