@@ -1,8 +1,11 @@
-# Prompt provenance lookup for LangSmith trace metadata.
+"""Prompt provenance lookup for LangSmith trace metadata."""
 
+import hashlib
 import logging
 import os
 from functools import lru_cache
+
+from src.prompts.guardrails_prompts import guardrails_system_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -98,12 +101,45 @@ def _resolve_hub_provenance(
         return f"hub:{hub_name}", None
 
 
-def get_prompt_provenance(graph_id: str) -> dict[str, str]:
+@lru_cache(maxsize=16)
+def _resolve_guardrails_provenance(
+    hub_name: str,
+    workspace_id: str | None,
+    api_key_set: bool,
+) -> tuple[str, str | None, str | None, bool | None]:
+    """Pull guardrails prompt provenance and compare its content to the repo."""
+    source = f"hub:{hub_name}"
+    try:
+        client = _hub_client(workspace_id, _prompt_api_key() if api_key_set else None)
+        template = client.pull_prompt(hub_name)
+        commit = (template.metadata or {}).get("lc_hub_commit_hash")
+        try:
+            prompt_text = template.format_messages(messages=[])[0].content
+        except (AttributeError, IndexError, TypeError):
+            return source, commit, None, None
+        prompt_sha256 = hashlib.sha256(prompt_text.encode()).hexdigest()
+        repo_sha256 = hashlib.sha256(guardrails_system_prompt.encode()).hexdigest()
+        return source, commit, prompt_sha256, prompt_sha256 == repo_sha256
+    except Exception as exc:
+        logger.warning(
+            "Failed to resolve guardrails prompt content for %s (workspace=%s): %s",
+            hub_name,
+            workspace_id or "default",
+            exc,
+        )
+        return source, None, None, None
+
+
+def get_prompt_provenance(graph_id: str) -> dict[str, str | bool]:
     """Return prompt provenance for a graph_id."""
     if _USE_LOCAL_PROMPTS and graph_id == "docs_agent":
         return {
             "prompt_source": "local:instructions.md",
             "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
+            "guardrails_prompt_matches_repo": True,
+            "guardrails_prompt_sha256": hashlib.sha256(
+                guardrails_system_prompt.encode()
+            ).hexdigest(),
         }
 
     if graph_id in _HUB_PROMPTS:
@@ -112,7 +148,12 @@ def get_prompt_provenance(graph_id: str) -> dict[str, str]:
         source, commit = _resolve_hub_provenance(
             _HUB_PROMPTS[graph_id], workspace_id, api_key_set
         )
-        guardrails_source, guardrails_commit = _resolve_hub_provenance(
+        (
+            guardrails_source,
+            guardrails_commit,
+            guardrails_sha256,
+            guardrails_matches_repo,
+        ) = _resolve_guardrails_provenance(
             _GUARDRAILS_HUB_PROMPTS[graph_id], workspace_id, api_key_set
         )
         provenance = {
@@ -123,6 +164,10 @@ def get_prompt_provenance(graph_id: str) -> dict[str, str]:
             provenance["prompt_commit"] = commit
         if guardrails_commit:
             provenance["guardrails_prompt_commit"] = guardrails_commit
+        if guardrails_sha256:
+            provenance["guardrails_prompt_sha256"] = guardrails_sha256
+        if guardrails_matches_repo is not None:
+            provenance["guardrails_prompt_matches_repo"] = guardrails_matches_repo
 
         return provenance
 
