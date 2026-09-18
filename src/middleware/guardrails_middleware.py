@@ -8,7 +8,6 @@ from typing import Any, Literal
 
 import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
-from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
 from langsmith import Client
@@ -110,6 +109,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     ):
         """Initialize guardrails with a primary classifier and fallback model."""
         super().__init__()
+        from src.agent.config import init_configured_model
+
         if model is None:
             from src.agent.config import DEFAULT_MODEL, GUARDRAILS_MODEL
 
@@ -120,11 +121,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
             fallback_model = DEFAULT_MODEL.id
 
-        self.llm = init_chat_model(model=model, temperature=0)
+        self.llm = init_configured_model(model=model, temperature=0)
         self.classifier_llms = [(model, self.llm)]
         if fallback_model != model:
             self.classifier_llms.append(
-                (fallback_model, init_chat_model(model=fallback_model, temperature=0))
+                (fallback_model, init_configured_model(model=fallback_model, temperature=0))
             )
         self.block_off_topic = block_off_topic
         logger.info(
