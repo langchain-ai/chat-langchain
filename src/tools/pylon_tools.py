@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -17,6 +18,13 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+
+
+def _normalize_collection_name(name: str) -> frozenset[str]:
+    """Normalize a collection name into deduplicated alphanumeric tokens."""
+    return frozenset(
+        token for token in re.findall(r"[a-z0-9]+", name.lower()) if token != "and"
+    )
 
 
 def _get_kb_id() -> str:
@@ -135,7 +143,7 @@ def search_support_articles(collections: str = "all") -> str:
 
     Args:
         collections: Comma-separated list of collection names to filter by.
-                    Available collections:
+                    Available collections (copy these canonical titles exactly when possible):
                     - "General" - General administration and management topics
                     - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
                     - "LangSmith Observability" - Tracing, stats, and observability of agents
@@ -209,6 +217,9 @@ def search_support_articles(collections: str = "all") -> str:
                 {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
             )
 
+        resolved_collections = []
+        unresolved_collections = []
+
         # Filter by collection ID if specified
         if collections.lower() != "all":
             # Parse requested collection names
@@ -218,22 +229,48 @@ def search_support_articles(collections: str = "all") -> str:
             collection_ids = []
             for coll_name in requested_collections:
                 if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
+                    matched_name = coll_name
                 else:
                     # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
+                    matched_name = next(
+                        (key for key in collection_map if key.lower() == coll_name.lower()),
+                        None,
+                    )
+                    normalized_name = _normalize_collection_name(coll_name)
+                    if matched_name is None:
+                        matched_name = next(
+                            (
+                                key
+                                for key in collection_map
+                                if _normalize_collection_name(key) == normalized_name
+                            ),
+                            None,
                         )
+                    if matched_name is None:
+                        subset_matches = [
+                            key
+                            for key in collection_map
+                            if normalized_name <= _normalize_collection_name(key)
+                        ]
+                        if len(subset_matches) == 1:
+                            matched_name = subset_matches[0]
+
+                if matched_name is None:
+                    unresolved_collections.append(coll_name)
+                    continue
+
+                collection_ids.append(collection_map[matched_name])
+                if matched_name not in resolved_collections:
+                    resolved_collections.append(matched_name)
+
+            if not collection_ids:
+                coll_name = unresolved_collections[0] if unresolved_collections else collections
+                return json.dumps(
+                    {
+                        "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -243,6 +280,8 @@ def search_support_articles(collections: str = "all") -> str:
             ]
 
             published_articles = filtered_articles
+        else:
+            resolved_collections = list(collection_map.keys())
 
         # Update collection names based on collection_id (for all articles)
         collection_id_to_name = {v: k for k, v in collection_map.items()}
@@ -251,15 +290,20 @@ def search_support_articles(collections: str = "all") -> str:
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
         if not published_articles:
-            return json.dumps(
-                {
-                    "collections": collections,
-                    "total": 0,
-                    "articles": [],
-                    "note": "No articles found",
-                },
-                indent=2,
-            )
+            result = {
+                "collections": collections,
+                "resolved_collections": resolved_collections,
+                "total": 0,
+                "articles": [],
+                "note": "No articles found",
+            }
+            if unresolved_collections:
+                result["unresolved_collections"] = unresolved_collections
+                result["note"] = (
+                    f"Used canonical collections: {', '.join(resolved_collections)}. "
+                    "No articles found."
+                )
+            return json.dumps(result, indent=2)
 
         # Clean up collection_id from output (internal field)
         for article in published_articles:
@@ -268,10 +312,17 @@ def search_support_articles(collections: str = "all") -> str:
         # Return structured JSON format
         result = {
             "collections": collections,
+            "resolved_collections": resolved_collections,
             "total": len(published_articles),
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if unresolved_collections:
+            result["unresolved_collections"] = unresolved_collections
+            result["note"] = (
+                f"Used canonical collections: {', '.join(resolved_collections)}. "
+                "Some requested collections could not be resolved."
+            )
 
         return json.dumps(result, indent=2)
 
