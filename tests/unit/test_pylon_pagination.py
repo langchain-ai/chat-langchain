@@ -9,6 +9,8 @@ import sys
 import unittest
 from unittest.mock import MagicMock, call, patch
 
+import requests
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -53,6 +55,9 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
         # Ensure a clean module state so _articles_cache starts as None
         import src.tools.pylon_tools as pylon_module
         pylon_module._articles_cache = None
+        pylon_module._articles_failure_count = 0
+        pylon_module._articles_failure_until = 0.0
+        pylon_module._articles_failure_reason = ""
         self.module = pylon_module
 
     # ------------------------------------------------------------------
@@ -186,6 +191,80 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # Null data field ("data": null) must not raise TypeError
+    # ------------------------------------------------------------------
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_null_data_returns_empty_list(self, mock_get, mock_kb_id, mock_api_key):
+        """A response body of {"data": null} yields an empty list, not a TypeError."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"data": None, "meta": None, "links": None}
+        mock_resp.raise_for_status.return_value = None
+        mock_get.return_value = mock_resp
+
+        result = self.module._fetch_all_articles()
+
+        self.assertEqual(result, [])
+        mock_get.assert_called_once()
+
+
+class TestPylonFailureHandling(unittest.TestCase):
+    """Unit tests for failure surfacing and negative caching."""
+
+    def setUp(self):
+        """Reset module-level success and failure caches before each test."""
+        import src.tools.pylon_tools as pylon_module
+        pylon_module._articles_cache = None
+        pylon_module._articles_failure_count = 0
+        pylon_module._articles_failure_until = 0.0
+        pylon_module._articles_failure_reason = ""
+        self.module = pylon_module
+
+    tearDown = setUp
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_search_raises_tool_exception_on_api_failure(
+        self, mock_get, mock_kb_id, mock_api_key
+    ):
+        """Upstream failures raise ToolException instead of returning error-shaped data."""
+        from langchain.tools import ToolException
+
+        mock_get.side_effect = requests.exceptions.RequestException(
+            "429 Client Error: Too Many Requests for url: https://api.usepylon.com"
+        )
+
+        with self.assertRaises(ToolException) as ctx:
+            self.module.search_support_articles.invoke({"collections": "all"})
+
+        self.assertIn("Too Many Requests", str(ctx.exception))
+
+    @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
+    @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
+    @patch("src.tools.pylon_tools.requests.get")
+    def test_repeated_failures_stop_hitting_the_api(
+        self, mock_get, mock_kb_id, mock_api_key
+    ):
+        """After the failure threshold, further calls fail fast without new requests."""
+        from langchain.tools import ToolException
+
+        mock_get.side_effect = requests.exceptions.RequestException("503 Service Unavailable")
+
+        for _ in range(self.module._ARTICLES_FAILURE_THRESHOLD):
+            with self.assertRaises(Exception):
+                self.module._fetch_all_articles()
+
+        calls_before = mock_get.call_count
+
+        with self.assertRaises(ToolException):
+            self.module._fetch_all_articles()
+
+        self.assertEqual(mock_get.call_count, calls_before)
 
 
 if __name__ == "__main__":
