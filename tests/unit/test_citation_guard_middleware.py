@@ -73,3 +73,112 @@ def test_retry_response_strips_ungrounded_footer_url(monkeypatch):
     assert len(calls) == 2
     assert retry_url not in result.result[0].content
     assert result.result[0].content == "Answer\n\n**Relevant docs:**"
+
+
+def test_substantive_answer_with_docs_retries_missing_footer():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    grounded_url = "https://docs.langchain.com/guide"
+    calls: list[ModelRequest] = []
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Explain the guide."),
+            ToolMessage(
+                content=f"Documentation: {grounded_url}",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content=f"Valid links:\n- {grounded_url}",
+                name="check_links",
+                tool_call_id="check",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        content = "A" * 300
+        if len(calls) == 2:
+            content += f"\n\n**Relevant docs:**\n- [Guide]({grounded_url})"
+        return ModelResponse(result=[AIMessage(content=content)])
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert "Relevant docs:" in result.result[0].content
+
+
+def test_missing_footer_retry_falls_back_to_original_answer():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    calls: list[ModelRequest] = []
+    original = "A" * 300
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Explain the guide."),
+            ToolMessage(
+                content="Documentation result",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content=original)])
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert result.result[0].content == original
+
+
+def test_short_refusal_without_docs_evidence_does_not_retry():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    calls: list[ModelRequest] = []
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(), messages=[HumanMessage(content="Do something unsafe.")]
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(result=[AIMessage(content="I can't help with that.")])
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert result.result[0].content == "I can't help with that."
+
+
+def test_existing_ungrounded_footer_uses_existing_repair_path():
+    from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+
+    ungrounded_url = "https://docs.langchain.com/invented"
+    calls: list[ModelRequest] = []
+    middleware = CitationGuardMiddleware()
+    request = ModelRequest(
+        model=object(), messages=[HumanMessage(content="Find documentation.")]
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=f"Answer\n\n**Relevant docs:**\n- [Guide]({ungrounded_url})"
+                )
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert result.result[0].content == "Answer\n\n**Relevant docs:**"
