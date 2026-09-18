@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
@@ -15,6 +15,17 @@ logger = logging.getLogger(__name__)
 NO_RESULTS_MARKERS = (
     "no results found",
     "no result found",
+)
+
+# Tool names whose calls should be deduplicated by normalized `query` arg
+# within a single trace. Repeating identical search queries is wasteful and
+# was the dominant cost driver in pathological short-intro trajectories.
+DEDUP_TOOL_NAMES = frozenset(
+    {
+        "search_docs_by_lang_chain",
+        "search_docs",
+        "search_support_articles",
+    }
 )
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -119,11 +130,61 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         }
         return json.dumps(payload)
 
+    def _normalized_query(self, args: Any) -> str | None:
+        if not isinstance(args, dict):
+            return None
+        query = args.get("query")
+        if not isinstance(query, str):
+            return None
+        return query.strip().lower()
+
+    def _find_prior_duplicate(
+        self,
+        request: ToolCallRequest,
+    ) -> ToolMessage | None:
+        tool_name = self._tool_name(request)
+        if tool_name not in DEDUP_TOOL_NAMES:
+            return None
+        normalized = self._normalized_query(request.tool_call.get("args"))
+        if not normalized:
+            return None
+
+        state = getattr(request, "state", None)
+        messages = state.get("messages") if isinstance(state, dict) else getattr(state, "messages", None)
+        if not messages:
+            return None
+
+        prior_id: str | None = None
+        for msg in messages:
+            if isinstance(msg, AIMessage):
+                for call in getattr(msg, "tool_calls", None) or []:
+                    if call.get("name") != tool_name:
+                        continue
+                    if self._normalized_query(call.get("args")) == normalized:
+                        prior_id = call.get("id")
+                        break
+            elif (
+                isinstance(msg, ToolMessage)
+                and prior_id is not None
+                and msg.tool_call_id == prior_id
+            ):
+                return msg
+        return None
+
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
+        duplicate = self._find_prior_duplicate(request)
+        if duplicate is not None:
+            logger.info(
+                "Tool %s called with duplicate query; reusing prior result",
+                self._tool_name(request),
+            )
+            content = duplicate.content if isinstance(duplicate.content, str) else str(duplicate.content)
+            return self._tool_message(request, content)
+
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_attempts + 1):
