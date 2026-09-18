@@ -19,6 +19,13 @@ NO_RESULTS_MARKERS = (
     "no result found",
 )
 
+RELEVANCE_CHECKED_TOOLS = frozenset(
+    {
+        "search_docs_by_lang_chain",
+        "query_docs_filesystem_docs_by_lang_chain",
+    }
+)
+
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 RETRYABLE_ERROR_MARKERS = (
@@ -84,6 +91,28 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         text = self._error_text(error).lower()
         return any(marker in text for marker in NO_RESULTS_MARKERS)
 
+    def _query_tokens(self, request: ToolCallRequest) -> list[str]:
+        args = request.tool_call.get("args", {}) or {}
+        query = args.get("query") or args.get("command")
+        if not isinstance(query, str):
+            return []
+        return [
+            token
+            for token in re.findall(r"[a-z0-9_]+", query.lower())
+            if len(token) > 2
+        ]
+
+    def _is_zero_relevance(
+        self, request: ToolCallRequest, message: ToolMessage
+    ) -> bool:
+        if self._tool_name(request) not in RELEVANCE_CHECKED_TOOLS:
+            return False
+        tokens = self._query_tokens(request)
+        if not tokens or not isinstance(message.content, str):
+            return False
+        content = message.content.lower()
+        return not any(token in content for token in tokens)
+
     def _is_retryable(self, error: Exception) -> bool:
         text = self._error_text(error).lower()
         status_code = self._status_code(error)
@@ -132,7 +161,38 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await handler(request)
+                if isinstance(result, ToolMessage) and self._is_zero_relevance(
+                    request, result
+                ):
+                    tool_name = self._tool_name(request)
+                    args = request.tool_call.get("args", {}) or {}
+                    query = args.get("query") or args.get("command")
+                    logger.warning(
+                        "Tool %s returned no relevant documentation for query %r",
+                        tool_name,
+                        query,
+                    )
+                    return self._tool_message(
+                        request,
+                        json.dumps(
+                            {
+                                "error": "No matching documentation",
+                                "tool": tool_name,
+                                "query": query,
+                                "message": (
+                                    "The documentation search returned no page "
+                                    "matching this query."
+                                ),
+                                "suggestion": (
+                                    "Broaden or rephrase the query, or tell the user "
+                                    "no documentation was found for this topic."
+                                ),
+                            }
+                        ),
+                        status="success",
+                    )
+                return result
             except PylonUnavailableError as error:
                 logger.warning(
                     "Tool %s unavailable: %s",
