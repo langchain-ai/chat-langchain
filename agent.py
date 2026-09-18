@@ -13,6 +13,9 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.docs_relevance_guard_middleware import (
+    DocsRelevanceGuardMiddleware,
+)
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
@@ -51,6 +54,7 @@ docs_agent_middleware = [
     duplicate_call_guard_middleware,
     tool_retry_middleware,
     docs_research_guard_middleware,
+    DocsRelevanceGuardMiddleware(),
     citation_guard_middleware,
     model_retry_middleware,
     model_fallback_middleware,
