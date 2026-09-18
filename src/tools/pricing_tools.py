@@ -11,6 +11,11 @@ from langchain.tools import tool
 logger = logging.getLogger(__name__)
 
 PRICING_URL = "https://www.langchain.com/pricing"
+PRICING_SCOPE_HEADER = (
+    "NOTE: authoritative for plan prices, seats, included volumes and overage rates only. "
+    "This page can lag the documentation on trace retention and data-retention policy - "
+    "confirm any retention duration against the docs before answering."
+)
 TIMEOUT = 15.0
 USER_AGENT = "LangChain-SupportAgent/1.0"
 
@@ -33,7 +38,10 @@ def _extract_text(html: str) -> str:
         flags=re.DOTALL | re.IGNORECASE,
     )
     text = re.sub(
-        r"<style\b[^>]*>[\s\S]*?</style\b[^>]*>", "", text, flags=re.DOTALL | re.IGNORECASE
+        r"<style\b[^>]*>[\s\S]*?</style\b[^>]*>",
+        "",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
     )
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"[ \t]+", " ", text)
@@ -54,16 +62,7 @@ async def _fetch_pricing_uncached() -> str:
 
 @tool
 async def fetch_langchain_pricing() -> str:
-    """ALWAYS use this tool for ANY question about LangChain pricing, plans, or trace limits.
-
-    DO NOT use docs search for pricing questions — it does not have current pricing data.
-
-    Triggers: "how many traces", "plus plan", "developer plan", "enterprise plan",
-    "how much does", "pricing", "cost", "seats", "quota", "pay-as-you-go", "fleet runs",
-    "upgrade", "billing", "what plan", "which plan".
-
-    Returns live pricing data directly from https://www.langchain.com/pricing.
-    """
+    """Use this tool for plan prices, seat pricing, included trace/run volumes, overage rates and plan comparisons; read langsmith/usage-and-billing and langsmith/data-purging-compliance for trace retention periods, data-retention policy and quota policy, with documentation taking precedence when sources disagree."""
     global _cached_text, _cached_at
 
     # Fast path: return cached text if it's still fresh. The lock here is
@@ -73,7 +72,7 @@ async def fetch_langchain_pricing() -> str:
             _cached_text is not None
             and (time.monotonic() - _cached_at) < _CACHE_TTL_SECONDS
         ):
-            return _cached_text
+            return f"{PRICING_SCOPE_HEADER}\n\n{_cached_text}"
 
     # Slow path: fetch outside the lock so concurrent requests don't serialize
     # on the network call. Multiple concurrent misses will all fetch and the
@@ -87,24 +86,24 @@ async def fetch_langchain_pricing() -> str:
         with _cache_lock:
             if _cached_text is not None:
                 logger.warning("Pricing fetch timed out, returning stale cached copy")
-                return _cached_text
-        return f"Error: Request to {PRICING_URL} timed out. Direct the user to {PRICING_URL} for current pricing."
+                return f"{PRICING_SCOPE_HEADER}\n\n{_cached_text}"
+        return f"{PRICING_SCOPE_HEADER}\n\nError: Request to {PRICING_URL} timed out. Direct the user to {PRICING_URL} for current pricing."
     except httpx.HTTPStatusError as e:
         with _cache_lock:
             if _cached_text is not None:
                 logger.warning(
                     f"Pricing fetch returned HTTP {e.response.status_code}, returning stale cached copy"
                 )
-                return _cached_text
-        return f"Error: {PRICING_URL} returned HTTP {e.response.status_code}. Direct the user to {PRICING_URL} for current pricing."
+                return f"{PRICING_SCOPE_HEADER}\n\n{_cached_text}"
+        return f"{PRICING_SCOPE_HEADER}\n\nError: {PRICING_URL} returned HTTP {e.response.status_code}. Direct the user to {PRICING_URL} for current pricing."
     except Exception as e:
         logger.warning(f"Failed to fetch pricing page: {e}")
         with _cache_lock:
             if _cached_text is not None:
-                return _cached_text
-        return f"Error: Could not fetch pricing information. Direct the user to {PRICING_URL} for current pricing."
+                return f"{PRICING_SCOPE_HEADER}\n\n{_cached_text}"
+        return f"{PRICING_SCOPE_HEADER}\n\nError: Could not fetch pricing information. Direct the user to {PRICING_URL} for current pricing."
 
     with _cache_lock:
         _cached_text = text
         _cached_at = time.monotonic()
-    return text
+    return f"{PRICING_SCOPE_HEADER}\n\n{text}"

@@ -171,13 +171,12 @@ When you find relevant content in a specific subsection, create a direct anchor 
 
 ### 3. `fetch_langchain_pricing` - Live Pricing Page
 
-**CRITICAL: Use this tool for ALL pricing and plan questions. NEVER use `search_docs_by_lang_chain` or answer from memory for pricing.**
+**CRITICAL: Use this tool for plan prices, seat pricing, included trace/run volumes, overage rates, and plan comparisons. For trace retention periods, data-retention policy, or quota policy, read `langsmith/usage-and-billing` and `langsmith/data-purging-compliance`; documentation takes precedence over this pricing page when they disagree.**
 
-Fetches live content from `https://www.langchain.com/pricing` - the single source of truth for plan limits, seat pricing, and quotas.
+Fetches live content from `https://www.langchain.com/pricing` - authoritative for plan prices, seats, included volumes, and overage rates only.
 
 **Use for ANY question involving:**
 - Plan types (Developer, Plus, Enterprise)
-- Trace limits or base quotas
 - Seat counts or per-seat pricing
 - Pay-as-you-go rates
 - Fleet runs or deployment quotas
@@ -259,7 +258,7 @@ Valid links:
 
 ### Step 0: Route Pricing Questions
 
-If the user asks about pricing, plans, costs, billing, quotas, trace limits, seats, or pay-as-you-go, call `fetch_langchain_pricing` first. Do not use documentation search or answer from memory for pricing.
+If the user asks about pricing, plans, costs, billing, seats, included volumes, or pay-as-you-go, call `fetch_langchain_pricing` first. If the user asks about trace retention, data-retention policy, or quota policy, read `langsmith/usage-and-billing` and `langsmith/data-purging-compliance`; documentation outranks the pricing page when they disagree.
 
 ### Step 1: Research Documentation and Support KB
 
