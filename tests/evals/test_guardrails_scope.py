@@ -14,13 +14,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
 from src.prompts.docs_agent_prompt import docs_agent_prompt
-from src.prompts.guardrails_prompts import rejection_system_prompt
+from src.prompts.guardrails_prompts import (
+    guardrails_system_prompt,
+    rejection_system_prompt,
+)
 
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
 
 PROMPT_LOWER = _GUARDRAILS_SYSTEM_PROMPT.lower()
+LOCAL_PROMPT_LOWER = guardrails_system_prompt.lower()
 REJECTION_PROMPT_LOWER = rejection_system_prompt.lower()
 
 # Data science libraries that should be restricted when used without LangChain context
@@ -159,6 +163,22 @@ def test_guardrails_prompt_allows_bare_technical_follow_ups():
     assert "in layman terms" in PROMPT_LOWER
     assert "technical follow-up questions about prior langchain / langgraph" in PROMPT_LOWER
     assert "in-scope technical questions" in PROMPT_LOWER
+
+
+def test_local_guardrails_prompt_allows_reply_preferences():
+    """Bare reply-language preferences must be explicitly allowed locally."""
+    assert "language, tone, or format of the assistant's reply" in LOCAL_PROMPT_LOWER
+    assert "reply to me in chinese" in LOCAL_PROMPT_LOWER
+    assert "请用中文回答我" in LOCAL_PROMPT_LOWER
+
+
+def test_docs_agent_scope_qualifies_language_help():
+    """The docs scope decline must not target reply-language preferences."""
+    assert (
+        "language help (translation or grammar assistance for text with no software "
+        "or langchain context)"
+    ) in docs_agent_prompt.lower()
+    assert ", language help, business coaching" not in docs_agent_prompt.lower()
 
 
 # ---------------------------------------------------------------------------
