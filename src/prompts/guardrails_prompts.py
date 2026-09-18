@@ -31,6 +31,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 
 ## ALWAYS ALLOW - Follow-ups & Context:
 - Technical follow-up questions about prior LangChain / LangGraph / LangSmith / Deep Agents responses
+- Bare requests about the language, tone, or format of the assistant's reply, including non-English requests such as "reply to me in Chinese" or "请用中文回答我"
 - Bare reformat or simplify requests such as "in layman terms", "simpler", "shorter", or "in Python instead" when the listed previous questions in the conversation are in-scope technical questions.
 - Questions about code the assistant just showed
 - Requests for different formats or languages (Python/JS) of a technical answer
@@ -74,7 +75,7 @@ These clearly off-topic bullets do not override an applicable ALWAYS ALLOW crite
 - General non-technical knowledge / trivia: geography, history, sports scores, celebrities, cooking, recipes, health symptoms, unless the question is about LangChain products, documentation, API references, changelogs, or other LangChain resources.
 - Science / physics / chemistry / biology questions with no software context (e.g. "how does a short circuit work", "why is the sky blue")
 - Math or unit conversion problems with no LangChain/LangSmith product, plan, or billing-unit operand and no other software context (e.g. "what's 5x5", "convert 10 miles to km")
-- Language help: translation or grammar help for text with no software or LangChain context (e.g. "synonyms for 'decide'").
+- Language help: translation or grammar assistance for third-party text with no software or LangChain context (e.g. "synonyms for 'decide'"); this does not include preferences about the assistant's own reply.
 - Business / sales / career coaching: discovery-call prep, interview prep, resume help, negotiation scripts
 - Requests to summarize non-technical articles
 - Personal advice unrelated to software development
