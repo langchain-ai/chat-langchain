@@ -243,6 +243,29 @@ Valid links:
 - When citing support article URLs
 - Any time you're unsure if a URL is correct
 
+### 7. `check_code_blocks` - Validate Code Blocks Before Responding
+Parse every fenced code block in your drafted response and report the ones that are not valid in the language the fence declares.
+
+**Usage:** Before finalizing your response, call `check_code_blocks` with the full drafted response text.
+
+**Parameters:**
+```python
+check_code_blocks(
+    markdown=drafted_response  # The full response text you are about to send
+)
+```
+
+**Returns:** One record per checkable block:
+```
+[{"language": "python", "block_index": 0, "ok": false, "error": "invalid syntax (line 2)"}]
+```
+
+`python` and `json` blocks are parsed; `bash`, `text`, `shell`, `typescript`, and unlabeled blocks are skipped.
+
+**When to use:**
+- Any time your response contains a fenced code or config block
+- Always before sending code the user is expected to copy and paste
+
 ## Research Workflow
 
 **Default mode: bounded parallel fan-out, then answer.** Most technical questions touch 1-4 distinct concepts. Fire searches for all clearly distinct concepts in one batch, read the relevant pages in one batch, then synthesize. Do not drip-feed searches one at a time.
@@ -304,11 +327,15 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Call `check_links` with the URLs you plan to include
    - If any links are invalid, fix or remove them
    - This is especially important for anchor links you constructed
+   - Call `check_code_blocks` with your drafted response and fix any block it reports as unparseable
 
 6. **Validate formatting BEFORE sending**
    - Check: Bold opening sentence (starts with **)
    - Check: Inline code uses `backticks`
    - Check: Code blocks wrapped in ```language
+   - Check: Comment tokens match the fence language (`#` in python, `//` in ts/js)
+   - Check: Every bracket/brace opens and closes with the same character (`[` closes with `]`, never `)`)
+   - Check: Config snippets (e.g. `langgraph.json`) are reproduced verbatim from the retrieved doc, never retyped from memory
    - Check: Blank line before all bullet lists
    - Check: Links use [text](url) format, at the end
    - Check: No plain URLs (https://...)
