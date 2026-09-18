@@ -68,7 +68,7 @@ def test_body_only_match_returns_matching_snippet():
     assert len(result["articles"][0]["snippet"]) <= 300
 
 
-def test_zero_match_returns_disclosure_note():
+def test_zero_match_returns_neutral_note():
     result = _search(
         [_article("one", "Deployment guide", "Configure deployments here.")],
         "unrelated billing topic",
@@ -77,7 +77,9 @@ def test_zero_match_returns_disclosure_note():
     assert result["total_matched"] == 0
     assert result["returned"] == 0
     assert result["articles"] == []
-    assert "Support articles could not be consulted" in result["note"]
+    assert result["note"] == (
+        "No matching support articles found; the knowledge base responded normally."
+    )
 
 
 def test_collection_filter_combines_with_query():
