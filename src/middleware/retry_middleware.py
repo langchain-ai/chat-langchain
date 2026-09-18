@@ -36,6 +36,38 @@ class ModelRetryMiddleware(AgentMiddleware):
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
 
+    def _normalize_content(self, response: ModelResponse) -> ModelResponse:
+        """Normalize list content from Gemini models to a plain string.
+
+        ChatGoogleGenerativeAI with Gemini 3.x returns AIMessage.content as a
+        list of content-part dicts (e.g. [{"text": "...", "extras": {...}}]).
+        Only normalize when every block is a plain text block — never touch
+        lists that contain "thinking" or "tool_use" blocks, which are
+        legitimate structured outputs.
+        """
+        content = getattr(response, "content", None)
+        if not isinstance(content, list) or not content:
+            return response
+
+        texts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                texts.append(block)
+            elif isinstance(block, dict):
+                block_type = block.get("type")
+                if block_type in ("thinking", "tool_use"):
+                    # Structured output — do not normalize.
+                    return response
+                text = block.get("text")
+                if text is None:
+                    # Block has no text key; leave as-is.
+                    return response
+                texts.append(text)
+            else:
+                return response
+
+        return response.model_copy(update={"content": "".join(texts)})
+
     def _get_finish_reason(self, response: ModelResponse) -> str:
         """Extract finish_reason from response metadata."""
         metadata = getattr(response, "response_metadata", None) or {}
@@ -52,6 +84,7 @@ class ModelRetryMiddleware(AgentMiddleware):
         for attempt in range(self.max_retries + 1):
             try:
                 response = await handler(request)
+                response = self._normalize_content(response)
                 finish_reason = self._get_finish_reason(response)
 
                 if finish_reason in RETRYABLE_FINISH_REASONS:
