@@ -187,6 +187,59 @@ def test_check_links_empty_list():
 
 
 @pytest.mark.asyncio
+async def test_check_links_stringified_empty_list():
+    """A JSON-encoded empty list should return the no-URLs message."""
+    result = await check_links.ainvoke({"urls": "[]"})
+    assert result == "No URLs provided to check."
+
+
+@pytest.mark.asyncio
+async def test_check_links_single_url_string():
+    """A single URL string should be coerced into a one-item list."""
+    fake_results = [
+        LinkCheckResult(url="https://example.com", valid=True, status_code=200),
+    ]
+
+    with patch(
+        "src.tools.link_check_tools._check_urls_async",
+        new=_make_async_check_mock(fake_results),
+    ):
+        result = await check_links.ainvoke({"urls": "https://example.com"})
+
+    assert "1/1 valid" in result
+
+
+@pytest.mark.asyncio
+async def test_check_links_valid_urls_alias():
+    """The formatted output's valid_urls alias should be accepted."""
+    fake_results = [
+        LinkCheckResult(url="https://example.com", valid=True, status_code=200),
+    ]
+
+    with patch(
+        "src.tools.link_check_tools._check_urls_async",
+        new=_make_async_check_mock(fake_results),
+    ):
+        result = await check_links.ainvoke({"valid_urls": ["https://example.com"]})
+
+    assert "1/1 valid" in result
+
+
+@pytest.mark.asyncio
+async def test_check_links_ignores_unknown_arguments():
+    """Unknown model-emitted arguments should not fail schema validation."""
+    result = await check_links.ainvoke({"yarn": "true"})
+    assert result == "No URLs provided to check."
+
+
+@pytest.mark.asyncio
+async def test_check_links_missing_urls():
+    """Omitting urls should return the no-URLs message."""
+    result = await check_links.ainvoke({})
+    assert result == "No URLs provided to check."
+
+
+@pytest.mark.asyncio
 async def test_check_links_async_empty_list():
     """Empty list in async context should also return the 'no URLs' message."""
     result = await check_links.acall({"urls": []})
