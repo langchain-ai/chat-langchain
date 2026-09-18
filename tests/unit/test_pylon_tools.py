@@ -72,3 +72,56 @@ def test_search_support_articles_normalizes_parenthetical_collection_words():
     assert payload["total_matched"] == 1
     assert payload["articles"][0]["id"] == "uuid-123"
     assert payload["articles"][0]["article_id"] == "uuid-123"
+
+
+def test_search_support_articles_reports_no_unmatched_collections_when_all_match():
+    with (
+        patch("src.tools.pylon_tools._fetch_all_articles", return_value=[ARTICLE]),
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+        ),
+    ):
+        result = search_support_articles.invoke(
+            {"query": "login", "collections": "OSS (LangChain and LangGraph)"}
+        )
+
+    payload = json.loads(result)
+    assert payload["unmatched_collections"] == []
+
+
+def test_search_support_articles_ignores_unmatched_collection_names():
+    with (
+        patch("src.tools.pylon_tools._fetch_all_articles", return_value=[ARTICLE]),
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+        ),
+    ):
+        result = search_support_articles.invoke(
+            {
+                "query": "login",
+                "collections": "Invented Collection, OSS (LangChain and LangGraph)",
+            }
+        )
+
+    payload = json.loads(result)
+    assert payload["total_matched"] == 1
+    assert payload["unmatched_collections"] == ["Invented Collection"]
+
+
+def test_search_support_articles_errors_when_all_collection_names_are_unmatched():
+    with (
+        patch("src.tools.pylon_tools._fetch_all_articles", return_value=[ARTICLE]),
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+        ),
+    ):
+        result = search_support_articles.invoke(
+            {"query": "login", "collections": "Invented Collection"}
+        )
+
+    payload = json.loads(result)
+    assert "error" in payload
+    assert "Invented Collection" in payload["error"]
