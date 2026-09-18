@@ -68,7 +68,7 @@ def test_body_only_match_returns_matching_snippet():
     assert len(result["articles"][0]["snippet"]) <= 300
 
 
-def test_zero_match_returns_disclosure_note():
+def test_zero_keyword_match_returns_neutral_disclosure_note():
     result = _search(
         [_article("one", "Deployment guide", "Configure deployments here.")],
         "unrelated billing topic",
@@ -77,7 +77,42 @@ def test_zero_match_returns_disclosure_note():
     assert result["total_matched"] == 0
     assert result["returned"] == 0
     assert result["articles"] == []
-    assert "Support articles could not be consulted" in result["note"]
+    assert result["consulted"] is True
+    assert result["note"] == (
+        "No matching support articles were found. Answer from official documentation "
+        "and state that no matching support articles were found."
+    )
+
+
+def test_no_published_articles_returns_neutral_disclosure_note():
+    result = _search(
+        [
+            {
+                **_article("draft", "Deployment guide", "Draft deployment guidance."),
+                "is_published": False,
+            }
+        ],
+        "deployment",
+    )
+
+    assert result["total_matched"] == 0
+    assert result["returned"] == 0
+    assert result["articles"] == []
+    assert result["consulted"] is True
+    assert result["note"] == (
+        "No matching support articles were found. Answer from official documentation "
+        "and state that no matching support articles were found."
+    )
+
+
+def test_no_articles_from_api_returns_unavailable_disclosure():
+    result = _search(None, "deployment")
+
+    assert result["total_matched"] == 0
+    assert result["returned"] == 0
+    assert result["articles"] == []
+    assert result["consulted"] is False
+    assert result["note"] == "No articles returned from API"
 
 
 def test_collection_filter_combines_with_query():

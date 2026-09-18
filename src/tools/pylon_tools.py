@@ -224,6 +224,7 @@ def search_support_articles(query: str, collections: str = "all") -> str:
                     "total_matched": 0,
                     "returned": 0,
                     "articles": [],
+                    "consulted": False,
                     "note": "No articles returned from API",
                 }
             )
@@ -265,7 +266,8 @@ def search_support_articles(query: str, collections: str = "all") -> str:
                     "total_matched": 0,
                     "returned": 0,
                     "articles": [],
-                    "note": "Support articles could not be consulted. Answer from official documentation and emit the mandatory Support articles could not be consulted disclosure.",
+                    "consulted": True,
+                    "note": "No matching support articles were found. Answer from official documentation and state that no matching support articles were found.",
                 }
             )
 
@@ -358,7 +360,8 @@ def search_support_articles(query: str, collections: str = "all") -> str:
                     "total_matched": 0,
                     "returned": 0,
                     "articles": [],
-                    "note": "Support articles could not be consulted. Answer from official documentation and emit the mandatory Support articles could not be consulted disclosure.",
+                    "consulted": True,
+                    "note": "No matching support articles were found. Answer from official documentation and state that no matching support articles were found.",
                 }
             )
 
