@@ -14,6 +14,8 @@ def test_scope_guidance_preserves_in_scope_carve_outs():
     assert "always in scope" in scope
     assert "scope has already been decided" in scope
     assert "do not re-adjudicate" in scope
+    assert "guardrails classifier's allowed decision is authoritative" in scope
+    assert "refuse it by repeating this scope paragraph" in scope
     assert "build, design, or explain" in scope
     assert "agent, tool, or middleware" in scope
     assert "regardless of the application domain" in scope
