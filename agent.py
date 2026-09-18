@@ -14,6 +14,7 @@ from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
+from src.tools.capability_gap_tools import record_capability_gap
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_support_article_content, search_support_articles
@@ -26,6 +27,7 @@ docs_agent_tools = [
     get_support_article_content,
     fetch_langchain_pricing,
     check_links,
+    record_capability_gap,
 ]
 
 docs_agent_middleware = [
