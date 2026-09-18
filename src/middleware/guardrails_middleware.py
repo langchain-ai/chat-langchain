@@ -173,13 +173,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         except Exception as e:
             logger.warning(f"Failed to add query to dataset: {e}")
 
-    async def _generate_rejection_message(self, content) -> AIMessage:
+    async def _generate_rejection_message(
+        self, content, explanation: str
+    ) -> AIMessage:
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content, explanation)),
         ]
 
         try:
@@ -269,7 +269,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             return {"guardrail_history": guardrail_history}
 
         # Generate rejection and block
-        off_topic_message = await self._generate_rejection_message(last_content)
+        off_topic_message = await self._generate_rejection_message(
+            last_content, explanation
+        )
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
@@ -313,7 +315,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return " ".join(part for part in parts if part).strip()
 
-    def _build_rejection_content(self, content) -> str | list:
+    def _build_rejection_content(self, content, explanation: str) -> str | list:
         """Build rejection prompt while preserving images for vision-capable models."""
         instruction = (
             "The user asked the following request. Consider both the text and any "
@@ -322,7 +324,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         )
 
         if not isinstance(content, list):
-            return f"{instruction}\n\nUser request: {content}"
+            return (
+                f"{instruction}\n"
+                f"Policy reason for declining: {explanation}\n\n"
+                f"User request: {content}"
+            )
 
         blocks: list[Any] = [{"type": "text", "text": instruction}]
         for block in content:
@@ -331,6 +337,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             elif isinstance(block, dict):
                 blocks.append(block)
 
+        blocks.append(
+            {
+                "type": "text",
+                "text": f"Policy reason for declining: {explanation}",
+            }
+        )
         blocks.append(
             {
                 "type": "text",
