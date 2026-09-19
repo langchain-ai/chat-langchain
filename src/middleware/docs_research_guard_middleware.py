@@ -44,6 +44,56 @@ _RETRY_INSTRUCTIONS = (
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
     "then use the retrieved documentation to answer. Do not answer from memory."
 )
+_CONCEPT_STOPWORDS = frozenset(
+    {
+        "a",
+        "about",
+        "an",
+        "and",
+        "are",
+        "can",
+        "do",
+        "does",
+        "for",
+        "from",
+        "how",
+        "i",
+        "if",
+        "in",
+        "is",
+        "it",
+        "me",
+        "of",
+        "on",
+        "or",
+        "please",
+        "should",
+        "the",
+        "this",
+        "to",
+        "use",
+        "using",
+        "what",
+        "when",
+        "where",
+        "which",
+        "with",
+        "would",
+        "you",
+        "your",
+        "configure",
+        "explain",
+        "get",
+        "give",
+        "help",
+        "know",
+        "tell",
+        "work",
+    }
+)
+_QUESTION_TOKEN_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*|\d+")
+_QUOTED_CONCEPT_PATTERN = re.compile(r"[\"']([^\"']+)[\"']")
+_DOCS_PAGE_PATTERN = re.compile(r"(?:^|\s)(/[^\s]+\.mdx)\b")
 _DISCLOSURE = (
     "Documentation could not be consulted on this turn, so the following answer "
     "may contain unverified information."
@@ -97,19 +147,28 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         turn_key = self._turn_key(request.messages)
         while self._attempt_count(turn_key) < _MAX_FORCED_ATTEMPTS:
             self._record_attempt(turn_key)
+            current_turn = self._turn_messages(
+                request.messages, self._response_messages(response)
+            )
+            retry_instructions = self._retry_instructions(
+                self._latest_human_question(request.messages), current_turn
+            )
             retry_request = request.override(
                 messages=[
                     *request.messages,
-                    HumanMessage(content=_RETRY_INSTRUCTIONS),
+                    HumanMessage(content=retry_instructions),
                 ],
-                system_message=self._retry_system_message(request),
+                system_message=self._retry_system_message(request, retry_instructions),
                 tool_choice=FORCED_RESEARCH_TOOL_NAME,
             )
             response = await handler(retry_request)
             if self._has_pending_tool_calls(self._response_messages(response)):
                 return response
+            response_turn = self._turn_messages(
+                request.messages, self._response_messages(response)
+            )
             if self._has_research_tool(
-                self._turn_messages(request.messages, self._response_messages(response))
+                response_turn, self._latest_human_question(request.messages)
             ):
                 self._clear_attempts(turn_key)
                 return response
@@ -135,7 +194,9 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         if self._has_pending_tool_calls(response_messages):
             return False
         current_turn = self._turn_messages(messages, response_messages)
-        if self._has_research_tool(current_turn):
+        if self._has_research_tool(
+            current_turn, self._message_text(messages[latest_human_index])
+        ):
             return False
         return self._is_substantive_technical_answer(response_messages)
 
@@ -171,7 +232,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             for message in messages
         )
 
-    def _has_research_tool(self, messages: list[BaseMessage]) -> bool:
+    def _has_research_tool(self, messages: list[BaseMessage], question: str) -> bool:
         tool_messages = [
             message
             for message in messages
@@ -180,6 +241,10 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             and self._has_usable_content(message)
         ]
         for index, message in enumerate(tool_messages):
+            if message.name == "query_docs_filesystem_docs_by_lang_chain":
+                if self._is_responsive_docs_read(message, question):
+                    return True
+                continue
             if not self._is_large_result_pointer(message):
                 return True
             if any(
@@ -188,6 +253,86 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             ):
                 return True
         return False
+
+    def _is_responsive_docs_read(self, message: ToolMessage, question: str) -> bool:
+        text = self._message_text(message)
+        return any(
+            self._concept_matches(text, concept)
+            for concept in self._question_concepts(question)
+        )
+
+    def _question_concepts(self, question: str) -> list[str]:
+        concepts = [
+            self._normalize_concept(match)
+            for match in _QUOTED_CONCEPT_PATTERN.findall(question)
+        ]
+        current_words: list[str] = []
+        for token in _QUESTION_TOKEN_PATTERN.findall(question):
+            normalized = token.casefold()
+            if normalized in _CONCEPT_STOPWORDS or len(normalized) < 3:
+                continue
+            if self._is_specific_token(token):
+                if current_words:
+                    concepts.append(" ".join(current_words))
+                    current_words = []
+                concepts.append(token)
+            else:
+                current_words.append(token)
+        if current_words:
+            concepts.append(" ".join(current_words))
+        return list(dict.fromkeys(concept for concept in concepts if concept))
+
+    def _is_specific_token(self, token: str) -> bool:
+        return (
+            "_" in token
+            or "." in token
+            or any(character.isdigit() for character in token)
+            or bool(re.search(r"[a-z][A-Z]", token))
+            or token.casefold() in {"langchain", "langgraph", "langsmith", "deepagents"}
+        )
+
+    def _concept_matches(self, text: str, concept: str) -> bool:
+        normalized_text = self._normalize_concept(text)
+        normalized_concept = self._normalize_concept(concept)
+        if " " in normalized_concept:
+            return (
+                all(
+                    re.search(rf"\b{re.escape(term)}\b", normalized_text, re.IGNORECASE)
+                    for term in normalized_concept.split()
+                )
+                or normalized_concept in normalized_text
+            )
+        return bool(
+            re.search(
+                rf"(?<![A-Za-z0-9_]){re.escape(normalized_concept)}(?![A-Za-z0-9_])",
+                text,
+                re.IGNORECASE,
+            )
+        )
+
+    def _normalize_concept(self, text: str) -> str:
+        return re.sub(r"[-\s]+", " ", text.casefold()).strip()
+
+    def _latest_human_question(self, messages: list[BaseMessage]) -> str:
+        index = self._latest_human_index(messages)
+        return self._message_text(messages[index]) if index >= 0 else ""
+
+    def _retry_instructions(self, question: str, messages: list[BaseMessage]) -> str:
+        concepts = self._question_concepts(question)
+        pages = [
+            match.group(1)
+            for message in messages
+            if isinstance(message, ToolMessage)
+            for match in _DOCS_PAGE_PATTERN.finditer(self._message_text(message))
+        ]
+        if concepts and pages:
+            keyword = " ".join(concepts[:3])
+            return (
+                "Before answering, re-read the same documentation page with "
+                f'`rg -C 8 "{keyword}" {pages[-1]}``, then use the retrieved '
+                "documentation to answer. Do not answer from search snippets alone."
+            )
+        return _RETRY_INSTRUCTIONS
 
     def _has_usable_content(self, message: ToolMessage) -> bool:
         return message.status not in {"error", "failure", "failed"} and bool(
@@ -232,9 +377,11 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             )
         return str(content)
 
-    def _retry_system_message(self, request: ModelRequest) -> SystemMessage:
+    def _retry_system_message(
+        self, request: ModelRequest, retry_instructions: str
+    ) -> SystemMessage:
         existing = request.system_message.text if request.system_message else ""
-        content = f"{existing}\n\n{_RETRY_INSTRUCTIONS}".strip()
+        content = f"{existing}\n\n{retry_instructions}".strip()
         return SystemMessage(content=content)
 
     def _attempt_count(self, turn_key: str) -> int:

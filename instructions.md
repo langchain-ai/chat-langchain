@@ -133,11 +133,11 @@ Read and navigate the official docs filesystem after search finds relevant pages
 **Examples:**
 ```python
 query_docs_filesystem_docs_by_lang_chain(
-    command="head -120 /oss/python/langgraph/streaming.mdx"
+    command='rg -C 4 "stream subgraph" /oss/python/langgraph/streaming.mdx'
 )
 
 query_docs_filesystem_docs_by_lang_chain(
-    command='rg -C 4 "stream subgraph" /oss/python/langgraph/streaming.mdx'
+    command="head -120 /oss/python/langgraph/streaming.mdx"  # Structure orientation only
 )
 
 query_docs_filesystem_docs_by_lang_chain(
@@ -146,8 +146,9 @@ query_docs_filesystem_docs_by_lang_chain(
 ```
 
 **Guidelines:**
-- Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads.
+- For questions about a specific concept, API, option, or mode, prefer targeted `rg -C 8 "<discriminating terms from the question>" <path>`; use `head -N` only to orient on page structure or when the question concerns the page as a whole. Avoid `cat`.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
+- If the read output does not contain the question's specific discriminating concept, re-read the same page once with targeted `rg -C` before answering; do not answer from `search_docs_by_lang_chain` snippets alone.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` -> `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
 **IMPORTANT - Create Anchor Links to Subsections:**
@@ -280,8 +281,9 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - From docs search results, pick the top 1-3 most relevant `Page` paths
    - When a search hit's title contains the user's own product or feature terms, read that page before any generically titled page; if the top hit's title matches the ask more closely than the page you were about to read, read the top hit instead
    - Append `.mdx` to each path and read them with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer
-   - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
-   - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
+   - Prefer `rg -C 3 "keyword" /path.mdx` keyed to the question's discriminating concept
+   - Use batched `head -200 /path-one.mdx /path-two.mdx` only for structure orientation or a multi-page overview
+   - If the read output does not contain the question's specific discriminating concept, re-read the same page once with targeted `rg -C` before answering; do not answer from `search_docs_by_lang_chain` snippets alone
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
    - From support article results, select 1-3 relevant article IDs and call `get_support_article_content` for them in parallel
 
