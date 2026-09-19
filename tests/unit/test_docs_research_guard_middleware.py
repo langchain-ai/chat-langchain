@@ -2,6 +2,7 @@
 
 import asyncio
 
+import pytest
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
@@ -460,6 +461,93 @@ def test_search_results_satisfy_research_requirement():
     asyncio.run(middleware.awrap_model_call(request, handler))
 
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("command", ["head-100", "head-120"])
+def test_generic_docs_windows_do_not_satisfy_specific_question(command):
+    middleware = DocsResearchGuardMiddleware()
+    message = ToolMessage(
+        content=(
+            f"{command} /oss/python/langgraph/use-subgraphs.mdx\n"
+            "# Use subgraphs\n\nSubgraph nodes can be composed into a parent graph."
+        ),
+        name="query_docs_filesystem_docs_by_lang_chain",
+        tool_call_id="read",
+    )
+
+    assert not middleware._has_research_tool(
+        [message], "How does subgraph persistence work?"
+    )
+
+
+def test_nonresponsive_docs_read_forces_targeted_retry():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How does subgraph persistence work?"),
+            ToolMessage(
+                content=(
+                    "head-100 /oss/python/langgraph/use-subgraphs.mdx\n"
+                    "# Use subgraphs\n\nSubgraph nodes can be composed into a parent graph."
+                ),
+                name="query_docs_filesystem_docs_by_lang_chain",
+                tool_call_id="read",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        if len(calls) == 1:
+            return ModelResponse(
+                result=[
+                    AIMessage(
+                        content="Subgraph persistence uses the `checkpointer` configuration described in the documentation."
+                    )
+                ]
+            )
+        return ModelResponse(
+            result=[
+                ToolMessage(
+                    content=(
+                        'rg -C 10 "subgraph persistence" '
+                        "/oss/python/langgraph/use-subgraphs.mdx\n"
+                        "## Subgraph persistence\nPersistence is enabled with a checkpointer."
+                    ),
+                    name="query_docs_filesystem_docs_by_lang_chain",
+                    tool_call_id="targeted-read",
+                ),
+                AIMessage(
+                    content="Subgraph persistence is configured with a checkpointer."
+                ),
+            ]
+        )
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert 'rg -C 8 "subgraph persistence"' in calls[1].messages[-1].content
+    assert "use-subgraphs.mdx" in calls[1].messages[-1].content
+    assert response.result[-1].content.endswith("checkpointer.")
+
+
+def test_complete_docs_concept_satisfies_research_requirement():
+    middleware = DocsResearchGuardMiddleware()
+    message = ToolMessage(
+        content=(
+            'rg -C 10 "subgraph persistence" '
+            "/oss/python/langgraph/use-subgraphs.mdx\n"
+            "## Subgraph persistence\nPersistence is enabled with a checkpointer."
+        ),
+        name="query_docs_filesystem_docs_by_lang_chain",
+        tool_call_id="read",
+    )
+
+    assert middleware._has_research_tool(
+        [message], "How does subgraph persistence work?"
+    )
 
 
 def test_unread_large_result_pointer_does_not_satisfy_research_requirement():
