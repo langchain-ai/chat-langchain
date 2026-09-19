@@ -52,15 +52,8 @@ _MAX_FORCED_ATTEMPTS = 2
 _DOCS_URL_PATTERN = re.compile(r"https://docs\.langchain\.com/[^\s<>\]\)\"']+")
 _CODE_BLOCK_PATTERN = re.compile(r"```.*?(?:```|$)", re.DOTALL)
 _LARGE_RESULT_POINTER_PATTERN = re.compile(r"^/large_tool_results/[^\s]+$")
-_NONTECHNICAL_USER_TURN_PATTERN = re.compile(
-    r"(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|hola|bonjour|salut|"
-    r"你好|您好|こんにちは|こんばんは|привет|здравствуйте|what\s+can\s+you\s+do|"
-    r"who\s+are\s+you|(?:can\s+you\s+)?help(?:\s+me)?)[!.?,\s]*",
-    re.IGNORECASE,
-)
 _TECHNICAL_USER_SIGNAL_PATTERN = re.compile(
-    r"```|`[^`]+`|https?://|\b(?:error|exception|traceback|stack\s+trace)\b|"
-    r"\b(?:langchain|langgraph|langsmith|fleet|deepagents)\b",
+    r"```|`[^`]+`|https?://|\b(?:error|exception|traceback|stack\s+trace)\b",
     re.IGNORECASE,
 )
 _TECHNICAL_IDENTIFIER_PATTERN = re.compile(
@@ -217,9 +210,11 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
 
     def _user_turn_has_technical_signal(self, message: BaseMessage) -> bool:
         text = self._message_text(message).strip()
-        if _TECHNICAL_USER_SIGNAL_PATTERN.search(text):
-            return True
-        return len(text) > 120 or not _NONTECHNICAL_USER_TURN_PATTERN.fullmatch(text)
+        return bool(
+            _TECHNICAL_USER_SIGNAL_PATTERN.search(text)
+            or _TECHNICAL_IDENTIFIER_PATTERN.search(text)
+            or len(text) > 120
+        )
 
     def _message_text(self, message: BaseMessage) -> str:
         content: Any = getattr(message, "content", "")

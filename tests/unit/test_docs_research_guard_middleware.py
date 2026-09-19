@@ -39,11 +39,76 @@ def test_non_latin_greeting_does_not_force_research():
     assert not middleware._should_retry(request, response)
 
 
+def test_product_name_conversation_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Lets talk Langchain")],
+    )
+    response = ModelResponse(
+        result=[AIMessage(content="Sure, what would you like to discuss?")]
+    )
+
+    assert not middleware._should_retry(request, response)
+
+
+def test_portuguese_capability_question_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Como pode me ajudar?")],
+    )
+    response = ModelResponse(
+        result=[AIMessage(content="Posso ajudar com perguntas e ideias.")]
+    )
+
+    assert not middleware._should_retry(request, response)
+
+
+def test_explicit_technical_user_signals_force_research():
+    middleware = DocsResearchGuardMiddleware()
+
+    for user_turn in (
+        "How do I use `StateGraph`?",
+        "I got this traceback when starting the app.",
+    ):
+        request = ModelRequest(
+            model=object(),
+            messages=[HumanMessage(content=user_turn)],
+        )
+        response = ModelResponse(
+            result=[
+                AIMessage(
+                    content="The StateGraph constructor accepts configuration options."
+                )
+            ]
+        )
+
+        assert middleware._should_retry(request, response)
+
+
+def test_long_user_turn_forces_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="a" * 121)],
+    )
+    response = ModelResponse(
+        result=[
+            AIMessage(
+                content="The StateGraph constructor accepts configuration options."
+            )
+        ]
+    )
+
+    assert middleware._should_retry(request, response)
+
+
 def test_technical_answers_still_force_research():
     middleware = DocsResearchGuardMiddleware()
     request = ModelRequest(
         model=object(),
-        messages=[HumanMessage(content="How do I configure this?")],
+        messages=[HumanMessage(content="How do I configure StateGraph?")],
     )
 
     for answer in (
@@ -154,7 +219,7 @@ def test_forced_retry_tool_choice_matches_google_style_binding():
 
     request = ModelRequest(
         model=GoogleStyleModel(),
-        messages=[HumanMessage(content="How do I build a graph?")],
+        messages=[HumanMessage(content="How do I build a StateGraph?")],
     )
     response = asyncio.run(middleware.awrap_model_call(request, handler))
 
@@ -324,7 +389,7 @@ def test_entirely_ungrounded_footer_retries_with_correction():
     calls: list[ModelRequest] = []
     request = ModelRequest(
         model=object(),
-        messages=[HumanMessage(content="How do I build a graph?")],
+        messages=[HumanMessage(content="How do I build a StateGraph?")],
     )
 
     async def handler(request: ModelRequest) -> ModelResponse:
@@ -528,7 +593,7 @@ def test_ignored_retries_are_bounded_and_sanitized():
     url = "https://docs.langchain.com/oss/python/langgraph/graph-api"
     request = ModelRequest(
         model=object(),
-        messages=[HumanMessage(content="How do I build a graph?")],
+        messages=[HumanMessage(content="How do I build a StateGraph?")],
     )
 
     async def handler(request: ModelRequest) -> ModelResponse:
