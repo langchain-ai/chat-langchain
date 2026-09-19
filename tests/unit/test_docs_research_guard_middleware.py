@@ -39,6 +39,71 @@ def test_non_latin_greeting_does_not_force_research():
     assert not middleware._should_retry(request, response)
 
 
+def test_evaluative_turn_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="It's bad")],
+    )
+    response = ModelResponse(
+        result=[AIMessage(content="The configuration details need clarification.")]
+    )
+
+    assert not middleware._should_retry(request, response)
+
+
+def test_portuguese_capability_question_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Como pode me ajudar?")],
+    )
+    response = ModelResponse(
+        result=[AIMessage(content="I can explain configuration and tool usage.")]
+    )
+
+    assert not middleware._should_retry(request, response)
+
+
+def test_information_request_without_identifier_still_forces_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="tell me about reranking")],
+    )
+    response = ModelResponse(
+        result=[AIMessage(content="Reranking is a configuration technique for retrieval.")]
+    )
+
+    assert middleware._should_retry(request, response)
+
+
+def test_python_traceback_still_forces_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="I got this traceback: ValueError: invalid input")],
+    )
+    response = ModelResponse(
+        result=[AIMessage(content="The exception indicates a configuration problem.")]
+    )
+
+    assert middleware._should_retry(request, response)
+
+
+def test_backticked_identifier_still_forces_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="What does `config_schema` mean?")],
+    )
+    response = ModelResponse(
+        result=[AIMessage(content="The parameter controls the graph configuration.")]
+    )
+
+    assert middleware._should_retry(request, response)
+
+
 def test_technical_answers_still_force_research():
     middleware = DocsResearchGuardMiddleware()
     request = ModelRequest(
