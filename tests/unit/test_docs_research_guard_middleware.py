@@ -339,12 +339,12 @@ def test_entirely_ungrounded_footer_retries_with_correction():
 
     assert len(calls) == 2
     assert (
-        "copied verbatim from this turn's documentation tool results"
+        "Do not call any tools or add new citations"
         in calls[1].system_prompt
     )
     assert calls[1].messages[:-1] == request.messages
     assert isinstance(calls[1].messages[-1], HumanMessage)
-    assert "Rewrite the Relevant docs footer" in calls[1].messages[-1].content
+    assert "Rewrite only the existing Relevant docs footer in place" in calls[1].messages[-1].content
     assert result.result[0].content.startswith("**Answer**")
 
 
