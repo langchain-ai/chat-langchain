@@ -64,6 +64,9 @@ class GuardrailTurn(TypedDict):
     decision: Literal["ALLOWED", "BLOCKED"]
 
 
+ScopeDecision = Literal["ALLOWED", "BLOCKED", "ERROR"]
+
+
 class GuardrailsClassificationError(Exception):
     """Raised when guardrails classification fails after retries."""
 
@@ -75,6 +78,8 @@ class GuardrailsState(AgentState):
 
     off_topic_query: NotRequired[bool]
     guardrail_history: NotRequired[list[GuardrailTurn]]
+    scope_decision: NotRequired[ScopeDecision]
+    scope_explanation: NotRequired[str]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -226,9 +231,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
-            if state.get("guardrail_history"):
-                return {"off_topic_query": False, "guardrail_history": []}
-            return {"off_topic_query": False}
+            return {
+                "off_topic_query": False,
+                "guardrail_history": [],
+                "scope_decision": "ERROR",
+                "scope_explanation": "Guardrails classification failed.",
+            }
 
         decision = guardrails_decision["decision"]
         explanation = guardrails_decision["explanation"]
@@ -253,7 +261,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return {"guardrail_history": guardrail_history}
+            return {
+                "guardrail_history": guardrail_history,
+                "scope_decision": "ALLOWED",
+                "scope_explanation": explanation,
+            }
 
         # Handle blocked queries
         logger.warning(
@@ -266,7 +278,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.info(
                 "Off-topic query detected but block_off_topic=False, allowing..."
             )
-            return {"guardrail_history": guardrail_history}
+            return {
+                "guardrail_history": guardrail_history,
+                "scope_decision": "BLOCKED",
+                "scope_explanation": explanation,
+            }
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
@@ -274,6 +290,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             "messages": [off_topic_message],
             "off_topic_query": True,
             "guardrail_history": guardrail_history,
+            "scope_decision": "BLOCKED",
+            "scope_explanation": explanation,
             "jump_to": "end",
         }
 
