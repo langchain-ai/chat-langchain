@@ -72,6 +72,14 @@ _TECHNICAL_IDENTIFIER_PATTERN = re.compile(
     r"(?:^|\s)(?:\$\s*)?(?:python(?:3)?|pip|uv|npm|pnpm|poetry|git|curl)\s+\S+",
     re.MULTILINE,
 )
+_SCOPE_REFUSAL_PATTERN = re.compile(
+    r"(?:outside\s+(?:my|your)\s+(?:scope|wheelhouse|area)|"
+    r"(?:specifically\s+)?designed\s+to\s+help\s+with|"
+    r"focus(?:es)?\s+on|speciali[sz](?:e|es|ed|ing)\s+in|"
+    r"not\s+the\s+right\s+resource).*"
+    r"\b(?:LangChain|LangGraph|LangSmith|Fleet|Deep\s*Agents)\b",
+    re.IGNORECASE | re.DOTALL,
+)
 _FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "docs_research_guard_forced_turn", default=None
 )
@@ -137,6 +145,8 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         current_turn = self._turn_messages(messages, response_messages)
         if self._has_research_tool(current_turn):
             return False
+        if self._is_scope_refusal_response(response_messages):
+            return True
         return self._is_substantive_technical_answer(response_messages)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
@@ -214,6 +224,10 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
                 re.IGNORECASE,
             )
         )
+
+    def _is_scope_refusal_response(self, messages: list[BaseMessage]) -> bool:
+        text = "\n".join(self._message_text(message) for message in messages).strip()
+        return 40 <= len(text) <= 400 and bool(_SCOPE_REFUSAL_PATTERN.search(text))
 
     def _user_turn_has_technical_signal(self, message: BaseMessage) -> bool:
         text = self._message_text(message).strip()
