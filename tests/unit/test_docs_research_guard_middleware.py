@@ -342,9 +342,13 @@ def test_entirely_ungrounded_footer_retries_with_correction():
         "copied verbatim from this turn's documentation tool results"
         in calls[1].system_prompt
     )
-    assert calls[1].messages[:-1] == request.messages
+    assert calls[1].messages[:-2] == request.messages
+    assert isinstance(calls[1].messages[-2], AIMessage)
+    assert calls[1].messages[-2].content.startswith("**Answer**")
     assert isinstance(calls[1].messages[-1], HumanMessage)
-    assert "Rewrite the Relevant docs footer" in calls[1].messages[-1].content
+    assert "Reproduce the previous answer's prose and code blocks verbatim" in (
+        calls[1].messages[-1].content
+    )
     assert result.result[0].content.startswith("**Answer**")
 
 
