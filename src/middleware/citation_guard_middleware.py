@@ -38,9 +38,10 @@ _FOOTER_PATTERN = re.compile(
     r"(?ims)^\s*(?:(?:\*\*)?Relevant docs:\s*(?:\*\*)?|##\s+Relevant docs:\s*).*$"
 )
 _RETRY_INSTRUCTIONS = (
-    "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
-    "documentation tool results. Call check_links on exactly the final citation list "
-    "before answering. Never construct or recall a documentation URL."
+    "Reproduce the previous answer's prose and code blocks verbatim. Change only the "
+    "Relevant docs footer, using URLs copied verbatim from this turn's documentation "
+    "tool results. Call check_links on exactly the final citation list before answering. "
+    "Never construct or recall a documentation URL."
 )
 
 
@@ -74,11 +75,18 @@ class CitationGuardMiddleware(AgentMiddleware):
             retry_request = request.override(
                 messages=[
                     *request.messages,
+                    footer_message,
                     HumanMessage(content=_RETRY_INSTRUCTIONS),
                 ],
                 system_message=self._retry_system_message(request),
             )
             retry_response = await handler(retry_request)
+            retry_footer = self._footer_message(self._response_messages(retry_response))
+            if retry_footer is None or self._body_without_footer(
+                self._message_text(retry_footer)
+            ) != self._body_without_footer(self._message_text(footer_message)):
+                return self._replace_footer(response, footer_message, repaired_text)
+
             retry_footer, retry_invalid_urls = await self._invalid_footer_urls(
                 retry_response, turn_messages
             )
@@ -184,6 +192,10 @@ class CitationGuardMiddleware(AgentMiddleware):
             if not invalid_urls.intersection(_URL_PATTERN.findall(line))
         ]
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
+
+    def _body_without_footer(self, text: str) -> str:
+        match = _FOOTER_PATTERN.search(text)
+        return text[: match.start()] if match else text
 
     def _replace_footer(
         self, response: ModelResponse, message: AIMessage, text: str
