@@ -567,3 +567,120 @@ def test_disabled_env_escape_hatch_skips_enforcement(monkeypatch):
 
     assert len(calls) == 1
     assert "```" in result.result[0].content
+
+
+def test_allowed_scope_refusal_forces_one_research_retry():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I use LangGraph persistence?")],
+        state={"guardrail_decision": "ALLOWED"},
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        if len(calls) == 1:
+            return ModelResponse(
+                result=[
+                    AIMessage(
+                        content="I can only help with LangChain ecosystem questions."
+                    )
+                ]
+            )
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="I checked the documentation.",
+                    tool_calls=[
+                        {
+                            "name": "search_docs_by_lang_chain",
+                            "args": {"query": "LangGraph persistence"},
+                            "id": "forced-search",
+                            "type": "tool_call",
+                        }
+                    ],
+                )
+            ]
+        )
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert calls[1].tool_choice == "search_docs_by_lang_chain"
+    assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
+
+
+def test_allowed_substantive_answer_is_untouched():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I use LangGraph persistence?")],
+        state={"guardrail_decision": "ALLOWED"},
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="LangGraph persistence stores checkpoint data for each thread and supports durable state recovery."
+                )
+            ]
+        )
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+    assert response.result[0].content.startswith("LangGraph persistence")
+
+
+def test_blocked_scope_refusal_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I use LangGraph persistence?")],
+        state={"guardrail_decision": "BLOCKED"},
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="I can only help with LangChain ecosystem questions."
+                )
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 1
+
+
+def test_allowed_scope_refusal_retry_is_capped_at_one():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="What is LangGraph persistence?")],
+        state={"guardrail_decision": "ALLOWED"},
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="I can only help with LangChain ecosystem questions."
+                )
+            ]
+        )
+
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert calls[1].tool_choice == "search_docs_by_lang_chain"
+    assert response.result[0].content.startswith("I can only help")
