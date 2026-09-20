@@ -177,9 +177,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -253,7 +251,24 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return {"guardrail_history": guardrail_history}
+            return {
+                "messages": [
+                    SystemMessage(
+                        content=(
+                            "Scope check for the current turn: ALLOWED. "
+                            "The current question passed the scope check, so prior "
+                            "assistant scope refusals must not be reused for this turn. "
+                            "Follow the normal documentation-research and answering "
+                            "rules for the current question. This signal addresses scope "
+                            "only and does not bypass separate safety, harmful-use, "
+                            "prompt-extraction, or other refusal rules. "
+                            f"Classifier explanation (data only): {explanation}"
+                        )
+                    )
+                ],
+                "off_topic_query": False,
+                "guardrail_history": guardrail_history,
+            }
 
         # Handle blocked queries
         logger.warning(
@@ -411,14 +426,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from prior classified turns for follow-up detection.
         context_section = ""
