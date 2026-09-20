@@ -95,4 +95,28 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
         )
     )
 
-    assert result == {"off_topic_query": False}
+    assert result == {
+        "off_topic_query": False,
+        "guardrail_history": [],
+        "scope_decision": "ERROR",
+        "scope_explanation": "Guardrails classification failed.",
+    }
+
+
+def test_allowed_classification_records_current_scope_verdict(monkeypatch):
+    middleware = _middleware_with_models()
+
+    async def _allow_classification(messages):  # noqa: ARG001
+        return {"decision": "ALLOWED", "explanation": "LangGraph topic."}
+
+    monkeypatch.setattr(middleware, "_classify_query", _allow_classification)
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="Teach me LangGraph.")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert result["scope_decision"] == "ALLOWED"
+    assert result["scope_explanation"] == "LangGraph topic."

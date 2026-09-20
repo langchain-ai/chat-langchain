@@ -55,6 +55,113 @@ def test_technical_answers_still_force_research():
         assert middleware._should_retry(request, response)
 
 
+def test_allowed_canned_refusal_gets_one_bounded_research_retry():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="¿Cómo me enseñas LangGraph paso a paso?")],
+        state={"scope_decision": "ALLOWED"},
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        if len(calls) == 1:
+            return ModelResponse(
+                result=[
+                    AIMessage(
+                        content=(
+                            "I'm specifically designed to help with LangChain, "
+                            "LangGraph, LangSmith, and Deep Agents."
+                        )
+                    )
+                ]
+            )
+        return ModelResponse(
+            result=[AIMessage(content="I researched the LangGraph tutorial.")]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert calls[1].tool_choice == "search_docs_by_lang_chain"
+    assert "current turn was classified as ALLOWED" in calls[1].system_prompt
+    assert result.result[0].content == "I researched the LangGraph tutorial."
+
+
+def test_allowed_documentation_request_retries_refusal_once():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Where can I find the LangChain documentation?")],
+        state={"scope_decision": "ALLOWED"},
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        if len(calls) == 1:
+            return ModelResponse(result=[AIMessage(content="That's outside my wheelhouse.")])
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content=(
+                        "The documentation is at "
+                        "https://docs.langchain.com/oss/python/langchain/overview"
+                    )
+                )
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
+    assert result.result[0].content.startswith("The documentation is at")
+
+
+def test_blocked_or_unclassified_turn_does_not_retry_canned_refusal():
+    middleware = DocsResearchGuardMiddleware()
+    calls = 0
+
+    async def handler(request: ModelRequest) -> ModelResponse:  # noqa: ARG001
+        nonlocal calls
+        calls += 1
+        return ModelResponse(result=[AIMessage(content="This is outside my scope.")])
+
+    for decision in ("BLOCKED", "ERROR"):
+        request = ModelRequest(
+            model=object(),
+            messages=[HumanMessage(content="Explain this topic.")],
+            state={"scope_decision": decision},
+        )
+        asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert calls == 2
+
+
+def test_allowed_refusal_retry_does_not_loop_on_repeated_model_calls():
+    middleware = DocsResearchGuardMiddleware()
+    calls = 0
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Explain LangGraph.")],
+        state={"scope_decision": "ALLOWED"},
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:  # noqa: ARG001
+        nonlocal calls
+        calls += 1
+        return ModelResponse(result=[AIMessage(content="This is outside my scope.")])
+
+    async def run_calls() -> None:
+        await middleware.awrap_model_call(request, handler)
+        await middleware.awrap_model_call(request, handler)
+
+    asyncio.run(run_calls())
+
+    assert calls == 3
+
+
 def test_user_turn_signal_detects_technical_question():
     middleware = DocsResearchGuardMiddleware()
 

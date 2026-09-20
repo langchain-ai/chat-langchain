@@ -44,6 +44,18 @@ _RETRY_INSTRUCTIONS = (
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
     "then use the retrieved documentation to answer. Do not answer from memory."
 )
+_ALLOWED_REFUSAL_RETRY_INSTRUCTIONS = (
+    "The current turn was classified as ALLOWED. The response is an incorrect scope "
+    "refusal. Research the user's LangChain-ecosystem question with the documentation "
+    "tools on this turn, then answer it using the retrieved evidence."
+)
+_CANNED_SCOPE_REFUSALS = (
+    "i'm specifically designed to help with langchain",
+    "that's outside my wheelhouse",
+    "i'm not the right resource for that",
+    "i can't help with this specific question",
+    "this is outside my scope",
+)
 _DISCLOSURE = (
     "Documentation could not be consulted on this turn, so the following answer "
     "may contain unverified information."
@@ -78,6 +90,9 @@ _FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 _FORCED_ATTEMPTS: contextvars.ContextVar[dict[str, int]] = contextvars.ContextVar(
     "docs_research_guard_forced_attempts", default={}
 )
+_ALLOWED_REFUSAL_RETRIES: contextvars.ContextVar[set[str]] = contextvars.ContextVar(
+    "docs_research_guard_allowed_refusal_retries", default=set()
+)
 
 
 class DocsResearchGuardMiddleware(AgentMiddleware):
@@ -90,6 +105,20 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
     ) -> ModelCallResult:
         """Require fresh research before returning a technical answer."""
         response = await handler(request)
+        if self._should_retry_allowed_refusal(request, response):
+            turn_key = self._turn_key(request.messages)
+            self._record_allowed_refusal_retry(turn_key)
+            retry_request = request.override(
+                messages=[
+                    *request.messages,
+                    HumanMessage(content=_ALLOWED_REFUSAL_RETRY_INSTRUCTIONS),
+                ],
+                system_message=self._retry_system_message(
+                    request, _ALLOWED_REFUSAL_RETRY_INSTRUCTIONS
+                ),
+                tool_choice=FORCED_RESEARCH_TOOL_NAME,
+            )
+            return await handler(retry_request)
         if not self._should_retry(request, response):
             self._clear_attempts(self._turn_key(request.messages))
             return response
@@ -138,6 +167,32 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         if self._has_research_tool(current_turn):
             return False
         return self._is_substantive_technical_answer(response_messages)
+
+    def _should_retry_allowed_refusal(
+        self, request: ModelRequest, response: ModelResponse
+    ) -> bool:
+        if request.state.get("scope_decision") != "ALLOWED":
+            return False
+        if self._allowed_refusal_retry_recorded(self._turn_key(request.messages)):
+            return False
+        response_messages = self._response_messages(response)
+        if self._has_pending_tool_calls(response_messages):
+            return False
+        current_turn = self._turn_messages(request.messages, response_messages)
+        if self._has_research_call(current_turn):
+            return False
+        response_text = "\n".join(
+            self._message_text(message) for message in response_messages
+        ).lower()
+        return any(refusal in response_text for refusal in _CANNED_SCOPE_REFUSALS)
+
+    def _has_research_call(self, messages: list[BaseMessage]) -> bool:
+        return any(
+            isinstance(message, ToolMessage) and message.name in RESEARCH_TOOLS
+            or isinstance(message, AIMessage)
+            and any(call.get("name") in RESEARCH_TOOLS for call in message.tool_calls)
+            for message in messages
+        )
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):
@@ -232,9 +287,11 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             )
         return str(content)
 
-    def _retry_system_message(self, request: ModelRequest) -> SystemMessage:
+    def _retry_system_message(
+        self, request: ModelRequest, instructions: str = _RETRY_INSTRUCTIONS
+    ) -> SystemMessage:
         existing = request.system_message.text if request.system_message else ""
-        content = f"{existing}\n\n{_RETRY_INSTRUCTIONS}".strip()
+        content = f"{existing}\n\n{instructions}".strip()
         return SystemMessage(content=content)
 
     def _attempt_count(self, turn_key: str) -> int:
@@ -252,6 +309,14 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         _FORCED_ATTEMPTS.set(attempts)
         if _FORCED_TURN.get() == turn_key:
             _FORCED_TURN.set(None)
+
+    def _allowed_refusal_retry_recorded(self, turn_key: str) -> bool:
+        return turn_key in _ALLOWED_REFUSAL_RETRIES.get()
+
+    def _record_allowed_refusal_retry(self, turn_key: str) -> None:
+        retries = set(_ALLOWED_REFUSAL_RETRIES.get())
+        retries.add(turn_key)
+        _ALLOWED_REFUSAL_RETRIES.set(retries)
 
     def _sanitize_response(
         self, request: ModelRequest, response: ModelResponse
