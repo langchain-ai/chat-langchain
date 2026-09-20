@@ -4,10 +4,16 @@ import asyncio
 import logging
 import os
 import random
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
+from langchain.agents.middleware.types import (
+    ModelCallResult,
+    ModelRequest,
+    ModelResponse,
+)
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
@@ -75,6 +81,7 @@ class GuardrailsState(AgentState):
 
     off_topic_query: NotRequired[bool]
     guardrail_history: NotRequired[list[GuardrailTurn]]
+    guardrail_decision: NotRequired[Literal["ALLOWED", "BLOCKED"]]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -177,9 +184,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -187,10 +192,17 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 self.llm.ainvoke(prompt),
                 timeout=GUARDRAILS_TIMEOUT_SECONDS,
             )
-            return AIMessage(id=response.id, content=response.content)
+            return AIMessage(
+                id=response.id,
+                content=response.content,
+                response_metadata={"guardrail_refusal": True},
+            )
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")
-            return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
+            return AIMessage(
+                content=_FALLBACK_REJECTION_MESSAGE,
+                response_metadata={"guardrail_refusal": True},
+            )
 
     @hook_config(can_jump_to=["end"])
     async def abefore_agent(
@@ -227,8 +239,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
             if state.get("guardrail_history"):
-                return {"off_topic_query": False, "guardrail_history": []}
-            return {"off_topic_query": False}
+                return {
+                    "off_topic_query": False,
+                    "guardrail_history": [],
+                    "guardrail_decision": "ALLOWED",
+                }
+            return {"off_topic_query": False, "guardrail_decision": "ALLOWED"}
 
         decision = guardrails_decision["decision"]
         explanation = guardrails_decision["explanation"]
@@ -253,7 +269,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return {"guardrail_history": guardrail_history}
+            return {
+                "guardrail_history": guardrail_history,
+                "guardrail_decision": "ALLOWED",
+            }
 
         # Handle blocked queries
         logger.warning(
@@ -266,7 +285,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.info(
                 "Off-topic query detected but block_off_topic=False, allowing..."
             )
-            return {"guardrail_history": guardrail_history}
+            return {
+                "guardrail_history": guardrail_history,
+                "guardrail_decision": "BLOCKED",
+            }
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
@@ -274,8 +296,28 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             "messages": [off_topic_message],
             "off_topic_query": True,
             "guardrail_history": guardrail_history,
+            "guardrail_decision": "BLOCKED",
             "jump_to": "end",
         }
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelCallResult:
+        """Hide prior guardrail refusals from allowed-turn model calls."""
+        if (request.state or {}).get("guardrail_decision") == "ALLOWED":
+            request = request.override(
+                messages=[
+                    message
+                    for message in request.messages
+                    if not (
+                        isinstance(message, AIMessage)
+                        and message.response_metadata.get("guardrail_refusal") is True
+                    )
+                ]
+            )
+        return await handler(request)
 
     def _append_guardrail_turn(
         self, history: list[GuardrailTurn], query: str, decision: str
@@ -411,14 +453,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from prior classified turns for follow-up detection.
         context_section = ""
