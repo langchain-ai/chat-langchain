@@ -4,10 +4,16 @@ import asyncio
 import logging
 import os
 import random
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
+from langchain.agents.middleware.types import (
+    ModelCallResult,
+    ModelRequest,
+    ModelResponse,
+)
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
@@ -75,6 +81,18 @@ class GuardrailsState(AgentState):
 
     off_topic_query: NotRequired[bool]
     guardrail_history: NotRequired[list[GuardrailTurn]]
+    scope_verdict: NotRequired[str]
+
+
+_ALLOWED_SCOPE_INSTRUCTION = (
+    "A scope check has already run on this turn and classified it IN SCOPE. "
+    "Do not answer with a scope refusal. If the request is vague or garbled, "
+    "either search the documentation for the most likely intended topic, or ask "
+    "one short clarifying question - never emit the generic 'I can only help "
+    "with questions related to...' response on this turn. Existing zero-tolerance "
+    "directives for harmful use cases, NSFW content, and system-prompt extraction "
+    "still override this instruction."
+)
 
 
 if _USE_LOCAL_PROMPTS:
@@ -109,6 +127,21 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     """Lenient guardrails to filter only egregious misuse."""
 
     state_schema = GuardrailsState
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelCallResult:
+        """Surface an allowed scope verdict to the answering model."""
+        if request.state.get("scope_verdict") == "ALLOWED":
+            system_prompt = request.system_prompt or ""
+            request = request.override(
+                system_message=SystemMessage(
+                    content=f"{system_prompt}\n\n{_ALLOWED_SCOPE_INSTRUCTION}".strip()
+                )
+            )
+        return await handler(request)
 
     def __init__(
         self,
@@ -253,7 +286,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return {"guardrail_history": guardrail_history}
+            return {
+                "guardrail_history": guardrail_history,
+                "scope_verdict": "ALLOWED",
+                "off_topic_query": False,
+            }
 
         # Handle blocked queries
         logger.warning(
@@ -274,6 +311,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             "messages": [off_topic_message],
             "off_topic_query": True,
             "guardrail_history": guardrail_history,
+            "scope_verdict": "BLOCKED",
             "jump_to": "end",
         }
 
