@@ -4,7 +4,8 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain.agents.middleware.types import ModelRequest, ModelResponse
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -96,3 +97,77 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_blocked_turn_does_not_poison_later_docs_search(monkeypatch):
+    """A middleware refusal is hidden from a later in-scope model call."""
+    middleware = _middleware_with_models()
+    decisions = iter(
+        [
+            {"decision": "BLOCKED", "explanation": "Off topic."},
+            {"decision": "ALLOWED", "explanation": "LangChain question."},
+        ]
+    )
+
+    async def classify(messages, guardrail_history=None):  # noqa: ARG001
+        return next(decisions)
+
+    async def rejection(content):  # noqa: ARG001
+        return AIMessage(
+            content="I can only help with LangChain questions.",
+            response_metadata={"guardrail_refusal": True},
+        )
+
+    monkeypatch.setattr(middleware, "_classify_query", classify)
+    monkeypatch.setattr(middleware, "_generate_rejection_message", rejection)
+
+    blocked_state = {"messages": [HumanMessage(content="Write a poem.")]}
+    blocked_update = asyncio.run(
+        middleware.abefore_agent(blocked_state, Runtime(context=None))
+    )
+    state = {
+        "messages": [*blocked_state["messages"], *blocked_update["messages"]],
+        "guardrail_history": blocked_update["guardrail_history"],
+    }
+    state["messages"].append(
+        HumanMessage(content="How do I configure a LangGraph checkpointer?")
+    )
+
+    allowed_update = asyncio.run(
+        middleware.abefore_agent(state, Runtime(context=None))
+    )
+    assert "messages" not in allowed_update
+
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="I’m searching the documentation now.",
+                    tool_calls=[
+                        {
+                            "name": "search_docs_by_lang_chain",
+                            "args": {"query": "LangGraph checkpointer"},
+                            "id": "search-1",
+                            "type": "tool_call",
+                        }
+                    ],
+                )
+            ]
+        )
+
+    response = asyncio.run(
+        middleware.awrap_model_call(
+            ModelRequest(model=object(), messages=state["messages"]), handler
+        )
+    )
+
+    assert len(calls) == 1
+    assert not any(
+        message.response_metadata.get("guardrail_refusal") is True
+        for message in calls[0].messages
+        if isinstance(message, AIMessage)
+    )
+    assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
