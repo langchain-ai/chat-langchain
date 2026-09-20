@@ -4,10 +4,16 @@ import asyncio
 import logging
 import os
 import random
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
+from langchain.agents.middleware.types import (
+    ModelCallResult,
+    ModelRequest,
+    ModelResponse,
+)
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
@@ -48,6 +54,7 @@ _GUARDRAILS_PROMPT_HUB_NAME = (
 
 # Cache for dataset ID to avoid repeated lookups
 _dataset_id_cache: str | None = None
+_GUARDRAIL_REJECTION_METADATA_KEY = "guardrail_rejection"
 
 
 class GuardrailsDecision(TypedDict):
@@ -187,10 +194,34 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 self.llm.ainvoke(prompt),
                 timeout=GUARDRAILS_TIMEOUT_SECONDS,
             )
-            return AIMessage(id=response.id, content=response.content)
+            return AIMessage(
+                id=response.id,
+                content=response.content,
+                response_metadata={_GUARDRAIL_REJECTION_METADATA_KEY: True},
+            )
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")
-            return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
+            return AIMessage(
+                content=_FALLBACK_REJECTION_MESSAGE,
+                response_metadata={_GUARDRAIL_REJECTION_METADATA_KEY: True},
+            )
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelCallResult:
+        """Filter persisted guardrail refusals before calling the agent model."""
+        messages = [
+            message
+            for message in request.messages
+            if not (
+                getattr(message, "response_metadata", None) or {}
+            ).get(_GUARDRAIL_REJECTION_METADATA_KEY)
+        ]
+        if len(messages) != len(request.messages):
+            request = request.override(messages=messages)
+        return await handler(request)
 
     @hook_config(can_jump_to=["end"])
     async def abefore_agent(

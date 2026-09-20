@@ -4,7 +4,8 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain.agents.middleware.types import ModelRequest, ModelResponse
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -96,3 +97,58 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_replayed_rejections_do_not_block_research_question():
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            AIMessage(
+                content="I can't help with that.",
+                response_metadata={"guardrail_rejection": True},
+            ),
+            AIMessage(
+                content="Please ask about LangChain instead.",
+                response_metadata={"guardrail_rejection": True},
+            ),
+            HumanMessage(content="How do I add memory to a LangGraph agent?"),
+        ],
+    )
+
+    async def handler(filtered_request):
+        assert filtered_request.messages == [request.messages[-1]]
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="Research-backed answer from the LangGraph docs."
+                )
+            ]
+        )
+
+    result = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert result.result[0].content == "Research-backed answer from the LangGraph docs."
+
+
+def test_guardrail_rejections_are_filtered_from_model_request():
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    retained_message = HumanMessage(content="What is LangSmith tracing?")
+    rejection = AIMessage(
+        content="I can't help with that.",
+        response_metadata={"guardrail_rejection": True},
+    )
+    request = ModelRequest(
+        model=object(),
+        messages=[rejection, retained_message],
+    )
+    received_requests = []
+
+    async def handler(filtered_request):
+        received_requests.append(filtered_request)
+        return AIMessage(content="Answer")
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert received_requests[0].messages == [retained_message]
+    assert request.messages == [rejection, retained_message]
