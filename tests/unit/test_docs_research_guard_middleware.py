@@ -55,6 +55,26 @@ def test_technical_answers_still_force_research():
         assert middleware._should_retry(request, response)
 
 
+def test_scope_refusal_with_technical_user_turn_forces_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I install LangGraph?")],
+    )
+    response = ModelResponse(
+        result=[
+            AIMessage(
+                content=(
+                    "I'm specifically designed to help with LangChain, LangGraph, "
+                    "LangSmith, and Deep Agents. Feel free to ask me about those topics!"
+                )
+            )
+        ]
+    )
+
+    assert middleware._should_retry(request, response)
+
+
 def test_user_turn_signal_detects_technical_question():
     middleware = DocsResearchGuardMiddleware()
 
