@@ -4,7 +4,8 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain.agents.middleware.types import ModelRequest, ModelResponse
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -34,7 +35,9 @@ class FakeStructuredModel:
         return outcome
 
 
-def _middleware_with_models(*models: tuple[str, FakeStructuredModel]) -> GuardrailsMiddleware:
+def _middleware_with_models(
+    *models: tuple[str, FakeStructuredModel],
+) -> GuardrailsMiddleware:
     middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
     middleware.classifier_llms = list(models)
     middleware.block_off_topic = True
@@ -45,7 +48,9 @@ def test_guardrails_falls_back_after_primary_retries(monkeypatch):
     """The fallback model should get its own retry budget after primary fails."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
 
-    primary = FakeStructuredModel([RuntimeError("primary down"), RuntimeError("still down")])
+    primary = FakeStructuredModel(
+        [RuntimeError("primary down"), RuntimeError("still down")]
+    )
     fallback = FakeStructuredModel(
         [{"decision": "ALLOWED", "explanation": "LangChain-related question."}]
     )
@@ -64,7 +69,9 @@ def test_guardrails_raises_after_all_models_exhaust_retries(monkeypatch):
     """Guardrails should fail only after every model exhausts retries."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
 
-    primary = FakeStructuredModel([RuntimeError("primary down"), RuntimeError("still down")])
+    primary = FakeStructuredModel(
+        [RuntimeError("primary down"), RuntimeError("still down")]
+    )
     fallback = FakeStructuredModel(
         [RuntimeError("fallback down"), RuntimeError("fallback still down")]
     )
@@ -95,4 +102,53 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
         )
     )
 
-    assert result == {"off_topic_query": False}
+    assert result == {
+        "off_topic_query": False,
+        "guardrail_decision": "ALLOWED",
+    }
+
+
+def test_allowed_turn_filters_only_guardrail_refusals_from_model_request():
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    refusal = AIMessage(
+        content="I can only help with LangChain questions.",
+        response_metadata={"guardrail_refusal": True},
+    )
+    assistant_message = AIMessage(content="A prior answer")
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Earlier question"), refusal, assistant_message],
+        state={"guardrail_decision": "ALLOWED"},
+    )
+    captured_messages = []
+
+    async def handler(filtered_request):
+        captured_messages.extend(filtered_request.messages)
+        return ModelResponse(result=[])
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert captured_messages == [request.messages[0], assistant_message]
+    assert request.messages == [request.messages[0], refusal, assistant_message]
+
+
+def test_blocked_turn_preserves_guardrail_refusals_in_model_request():
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    refusal = AIMessage(
+        content="I can only help with LangChain questions.",
+        response_metadata={"guardrail_refusal": True},
+    )
+    request = ModelRequest(
+        model=object(),
+        messages=[refusal],
+        state={"guardrail_decision": "BLOCKED"},
+    )
+    captured_messages = []
+
+    async def handler(preserved_request):
+        captured_messages.extend(preserved_request.messages)
+        return ModelResponse(result=[])
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert captured_messages == [refusal]
