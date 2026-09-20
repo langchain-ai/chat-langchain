@@ -4,10 +4,12 @@ import asyncio
 import logging
 import os
 import random
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
+from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
@@ -187,10 +189,17 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 self.llm.ainvoke(prompt),
                 timeout=GUARDRAILS_TIMEOUT_SECONDS,
             )
-            return AIMessage(id=response.id, content=response.content)
+            return AIMessage(
+                id=response.id,
+                content=response.content,
+                response_metadata={"guardrail_refusal": True},
+            )
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")
-            return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
+            return AIMessage(
+                content=_FALLBACK_REJECTION_MESSAGE,
+                response_metadata={"guardrail_refusal": True},
+            )
 
     @hook_config(can_jump_to=["end"])
     async def abefore_agent(
@@ -276,6 +285,24 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             "guardrail_history": guardrail_history,
             "jump_to": "end",
         }
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelResponse:
+        """Hide middleware-authored refusals from later model calls."""
+        messages = [
+            message
+            for message in request.messages
+            if not (
+                isinstance(message, AIMessage)
+                and message.response_metadata.get("guardrail_refusal") is True
+            )
+        ]
+        if len(messages) == len(request.messages):
+            return await handler(request)
+        return await handler(request.override(messages=messages))
 
     def _append_guardrail_turn(
         self, history: list[GuardrailTurn], query: str, decision: str
