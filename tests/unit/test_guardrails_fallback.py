@@ -4,7 +4,7 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -34,7 +34,9 @@ class FakeStructuredModel:
         return outcome
 
 
-def _middleware_with_models(*models: tuple[str, FakeStructuredModel]) -> GuardrailsMiddleware:
+def _middleware_with_models(
+    *models: tuple[str, FakeStructuredModel],
+) -> GuardrailsMiddleware:
     middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
     middleware.classifier_llms = list(models)
     middleware.block_off_topic = True
@@ -45,7 +47,9 @@ def test_guardrails_falls_back_after_primary_retries(monkeypatch):
     """The fallback model should get its own retry budget after primary fails."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
 
-    primary = FakeStructuredModel([RuntimeError("primary down"), RuntimeError("still down")])
+    primary = FakeStructuredModel(
+        [RuntimeError("primary down"), RuntimeError("still down")]
+    )
     fallback = FakeStructuredModel(
         [{"decision": "ALLOWED", "explanation": "LangChain-related question."}]
     )
@@ -64,7 +68,9 @@ def test_guardrails_raises_after_all_models_exhaust_retries(monkeypatch):
     """Guardrails should fail only after every model exhausts retries."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
 
-    primary = FakeStructuredModel([RuntimeError("primary down"), RuntimeError("still down")])
+    primary = FakeStructuredModel(
+        [RuntimeError("primary down"), RuntimeError("still down")]
+    )
     fallback = FakeStructuredModel(
         [RuntimeError("fallback down"), RuntimeError("fallback still down")]
     )
@@ -96,3 +102,39 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_allowed_scope_result_reaches_main_agent(monkeypatch):
+    """An allowed turn clears prior refusals in the model input."""
+    middleware = _middleware_with_models()
+
+    async def _allow_query(messages, guardrail_history=None):  # noqa: ARG001
+        return {
+            "decision": "ALLOWED",
+            "explanation": "The question concerns LangChain documentation.",
+        }
+
+    monkeypatch.setattr(middleware, "_classify_query", _allow_query)
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {
+                "messages": [
+                    HumanMessage(content="How do I configure a LangChain agent?"),
+                ],
+                "guardrail_history": [
+                    {"query": "Tell me a joke", "decision": "BLOCKED"},
+                ],
+            },
+            Runtime(context=None),
+        )
+    )
+
+    assert result["off_topic_query"] is False
+    assert result["guardrail_history"][-1]["decision"] == "ALLOWED"
+    assert isinstance(result["messages"][0], SystemMessage)
+    assert "current turn: ALLOWED" in result["messages"][0].content
+    assert (
+        "prior assistant scope refusals must not be reused"
+        in result["messages"][0].content
+    )
