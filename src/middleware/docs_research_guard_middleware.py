@@ -52,6 +52,13 @@ _MAX_FORCED_ATTEMPTS = 2
 _DOCS_URL_PATTERN = re.compile(r"https://docs\.langchain\.com/[^\s<>\]\)\"']+")
 _CODE_BLOCK_PATTERN = re.compile(r"```.*?(?:```|$)", re.DOTALL)
 _LARGE_RESULT_POINTER_PATTERN = re.compile(r"^/large_tool_results/[^\s]+$")
+_CANNED_SCOPE_REFUSAL_PATTERN = re.compile(
+    r"(?:outside|out of) (?:the )?(?:scope|area)|"
+    r"(?:only|just) (?:help|answer|assist) with .*lang(?:chain|graph|smith)|"
+    r"(?:can(?:not|'t)|unable to) help with .*?(?:lang(?:chain|graph|smith)|"
+    r"ecosystem)",
+    re.IGNORECASE | re.DOTALL,
+)
 _NONTECHNICAL_USER_TURN_PATTERN = re.compile(
     r"(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|hola|bonjour|salut|"
     r"你好|您好|こんにちは|こんばんは|привет|здравствуйте|what\s+can\s+you\s+do|"
@@ -95,7 +102,9 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             return response
 
         turn_key = self._turn_key(request.messages)
-        while self._attempt_count(turn_key) < _MAX_FORCED_ATTEMPTS:
+        refusal_retry = self._is_allowed_scope_refusal(request, response)
+        max_attempts = 1 if refusal_retry else _MAX_FORCED_ATTEMPTS
+        while self._attempt_count(turn_key) < max_attempts:
             self._record_attempt(turn_key)
             retry_request = request.override(
                 messages=[
@@ -111,6 +120,9 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             if self._has_research_tool(
                 self._turn_messages(request.messages, self._response_messages(response))
             ):
+                self._clear_attempts(turn_key)
+                return response
+            if refusal_retry:
                 self._clear_attempts(turn_key)
                 return response
             if not self._is_substantive_technical_answer(
@@ -129,15 +141,29 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
             return False
-        if not self._user_turn_has_technical_signal(messages[latest_human_index]):
-            return False
         response_messages = self._response_messages(response)
         if self._has_pending_tool_calls(response_messages):
             return False
         current_turn = self._turn_messages(messages, response_messages)
         if self._has_research_tool(current_turn):
             return False
+        if self._is_allowed_scope_refusal(request, response):
+            return True
+        if not self._user_turn_has_technical_signal(messages[latest_human_index]):
+            return False
         return self._is_substantive_technical_answer(response_messages)
+
+    def _is_allowed_scope_refusal(
+        self, request: ModelRequest, response: ModelResponse
+    ) -> bool:
+        if request.state.get("guardrail_decision") != "ALLOWED":
+            return False
+        text = "\n".join(
+            self._message_text(message)
+            for message in self._response_messages(response)
+            if isinstance(message, AIMessage)
+        ).strip()
+        return len(text) <= 500 and bool(_CANNED_SCOPE_REFUSAL_PATTERN.search(text))
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
         for index in range(len(messages) - 1, -1, -1):

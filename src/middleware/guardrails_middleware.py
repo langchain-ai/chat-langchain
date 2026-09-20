@@ -74,6 +74,7 @@ class GuardrailsState(AgentState):
     """Extended state schema with guardrail metadata."""
 
     off_topic_query: NotRequired[bool]
+    guardrail_decision: NotRequired[Literal["ALLOWED", "BLOCKED"]]
     guardrail_history: NotRequired[list[GuardrailTurn]]
 
 
@@ -253,7 +254,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return {"guardrail_history": guardrail_history}
+            return {
+                "guardrail_decision": "ALLOWED",
+                "guardrail_history": guardrail_history,
+            }
 
         # Handle blocked queries
         logger.warning(
@@ -266,13 +270,17 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.info(
                 "Off-topic query detected but block_off_topic=False, allowing..."
             )
-            return {"guardrail_history": guardrail_history}
+            return {
+                "guardrail_decision": "BLOCKED",
+                "guardrail_history": guardrail_history,
+            }
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
+            "guardrail_decision": "BLOCKED",
             "guardrail_history": guardrail_history,
             "jump_to": "end",
         }
