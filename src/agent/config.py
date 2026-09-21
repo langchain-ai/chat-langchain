@@ -10,6 +10,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
+from src.middleware.code_language_guard_middleware import CodeLanguageGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
 from src.middleware.retry_middleware import (
@@ -142,6 +143,7 @@ tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 duplicate_call_guard_middleware = DuplicateCallGuardMiddleware()
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
+code_language_guard_middleware = CodeLanguageGuardMiddleware()
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
@@ -167,6 +169,7 @@ __all__ = [
     "duplicate_call_guard_middleware",
     "docs_research_guard_middleware",
     "citation_guard_middleware",
+    "code_language_guard_middleware",
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
