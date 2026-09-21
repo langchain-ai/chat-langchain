@@ -20,7 +20,7 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-from src.tools.link_check_tools import _check_urls_async
+from src.tools.link_check_tools import _check_urls_async, _normalize_url
 
 DOCS_TOOLS = frozenset(
     {
@@ -33,7 +33,7 @@ DOCS_TOOLS = frozenset(
     }
 )
 _PRICING_URL = "https://www.langchain.com/pricing"
-_URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
+_URL_PATTERN = re.compile(r"https?://[^\s)<>`\u200b\u200c\u200d\u2060\ufeff\u00a0]+")
 _FOOTER_PATTERN = re.compile(
     r"(?ims)^\s*(?:(?:\*\*)?Relevant docs:\s*(?:\*\*)?|##\s+Relevant docs:\s*).*$"
 )
@@ -119,14 +119,21 @@ class CitationGuardMiddleware(AgentMiddleware):
 
     def _urls_in_footer_text(self, text: str) -> list[str]:
         match = _FOOTER_PATTERN.search(text)
-        return _URL_PATTERN.findall(match.group(0)) if match else []
+        return (
+            [_normalize_url(url) for url in _URL_PATTERN.findall(match.group(0))]
+            if match
+            else []
+        )
 
     def _grounded_urls(self, messages: list[BaseMessage]) -> set[str]:
         grounded_urls: set[str] = set()
         for message in messages:
             if not isinstance(message, ToolMessage) or message.name not in DOCS_TOOLS:
                 continue
-            grounded_urls.update(_URL_PATTERN.findall(self._message_text(message)))
+            grounded_urls.update(
+                _normalize_url(url)
+                for url in _URL_PATTERN.findall(self._message_text(message))
+            )
             if message.name == "fetch_langchain_pricing" and getattr(
                 message, "status", None
             ) not in {"error", "failure", "failed"}:
@@ -170,7 +177,9 @@ class CitationGuardMiddleware(AgentMiddleware):
                 if in_valid_section and stripped and not stripped.startswith("-"):
                     in_valid_section = False
                 if in_valid_section:
-                    valid_urls.update(_URL_PATTERN.findall(line))
+                    valid_urls.update(
+                        _normalize_url(url) for url in _URL_PATTERN.findall(line)
+                    )
         return valid_urls
 
     def _remove_footer_urls(self, text: str, invalid_urls: set[str]) -> str:
@@ -181,7 +190,9 @@ class CitationGuardMiddleware(AgentMiddleware):
         lines = [
             line
             for line in footer.splitlines()
-            if not invalid_urls.intersection(_URL_PATTERN.findall(line))
+            if not invalid_urls.intersection(
+                {_normalize_url(url) for url in _URL_PATTERN.findall(line)}
+            )
         ]
         return text[: match.start()] + "\n".join(lines) + text[match.end() :]
 
