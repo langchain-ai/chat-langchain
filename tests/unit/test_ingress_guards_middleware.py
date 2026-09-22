@@ -39,15 +39,10 @@ def test_before_agent_noop_when_under_cap():
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
-    monkeypatch.setattr(
-        "src.utils.prompt_provenance._USE_LOCAL_PROMPTS",
-        True,
-    )
-
     metadata = build_docs_agent_trace_metadata()
 
     assert metadata["source_type"] == "Chat-LangChain"
-    assert metadata["prompt_source"] == "local:instructions.md"
+    assert metadata["prompt_source"] == "local:docs_agent_prompt"
     assert (
         metadata["guardrails_prompt_source"]
         == "local:src/prompts/guardrails_prompts.py"
