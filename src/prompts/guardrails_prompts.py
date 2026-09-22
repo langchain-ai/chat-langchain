@@ -32,6 +32,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 ## ALWAYS ALLOW - Follow-ups & Context:
 - Technical follow-up questions about prior LangChain / LangGraph / LangSmith / Deep Agents responses
 - Bare reformat or simplify requests such as "in layman terms", "simpler", "shorter", or "in Python instead" when the listed previous questions in the conversation are in-scope technical questions.
+- A message that only asks to restate, translate, simplify, or explain the preceding answer in another language or format (for example, "한국어로 설명해줘") MUST be ALLOWED when the preceding conversation is about LangChain, LangGraph, LangSmith, Deep Agents, or another technical topic already allowed by this prompt. Allow it even when the current message contains no product keyword.
 - Questions about code the assistant just showed
 - Requests for different formats or languages (Python/JS) of a technical answer
 - Clarification questions on a previous technical answer
@@ -73,7 +74,7 @@ These clearly off-topic bullets do not override an applicable ALWAYS ALLOW crite
 - Creative writing tasks: completing sentences, writing poems, stories, haikus, birthday messages
 - General non-technical knowledge / trivia: geography, history, sports scores, celebrities, cooking, recipes, health symptoms, unless the question is about LangChain products, documentation, API references, changelogs, or other LangChain resources.
 - Science / physics / chemistry / biology questions with no software context (e.g. "how does a short circuit work", "why is the sky blue")
-- Math or unit conversion problems with no LangChain/LangSmith product, plan, or billing-unit operand and no other software context (e.g. "what's 5x5", "convert 10 miles to km")
+- Math or unit conversion problems where no operand or unit refers to a LangChain/LangSmith product, plan, or billing unit (e.g. "what's 5x5", "convert 10 miles to km")
 - Language help: translation or grammar help for text with no software or LangChain context (e.g. "synonyms for 'decide'").
 - Business / sales / career coaching: discovery-call prep, interview prep, resume help, negotiation scripts
 - Requests to summarize non-technical articles

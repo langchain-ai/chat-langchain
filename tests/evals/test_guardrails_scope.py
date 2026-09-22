@@ -161,6 +161,14 @@ def test_guardrails_prompt_allows_bare_technical_follow_ups():
     assert "in-scope technical questions" in PROMPT_LOWER
 
 
+def test_guardrails_prompt_allows_language_only_in_scope_follow_ups():
+    """Language-only follow-ups after technical LangChain turns must be allowed."""
+    query = "한국어로 설명해줘"
+    assert query in PROMPT_LOWER
+    assert "preceding conversation is about langchain, langgraph, langsmith" in PROMPT_LOWER
+    assert "even when the current message contains no product keyword" in PROMPT_LOWER
+
+
 # ---------------------------------------------------------------------------
 # Test 6: Sanity check - prompt still defaults to ALLOW (no over-correction)
 # ---------------------------------------------------------------------------
