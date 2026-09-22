@@ -273,6 +273,7 @@ def search_support_articles(query: str, collections: str = "all") -> str:
         collection_map = _fetch_collections()
 
         # Filter by collection ID if specified
+        unmatched_collections = []
         if collections.lower() != "all":
             # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
@@ -289,13 +290,36 @@ def search_support_articles(query: str, collections: str = "all") -> str:
                     None,
                 )
                 if matched_collection is None:
-                    return json.dumps(
-                        {
-                            "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                        },
-                        indent=2,
+                    normalized_name = " ".join(coll_name.casefold().split())
+                    matched_collection = max(
+                        collection_map,
+                        key=lambda name: SequenceMatcher(
+                            None,
+                            normalized_name,
+                            " ".join(name.casefold().split()),
+                        ).ratio(),
+                        default=None,
                     )
+                    if (
+                        matched_collection is None
+                        or SequenceMatcher(
+                            None,
+                            normalized_name,
+                            " ".join(matched_collection.casefold().split()),
+                        ).ratio()
+                        < 0.85
+                    ):
+                        unmatched_collections.append(coll_name)
+                        continue
                 collection_ids.append(collection_map[matched_collection])
+
+            if not collection_ids:
+                return json.dumps(
+                    {
+                        "error": f"Collection '{unmatched_collections[0]}' not found. Available collections: {', '.join(collection_map.keys())}"
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -351,16 +375,17 @@ def search_support_articles(query: str, collections: str = "all") -> str:
 
         ranked_articles.sort(key=lambda item: item["score"], reverse=True)
         if not ranked_articles:
-            return json.dumps(
-                {
-                    "query": query,
-                    "collections": collections,
-                    "total_matched": 0,
-                    "returned": 0,
-                    "articles": [],
-                    "note": "Support articles could not be consulted. Answer from official documentation and emit the mandatory Support articles could not be consulted disclosure.",
-                }
-            )
+            result = {
+                "query": query,
+                "collections": collections,
+                "total_matched": 0,
+                "returned": 0,
+                "articles": [],
+                "note": "Support articles could not be consulted. Answer from official documentation and emit the mandatory Support articles could not be consulted disclosure.",
+            }
+            if collections.lower() != "all":
+                result["unmatched_collections"] = unmatched_collections
+            return json.dumps(result)
 
         articles_to_return = [item["article"] for item in ranked_articles[:10]]
         result = {
@@ -370,6 +395,8 @@ def search_support_articles(query: str, collections: str = "all") -> str:
             "returned": len(articles_to_return),
             "articles": articles_to_return,
         }
+        if collections.lower() != "all":
+            result["unmatched_collections"] = unmatched_collections
 
         return json.dumps(result)
 
