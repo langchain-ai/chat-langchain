@@ -8,6 +8,61 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 
 
+def test_greeting_with_product_names_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="Hi")],
+    )
+    response = ModelResponse(
+        result=[
+            AIMessage(
+                content=(
+                    "Hello! How can I help you with LangChain, LangGraph, "
+                    "LangSmith, Fleet, or DeepAgents today?"
+                )
+            )
+        ]
+    )
+
+    assert not middleware._should_retry(request, response)
+
+
+def test_non_latin_greeting_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="こんにちは")],
+    )
+    response = ModelResponse(result=[AIMessage(content="こんにちは！")])
+
+    assert not middleware._should_retry(request, response)
+
+
+def test_technical_answers_still_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[HumanMessage(content="How do I configure this?")],
+    )
+
+    for answer in (
+        "The StateGraph class accepts a config_schema parameter for this setup.",
+        "Use the config_schema parameter to configure the graph before invoking it.",
+        "Create the graph like this:\n```python\ngraph = StateGraph()\n```",
+    ):
+        response = ModelResponse(result=[AIMessage(content=answer)])
+        assert middleware._should_retry(request, response)
+
+
+def test_user_turn_signal_detects_technical_question():
+    middleware = DocsResearchGuardMiddleware()
+
+    assert middleware._user_turn_has_technical_signal(
+        HumanMessage(content="How do I use StateGraph with a config_schema parameter?")
+    )
+
+
 def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     middleware = DocsResearchGuardMiddleware()
     calls: list[ModelRequest] = []
@@ -55,6 +110,55 @@ def test_follow_up_turn_forces_research_instead_of_reusing_prior_results():
     assert calls[1].messages[:-1] == messages
     assert isinstance(calls[1].messages[-1], HumanMessage)
     assert "research this question on this turn" in calls[1].messages[-1].content
+    assert calls[1].tool_choice == "search_docs_by_lang_chain"
+    assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
+
+
+def test_forced_retry_tool_choice_matches_google_style_binding():
+    middleware = DocsResearchGuardMiddleware()
+
+    class GoogleStyleModel:
+        def bind_tools(self, tools, *, tool_choice):
+            if not isinstance(tool_choice, str):
+                raise ValueError("Unrecognized tool choice format")
+            return self
+
+    calls: list[ModelRequest] = []
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        if request.tool_choice is not None:
+            request.model.bind_tools([], tool_choice=request.tool_choice)
+            return ModelResponse(
+                result=[
+                    AIMessage(
+                        content="I verified the documentation.",
+                        tool_calls=[
+                            {
+                                "name": "search_docs_by_lang_chain",
+                                "args": {"query": "stategraph"},
+                                "id": "fresh-search",
+                                "type": "tool_call",
+                            }
+                        ],
+                    )
+                ]
+            )
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="The StateGraph constructor accepts configuration options."
+                )
+            ]
+        )
+
+    request = ModelRequest(
+        model=GoogleStyleModel(),
+        messages=[HumanMessage(content="How do I build a graph?")],
+    )
+    response = asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 2
     assert response.result[0].tool_calls[0]["name"] == "search_docs_by_lang_chain"
 
 
@@ -235,12 +339,12 @@ def test_entirely_ungrounded_footer_retries_with_correction():
 
     assert len(calls) == 2
     assert (
-        "copied verbatim from this turn's documentation tool results"
+        "Do not call any tools or add new citations"
         in calls[1].system_prompt
     )
     assert calls[1].messages[:-1] == request.messages
     assert isinstance(calls[1].messages[-1], HumanMessage)
-    assert "Rewrite the Relevant docs footer" in calls[1].messages[-1].content
+    assert "Rewrite only the existing Relevant docs footer in place" in calls[1].messages[-1].content
     assert result.result[0].content.startswith("**Answer**")
 
 
@@ -303,7 +407,9 @@ def test_plain_string_content_rewrites_footer():
 
     middleware = CitationGuardMiddleware()
     repaired = "Answer\n\n**Relevant docs:**"
-    message = AIMessage(content="Answer\n\n**Relevant docs:**\n- [B](https://bad.example/b)")
+    message = AIMessage(
+        content="Answer\n\n**Relevant docs:**\n- [B](https://bad.example/b)"
+    )
     response = ModelResponse(result=[message])
 
     middleware._replace_footer(response, message, repaired)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -26,17 +27,59 @@ DOCS_TOOLS = frozenset(
     {
         "search_docs_by_lang_chain",
         "query_docs_filesystem_docs_by_lang_chain",
+        "fetch_langchain_pricing",
+        "search_support_articles",
+        "get_support_article_content",
+        "read_file",
     }
 )
+_PRICING_URL = "https://www.langchain.com/pricing"
 _URL_PATTERN = re.compile(r"https?://[^\s)<>]+")
 _FOOTER_PATTERN = re.compile(
     r"(?ims)^\s*(?:(?:\*\*)?Relevant docs:\s*(?:\*\*)?|##\s+Relevant docs:\s*).*$"
 )
 _RETRY_INSTRUCTIONS = (
-    "Rewrite the Relevant docs footer using only URLs copied verbatim from this turn's "
-    "documentation tool results. Call check_links on exactly the final citation list "
-    "before answering. Never construct or recall a documentation URL."
+    "Rewrite only the existing Relevant docs footer in place, using URLs from this "
+    "turn's documentation evidence. Do not call any tools or add new citations. "
+    "Preserve the answer's substantive content and use the same natural language as "
+    "the previous draft."
 )
+_MISSING_FOOTER_INSTRUCTIONS = (
+    "Append a Relevant docs: section at the end of your answer with 1-3 links in "
+    "[title](url) form. Use only URLs copied verbatim from this turn's documentation "
+    "tool results. Add nothing after that section."
+)
+_RETRY_MARKER = "citation_guard_retry_attempted"
+
+
+def _normalize_url(url: str) -> str:
+    parts = urlsplit(url)
+    return urlunsplit(
+        (
+            parts.scheme.lower(),
+            parts.netloc.lower(),
+            parts.path.rstrip("/"),
+            parts.query,
+            "",
+        )
+    )
+
+
+def _turn_has_docs_evidence(turn_messages: list[BaseMessage]) -> bool:
+    """Return whether the turn has a successful documentation result."""
+    error_statuses = {"error", "failure", "failed"}
+    return any(
+        isinstance(message, ToolMessage)
+        and message.name in DOCS_TOOLS
+        and getattr(message, "status", None) not in error_statuses
+        and bool(message.content)
+        for message in turn_messages
+    )
+
+
+def _is_substantive_answer(text: str) -> bool:
+    """Return whether text is a substantive answer."""
+    return len(text.strip()) >= 300
 
 
 class CitationGuardMiddleware(AgentMiddleware):
@@ -56,34 +99,47 @@ class CitationGuardMiddleware(AgentMiddleware):
         if latest_human_index < 0:
             return response
         turn_messages = request.messages[latest_human_index + 1 :]
-        footer_message = self._footer_message(self._response_messages(response))
-        if footer_message is None:
+        footer_message, invalid_urls = await self._invalid_footer_urls(
+            response, turn_messages
+        )
+        final_ai_text = self._final_ai_text(response)
+        if footer_message is None or not _FOOTER_PATTERN.search(final_ai_text):
+            if _turn_has_docs_evidence(turn_messages) and _is_substantive_answer(
+                final_ai_text
+            ):
+                retry_request = request.override(
+                    messages=[
+                        *request.messages,
+                        HumanMessage(content=_MISSING_FOOTER_INSTRUCTIONS),
+                    ],
+                    system_message=self._retry_system_message(request),
+                )
+                retry_response = await handler(retry_request)
+                retry_footer, retry_invalid_urls = await self._invalid_footer_urls(
+                    retry_response, turn_messages
+                )
+                if retry_footer is None:
+                    return response
+                if retry_invalid_urls:
+                    retry_text = self._remove_footer_urls(
+                        self._message_text(retry_footer), retry_invalid_urls
+                    )
+                    return self._replace_footer(
+                        retry_response, retry_footer, retry_text
+                    )
+                return retry_response
             return response
-
-        footer_urls = self._urls_in_footer(footer_message)
-        if not footer_urls:
-            return response
-        grounded_urls = self._grounded_urls(turn_messages)
-        valid_urls = self._valid_urls(turn_messages)
-        unchecked_urls = [
-            url for url in footer_urls if url in grounded_urls and url not in valid_urls
-        ]
-        if unchecked_urls:
-            results = await _check_urls_async(unchecked_urls, 10.0)
-            valid_urls.update(result.url for result in results if result.valid)
-
-        invalid_urls = {
-            url
-            for url in footer_urls
-            if url not in grounded_urls or url not in valid_urls
-        }
         if not invalid_urls:
             return response
 
         repaired_text = self._remove_footer_urls(
             self._message_text(footer_message), invalid_urls
         )
-        if not self._urls_in_footer_text(repaired_text):
+        turn_key = self._turn_key(request.messages)
+        if not self._urls_in_footer_text(repaired_text) and request.state.get(
+            _RETRY_MARKER
+        ) != turn_key:
+            request.state[_RETRY_MARKER] = turn_key
             retry_request = request.override(
                 messages=[
                     *request.messages,
@@ -91,7 +147,16 @@ class CitationGuardMiddleware(AgentMiddleware):
                 ],
                 system_message=self._retry_system_message(request),
             )
-            return await handler(retry_request)
+            retry_response = await handler(retry_request)
+            retry_footer, retry_invalid_urls = await self._invalid_footer_urls(
+                retry_response, turn_messages
+            )
+            if retry_footer is not None and retry_invalid_urls:
+                retry_text = self._remove_footer_urls(
+                    self._message_text(retry_footer), retry_invalid_urls
+                )
+                return self._replace_footer(retry_response, retry_footer, retry_text)
+            return retry_response
         return self._replace_footer(response, footer_message, repaired_text)
 
     def _latest_human_index(self, messages: list[BaseMessage]) -> int:
@@ -100,9 +165,20 @@ class CitationGuardMiddleware(AgentMiddleware):
                 return index
         return -1
 
+    def _turn_key(self, messages: list[BaseMessage]) -> str:
+        index = self._latest_human_index(messages)
+        human = messages[index]
+        return str(getattr(human, "id", None) or f"{index}:{human.content!r}")
+
     def _response_messages(self, response: ModelResponse) -> list[BaseMessage]:
         result = getattr(response, "result", None)
         return list(result) if result is not None else []
+
+    def _final_ai_text(self, response: ModelResponse) -> str:
+        for message in reversed(self._response_messages(response)):
+            if isinstance(message, AIMessage):
+                return self._message_text(message)
+        return ""
 
     def _has_pending_tool_calls(self, messages: list[BaseMessage]) -> bool:
         return any(
@@ -112,9 +188,9 @@ class CitationGuardMiddleware(AgentMiddleware):
 
     def _footer_message(self, messages: list[BaseMessage]) -> AIMessage | None:
         for message in reversed(messages):
-            if isinstance(
-                message, AIMessage
-            ) and "Relevant docs:" in self._message_text(message):
+            if isinstance(message, AIMessage) and _FOOTER_PATTERN.search(
+                self._message_text(message)
+            ):
                 return message
         return None
 
@@ -126,11 +202,51 @@ class CitationGuardMiddleware(AgentMiddleware):
         return _URL_PATTERN.findall(match.group(0)) if match else []
 
     def _grounded_urls(self, messages: list[BaseMessage]) -> set[str]:
-        return {
+        grounded_urls: set[str] = set()
+        for message in messages:
+            if not isinstance(message, ToolMessage) or message.name not in DOCS_TOOLS:
+                continue
+            grounded_urls.update(
+                _normalize_url(url)
+                for url in _URL_PATTERN.findall(self._message_text(message))
+            )
+            if message.name == "fetch_langchain_pricing" and getattr(
+                message, "status", None
+            ) not in {"error", "failure", "failed"}:
+                grounded_urls.add(_normalize_url(_PRICING_URL))
+        return grounded_urls
+
+    async def _invalid_footer_urls(
+        self, response: ModelResponse, turn_messages: list[BaseMessage]
+    ) -> tuple[AIMessage | None, set[str]]:
+        footer_message = self._footer_message(self._response_messages(response))
+        if footer_message is None:
+            return None, set()
+        footer_urls = self._urls_in_footer(footer_message)
+        if not footer_urls:
+            return footer_message, set()
+        grounded_urls = self._grounded_urls(turn_messages)
+        check_links_valid_urls = self._valid_urls(turn_messages)
+        valid_urls = set(check_links_valid_urls)
+        unchecked_urls = [
             url
-            for message in messages
-            if isinstance(message, ToolMessage) and message.name in DOCS_TOOLS
-            for url in _URL_PATTERN.findall(self._message_text(message))
+            for url in footer_urls
+            if _normalize_url(url) in grounded_urls
+            and _normalize_url(url) not in valid_urls
+        ]
+        if unchecked_urls:
+            results = await _check_urls_async(unchecked_urls, 10.0)
+            valid_urls.update(
+                _normalize_url(result.url) for result in results if result.valid
+            )
+        return footer_message, {
+            url
+            for url in footer_urls
+            if _normalize_url(url) not in check_links_valid_urls
+            and (
+                _normalize_url(url) not in grounded_urls
+                or _normalize_url(url) not in valid_urls
+            )
         }
 
     def _valid_urls(self, messages: list[BaseMessage]) -> set[str]:
@@ -147,7 +263,9 @@ class CitationGuardMiddleware(AgentMiddleware):
                 if in_valid_section and stripped and not stripped.startswith("-"):
                     in_valid_section = False
                 if in_valid_section:
-                    valid_urls.update(_URL_PATTERN.findall(line))
+                    valid_urls.update(
+                        _normalize_url(url) for url in _URL_PATTERN.findall(line)
+                    )
         return valid_urls
 
     def _remove_footer_urls(self, text: str, invalid_urls: set[str]) -> str:
@@ -171,9 +289,9 @@ class CitationGuardMiddleware(AgentMiddleware):
         if isinstance(content, list):
             updated_content = list(content)
             for part_index, part in enumerate(updated_content):
-                if not isinstance(part, dict) or "Relevant docs:" not in self._content_part_text(
-                    part
-                ):
+                if not isinstance(
+                    part, dict
+                ) or "Relevant docs:" not in self._content_part_text(part):
                     continue
                 updated_content[part_index] = {**part, "text": text}
                 break

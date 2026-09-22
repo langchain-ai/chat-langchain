@@ -38,6 +38,7 @@ READ_TOOLS = frozenset(
 )
 RESEARCH_TOOLS = SEARCH_TOOLS | READ_TOOLS
 RESEARCH_GUARD_DISABLED_ENV = "DOCS_RESEARCH_GUARD_DISABLED"
+FORCED_RESEARCH_TOOL_NAME = "search_docs_by_lang_chain"
 _RETRY_INSTRUCTIONS = (
     "Before answering, research this question on this turn. Call "
     "search_docs_by_lang_chain and query_docs_filesystem_docs_by_lang_chain, "
@@ -51,6 +52,26 @@ _MAX_FORCED_ATTEMPTS = 2
 _DOCS_URL_PATTERN = re.compile(r"https://docs\.langchain\.com/[^\s<>\]\)\"']+")
 _CODE_BLOCK_PATTERN = re.compile(r"```.*?(?:```|$)", re.DOTALL)
 _LARGE_RESULT_POINTER_PATTERN = re.compile(r"^/large_tool_results/[^\s]+$")
+_NONTECHNICAL_USER_TURN_PATTERN = re.compile(
+    r"(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|hola|bonjour|salut|"
+    r"你好|您好|こんにちは|こんばんは|привет|здравствуйте|what\s+can\s+you\s+do|"
+    r"who\s+are\s+you|(?:can\s+you\s+)?help(?:\s+me)?)[!.?,\s]*",
+    re.IGNORECASE,
+)
+_TECHNICAL_USER_SIGNAL_PATTERN = re.compile(
+    r"```|`[^`]+`|https?://|\b(?:error|exception|traceback|stack\s+trace)\b|"
+    r"\b(?:langchain|langgraph|langsmith|fleet|deepagents)\b",
+    re.IGNORECASE,
+)
+_TECHNICAL_IDENTIFIER_PATTERN = re.compile(
+    r"\b(?:[A-Za-z_]\w*\.)+[A-Za-z_]\w*\b|"
+    r"\b[A-Za-z]+_[A-Za-z0-9_]+\b|"
+    r"\b(?!(?:LangChain|LangGraph|LangSmith|DeepAgents)\b)"
+    r"[A-Z][a-z]+[A-Z][A-Za-z0-9]*\b|"
+    r"\b(?:from\s+[\w.]+\s+import|import\s+\w+)\b|"
+    r"(?:^|\s)(?:\$\s*)?(?:python(?:3)?|pip|uv|npm|pnpm|poetry|git|curl)\s+\S+",
+    re.MULTILINE,
+)
 _FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "docs_research_guard_forced_turn", default=None
 )
@@ -82,10 +103,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
                     HumanMessage(content=_RETRY_INSTRUCTIONS),
                 ],
                 system_message=self._retry_system_message(request),
-                tool_choice={
-                    "type": "function",
-                    "function": {"name": "search_docs_by_lang_chain"},
-                },
+                tool_choice=FORCED_RESEARCH_TOOL_NAME,
             )
             response = await handler(retry_request)
             if self._has_pending_tool_calls(self._response_messages(response)):
@@ -110,6 +128,8 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         messages = request.messages
         latest_human_index = self._latest_human_index(messages)
         if latest_human_index < 0:
+            return False
+        if not self._user_turn_has_technical_signal(messages[latest_human_index]):
             return False
         response_messages = self._response_messages(response)
         if self._has_pending_tool_calls(response_messages):
@@ -186,7 +206,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         return bool(
             "```" in text
             or re.search(r"`[^`]+`", text)
-            or re.search(r"\b[A-Z][A-Za-z0-9]+(?:\.[A-Za-z_][A-Za-z0-9_]*)?\b", text)
+            or _TECHNICAL_IDENTIFIER_PATTERN.search(text)
             or re.search(
                 r"\b(?:api|class|function|method|constructor|parameter|argument|"
                 r"config(?:uration)?|option|property|field|tool call|invoke|returns?)\b",
@@ -194,6 +214,12 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
                 re.IGNORECASE,
             )
         )
+
+    def _user_turn_has_technical_signal(self, message: BaseMessage) -> bool:
+        text = self._message_text(message).strip()
+        if _TECHNICAL_USER_SIGNAL_PATTERN.search(text):
+            return True
+        return len(text) > 120 or not _NONTECHNICAL_USER_TURN_PATTERN.fullmatch(text)
 
     def _message_text(self, message: BaseMessage) -> str:
         content: Any = getattr(message, "content", "")
