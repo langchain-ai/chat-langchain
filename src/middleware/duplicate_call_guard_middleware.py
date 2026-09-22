@@ -1,20 +1,15 @@
 """Suppress duplicate tool calls within a single human turn."""
 
-import asyncio
-import contextvars
 import json
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
-from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
-_TurnState = tuple[str, dict[tuple[str, str], str], set[str]]
-_TURN_STATE: contextvars.ContextVar[_TurnState | None] = contextvars.ContextVar(
-    "duplicate_call_guard_turn_state", default=None
-)
+_TurnState = tuple[dict[tuple[str, str], str], set[str]]
 _DUPLICATE_NOTE = (
     "This exact tool call was already made on this turn; do not repeat it."
 )
@@ -35,9 +30,9 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
         """Handle a tool call with per-turn duplicate suppression."""
         tool_name = str(request.tool_call.get("name", "unknown_tool"))
         turn_state = self._turn_state(request)
-        seen_calls = turn_state[1]
+        seen_calls = turn_state[0]
 
-        if tool_name == "check_links" and "check_links" in turn_state[2]:
+        if tool_name == "check_links" and "check_links" in turn_state[1]:
             return self._tool_message(request, _CHECK_LINKS_REFUSAL)
 
         call_key = (tool_name, self._canonical_args(request.tool_call.get("args", {})))
@@ -48,38 +43,43 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
                 f"{_DUPLICATE_NOTE}\n{cached_content}",
             )
 
-        if tool_name == "check_links":
-            turn_state[2].add("check_links")
-
         result = await handler(request)
-        if isinstance(result, ToolMessage) and result.status == "success":
-            seen_calls[call_key] = self._content_text(result.content)
         return result
 
     def _turn_state(self, request: ToolCallRequest) -> _TurnState:
-        turn_key = f"{self._execution_key(request)}:{self._turn_key(request.state)}"
-        current = _TURN_STATE.get()
-        if current is None or current[0] != turn_key:
-            current = (turn_key, {}, set())
-            _TURN_STATE.set(current)
-        return current
-
-    def _execution_key(self, request: ToolCallRequest) -> str:
-        runtime = request.runtime
-        config = getattr(runtime, "config", None)
-        run_id = config.get("run_id") if isinstance(config, Mapping) else None
-        if run_id:
-            return f"run:{run_id}"
-        task = asyncio.current_task()
-        return f"task:{id(task)}"
-
-    def _turn_key(self, state: Any) -> str:
-        messages = self._messages(state)
+        messages = self._messages(request.state)
+        latest_human_index = -1
         for index in range(len(messages) - 1, -1, -1):
-            message = messages[index]
-            if isinstance(message, HumanMessage) or getattr(message, "type", None) == "human":
-                return f"{index}:{getattr(message, 'id', None)}:{message.content!r}"
-        return "no-human-message"
+            if isinstance(messages[index], HumanMessage) or getattr(
+                messages[index], "type", None
+            ) == "human":
+                latest_human_index = index
+                break
+
+        turn_messages = messages[latest_human_index + 1 :]
+        successful_results = {
+            message.tool_call_id: message
+            for message in turn_messages
+            if isinstance(message, ToolMessage) and message.status == "success"
+        }
+        seen_calls: dict[tuple[str, str], str] = {}
+        check_links_calls: set[str] = set()
+        for message in turn_messages:
+            if not isinstance(message, AIMessage):
+                continue
+            for tool_call in message.tool_calls:
+                result = successful_results.get(tool_call.get("id", ""))
+                if result is None:
+                    continue
+                tool_name = str(tool_call.get("name", "unknown_tool"))
+                call_key = (
+                    tool_name,
+                    self._canonical_args(tool_call.get("args", {})),
+                )
+                seen_calls[call_key] = self._content_text(result.content)
+                if tool_name == "check_links":
+                    check_links_calls.add("check_links")
+        return seen_calls, check_links_calls
 
     def _messages(self, state: Any) -> list[BaseMessage]:
         if isinstance(state, Mapping):
