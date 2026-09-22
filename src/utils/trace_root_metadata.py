@@ -28,6 +28,11 @@ def build_docs_agent_trace_metadata(
     )
     if revision:
         metadata["LANGSMITH_AGENT_VERSION"] = revision
+    expected_revision = os.environ.get("GIT_SHA") or os.environ.get(
+        "LANGSMITH_AGENT_VERSION"
+    ) or revision
+    if expected_revision:
+        metadata["expected_revision"] = expected_revision
     return metadata
 
 
