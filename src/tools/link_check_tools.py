@@ -22,7 +22,13 @@ SOFT_404_DOMAINS = {
     "python.langchain.com",
     "js.langchain.com",
     "support.langchain.com",
+    "smith.langchain.com",
+    "api.smith.langchain.com",
 }
+
+LANGSMITH_SHARE_PATH = re.compile(
+    r"^/public/(?P<share_id>[0-9a-fA-F-]{36})/(?P<kind>r|d)/?$"
+)
 
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
@@ -56,7 +62,7 @@ def _needs_soft_404_check(url: str) -> bool:
         return False
 
 
-def _is_soft_404(content: str) -> bool:
+def _is_soft_404(content: str, url: str | None = None) -> bool:
     """Detect soft 404 pages that return HTTP 200 but show 'not found' content."""
     if "Article Not Found" in content:
         return True
@@ -66,7 +72,50 @@ def _is_soft_404(content: str) -> bool:
         title = title_match.group(1).lower()
         if any(phrase in title for phrase in ['not found', '404', 'page not found']):
             return True
+
+    if url and urlparse(url).hostname == "smith.langchain.com":
+        if re.search(
+            r'<(?:div|main|section)[^>]+(?:id|class)=["\'][^"\']*(?:root|app|__next)[^"\']*["\'][^>]*>\s*</',
+            content,
+            re.IGNORECASE,
+        ):
+            return True
+        if re.search(r"(?:not found|does not exist|no such page)", content, re.IGNORECASE):
+            return True
     return False
+
+
+def _langsmith_share_match(url: str) -> re.Match[str] | None:
+    """Return the share route match for a LangSmith public URL."""
+    parsed = urlparse(url)
+    if parsed.hostname != "smith.langchain.com":
+        return None
+    return LANGSMITH_SHARE_PATH.fullmatch(parsed.path)
+
+
+async def _check_langsmith_share(
+    client: httpx.AsyncClient,
+    url: str,
+    timeout: float,
+    match: re.Match[str],
+) -> LinkCheckResult:
+    """Validate a LangSmith share id through the public API."""
+    share_id = match.group("share_id")
+    endpoint = "run" if match.group("kind") == "r" else "datasets"
+    api_url = f"https://api.smith.langchain.com/api/v1/public/{share_id}/{endpoint}"
+    response = await client.get(api_url, timeout=timeout, follow_redirects=True)
+    is_valid = 200 <= response.status_code < 300
+    error = None if is_valid else (
+        "Share id does not resolve"
+        if response.status_code in (403, 404)
+        else f"HTTP {response.status_code}"
+    )
+    return LinkCheckResult(
+        url=url,
+        valid=is_valid,
+        status_code=response.status_code,
+        error=error,
+    )
 
 
 async def _check_single_url(
@@ -85,6 +134,12 @@ async def _check_single_url(
         return result
 
     try:
+        share_match = _langsmith_share_match(url)
+        if share_match:
+            result = await _check_langsmith_share(client, url, timeout, share_match)
+            _cache[url] = result
+            return result
+
         needs_content_check = _needs_soft_404_check(url)
 
         if needs_content_check:
@@ -100,7 +155,7 @@ async def _check_single_url(
                         if len(content) >= CONTENT_CHECK_BYTES:
                             break
 
-                    if _is_soft_404(content):
+                    if _is_soft_404(content, url):
                         result = LinkCheckResult(
                             url=url, valid=False, status_code=200, final_url=final_url,
                             error="Soft 404: Page shows 'not found' content",

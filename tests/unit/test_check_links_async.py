@@ -56,6 +56,26 @@ class _FakeStreamingClient:
         return _FakeStreamResponse(url, self.status_code, self.content)
 
 
+class _FakeAPIResponse:
+    """Minimal API response for LangSmith share validation tests."""
+
+    def __init__(self, status_code: int):
+        self.status_code = status_code
+        self.url = "https://api.smith.langchain.com"
+
+
+class _FakeAPIClient:
+    """Minimal client that records LangSmith public API requests."""
+
+    def __init__(self, status_code: int):
+        self.status_code = status_code
+        self.requested_urls: list[str] = []
+
+    async def get(self, url: str, **kwargs):  # noqa: ARG002
+        self.requested_urls.append(url)
+        return _FakeAPIResponse(self.status_code)
+
+
 # ---------------------------------------------------------------------------
 # Fixture: a canned async replacement for _check_urls_async
 # ---------------------------------------------------------------------------
@@ -256,3 +276,44 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind, endpoint", [("r", "run"), ("d", "datasets")])
+async def test_langsmith_share_not_found_is_invalid(kind, endpoint):
+    """Missing LangSmith trace and dataset shares are rejected by the API check."""
+    from src.tools.link_check_tools import _cache
+
+    share_id = "00000000-0000-0000-0000-000000000000"
+    url = f"https://smith.langchain.com/public/{share_id}/{kind}"
+    client = _FakeAPIClient(404)
+    _cache.pop(url, None)
+
+    result = await _check_single_url(client, url, timeout=1.0)
+
+    assert not result.valid
+    assert result.status_code == 404
+    assert result.error == "Share id does not resolve"
+    assert client.requested_urls == [
+        f"https://api.smith.langchain.com/api/v1/public/{share_id}/{endpoint}"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_langsmith_shared_trace_is_valid():
+    """A successful public trace API response validates the share URL."""
+    from src.tools.link_check_tools import _cache
+
+    share_id = "11111111-1111-1111-1111-111111111111"
+    url = f"https://smith.langchain.com/public/{share_id}/r"
+    client = _FakeAPIClient(200)
+    _cache.pop(url, None)
+
+    result = await _check_single_url(client, url, timeout=1.0)
+
+    assert result.valid
+    assert result.status_code == 200
+    assert result.error is None
+    assert client.requested_urls == [
+        f"https://api.smith.langchain.com/api/v1/public/{share_id}/run"
+    ]
