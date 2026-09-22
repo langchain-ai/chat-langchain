@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -123,6 +124,19 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         }
         return json.dumps(payload)
 
+    def _pylon_error_content(self, request: ToolCallRequest) -> str:
+        tool_name = self._tool_name(request)
+        payload = {
+            "error": "Support knowledge base unavailable",
+            "message": f"{tool_name} could not search the support knowledge base.",
+            "tool": tool_name,
+            "instruction": (
+                "Answer from official documentation or other available sources, "
+                "and tell the user that the support knowledge base could not be searched."
+            ),
+        }
+        return json.dumps(payload)
+
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
@@ -141,7 +155,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                 )
                 return self._tool_message(
                     request,
-                    self._error_text(error),
+                    self._pylon_error_content(request),
                     status="error",
                 )
             except Exception as error:
@@ -156,9 +170,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -184,7 +196,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]
