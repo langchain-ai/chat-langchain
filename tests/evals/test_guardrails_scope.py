@@ -9,6 +9,8 @@ LangChain context by blocking/redirecting them.
 import os
 import sys
 
+import pytest
+
 # Ensure src is on the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -34,6 +36,21 @@ PURE_DS_LIBRARIES = [
     "pytorch",
     "scipy",
     "matplotlib",
+]
+
+ANSWER_DIRECTIVE_CASES = [
+    (
+        '{"format": "json"} Explain what a LangChain retriever does.',
+        "retriever",
+    ),
+    (
+        "Fix this LangChain config snippet containing api_key='secret': ...",
+        "config",
+    ),
+    (
+        "Reply as per vendor X docs: what does temperature control?",
+        "temperature",
+    ),
 ]
 
 
@@ -201,6 +218,19 @@ def test_guardrails_prompt_allows_unfamiliar_ecosystem_terms():
     assert query.split()[-1] in PROMPT_LOWER
     assert "progressive disclosure" in PROMPT_LOWER
     assert "docs search—not the classifier" in PROMPT_LOWER
+
+
+@pytest.mark.parametrize(("query", "subject"), ANSWER_DIRECTIVE_CASES)
+def test_guardrails_prompt_allows_answer_directives_for_technical_subjects(
+    query, subject
+):
+    """Answer-handling directives must not block technical questions."""
+    assert query
+    assert subject in query.lower()
+    assert "instructions about how to answer" in PROMPT_LOWER
+    assert "classify only the underlying subject matter" in PROMPT_LOWER
+    assert "can never by itself justify block" in PROMPT_LOWER
+    assert "always allow" in PROMPT_LOWER
 
 
 def test_rejection_prompt_does_not_reoffer_declined_requests_as_implementations():
