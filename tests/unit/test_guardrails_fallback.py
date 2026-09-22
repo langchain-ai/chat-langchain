@@ -4,7 +4,7 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -96,3 +96,27 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_rejection_prompt_includes_policy_explanation():
+    """The rejection writer should receive the classifier's policy reason."""
+
+    class FakeRejectionModel:
+        def __init__(self):
+            self.prompt = None
+
+        async def ainvoke(self, prompt):
+            self.prompt = prompt
+            return AIMessage(content="That is outside my scope.")
+
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    middleware.llm = FakeRejectionModel()
+
+    asyncio.run(
+        middleware._generate_rejection_message(
+            "Write a poem.", "Creative writing is outside the assistant's scope."
+        )
+    )
+
+    human_content = middleware.llm.prompt[1].content
+    assert "Policy reason for this refusal: Creative writing is outside the assistant's scope." in human_content
