@@ -1,6 +1,7 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -8,6 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 from langchain.tools import tool
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,37 @@ SOFT_404_DOMAINS = {
 
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
+
+
+class CheckLinksInput(BaseModel):
+    """Arguments accepted by the check_links tool."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    urls: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("urls", "valid_urls"),
+    )
+    timeout: float = DEFAULT_TIMEOUT
+
+    @field_validator("urls", mode="before")
+    @classmethod
+    def coerce_urls(cls, value: object) -> object:
+        """Coerce common malformed URL argument shapes."""
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                return [value] if _is_valid_url(value) else []
+            if isinstance(parsed, list):
+                return parsed
+            if isinstance(parsed, str) and _is_valid_url(parsed):
+                return [parsed]
+        return []
 
 
 @dataclass
@@ -180,17 +213,9 @@ def _format_results(results: list[LinkCheckResult]) -> str:
     return "\n".join(lines)
 
 
-@tool
+@tool(args_schema=CheckLinksInput)
 async def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
-    """Check if URLs are valid and accessible before including them in a response.
-
-    Args:
-        urls: List of URLs to validate.
-        timeout: Timeout per request in seconds (default: 10).
-
-    Returns:
-        Formatted results showing which URLs are valid/invalid with details.
-    """
+    """Check URLs; urls is a JSON array of absolute URL strings to validate - never pass the output of a previous check_links call."""
     if not urls:
         return "No URLs provided to check."
 
