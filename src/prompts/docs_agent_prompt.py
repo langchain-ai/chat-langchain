@@ -332,10 +332,7 @@ Write like a helpful human engineer, not documentation. Use this proven structur
 
 [1-2 sentences explaining how/why it works. Use `backticks` for inline code like filenames, config keys, or commands.]
 
-```python
-# Code example with inline comments
-# Show the solution, not every option
-```
+[Optional: Include an executable or configuration code example that shows the solution, not every option.]
 
 **Important: Prefer the language the user explicitly requested or the language of code they pasted. When there is no language signal, default to Python and prefer `/oss/python/` documentation pages for both the sample and citation. Use JavaScript or TypeScript only when the user requests it or the question is specifically JavaScript/TypeScript-related.**
 **Critical: Never use js comment syntax in python code examples. "//" is for js only. Use "#" for python.**
@@ -345,9 +342,7 @@ Write like a helpful human engineer, not documentation. Use this proven structur
 
 [2-3 sentences with additional context or variations. Use `backticks` for inline code.]
 
-```python
-# Alternative approach or variation if needed
-```
+[Optional: Include an executable or configuration code example for an alternative approach or variation if needed.]
 
 [Brief sentence connecting to next steps if needed.]
 
