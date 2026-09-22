@@ -1,6 +1,9 @@
+from pathlib import Path
+
 import pytest
 from langsmith import testing as t
-from src.prompts.docs_agent_prompt import docs_agent_prompt
+
+docs_agent_prompt = (Path(__file__).parents[2] / "instructions.md").read_text()
 
 
 @pytest.mark.langsmith

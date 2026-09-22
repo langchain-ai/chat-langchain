@@ -10,6 +10,8 @@ from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
+from src.tools.pylon_tools import PylonUnavailableError
+
 logger = logging.getLogger(__name__)
 
 NO_RESULTS_MARKERS = (
@@ -94,11 +96,13 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         self,
         request: ToolCallRequest,
         content: str,
+        status: str = "success",
     ) -> ToolMessage:
         return ToolMessage(
             content=content,
             name=self._tool_name(request),
             tool_call_id=self._tool_call_id(request),
+            status=status,
         )
 
     def _final_error_content(
@@ -129,6 +133,17 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         for attempt in range(1, self.max_attempts + 1):
             try:
                 return await handler(request)
+            except PylonUnavailableError as error:
+                logger.warning(
+                    "Tool %s unavailable: %s",
+                    self._tool_name(request),
+                    self._error_text(error),
+                )
+                return self._tool_message(
+                    request,
+                    self._error_text(error),
+                    status="error",
+                )
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)

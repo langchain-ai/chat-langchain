@@ -8,18 +8,20 @@ LangChain context by blocking/redirecting them.
 
 import os
 import sys
+from pathlib import Path
 
 # Ensure src is on the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
-from src.prompts.docs_agent_prompt import docs_agent_prompt
+from src.prompts.guardrails_prompts import rejection_system_prompt
 
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
 
 PROMPT_LOWER = _GUARDRAILS_SYSTEM_PROMPT.lower()
+REJECTION_PROMPT_LOWER = rejection_system_prompt.lower()
 
 # Data science libraries that should be restricted when used without LangChain context
 PURE_DS_LIBRARIES = [
@@ -142,7 +144,25 @@ def test_guardrails_prompt_still_allows_langchain_core_topics():
 
 
 # ---------------------------------------------------------------------------
-# Test 5: Sanity check - prompt still defaults to ALLOW (no over-correction)
+# Test 5: LangChain resource questions and technical follow-ups are allowed
+# ---------------------------------------------------------------------------
+
+
+def test_guardrails_prompt_allows_langchain_resource_questions():
+    """The docs versus reference question must match an allow criterion."""
+    assert "documentation, api reference, changelogs" in PROMPT_LOWER
+    assert "which to use" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_allows_bare_technical_follow_ups():
+    """Layman-terms follow-ups after LangGraph questions must be allowed."""
+    assert "in layman terms" in PROMPT_LOWER
+    assert "technical follow-up questions about prior langchain / langgraph" in PROMPT_LOWER
+    assert "in-scope technical questions" in PROMPT_LOWER
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Sanity check - prompt still defaults to ALLOW (no over-correction)
 # ---------------------------------------------------------------------------
 
 
@@ -161,6 +181,33 @@ def test_guardrails_prompt_default_is_still_allow():
         "'YOUR DEFAULT IS TO ALLOW' or 'when uncertain, ALWAYS choose ALLOWED' "
         "language from the prompt."
     )
+
+
+def test_guardrails_prompt_allows_langsmith_billing_unit_formulas():
+    """LangSmith billing-unit formulas must be classified as ALLOWED."""
+    query = "LCCs = (Total LCUs x 1.50) + (Total LSUs x 1.00)."
+    billing_terms = ["lcu", "lsu", "langchain credits", "seats", "traces"]
+    assert all(term in PROMPT_LOWER for term in billing_terms)
+    assert "lcc" in query.lower()
+    assert all(term in query.lower() for term in ["lcu", "lsu"])
+    assert "billing questions, not math problems" in PROMPT_LOWER
+    assert "even when the message is only a formula or a number" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_allows_unfamiliar_ecosystem_terms():
+    """Bare ecosystem concept queries must be passed through to docs search."""
+    query = "what is progressive disclosure"
+    assert 'bare "what is <term>" query must be allowed' in PROMPT_LOWER
+    assert query.split()[-1] in PROMPT_LOWER
+    assert "progressive disclosure" in PROMPT_LOWER
+    assert "docs search—not the classifier" in PROMPT_LOWER
+
+
+def test_rejection_prompt_does_not_reoffer_declined_requests_as_implementations():
+    """Refusals must not suggest implementation or code workarounds."""
+    assert "never suggest re-asking the declined request" in REJECTION_PROMPT_LOWER
+    assert "implementation, workflow" in REJECTION_PROMPT_LOWER
+    assert "how to compute this in code" in REJECTION_PROMPT_LOWER
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +260,7 @@ def test_guardrails_nsfw_rule_is_zero_tolerance():
 # Test 8: Main agent prompt must have defense-in-depth NSFW refusal
 # ---------------------------------------------------------------------------
 
-AGENT_PROMPT_LOWER = docs_agent_prompt.lower()
+AGENT_PROMPT_LOWER = (Path(__file__).parents[2] / "instructions.md").read_text().lower()
 
 
 def test_agent_prompt_has_nsfw_refusal():
@@ -228,7 +275,7 @@ def test_agent_prompt_has_nsfw_refusal():
         "The docs agent prompt must contain at least one NSFW-related term "
         f"as a defense-in-depth refusal instruction. Found: {found_nsfw}. "
         "Add an NSFW refusal rule to the 'Important Customer Service Rules' "
-        "section of docs_agent_prompt."
+        "section of instructions.md."
     )
 
     refusal_terms = ["never", "refuse", "decline", "do not", "must not"]
