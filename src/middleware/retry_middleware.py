@@ -10,6 +10,7 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.messages import AIMessage
 from langchain_core.runnables.retry import RunnableRetry
 from tenacity import retry_if_exception
 
@@ -19,6 +20,17 @@ logger = logging.getLogger(__name__)
 RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
 }
+
+
+def is_non_retryable_model_error(exception: Exception) -> bool:
+    """Return whether a model error should not be retried."""
+    exception_name = type(exception).__name__
+    return (
+        isinstance(exception, ValueError)
+        or exception_name.endswith(("InvalidRequestError", "BadRequestError"))
+        or getattr(exception, "status_code", None) in (400, 422)
+        or getattr(exception, "http_status", None) in (400, 422)
+    )
 
 
 class MalformedResponseError(Exception):
@@ -32,7 +44,7 @@ class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     def _kwargs_retrying(self) -> dict[str, object]:
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
-            lambda exception: not isinstance(exception, ValueError)
+            lambda exception: not is_non_retryable_model_error(exception)
         )
         return kwargs
 
@@ -86,8 +98,15 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
-                    raise
+                if is_non_retryable_model_error(e):
+                    logger.error("Model call failed with a non-retryable error: %s", e)
+                    return ModelResponse(
+                        result=[
+                            AIMessage(
+                                content="I couldn't generate an answer right now."
+                            )
+                        ]
+                    )
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
@@ -101,16 +120,26 @@ class ModelRetryMiddleware(AgentMiddleware):
                         f"Model call failed after {self.max_retries + 1} attempts: {e}"
                     )
 
-        # Exhausted retries - raise for fallback middleware
         if last_exception:
-            raise last_exception
+            return ModelResponse(
+                result=[AIMessage(content="I couldn't generate an answer right now.")]
+            )
 
         if last_retryable_reason:
-            raise MalformedResponseError(
-                f"Model returned {last_retryable_reason} after {self.max_retries + 1} attempts"
+            logger.error(
+                "Model returned %s after %s attempts",
+                last_retryable_reason,
+                self.max_retries + 1,
+            )
+            return ModelResponse(
+                result=[AIMessage(content="I couldn't generate an answer right now.")]
             )
 
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = [
+    "ModelRetryMiddleware",
+    "MalformedResponseError",
+    "is_non_retryable_model_error",
+]
