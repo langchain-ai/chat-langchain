@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from types import SimpleNamespace
 
@@ -53,6 +54,11 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
         == "local:src/prompts/guardrails_prompts.py"
     )
     assert metadata["LANGSMITH_AGENT_VERSION"] == "rev-a"
+    assert metadata["git_sha"] == "rev-a"
+    assert metadata["docs_agent_prompt_sha256"] == hashlib.sha256(
+        open("instructions.md", "rb").read()
+    ).hexdigest()
+    assert len(metadata["guardrails_prompt_sha256"]) == 64
 
 
 def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch):
