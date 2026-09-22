@@ -21,6 +21,23 @@ RETRYABLE_FINISH_REASONS = {
 }
 
 
+def _is_non_retryable(exc: BaseException) -> bool:
+    """Return whether an exception should bypass retries."""
+    if isinstance(exc, ValueError):
+        return True
+
+    status_codes = (
+        getattr(exc, "status_code", None),
+        getattr(getattr(exc, "response", None), "status_code", None),
+    )
+    return any(
+        isinstance(status_code, int)
+        and 400 <= status_code <= 499
+        and status_code not in {408, 429}
+        for status_code in status_codes
+    )
+
+
 class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
 
@@ -32,7 +49,7 @@ class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     def _kwargs_retrying(self) -> dict[str, object]:
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
-            lambda exception: not isinstance(exception, ValueError)
+            lambda exception: not _is_non_retryable(exception)
         )
         return kwargs
 
@@ -86,7 +103,7 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if _is_non_retryable(e):
                     raise
                 last_exception = e
                 if attempt < self.max_retries:
@@ -113,4 +130,4 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = ["ModelRetryMiddleware", "MalformedResponseError", "_is_non_retryable"]
