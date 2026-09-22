@@ -8,12 +8,12 @@ LangChain context by blocking/redirecting them.
 
 import os
 import sys
+from pathlib import Path
 
 # Ensure src is on the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
-from src.prompts.docs_agent_prompt import docs_agent_prompt
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -231,7 +231,7 @@ def test_guardrails_nsfw_rule_is_zero_tolerance():
 # Test 8: Main agent prompt must have defense-in-depth NSFW refusal
 # ---------------------------------------------------------------------------
 
-AGENT_PROMPT_LOWER = docs_agent_prompt.lower()
+AGENT_PROMPT_LOWER = (Path(__file__).parents[2] / "instructions.md").read_text().lower()
 
 
 def test_agent_prompt_has_nsfw_refusal():
@@ -246,7 +246,7 @@ def test_agent_prompt_has_nsfw_refusal():
         "The docs agent prompt must contain at least one NSFW-related term "
         f"as a defense-in-depth refusal instruction. Found: {found_nsfw}. "
         "Add an NSFW refusal rule to the 'Important Customer Service Rules' "
-        "section of docs_agent_prompt."
+        "section of instructions.md."
     )
 
     refusal_terms = ["never", "refuse", "decline", "do not", "must not"]

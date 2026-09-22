@@ -19,7 +19,7 @@ def test_get_prompt_provenance_local_mode(monkeypatch):
 
     result = provenance.get_prompt_provenance("docs_agent")
     assert result == {
-        "prompt_source": "local:instructions.md",
+        "prompt_source": "context_hub:/instructions.md",
         "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
     }
     assert "prompt_commit" not in result
@@ -48,15 +48,14 @@ def test_resolve_hub_provenance_uses_prompt_workspace_and_api_key(monkeypatch):
 
     result = provenance.get_prompt_provenance("docs_agent")
 
-    assert len(constructed) == 2
+    assert len(constructed) == 1
     assert all(
         call.get("workspace_id") == "ebbaf2eb-769b-4505-aca2-d11de10372a4"
         and call.get("api_key") == "lsv2_prompt_test_key"
         for call in constructed
     )
-    assert result["prompt_commit"] == (
-        "commit-for-public-chat-langchain-test:production"
-    )
+    assert result["prompt_source"] == "context_hub:/instructions.md"
+    assert "prompt_commit" not in result
     assert result["guardrails_prompt_commit"] == (
         "commit-for-public-chat-langchain-guardrails-test:production"
     )
@@ -83,8 +82,8 @@ def test_resolve_hub_provenance_without_overrides_uses_default_client(monkeypatc
 
     result = provenance.get_prompt_provenance("docs_agent")
 
-    assert constructed == [{}, {}]
-    assert result["prompt_source"].startswith("hub:")
+    assert constructed == [{}]
+    assert result["prompt_source"] == "context_hub:/instructions.md"
     assert "prompt_commit" not in result
 
 
