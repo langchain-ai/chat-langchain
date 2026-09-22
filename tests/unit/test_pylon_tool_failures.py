@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import requests
+from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
@@ -66,3 +67,82 @@ def test_tool_retry_middleware_propagates_pylon_failures():
     assert result.status == "error"
     assert result.content == "unauthorized"
     handler.assert_awaited_once()
+
+
+def test_tool_retry_middleware_recovers_malformed_tool_name():
+    """Malformed names resolve to the registered tool before execution."""
+    from langchain_core.tools import StructuredTool
+    from langgraph.prebuilt.tool_node import ToolRuntime
+
+    tool = StructuredTool.from_function(
+        lambda query: query,
+        name="search_support_articles",
+        description="Search support articles.",
+    )
+    request = ToolCallRequest(
+        tool_call={
+            "name": "reasoning\n<ctrl>:call:default_api:search_support_articles",
+            "args": {"query": "docs"},
+            "id": "call-2",
+        },
+        tool=None,
+        state=None,
+        runtime=ToolRuntime(
+            state=None,
+            context=None,
+            config={},
+            stream_writer=lambda _: None,
+            tool_call_id="call-2",
+            store=None,
+            tools=[tool],
+        ),
+    )
+    handler = AsyncMock(return_value=ToolMessage(content="ok", tool_call_id="call-2"))
+
+    async def invoke():
+        return await ToolRetryMiddleware().awrap_tool_call(request, handler)
+
+    result = asyncio.run(invoke())
+
+    assert result.content == "ok"
+    handler.assert_awaited_once()
+    assert handler.await_args.args[0].tool_call["name"] == "search_support_articles"
+    assert handler.await_args.args[0].tool_call["args"] == {"query": "docs"}
+
+
+def test_tool_retry_middleware_prunes_invalid_tool_history():
+    """Invalid calls and paired tool messages are removed before the model call."""
+    from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
+    from langchain_core.tools import StructuredTool
+
+    tool = StructuredTool.from_function(
+        lambda query: query,
+        name="valid",
+        description="A valid test tool.",
+    )
+    middleware = ToolRetryMiddleware()
+    middleware._set_tool_registry([tool])
+    ai_message = AIMessage(
+        content="",
+        id="ai-1",
+        tool_calls=[
+            {"name": "valid", "args": {}, "id": "valid-call", "type": "tool_call"},
+            {"name": "invalid", "args": {}, "id": "invalid-call", "type": "tool_call"},
+        ],
+    )
+    state = {
+        "messages": [
+            HumanMessage(content="search", id="human-1"),
+            ai_message,
+            ToolMessage(content="valid result", tool_call_id="valid-call", id="tool-1"),
+            ToolMessage(content="rejected", tool_call_id="invalid-call", id="tool-2"),
+        ]
+    }
+
+    result = middleware.before_model(state, None)
+
+    assert result is not None
+    assert isinstance(result["messages"][0], RemoveMessage)
+    assert isinstance(result["messages"][1], RemoveMessage)
+    assert result["messages"][1].id == "tool-2"
+    assert result["messages"][-1].tool_calls == [ai_message.tool_calls[0]]
