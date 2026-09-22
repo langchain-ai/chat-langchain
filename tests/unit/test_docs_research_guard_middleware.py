@@ -65,6 +65,26 @@ def test_portuguese_capability_question_does_not_force_research():
     assert not middleware._should_retry(request, response)
 
 
+def test_compound_capability_question_does_not_force_research():
+    middleware = DocsResearchGuardMiddleware()
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(
+                content=(
+                    "who are you and what can you do? what are your strengths "
+                    "and weaknesses"
+                )
+            )
+        ],
+    )
+    response = ModelResponse(
+        result=[AIMessage(content="I can answer questions and explain my capabilities.")]
+    )
+
+    assert not middleware._should_retry(request, response)
+
+
 def test_information_request_without_identifier_still_forces_research():
     middleware = DocsResearchGuardMiddleware()
     request = ModelRequest(

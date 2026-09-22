@@ -63,7 +63,13 @@ _NONTECHNICAL_USER_TURN_PATTERN = re.compile(
     r"wer\s+bist\s+du|was\s+kannst\s+du\s+tun|come\s+puoi\s+aiutarmi|"
     r"cosa\s+puoi\s+fare|chi\s+sei|как\s+ты\s+можешь\s+мне\s+помочь|"
     r"что\s+ты\s+умеешь|кто\s+ты|你能帮我什么|你是谁|何ができますか|"
-    r"あなたは誰|(?:can\s+you\s+)?help(?:\s+me)?)[!.?,¿¡\s]*",
+    r"あなたは誰|what\s+do\s+you\s+do|what\s+are\s+your\s+"
+    r"(?:strengths|weaknesses)(?:\s+and\s+(?:strengths|weaknesses))*|"
+    r"(?:can\s+you\s+)?help(?:\s+me)?)[!.?,¿¡\s]*",
+    re.IGNORECASE,
+)
+_CAPABILITY_CONNECTOR_PATTERN = re.compile(
+    r"\b(?:and|or|also|e|ou|y|o|et|ou|und|oder|и|или|または|以及)\b",
     re.IGNORECASE,
 )
 _INFORMATION_REQUEST_PATTERN = re.compile(
@@ -238,7 +244,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         if len(text) > 120:
             return True
         normalized_text = self._normalize_user_turn(text)
-        if _NONTECHNICAL_USER_TURN_PATTERN.fullmatch(normalized_text):
+        if self._is_capability_turn(normalized_text):
             return False
         if (
             "?" not in text
@@ -247,6 +253,11 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         ):
             return False
         return True
+
+    def _is_capability_turn(self, text: str) -> bool:
+        remainder = _NONTECHNICAL_USER_TURN_PATTERN.sub("", text)
+        remainder = _CAPABILITY_CONNECTOR_PATTERN.sub("", remainder)
+        return not remainder.strip("!.?,¿¡ \t\n")
 
     def _normalize_user_turn(self, text: str) -> str:
         return "".join(
