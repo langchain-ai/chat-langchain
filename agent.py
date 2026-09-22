@@ -12,6 +12,7 @@ from src.agent.config import (
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
+    tool_call_budget_middleware,
     tool_retry_middleware,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
@@ -50,6 +51,7 @@ docs_agent_middleware = [
         trim_tokens_to_summarize=None,
     ),
     duplicate_call_guard_middleware,
+    tool_call_budget_middleware,
     tool_retry_middleware,
     docs_research_guard_middleware,
     citation_guard_middleware,
@@ -70,3 +72,6 @@ agent = define_deep_agent(
     disable_memory=True,
     metadata=build_docs_agent_trace_metadata(),
 )
+
+# Healthy turns use three tool calls median and about ten at the high end.
+DOCS_AGENT_RECURSION_LIMIT = 50
