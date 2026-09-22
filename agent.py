@@ -21,7 +21,10 @@ from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_support_article_content, search_support_articles
-from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
+from src.utils.trace_root_metadata import (
+    TraceOutcomeMiddleware,
+    build_docs_agent_trace_metadata,
+)
 
 # The MCP docs tools are declared in connectors/mcp.py so the managed runtime
 # owns client lifecycle and appends those tools during compilation.
@@ -56,6 +59,7 @@ docs_agent_middleware = [
     answer_sanity_guard_middleware,
     model_retry_middleware,
     model_fallback_middleware,
+    TraceOutcomeMiddleware(primary_model=DEFAULT_MODEL.id),
 ]
 
 agent = define_deep_agent(
