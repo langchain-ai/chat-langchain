@@ -3,17 +3,24 @@
 import asyncio
 
 import pytest
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
 
 
-def _request(name: str, call_id: str, args: dict, content: str = "Question"):
+def _request(
+    name: str,
+    call_id: str,
+    args: dict,
+    content: str = "Question",
+    messages=None,
+    state=None,
+):
     return ToolCallRequest(
         tool_call={"name": name, "id": call_id, "args": args},
         tool=None,
-        state={"messages": [HumanMessage(content=content)]},
+        state=state or {"messages": messages or [HumanMessage(content=content)]},
         runtime=None,
     )
 
@@ -31,11 +38,14 @@ def test_identical_call_returns_cached_content_with_current_call_identity():
         )
 
     async def invoke():
+        state = {"messages": [HumanMessage(content="Question")]}
         first = await middleware.awrap_tool_call(
-            _request("search_docs", "call-1", {"query": "middleware"}), handler
+            _request("search_docs", "call-1", {"query": "middleware"}, state=state),
+            handler,
         )
         second = await middleware.awrap_tool_call(
-            _request("search_docs", "call-2", {"query": "middleware"}), handler
+            _request("search_docs", "call-2", {"query": "middleware"}, state=state),
+            handler,
         )
         return first, second
 
@@ -116,12 +126,23 @@ def test_check_links_allows_one_invocation_per_turn():
         )
 
     async def invoke():
+        state = {"messages": [HumanMessage(content="Question")]}
         first = await middleware.awrap_tool_call(
-            _request("check_links", "call-1", {"urls": ["https://one.example"]}),
+            _request(
+                "check_links",
+                "call-1",
+                {"urls": ["https://one.example"]},
+                state=state,
+            ),
             handler,
         )
         second = await middleware.awrap_tool_call(
-            _request("check_links", "call-2", {"urls": ["https://two.example"]}),
+            _request(
+                "check_links",
+                "call-2",
+                {"urls": ["https://two.example"]},
+                state=state,
+            ),
             handler,
         )
         return first, second
@@ -131,3 +152,143 @@ def test_check_links_allows_one_invocation_per_turn():
     assert len(calls) == 1
     assert first.content == "validated"
     assert "may only be called once per turn" in second.content
+
+
+def test_check_links_is_refused_from_prior_messages_without_contextvar_state():
+    middleware = DuplicateCallGuardMiddleware()
+    messages = [
+        HumanMessage(content="Question"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "check_links",
+                    "args": {"urls": ["https://one.example"]},
+                    "id": "call-1",
+                }
+            ],
+        ),
+        ToolMessage(
+            content="validated",
+            name="check_links",
+            tool_call_id="call-1",
+        ),
+    ]
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        return ToolMessage(content="new", tool_call_id=request.tool_call["id"])
+
+    result = asyncio.run(
+        middleware.awrap_tool_call(
+            _request(
+                "check_links",
+                "call-2",
+                {"urls": ["https://two.example"]},
+                messages=messages,
+            ),
+            handler,
+        )
+    )
+
+    assert not calls
+    assert "may only be called once per turn" in result.content
+
+
+def test_historical_duplicate_returns_cached_content():
+    middleware = DuplicateCallGuardMiddleware()
+    messages = [
+        HumanMessage(content="Question"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "search_docs", "args": {"query": "middleware"}, "id": "call-1"}
+            ],
+        ),
+        ToolMessage(content="historical result", tool_call_id="call-1"),
+    ]
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        return ToolMessage(content="new", tool_call_id=request.tool_call["id"])
+
+    result = asyncio.run(
+        middleware.awrap_tool_call(
+            _request(
+                "search_docs", "call-2", {"query": "middleware"}, messages=messages
+            ),
+            handler,
+        )
+    )
+
+    assert not calls
+    assert "historical result" in result.content
+
+
+def test_new_human_message_resets_historical_ledger():
+    middleware = DuplicateCallGuardMiddleware()
+    messages = [
+        HumanMessage(content="First question"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "search_docs", "args": {"query": "middleware"}, "id": "call-1"}
+            ],
+        ),
+        ToolMessage(content="old result", tool_call_id="call-1"),
+        HumanMessage(content="New question"),
+    ]
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        return ToolMessage(content="new result", tool_call_id=request.tool_call["id"])
+
+    result = asyncio.run(
+        middleware.awrap_tool_call(
+            _request(
+                "search_docs", "call-2", {"query": "middleware"}, messages=messages
+            ),
+            handler,
+        )
+    )
+
+    assert len(calls) == 1
+    assert result.content == "new result"
+
+
+def test_error_status_tool_message_is_not_cached():
+    middleware = DuplicateCallGuardMiddleware()
+    messages = [
+        HumanMessage(content="Question"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "search_docs", "args": {"query": "middleware"}, "id": "call-1"}
+            ],
+        ),
+        ToolMessage(
+            content="failed result",
+            status="error",
+            tool_call_id="call-1",
+        ),
+    ]
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        return ToolMessage(content="success", tool_call_id=request.tool_call["id"])
+
+    result = asyncio.run(
+        middleware.awrap_tool_call(
+            _request(
+                "search_docs", "call-2", {"query": "middleware"}, messages=messages
+            ),
+            handler,
+        )
+    )
+
+    assert len(calls) == 1
+    assert result.content == "success"
