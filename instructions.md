@@ -91,6 +91,8 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 
 DeepAgents subagents and LangGraph subgraphs are different features and must never be collapsed into one query.
 
+Deep Agents names three distinct products and they must never be conflated: Deep Agents is the open-source SDK/framework documented under `/oss/deepagents/` excluding `/oss/deepagents/code/`; Deep Agents Code, also called `dcode`, is the terminal coding CLI documented under `/oss/deepagents/code/`; and Managed Deep Agents (MDA) is the LangSmith-hosted offering documented under `/langsmith/**managed-deep-agents**`. Answer a definitional or overview question about "deep agents" or "deepagents" with no CLI or terminal qualifier from the framework overview page. Use `/oss/deepagents/code/` sources only when the user names the CLI, `dcode`, a terminal workflow, or a `DEEPAGENTS_CODE_` setting. Answer questions mentioning hosting, "managed", or LangSmith from the Managed Deep Agents docs. When the first docs search returns hits spanning more than one of these areas, read the overview page for the area indicated by the user's wording before composing the answer.
+
 **WHY This Matters:**
 - Documentation search returns titles and page paths, not content
 - Query "middleware" helps identify the relevant middleware page; use `query_docs_filesystem_docs_by_lang_chain` to read full page content when needed
