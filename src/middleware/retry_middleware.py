@@ -1,14 +1,19 @@
-# Retry middleware for model calls with exponential backoff
+"""Retry middleware for model calls and provider responses."""
+
 import asyncio
 import logging
 from typing import Awaitable, Callable
 
+from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.agents.middleware.types import (
     AgentMiddleware,
     ModelCallResult,
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.runnables.retry import RunnableRetry
+from langgraph.errors import GraphBubbleUp
+from tenacity import retry_if_exception
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +29,64 @@ class MalformedResponseError(Exception):
     pass
 
 
+class _ProviderValidationAwareRunnableRetry(RunnableRetry):
+    @property
+    def _kwargs_retrying(self) -> dict[str, object]:
+        kwargs = super()._kwargs_retrying
+        kwargs["retry"] = retry_if_exception(
+            lambda exception: not isinstance(exception, (ValueError, TypeError))
+        )
+        return kwargs
+
+
+class _DeterministicModelRequestError(GraphBubbleUp):
+    def __init__(self, error: ValueError | TypeError):
+        super().__init__(str(error))
+        self.error = error
+
+
+class DeterministicErrorAwareModelFallbackMiddleware(ModelFallbackMiddleware):
+    """Avoid fallback models for deterministic request-construction errors."""
+
+    def wrap_model_call(self, request, handler):
+        """Call the model without fallback for deterministic errors."""
+
+        def guarded_handler(inner_request):
+            try:
+                return handler(inner_request)
+            except (ValueError, TypeError) as error:
+                raise _DeterministicModelRequestError(error) from error
+
+        try:
+            return super().wrap_model_call(request, guarded_handler)
+        except _DeterministicModelRequestError as error:
+            raise error.error from error.error
+
+    async def awrap_model_call(self, request, handler):
+        """Call the model asynchronously without fallback for deterministic errors."""
+
+        async def guarded_handler(inner_request):
+            try:
+                return await handler(inner_request)
+            except (ValueError, TypeError) as error:
+                raise _DeterministicModelRequestError(error) from error
+
+        try:
+            return await super().awrap_model_call(request, guarded_handler)
+        except _DeterministicModelRequestError as error:
+            raise error.error from error.error
+
+
 class ModelRetryMiddleware(AgentMiddleware):
+    """Retry transient model failures and malformed responses."""
+
     def __init__(
         self,
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
     ):
+        """Configure retry attempts and backoff timing."""
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
@@ -46,6 +102,7 @@ class ModelRetryMiddleware(AgentMiddleware):
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
+        """Retry transient failures from the wrapped model handler."""
         last_exception: Exception | None = None
         last_retryable_reason: str | None = None
 
@@ -69,6 +126,8 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
+                if isinstance(e, (ValueError, TypeError)):
+                    raise
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
@@ -94,4 +153,9 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = [
+    "DeterministicErrorAwareModelFallbackMiddleware",
+    "ModelRetryMiddleware",
+    "MalformedResponseError",
+    "_ProviderValidationAwareRunnableRetry",
+]
