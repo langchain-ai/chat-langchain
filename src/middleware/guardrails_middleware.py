@@ -14,6 +14,7 @@ from langgraph.runtime import Runtime
 from langsmith import Client
 from typing_extensions import NotRequired, TypedDict
 
+from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.prompts.guardrails_prompts import (
     fallback_rejection_message as _FALLBACK_REJECTION_MESSAGE,
 )
@@ -200,7 +201,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if hasattr(last_message, "content")
             else str(last_message)
         )
-        safe_last_content = self._content_to_safe_text(last_content)
+        safe_last_content = IngressGuardsMiddleware()._redact_secrets(
+            self._content_to_safe_text(last_content)
+        )
         query_preview = safe_last_content[:100]
 
         # One classifier, every turn. Covers topic relevance + zero-tolerance
