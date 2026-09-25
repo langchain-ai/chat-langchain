@@ -450,9 +450,24 @@ export function useStreamHandler({
         streamSubgraphs: true,
         ifNotExists: "create",
         onRunCreated: (metadata: { run_id?: string }) => {
-          if (metadata.run_id) {
-            runId = metadata.run_id
-            onRunCreated?.(metadata.run_id)
+          const rootRunId = metadata.run_id
+          if (rootRunId) {
+            runId = rootRunId
+            setMessages((prev) => {
+              const baseMessage: Message = {
+                id: assistantMessageId,
+                role: "assistant",
+                content: "",
+                timestamp: new Date(),
+                isThinking: true,
+                runId: rootRunId,
+              }
+              const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
+              return updateMessageInList(withMessage, assistantMessageId, {
+                runId: rootRunId,
+              })
+            })
+            onRunCreated?.(rootRunId)
           }
         },
       })
@@ -481,18 +496,6 @@ export function useStreamHandler({
 
         const eventType = chunk.event as string
         const data = chunk.data as any
-
-        // Capture run_id from metadata
-        if (!runId) {
-          const possibleRunId =
-            (chunk as any).metadata?.run_id ||
-            (chunk as any).run_id ||
-            (chunk as any).data?.run_id
-
-          if (possibleRunId) {
-            runId = possibleRunId
-          }
-        }
 
         const isSubgraphEvent = eventType.includes("|")
         const eventParts = eventType.split("|")

@@ -472,9 +472,16 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Add guardrails decision to LangSmith run metadata."""
         try:
             run_tree = ls.get_current_run_tree()
-            if run_tree:
-                run_tree.metadata["guardrails_result"] = decision["decision"]
-                run_tree.metadata["guardrails_explanation"] = decision["explanation"]
+            if not run_tree:
+                return
+
+            metadata = dict(run_tree.metadata)
+            metadata["guardrail_decision"] = decision["decision"].lower()
+            run_tree.add_metadata({"guardrail_decision": metadata["guardrail_decision"]})
+            run_tree.client.update_run(
+                run_tree.trace_id,
+                extra={"metadata": metadata},
+            )
         except Exception:
             pass  # Silently ignore if run tree is not available
 

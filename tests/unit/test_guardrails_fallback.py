@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+from types import SimpleNamespace
 
 import pytest
 from langchain_core.messages import HumanMessage
@@ -96,3 +97,40 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected_value"),
+    [("ALLOWED", "allowed"), ("BLOCKED", "blocked")],
+)
+def test_track_decision_metadata_updates_root_run(monkeypatch, decision, expected_value):
+    updates = []
+    run_tree = SimpleNamespace(
+        metadata={"source_type": "Chat-LangChain", "graph": "docs_agent"},
+        trace_id="root-run-id",
+        client=SimpleNamespace(
+            update_run=lambda run_id, **kwargs: updates.append((run_id, kwargs))
+        ),
+        add_metadata=lambda metadata: None,
+    )
+    monkeypatch.setattr(guardrails_module.ls, "get_current_run_tree", lambda: run_tree)
+
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    middleware._track_decision_metadata(
+        {"decision": decision, "explanation": "Classification result"}
+    )
+
+    assert updates == [
+        (
+            "root-run-id",
+            {
+                "extra": {
+                    "metadata": {
+                        "source_type": "Chat-LangChain",
+                        "graph": "docs_agent",
+                        "guardrail_decision": expected_value,
+                    }
+                }
+            },
+        )
+    ]

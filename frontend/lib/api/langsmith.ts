@@ -108,6 +108,7 @@ export async function createOrUpdateFeedback(
     ? {
         action: "update",
         feedback_id: params.feedbackId,
+        run_id: params.runId,
         thread_id: params.threadId,
         score,
         value: params.score,
