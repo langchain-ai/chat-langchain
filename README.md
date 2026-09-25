@@ -143,6 +143,13 @@ What MDA owns in this deployment:
 - **Thread titles** — generated in the browser (deterministic truncation).
 - **Checkpointer** — managed by the Managed Deep Agents runtime.
 
+### Observability
+
+The `trajectory_accuracy` online evaluator rule (`c27f6667-f6a8-451a-bca2-ee4683f2176b`)
+is currently erroring on every invocation. Point its variable mapping at the final AI
+message on the `docs_agent` root run, or disable the rule; `avg: 0` is an error artifact,
+not a quality score.
+
 ## Resources
 
 - [LangChain Documentation](https://docs.langchain.com/oss/python/langchain/overview)

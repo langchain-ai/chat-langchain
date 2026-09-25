@@ -61,3 +61,12 @@ def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch
 
     metadata = build_docs_agent_trace_metadata()
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+
+
+def test_build_docs_agent_trace_metadata_defaults_to_production(monkeypatch):
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.delenv("LANGSMITH_ENVIRONMENT", raising=False)
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "production"

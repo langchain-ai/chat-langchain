@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+from unittest.mock import Mock
 
 import pytest
 from langchain_core.messages import HumanMessage
@@ -34,7 +35,9 @@ class FakeStructuredModel:
         return outcome
 
 
-def _middleware_with_models(*models: tuple[str, FakeStructuredModel]) -> GuardrailsMiddleware:
+def _middleware_with_models(
+    *models: tuple[str, FakeStructuredModel],
+) -> GuardrailsMiddleware:
     middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
     middleware.classifier_llms = list(models)
     middleware.block_off_topic = True
@@ -45,7 +48,9 @@ def test_guardrails_falls_back_after_primary_retries(monkeypatch):
     """The fallback model should get its own retry budget after primary fails."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
 
-    primary = FakeStructuredModel([RuntimeError("primary down"), RuntimeError("still down")])
+    primary = FakeStructuredModel(
+        [RuntimeError("primary down"), RuntimeError("still down")]
+    )
     fallback = FakeStructuredModel(
         [{"decision": "ALLOWED", "explanation": "LangChain-related question."}]
     )
@@ -64,7 +69,9 @@ def test_guardrails_raises_after_all_models_exhaust_retries(monkeypatch):
     """Guardrails should fail only after every model exhausts retries."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
 
-    primary = FakeStructuredModel([RuntimeError("primary down"), RuntimeError("still down")])
+    primary = FakeStructuredModel(
+        [RuntimeError("primary down"), RuntimeError("still down")]
+    )
     fallback = FakeStructuredModel(
         [RuntimeError("fallback down"), RuntimeError("fallback still down")]
     )
@@ -96,3 +103,18 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_guardrails_records_decision_on_root_run(monkeypatch):
+    """Guardrails metadata should be bounded and attached to the root run."""
+    root_run = Mock(parent_run=None)
+    child_run = Mock(parent_run=root_run)
+    monkeypatch.setattr(guardrails_module.ls, "get_current_run_tree", lambda: child_run)
+
+    middleware = _middleware_with_models()
+    middleware._track_decision_metadata(
+        {"decision": "BLOCKED", "explanation": "Outside the supported topic."}
+    )
+
+    root_run.add_metadata.assert_called_once_with({"guardrail_decision": "blocked"})
+    child_run.add_metadata.assert_not_called()

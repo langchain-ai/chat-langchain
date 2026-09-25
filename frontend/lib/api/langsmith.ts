@@ -119,7 +119,7 @@ export async function createOrUpdateFeedback(
         thread_id: params.threadId,
         key: FEEDBACK_KEY,
         score,
-        value: params.score,
+        value: score,
         comment: params.comment,
       }
 
