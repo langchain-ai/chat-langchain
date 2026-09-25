@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+MAX_SUPPORT_SEARCH_RESULTS = 20
 
 
 def _get_kb_id() -> str:
@@ -128,31 +130,8 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+def search_support_articles(query: str, collections: str = "all") -> str:
+    """Search support article titles by query, optionally filtered by collections."""
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -199,7 +178,15 @@ def search_support_articles(collections: str = "all") -> str:
                 )
 
         if not published_articles:
-            return "No published articles available in the knowledge base."
+            return json.dumps(
+                {
+                    "collections": collections,
+                    "total": 0,
+                    "articles": [],
+                    "note": "No titles matched the query.",
+                },
+                indent=2,
+            )
 
         # Fetch collection map for naming
         try:
@@ -261,6 +248,32 @@ def search_support_articles(collections: str = "all") -> str:
                 indent=2,
             )
 
+        query_tokens = set(re.findall(r"\w+", query.casefold()))
+        matching_articles = []
+        for article in published_articles:
+            title_tokens = set(re.findall(r"\w+", article["title"].casefold()))
+            score = len(query_tokens & title_tokens)
+            if score:
+                matching_articles.append((score, article))
+
+        matching_articles.sort(key=lambda item: item[0], reverse=True)
+        total_matches = len(matching_articles)
+        if not total_matches:
+            return json.dumps(
+                {
+                    "collections": collections,
+                    "total": 0,
+                    "articles": [],
+                    "note": "No titles matched the query.",
+                },
+                indent=2,
+            )
+
+        published_articles = [
+            article for _, article in matching_articles[:MAX_SUPPORT_SEARCH_RESULTS]
+        ]
+        was_truncated = total_matches > MAX_SUPPORT_SEARCH_RESULTS
+
         # Clean up collection_id from output (internal field)
         for article in published_articles:
             article.pop("collection_id", None)
@@ -268,9 +281,14 @@ def search_support_articles(collections: str = "all") -> str:
         # Return structured JSON format
         result = {
             "collections": collections,
-            "total": len(published_articles),
+            "total": total_matches,
             "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "note": (
+                f"Results capped at {MAX_SUPPORT_SEARCH_RESULTS} articles. "
+                "All articles listed are public and have content. Use IDs to fetch full content."
+                if was_truncated
+                else "All articles listed are public and have content. Use IDs to fetch full content."
+            ),
         }
 
         return json.dumps(result, indent=2)
