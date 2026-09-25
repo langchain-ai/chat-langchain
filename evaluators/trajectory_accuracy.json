@@ -1,0 +1,36 @@
+{
+  "name": "trajectory_accuracy",
+  "feedback_key": "trajectory_accuracy",
+  "variable_mapping": {
+    "question": "inputs.messages",
+    "answer": "outputs.messages[-1].content"
+  },
+  "prompt": [
+    {
+      "role": "system",
+      "content": "You are evaluating whether an assistant trajectory correctly answers the user's original question. The question variable contains the root run's messages; use the text following `User query:` as the original user question, not a guardrail or classifier message. Compare that question with the final assistant answer. If answer is missing, return a score of 0 and explain that no final answer was produced. Return only a JSON object with this exact shape: {\"score\": <number from 0 to 1>, \"reasoning\": \"<brief explanation>\"}."
+    },
+    {
+      "role": "user",
+      "content": "Question messages:\n{question}\n\nFinal answer:\n{answer}"
+    }
+  ],
+  "schema": {
+    "type": "object",
+    "properties": {
+      "score": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "reasoning": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "score",
+      "reasoning"
+    ],
+    "additionalProperties": false
+  }
+}
