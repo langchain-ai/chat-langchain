@@ -54,7 +54,7 @@ def test_resolve_hub_provenance_uses_prompt_workspace_and_api_key(monkeypatch):
         "commit-for-public-chat-langchain-test:production"
     )
     assert result["guardrails_prompt_commit"] == (
-        "commit-for-public-chat-langchain-guardrails-test:production"
+        "commit-for-public-chat-langchain-guardrails:production"
     )
 
 

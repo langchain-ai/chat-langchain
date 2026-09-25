@@ -34,9 +34,9 @@ _HUB_PROMPTS: dict[str, str] = {
 }
 _GUARDRAILS_HUB_PROMPTS: dict[str, str] = {
     "docs_agent": (
-        "public-chat-langchain-guardrails-test:staging"
+        "public-chat-langchain-guardrails:staging"
         if _USE_STAGING
-        else "public-chat-langchain-guardrails-test:production"
+        else "public-chat-langchain-guardrails:production"
     ),
 }
 

@@ -21,6 +21,22 @@ from src.prompts.docs_agent_prompt import docs_agent_prompt
 
 PROMPT_LOWER = _GUARDRAILS_SYSTEM_PROMPT.lower()
 
+ALLOW_EXAMPLES = [
+    ("spanish langchain getting-started request", "ALLOWED"),
+    ("chinese request explaining deepagents", "ALLOWED"),
+    ("chinese request for middleware execution timing", "ALLOWED"),
+    ("prospect documentation request", "ALLOWED"),
+    ("abac/rbac", "ALLOWED"),
+    ("filter profanity in a voice agent", "ALLOWED"),
+]
+
+BLOCKED_CONTROLS = [
+    ("real-time clock trivia", "BLOCKED"),
+    ("news or politics", "BLOCKED"),
+    ("book downloads", "BLOCKED"),
+    ("operating-system or text-editor tutorials", "BLOCKED"),
+]
+
 # Data science libraries that should be restricted when used without LangChain context
 PURE_DS_LIBRARIES = [
     "pandas",
@@ -161,6 +177,20 @@ def test_guardrails_prompt_default_is_still_allow():
         "'YOUR DEFAULT IS TO ALLOW' or 'when uncertain, ALWAYS choose ALLOWED' "
         "language from the prompt."
     )
+
+
+def test_guardrails_prompt_has_false_block_few_shots():
+    """The prompt must teach the classifier to allow known in-scope requests."""
+    for example, expected_decision in ALLOW_EXAMPLES:
+        assert example in PROMPT_LOWER
+        assert expected_decision.lower() in PROMPT_LOWER
+
+
+def test_guardrails_prompt_has_refused_scope_controls():
+    """The prompt must retain clearly off-topic refusal controls."""
+    for control, expected_decision in BLOCKED_CONTROLS:
+        assert control in PROMPT_LOWER
+        assert expected_decision.lower() in PROMPT_LOWER
 
 
 # ---------------------------------------------------------------------------

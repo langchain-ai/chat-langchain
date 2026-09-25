@@ -66,7 +66,7 @@ MODELS: dict[str, ModelConfig] = {
 
 # Default models for different use cases
 DEFAULT_MODEL = MODELS["gemini-3.5-flash-lite"]
-GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
+GUARDRAILS_MODEL = MODELS["claude-haiku-4.5"]
 
 # Fallback chain (in order of preference)
 FALLBACK_MODELS = [

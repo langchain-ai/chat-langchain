@@ -96,3 +96,38 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_guardrails_allows_ecosystem_terms_without_classifier():
+    """Ecosystem names should bypass the classifier, including spaced names."""
+    model = FakeStructuredModel([])
+    middleware = _middleware_with_models(("classifier", model))
+
+    result = asyncio.run(
+        middleware._classify_query(
+            [HumanMessage(content="Can you explain de e pa gen t s?")]
+        )
+    )
+
+    assert result["decision"] == "ALLOWED"
+    assert model.calls == 0
+
+
+def test_guardrails_requires_high_confidence_substantive_block():
+    """Ambiguous blocks must fail open while explicit policy blocks remain."""
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+
+    assert middleware._normalize_decision(
+        {
+            "decision": "BLOCKED",
+            "high_confidence": False,
+            "explanation": "The query is not in scope.",
+        }
+    )["decision"] == "ALLOWED"
+    assert middleware._normalize_decision(
+        {
+            "decision": "BLOCKED",
+            "high_confidence": True,
+            "explanation": "This is a request for sexually explicit content.",
+        }
+    )["decision"] == "BLOCKED"

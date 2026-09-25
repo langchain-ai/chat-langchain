@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import random
+from collections.abc import Mapping
 from typing import Any, Literal
 
 import langsmith as ls
@@ -41,9 +42,51 @@ _USE_STAGING = (
     or os.getenv("LANGSMITH_ENV") == "dev"
 )
 _GUARDRAILS_PROMPT_HUB_NAME = (
-    "public-chat-langchain-guardrails-test:staging"
+    "public-chat-langchain-guardrails:staging"
     if _USE_STAGING
-    else "public-chat-langchain-guardrails-test:production"
+    else "public-chat-langchain-guardrails:production"
+)
+
+_ECOSYSTEM_TERMS = (
+    "langchain",
+    "langgraph",
+    "langsmith",
+    "deepagents",
+    "fleet",
+    "langserve",
+)
+_BLOCK_REASON_MARKERS = (
+    "sexually explicit",
+    "pornographic",
+    "nsfw",
+    "adult content",
+    "graphic violence",
+    "gore",
+    "torture",
+    "self-harm",
+    "suicide",
+    "creative writing",
+    "fiction",
+    "roleplay",
+    "storytelling",
+    "harmful",
+    "fraudulent",
+    "abusive",
+    "illegal",
+    "prompt injection",
+    "jailbreak",
+    "system prompt",
+    "internal instructions",
+    "social pressure",
+    "trivia",
+    "current time",
+    "news",
+    "politics",
+    "book download",
+    "copyrighted",
+    "operating system",
+    "text editor",
+    "os tutorial",
 )
 
 # Cache for dataset ID to avoid repeated lookups
@@ -54,6 +97,7 @@ class GuardrailsDecision(TypedDict):
     """Structured output for guardrails decision."""
 
     decision: Literal["ALLOWED", "BLOCKED"]
+    high_confidence: bool
     explanation: str
 
 
@@ -328,7 +372,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         instruction = (
             "Classify this user query for the LangChain documentation assistant. "
             "Consider both the text and any attached images. "
-            "Return both the decision and one concise sentence explaining why."
+            "Return the decision, a high_confidence boolean, and one concise sentence explaining why."
         )
 
         if context_section:
@@ -387,7 +431,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "high_confidence": False,
+                "explanation": "No human query was available to classify.",
+            }
+
+        if current_query and self._contains_ecosystem_term(current_query):
+            logger.info("Allowing query with explicit LangChain ecosystem context.")
+            return {
+                "decision": "ALLOWED",
+                "high_confidence": True,
+                "explanation": "The query names a LangChain ecosystem product.",
+            }
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
@@ -423,18 +479,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
             for attempt in range(GUARDRAILS_MAX_RETRIES + 1):
                 try:
-                    result: GuardrailsDecision = await asyncio.wait_for(
+                    result = await asyncio.wait_for(
                         structured_llm.ainvoke(
                             prompt, config={"callbacks": [], "tags": ["guardrails"]}
                         ),
                         timeout=GUARDRAILS_TIMEOUT_SECONDS,
                     )
+                    normalized_result = self._normalize_decision(result)
                     if model_index > 0:
                         logger.info(
                             "Guardrails classification succeeded with fallback model: %s",
                             model_name,
                         )
-                    return result
+                    return normalized_result
                 except Exception as e:
                     last_exception = e
                     if attempt < GUARDRAILS_MAX_RETRIES:
@@ -467,6 +524,64 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         raise GuardrailsClassificationError(
             f"Guardrails classification failed after retries: {last_exception}"
         )
+
+    @staticmethod
+    def _contains_ecosystem_term(query: str) -> bool:
+        """Return whether query names a LangChain ecosystem product."""
+        normalized_query = "".join(query.casefold().split())
+        return any(term in normalized_query for term in _ECOSYSTEM_TERMS)
+
+    @staticmethod
+    def _normalize_decision(result: Any) -> GuardrailsDecision:
+        """Fail open unless a response clearly authorizes blocking."""
+        if not isinstance(result, Mapping):
+            logger.warning("Malformed guardrails response; failing open.")
+            return {
+                "decision": "ALLOWED",
+                "high_confidence": False,
+                "explanation": "Malformed classifier response; allowing query.",
+            }
+
+        decision = result.get("decision")
+        high_confidence = result.get("high_confidence")
+        explanation = result.get("explanation")
+        if decision not in ("ALLOWED", "BLOCKED") or not isinstance(
+            explanation, str
+        ):
+            logger.warning("Invalid guardrails response; failing open.")
+            return {
+                "decision": "ALLOWED",
+                "high_confidence": False,
+                "explanation": "Invalid classifier response; allowing query.",
+            }
+
+        if decision == "BLOCKED" and (
+            high_confidence is not True
+            or len(explanation.strip()) < 20
+            or not any(
+                marker in explanation.casefold() for marker in _BLOCK_REASON_MARKERS
+            )
+        ):
+            logger.warning("Uncertain guardrails block; failing open: %s", explanation)
+            return {
+                "decision": "ALLOWED",
+                "high_confidence": False,
+                "explanation": "Uncertain classifier block; allowing query.",
+            }
+
+        if not isinstance(high_confidence, bool):
+            logger.warning("Missing or invalid guardrails confidence; failing open.")
+            return {
+                "decision": "ALLOWED",
+                "high_confidence": False,
+                "explanation": "Missing classifier confidence; allowing query.",
+            }
+
+        return {
+            "decision": decision,
+            "high_confidence": high_confidence,
+            "explanation": explanation,
+        }
 
     def _track_decision_metadata(self, decision: GuardrailsDecision) -> None:
         """Add guardrails decision to LangSmith run metadata."""

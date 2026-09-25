@@ -17,7 +17,7 @@ def main() -> None:
         [SystemMessage(content=guardrails_system_prompt)]
     )
     url = Client().push_prompt(
-        "langchain-ai/public-chat-langchain-guardrails-test", object=prompt
+        "langchain-ai/public-chat-langchain-guardrails", object=prompt
     )
     sys.stdout.write(f"{url}\n")
 
