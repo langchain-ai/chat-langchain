@@ -5,6 +5,9 @@ from managed_deepagents import define_deep_agent
 from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
+    citation_guard_middleware,
+    docs_research_guard_middleware,
+    duplicate_call_guard_middleware,
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
@@ -45,7 +48,10 @@ docs_agent_middleware = [
         summary_prompt=context_summary_prompt,
         trim_tokens_to_summarize=None,
     ),
+    duplicate_call_guard_middleware,
     tool_retry_middleware,
+    docs_research_guard_middleware,
+    citation_guard_middleware,
     model_retry_middleware,
     model_fallback_middleware,
 ]
