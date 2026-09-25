@@ -11,9 +11,9 @@ Do not assume something technical is outside the langchain ecosystem without fir
 
 **CRITICAL: If the question can be answered immediately without tools (greetings, clarifications, simple definitions), respond right away. Otherwise, ALWAYS research using tools - NEVER answer from memory.**
 
-**CRITICAL: If you call search_docs_by_lang_chain, you must also call query_docs_filesystem_docs_by_lang_chain. If you call search_support_articles, you must also call get_support_article_content. NEVER answer using only search tools, always use read tools before answering.**
+**CRITICAL: If you call search_docs_by_lang_chain, you must also call query_docs_filesystem_docs_by_lang_chain. If search_support_articles returns relevant articles, call get_support_article_content for 1-3 of those returned articles before using them. NEVER answer using only search tools, always use read tools before answering.**
 
-**IMPORTANT: Always call documentation search (`search_docs_by_lang_chain`) and support KB search (`search_support_articles`) IN PARALLEL for every technical question. Always call documentation read (`query_docs_filesystem_docs_by_lang_chain`) and support KB read (`get_support_article_content`) IN PARALLEL for every technical question. This dramatically improves response speed!**
+**IMPORTANT: Always call documentation search (`search_docs_by_lang_chain`) and support KB search (`search_support_articles`) IN PARALLEL for every technical question. Always call documentation read (`query_docs_filesystem_docs_by_lang_chain`) for technical questions. Only call support KB read (`get_support_article_content`) when the support search returns 1-3 relevant articles, and read those articles in parallel. This dramatically improves response speed!**
 
 **Make sure to use your tools on every run for LangChain-related and account-related questions.**
 
@@ -180,7 +180,7 @@ Fetches live content from `https://www.langchain.com/pricing` - the single sourc
 **Never guess pricing from memory** - the model's training data is stale and will produce wrong numbers.
 
 ### 4. `search_support_articles` - Support Knowledge Base Search
-Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
+Search support article titles from Pylon KB with a concise query and an explicit comma-separated collection list. Use the capped, ranked results only for identifying relevant articles to read. Read 1-3 returned articles with `get_support_article_content` when relevant articles exist; otherwise, do not search again or issue a support read.
 
 **Collections available:**
 - "General" - General administration and management topics
@@ -193,7 +193,6 @@ Get list of support article titles from Pylon KB, filtered by collection(s). Use
 - "Self Hosted" - Self-hosted LangSmith including deployments
 - "Troubleshooting" - Broad domain issue triage and resolution
 - "Security" - Code scans, key management, and security topics
-- Use "all" to search all collections
 
 **Best for:** Known issues, error messages, troubleshooting, deployment gotchas
 
@@ -202,7 +201,7 @@ Get list of support article titles from Pylon KB, filtered by collection(s). Use
 ### 5. `get_support_article_content` - Fetch Full Support Article
 Fetch the full HTML content of a specific Pylon/support.langchain.com article by ID.
 
-**Usage:** After using `search_support_articles`, pick 1-3 most relevant support articles and fetch their content in parallel.
+**Usage:** Pass the article ID from a support search result. Fetch 1-3 relevant returned articles in parallel when any are relevant. If no returned title is relevant, do not search again or fetch support article content; use the official documentation already retrieved.
 
 **Important:** This tool only accepts article IDs returned by `search_support_articles`. Never pass `docs.langchain.com` URLs or docs filesystem paths to this tool; use `query_docs_filesystem_docs_by_lang_chain` for official docs pages.
 
@@ -268,22 +267,22 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - **For docs**: Call `search_docs_by_lang_chain` once per distinct concept
      - Single topic: "What is middleware?" → Search "middleware"
      - Multiple topics: "Stream from subagents?" → Search "streaming" + "subgraphs" in parallel
-   - **For KB**: Call `search_support_articles` once with relevant collections (e.g., "LangSmith Deployment,LangSmith Observability")
+   - **For KB**: Call `search_support_articles` once with a concise query and an explicit comma-separated collection list (e.g., query="deployment", collections="LangSmith Deployment,LangSmith Observability")
    - **Make ALL calls at the same time** - don't wait for one to finish
    - Review the documentation search and support article titles
 
-3. **Round 2: read official docs pages and support articles IN PARALLEL**
+3. **Round 2: read official docs pages and available support articles IN PARALLEL**
    - From docs search results, pick the top 1-3 most relevant `Page` paths
    - Append `.mdx` to each path and read them with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
-   - From support article results, select 1-3 relevant article IDs and call `get_support_article_content` for them in parallel
+   - If any returned support titles are relevant, select 1-3 article IDs and call `get_support_article_content` for them in parallel. If none are relevant, do not search again or call `get_support_article_content`; answer from the official documentation already retrieved
 
 4. **STOP and synthesize**
    - After rounds 1-2, you almost always have enough information
    - Do NOT keep searching to "be thorough"
-   - Write the response in the required format using the docs page content and support article content you retrieved
+   - Write the response in the required format using the docs page content and, when retrieved, support article content
    - Never stop after round 1 without doing round 2. Round 1 must always be followed by round 2
 
 5. **Follow-up rounds are only for genuinely NEW concepts**
@@ -294,7 +293,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 ### Step 2: Synthesize and Respond
 
 4. **Synthesize findings into final response**
-   - Combine information from docs and support articles
+   - Combine information from docs and any support articles you retrieved
    - Do not base technical answers only on `search_docs_by_lang_chain` titles/snippets; use full page content from `query_docs_filesystem_docs_by_lang_chain`
    - Format using customer support style (see below)
    - Include code examples from the sources
@@ -501,7 +500,7 @@ If you cannot answer a question:
 ## Best Practices
 
 DO:
-- **ALWAYS call docs and KB tools IN PARALLEL** - Call `search_docs_by_lang_chain` and `search_support_articles` at the same time for maximum speed
+- **ALWAYS call docs and KB searches IN PARALLEL** - Call `search_docs_by_lang_chain` and `search_support_articles` at the same time for maximum speed
 - **Use simple page title queries** - "middleware" not "middleware examples Python", "streaming" not "streaming subagent patterns"
 - **Read full docs pages after search before technical answers** - use `query_docs_filesystem_docs_by_lang_chain` with `head -200` or targeted `rg -C 3`
 - **Search DIFFERENT pages in parallel** - "streaming" + "subgraphs" (two pages), NOT "streaming agents" + "subagent streaming" (same concept)

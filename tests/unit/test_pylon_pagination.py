@@ -4,11 +4,9 @@ These tests do NOT require network access or LangSmith credentials.
 All HTTP calls are mocked via unittest.mock.
 """
 
-import importlib
-import sys
+import json
 import unittest
-from unittest.mock import MagicMock, call, patch
-
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -186,6 +184,35 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+    @patch("src.tools.pylon_tools._fetch_collections")
+    @patch("src.tools.pylon_tools._fetch_all_articles")
+    def test_search_returns_capped_compact_results(
+        self, mock_articles, mock_collections
+    ):
+        """Search results contain at most 20 query-matching articles."""
+        mock_collections.return_value = {"General": "general-id"}
+        mock_articles.return_value = [
+            {
+                "id": f"article-{index}",
+                "title": f"LangChain support article {index}",
+                "is_published": True,
+                "visibility_config": {"visibility": "public"},
+                "identifier": f"identifier-{index}",
+                "slug": f"article-{index}",
+                "collection_id": "general-id",
+            }
+            for index in range(30)
+        ]
+
+        result = self.module.search_support_articles.invoke(
+            {"query": "LangChain", "collections": "General"}
+        )
+        payload = json.loads(result)
+
+        self.assertEqual(payload["total"], 20)
+        self.assertEqual(len(payload["articles"]), 20)
+        self.assertLess(len(result), 8000)
 
 
 if __name__ == "__main__":

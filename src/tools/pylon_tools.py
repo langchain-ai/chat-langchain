@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -128,31 +129,8 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+def search_support_articles(query: str, collections: str = "General") -> str:
+    """Search public support article titles by query and collections, returning at most 20 ranked matches."""
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -261,6 +239,31 @@ def search_support_articles(collections: str = "all") -> str:
                 indent=2,
             )
 
+        query_tokens = set(re.findall(r"\w+", query.casefold()))
+        published_articles = [
+            article
+            for article in published_articles
+            if query_tokens & set(re.findall(r"\w+", article["title"].casefold()))
+        ]
+        published_articles.sort(
+            key=lambda article: len(
+                query_tokens & set(re.findall(r"\w+", article["title"].casefold()))
+            ),
+            reverse=True,
+        )
+        published_articles = published_articles[:20]
+
+        if not published_articles:
+            return json.dumps(
+                {
+                    "collections": collections,
+                    "total": 0,
+                    "articles": [],
+                    "note": "No articles found",
+                },
+                indent=2,
+            )
+
         # Clean up collection_id from output (internal field)
         for article in published_articles:
             article.pop("collection_id", None)
@@ -273,7 +276,7 @@ def search_support_articles(collections: str = "all") -> str:
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
 
-        return json.dumps(result, indent=2)
+        return json.dumps(result)
 
     except ValueError as e:
         # API key not configured
