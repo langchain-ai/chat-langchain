@@ -22,12 +22,14 @@ class FakeStructuredModel:
     def __init__(self, outcomes):
         self.outcomes = list(outcomes)
         self.calls = 0
+        self.prompts = []
 
     def with_structured_output(self, schema):  # noqa: ARG002
         return self
 
     async def ainvoke(self, prompt, config=None):  # noqa: ARG002
         self.calls += 1
+        self.prompts.append(prompt)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
@@ -96,3 +98,33 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_guardrails_classifier_receives_previous_block_decision():
+    """A re-asked query must retain the earlier BLOCKED decision context."""
+    classifier = FakeStructuredModel(
+        [{"decision": "BLOCKED", "explanation": "Out of scope."}]
+    )
+    middleware = _middleware_with_models(("primary", classifier))
+    messages = [
+        HumanMessage(content="Comment gerer les dossiers de non conformite qhse?"),
+        HumanMessage(
+            content=(
+                "Comment gerer les dossiers de non conformite qhse en general? "
+                "Comment nos agents peuvent integrer cela"
+            )
+        ),
+    ]
+
+    result = asyncio.run(
+        middleware._classify_query(
+            messages,
+            [{"decision": "BLOCKED", "explanation": "Out of scope."}],
+        )
+    )
+
+    prompt_text = classifier.prompts[0][1].content
+    assert result["decision"] == "BLOCKED"
+    assert "Previous questions in this conversation:" in prompt_text
+    assert "Previous guardrail decisions in this conversation:" in prompt_text
+    assert "BLOCKED: Out of scope." in prompt_text

@@ -163,6 +163,22 @@ def test_guardrails_prompt_default_is_still_allow():
     )
 
 
+def test_guardrails_prompt_does_not_treat_blocked_reasks_as_followups():
+    """Off-topic rephrases must be judged by their own LangChain relevance."""
+    assert "already blocked earlier in this conversation" in PROMPT_LOWER
+    assert "rephrase or generalization of one" in PROMPT_LOWER
+    assert "does not create an anchor" in PROMPT_LOWER
+    assert "prior context that was unrelated or blocked does not qualify" in PROMPT_LOWER
+    assert "previously blocked query still needs its own langchain-ecosystem anchor" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_retains_in_scope_followup_and_business_allow_rules():
+    """In-scope non-English and business-framed questions remain allowed."""
+    assert "translation requests for langchain docs" in PROMPT_LOWER
+    assert "billing, refunds, subscriptions, pricing" in PROMPT_LOWER
+    assert "account management, authentication issues" in PROMPT_LOWER
+
+
 # ---------------------------------------------------------------------------
 # Test 6: Prompt must have a zero-tolerance NSFW/explicit content block rule
 # ---------------------------------------------------------------------------

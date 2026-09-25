@@ -67,6 +67,7 @@ class GuardrailsState(AgentState):
     """Extended state schema with off-topic flag."""
 
     off_topic_query: NotRequired[bool]
+    guardrails_decisions: NotRequired[list[GuardrailsDecision]]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -208,14 +209,21 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # social-pressure). The prompt's lenient follow-up rules keep legit
         # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
         # while zero-tolerance bullets override the default ALLOW.
+        prior_decisions = state.get("guardrails_decisions", [])
         try:
-            guardrails_decision = await self._classify_query(messages)
+            if prior_decisions:
+                guardrails_decision = await self._classify_query(
+                    messages, prior_decisions
+                )
+            else:
+                guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
             return {"off_topic_query": False}
 
         decision = guardrails_decision["decision"]
         explanation = guardrails_decision["explanation"]
+        decision_history = [*prior_decisions, guardrails_decision][-3:]
 
         # Track in LangSmith metadata
         self._track_decision_metadata(guardrails_decision)
@@ -234,7 +242,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return None
+            return {"guardrails_decisions": decision_history}
 
         # Handle blocked queries
         logger.warning(
@@ -247,7 +255,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.info(
                 "Off-topic query detected but block_off_topic=False, allowing..."
             )
-            return None
+            return {"guardrails_decisions": decision_history}
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
@@ -255,6 +263,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             "messages": [off_topic_message],
             "off_topic_query": True,
             "jump_to": "end",
+            "guardrails_decisions": decision_history,
         }
 
     def _content_to_safe_text(self, content) -> str:
@@ -367,7 +376,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
-    async def _classify_query(self, messages: list) -> GuardrailsDecision:
+    async def _classify_query(
+        self, messages: list, prior_decisions: list[GuardrailsDecision] | None = None
+    ) -> GuardrailsDecision:
         """Classify query as ALLOWED or BLOCKED.
 
         Raises:
@@ -389,6 +400,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ):
             return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
 
+        prior_decisions = prior_decisions or []
+
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
         for msg in reversed(messages[:-1]):  # Exclude current message
@@ -406,6 +419,15 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             context_section = (
                 "\n\nPrevious questions in this conversation:\n"
                 + "\n".join(f"- {q}" for q in recent)
+            )
+        if prior_decisions:
+            recent_decisions = prior_decisions[-3:]
+            context_section += (
+                "\n\nPrevious guardrail decisions in this conversation:\n"
+                + "\n".join(
+                    f"- {decision['decision']}: {decision['explanation']}"
+                    for decision in recent_decisions
+                )
             )
 
         current_content = getattr(current_message, "content", current_query or "")
