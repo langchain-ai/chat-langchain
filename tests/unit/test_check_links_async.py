@@ -8,23 +8,32 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
+from langchain.tools import ToolRuntime
+
+from src.tools.link_check_tools import (
+    LinkCheckResult,
+    _check_single_url,
+    check_links,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
 
-from src.tools.link_check_tools import (
-    LinkCheckResult,
-    _check_single_url,
-    _check_urls_async,
-    _format_results,
-    check_links,
-)
+
+def _runtime(run_id: str) -> ToolRuntime:
+    return ToolRuntime(
+        state={},
+        context=None,
+        config={"run_id": run_id},
+        stream_writer=lambda _: None,
+        tool_call_id=None,
+        store=None,
+    )
 
 
 class _FakeStreamResponse:
@@ -173,6 +182,28 @@ def test_check_links_sync_deduplicates_urls():
     assert len(seen_urls) == 1
     assert seen_urls[0] == ["https://example.com"]
     assert "1/1 valid" in result
+
+
+@pytest.mark.asyncio
+async def test_check_links_skips_urls_already_validated_in_run():
+    calls: list[list[str]] = []
+
+    async def _recording_mock(urls, timeout):  # noqa: ARG001
+        calls.append(list(urls))
+        return [LinkCheckResult(url=u, valid=True, status_code=200) for u in urls]
+
+    with patch("src.tools.link_check_tools._check_urls_async", new=_recording_mock):
+        runtime = _runtime("00000000-0000-0000-0000-000000000001")
+        await check_links.ainvoke({"urls": ["https://example.com"], "runtime": runtime})
+        result = await check_links.ainvoke(
+            {"urls": ["https://example.com"], "runtime": runtime}
+        )
+
+    assert calls == [["https://example.com"]]
+    assert result == (
+        "All requested URLs were already validated earlier in this run; "
+        "do not call check_links again for them."
+    )
 
 
 # ===========================================================================

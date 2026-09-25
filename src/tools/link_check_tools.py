@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from urllib.parse import urlparse
 
 import httpx
-from langchain.tools import tool
+from langchain.tools import ToolRuntime, tool
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ SOFT_404_DOMAINS = {
 
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
+_validated_urls_by_run: dict[str, set[str]] = {}
 
 
 @dataclass
@@ -180,8 +181,32 @@ def _format_results(results: list[LinkCheckResult]) -> str:
     return "\n".join(lines)
 
 
+def _run_key(runtime: ToolRuntime | None) -> str | None:
+    """Return the current LangGraph run key."""
+    if runtime is None:
+        return None
+
+    run_id = runtime.config.get("run_id")
+    if run_id:
+        return f"run:{run_id}"
+
+    execution_info = runtime.execution_info
+    if execution_info and execution_info.run_id:
+        return f"run:{execution_info.run_id}"
+
+    thread_id = runtime.config.get("configurable", {}).get("thread_id")
+    if thread_id:
+        return f"thread:{thread_id}"
+
+    return None
+
+
 @tool
-async def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
+async def check_links(
+    urls: list[str],
+    timeout: float = DEFAULT_TIMEOUT,
+    runtime: ToolRuntime | None = None,
+) -> str:
     """Check if URLs are valid and accessible before including them in a response.
 
     Args:
@@ -198,5 +223,13 @@ async def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
     seen = set()
     unique_urls = [u for u in urls if not (u in seen or seen.add(u))]
 
-    results = await _check_urls_async(unique_urls, timeout)
+    run_key = _run_key(runtime)
+    validated_urls = _validated_urls_by_run.setdefault(run_key, set()) if run_key else set()
+    pending_urls = [url for url in unique_urls if url not in validated_urls]
+    if not pending_urls:
+        return "All requested URLs were already validated earlier in this run; do not call check_links again for them."
+
+    results = await _check_urls_async(pending_urls, timeout)
+    if run_key:
+        validated_urls.update(pending_urls)
     return _format_results(results)

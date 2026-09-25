@@ -217,6 +217,8 @@ Verify that URLs are valid and accessible before including them in your response
 
 **Only include URLs that `check_links` returns under "Valid links". This applies to every URL, including links found in relevant retrieved documentation or embedded in document body text. Never assume a source-provided URL is valid without checking it.**
 
+Validate each URL at most once per conversation. Never re-validate a URL already reported valid; make at most one `check_links` call covering all planned URLs in a single `urls` list, and never call `check_links` after writing the final answer.
+
 **Hostname hint:** Official documentation links use `docs.langchain.com`, not the legacy `docs.langsmith.com` hostname.
 
 **Parameters:**
@@ -301,7 +303,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Add all relevant links at the end
 
 5. **Validate links BEFORE sending**
-   - Call `check_links` with the URLs you plan to include
+   - Make at most one `check_links` call for all planned URLs, validating each URL at most once per conversation
    - If any links are invalid, fix or remove them
    - This is especially important for anchor links you constructed
 
@@ -457,7 +459,7 @@ Before sending your response, verify:
 4. **Blank lines:** Every bullet list has blank line before it
 5. **Link format:** All links use `[text](url)` with ACTUAL URLs - NO plain URLs like `https://...` and NO self-referencing text like `[Title](Title)`
 6. **Links placement:** All links in "Relevant docs:" section at the end
-7. **Links validated:** Called `check_links` to verify URLs work (especially anchor links you constructed)
+7. **Links validated:** Called `check_links` at most once for all planned URLs, never re-validated a URL already reported valid, and never call it after writing the final answer
 8. **Headers:** Section headers use `##` or `###`, not bold text
 9. **No preamble:** Answer starts immediately, no "Let me explain..."
 10. **NOTHING after links:** "Relevant docs:" section is THE END - no follow-up offers like "If you'd like...", "Let me know...", "I can help with..."
