@@ -64,9 +64,10 @@ class GuardrailsClassificationError(Exception):
 
 
 class GuardrailsState(AgentState):
-    """Extended state schema with off-topic flag."""
+    """Extended state schema with guardrail decision state."""
 
     off_topic_query: NotRequired[bool]
+    blocked_queries: NotRequired[list[str]]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -209,7 +210,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
         # while zero-tolerance bullets override the default ALLOW.
         try:
-            guardrails_decision = await self._classify_query(messages)
+            blocked_queries = state.get("blocked_queries", [])
+            if blocked_queries:
+                guardrails_decision = await self._classify_query(
+                    messages, blocked_queries=blocked_queries
+                )
+            else:
+                guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
             return {"off_topic_query": False}
@@ -234,7 +241,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return None
+            return {"off_topic_query": False}
 
         # Handle blocked queries
         logger.warning(
@@ -251,9 +258,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
+        updated_blocked_queries = list(state.get("blocked_queries", []))
+        if safe_last_content not in updated_blocked_queries:
+            updated_blocked_queries.append(safe_last_content)
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
+            "blocked_queries": updated_blocked_queries[-5:],
             "jump_to": "end",
         }
 
@@ -367,7 +378,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
-    async def _classify_query(self, messages: list) -> GuardrailsDecision:
+    async def _classify_query(
+        self, messages: list, blocked_queries: list[str] | None = None
+    ) -> GuardrailsDecision:
         """Classify query as ALLOWED or BLOCKED.
 
         Raises:
@@ -389,24 +402,30 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ):
             return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
 
-        # Build context from previous human messages (for follow-up detection)
-        prior_queries = []
-        for msg in reversed(messages[:-1]):  # Exclude current message
-            if isinstance(msg, HumanMessage):
-                text = self._extract_message_text(msg)
-                if text:
-                    prior_queries.append(text[:200])  # Truncate for brevity
-                    if len(prior_queries) == 3:
-                        break
-
-        # Build the classification prompt
+        blocked_queries = blocked_queries or []
+        blocked_query_set = set(blocked_queries)
+        prior_messages = messages[:-1][-6:]
         context_section = ""
-        if prior_queries:
-            recent = list(reversed(prior_queries))  # Restore chronological order.
+        transcript = []
+        for msg in prior_messages:
+            text = self._extract_message_text(msg)
+            if not text:
+                continue
+            if isinstance(msg, HumanMessage):
+                marker = " [REFUSED]" if text in blocked_query_set else ""
+                transcript.append(f"User{marker}: {text[:200]}")
+            elif isinstance(msg, AIMessage):
+                transcript.append(f"Assistant: {text[:200]}")
+
+        if transcript or blocked_queries:
             context_section = (
-                "\n\nPrevious questions in this conversation:\n"
-                + "\n".join(f"- {q}" for q in recent)
+                "\n\nPrevious turns in this conversation (refusals are marked):\n"
+                + "\n".join(transcript)
             )
+            if blocked_queries:
+                context_section += "\nPreviously refused queries:\n" + "\n".join(
+                    f"- {query[:200]}" for query in blocked_queries[-3:]
+                )
 
         current_content = getattr(current_message, "content", current_query or "")
         prompt = [

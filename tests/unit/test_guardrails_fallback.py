@@ -4,7 +4,7 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -22,12 +22,14 @@ class FakeStructuredModel:
     def __init__(self, outcomes):
         self.outcomes = list(outcomes)
         self.calls = 0
+        self.prompts = []
 
     def with_structured_output(self, schema):  # noqa: ARG002
         return self
 
     async def ainvoke(self, prompt, config=None):  # noqa: ARG002
         self.calls += 1
+        self.prompts.append(prompt)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
@@ -91,6 +93,100 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     result = asyncio.run(
         middleware.abefore_agent(
             {"messages": [HumanMessage(content="How do agents work?")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert result == {"off_topic_query": False}
+
+
+def test_guardrails_blocks_rephrased_query_after_prior_refusal(monkeypatch):
+    """A rephrased version of a refused topic remains blocked."""
+    classifier = FakeStructuredModel(
+        [
+            {"decision": "BLOCKED", "explanation": "Off-topic."},
+            {"decision": "BLOCKED", "explanation": "Prior refusal."},
+        ]
+    )
+    middleware = _middleware_with_models(
+        (
+            "primary",
+            classifier,
+        )
+    )
+
+    async def _rejection_message(content):  # noqa: ARG001
+        return AIMessage(content="That topic is outside my scope.")
+
+    monkeypatch.setattr(middleware, "_generate_rejection_message", _rejection_message)
+    first_query = HumanMessage(content="How should we handle QHSE compliance?")
+    first_result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [first_query]},
+            Runtime(context=None),
+        )
+    )
+
+    second_query = HumanMessage(content="How can our agents integrate this?")
+    second_state = {
+        "messages": [first_query, *first_result["messages"], second_query],
+        "blocked_queries": first_result["blocked_queries"],
+    }
+    second_result = asyncio.run(
+        middleware.abefore_agent(second_state, Runtime(context=None))
+    )
+
+    assert second_result["off_topic_query"] is True
+    assert second_result["jump_to"] == "end"
+    second_prompt = classifier.prompts[1][1].content
+    assert "Previous turns in this conversation (refusals are marked)" in second_prompt
+    assert "User [REFUSED]: How should we handle QHSE compliance?" in second_prompt
+    assert "Previously refused queries:" in second_prompt
+
+
+def test_guardrails_allowed_turn_resets_off_topic_query():
+    """An allowed turn clears the prior off-topic flag."""
+    middleware = _middleware_with_models(
+        (
+            "primary",
+            FakeStructuredModel([{"decision": "ALLOWED", "explanation": "Technical."}]),
+        )
+    )
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {
+                "messages": [HumanMessage(content="How do agents work?")],
+                "off_topic_query": True,
+            },
+            Runtime(context=None),
+        )
+    )
+
+    assert result == {"off_topic_query": False}
+
+
+def test_guardrails_allows_technical_follow_up_after_allowed_turn():
+    """An in-scope technical follow-up remains allowed."""
+    middleware = _middleware_with_models(
+        (
+            "primary",
+            FakeStructuredModel(
+                [{"decision": "ALLOWED", "explanation": "Technical follow-up."}]
+            ),
+        )
+    )
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {
+                "messages": [
+                    HumanMessage(content="How do agents work?"),
+                    AIMessage(content="Agents can call tools."),
+                    HumanMessage(content="Can you show that in Python with LangChain?"),
+                ],
+                "off_topic_query": False,
+            },
             Runtime(context=None),
         )
     )
