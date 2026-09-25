@@ -123,7 +123,11 @@ export async function createOrUpdateFeedback(
         comment: params.comment,
       }
 
-  return callCapability<{ id: string }>(CAPABILITY_FEEDBACK, body, auth)
+  const result = await callCapability<{ id?: string }>(CAPABILITY_FEEDBACK, body, auth)
+  if (!result.id?.trim()) {
+    throw new Error("LangSmith feedback response did not include a feedback id")
+  }
+  return { id: result.id }
 }
 
 /**
