@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+MAX_SEARCH_RESULTS = 15
 
 
 def _get_kb_id() -> str:
@@ -128,31 +130,8 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+def search_support_articles(query: str, collections: str = "all") -> str:
+    """Search support article titles by the user's question or key error text, optionally narrowed by collections."""
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -244,12 +223,6 @@ def search_support_articles(collections: str = "all") -> str:
 
             published_articles = filtered_articles
 
-        # Update collection names based on collection_id (for all articles)
-        collection_id_to_name = {v: k for k, v in collection_map.items()}
-        for article in published_articles:
-            coll_id = article.get("collection_id")
-            article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
-
         if not published_articles:
             return json.dumps(
                 {
@@ -261,15 +234,28 @@ def search_support_articles(collections: str = "all") -> str:
                 indent=2,
             )
 
-        # Clean up collection_id from output (internal field)
+        query_tokens = set(re.findall(r"\w+", query.lower()))
+        scored_articles = []
         for article in published_articles:
-            article.pop("collection_id", None)
+            title_tokens = set(re.findall(r"\w+", article["title"].lower()))
+            score = len(query_tokens & title_tokens)
+            if score:
+                scored_articles.append((score, article))
+
+        scored_articles.sort(key=lambda item: item[0], reverse=True)
+        matched = len(scored_articles)
+        selected_articles = [
+            {key: article[key] for key in ("id", "title", "url")}
+            for _, article in scored_articles[:MAX_SEARCH_RESULTS]
+        ]
 
         # Return structured JSON format
         result = {
             "collections": collections,
-            "total": len(published_articles),
-            "articles": published_articles,
+            "total": len(selected_articles),
+            "matched": matched,
+            "kept": len(selected_articles),
+            "articles": selected_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
 
