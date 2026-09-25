@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -17,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I
+)
 
 
 def _get_kb_id() -> str:
@@ -301,6 +305,21 @@ def get_support_article_content(article_id: str) -> str:
         Article content with only: id, title, url, collection, content
     """
     try:
+        normalized_article_id = article_id.strip()
+        if not normalized_article_id or re.match(
+            r"^(dummy|example|placeholder|test)[_-]?id$",
+            normalized_article_id,
+            re.I,
+        ):
+            return (
+                f"Invalid article_id: '{article_id}' is a placeholder, not a real "
+                "identifier. Do not invent article IDs. Call "
+                "search_support_articles and pass the exact value of an article's "
+                '"id" field.'
+            )
+
+        is_valid_uuid = _UUID_RE.match(normalized_article_id) is not None
+
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
 
@@ -315,28 +334,55 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
-                )
-
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
+        matched_articles = (
+            [
+                article
+                for article in articles
+                if article.get("id") == normalized_article_id
+            ]
+            if is_valid_uuid
+            else []
+        )
+        if not is_valid_uuid:
+            numeric_match = re.match(r"^(\d+)", normalized_article_id)
+            if numeric_match:
+                numeric_identifier = numeric_match.group(1)
+                matched_articles = [
+                    article
+                    for article in articles
+                    if str(article.get("identifier", "")) == numeric_identifier
+                    or (
+                        article.get("identifier")
+                        and article.get("slug")
+                        and re.match(
+                            rf"^https://support\.langchain\.com/articles/{re.escape(numeric_identifier)}-",
+                            f"https://support.langchain.com/articles/"
+                            f"{article.get('identifier')}-{article.get('slug')}",
+                        )
                     )
-                else:
-                    support_url = "URL not available"
+                ]
 
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+        if len(matched_articles) == 1:
+            article = matched_articles[0]
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
+                )
+            else:
+                support_url = "URL not available"
+
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,7 +390,18 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        if is_valid_uuid:
+            return (
+                f"Article {normalized_article_id} is a valid ID but is not present "
+                "in the knowledge base. Re-run search_support_articles to get "
+                "current article IDs."
+            )
+
+        return (
+            f"Invalid article_id: '{article_id}' looks like a URL fragment, not "
+            'the article "id" field. Call search_support_articles and pass the '
+            'exact UUID from the "id" field of the result you want.'
+        )
 
     except ValueError as e:
         # API key not configured
