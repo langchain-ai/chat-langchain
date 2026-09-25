@@ -5,6 +5,7 @@ All HTTP calls are mocked via unittest.mock.
 """
 
 import importlib
+import json
 import sys
 import unittest
 from unittest.mock import MagicMock, call, patch
@@ -186,6 +187,34 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+    @patch("src.tools.pylon_tools._fetch_collections", return_value={"General": "general"})
+    @patch("src.tools.pylon_tools._fetch_all_articles")
+    def test_search_caps_results_and_reports_omitted(self, mock_fetch, mock_collections):
+        """Search results are capped even when all collections are searched."""
+        mock_fetch.return_value = [
+            {
+                "id": f"a{i}",
+                "title": f"Billing article {i}",
+                "identifier": f"identifier-{i}",
+                "slug": f"billing-{i}",
+                "is_published": True,
+                "visibility_config": {"visibility": "public"},
+                "collection_id": "general",
+            }
+            for i in range(30)
+        ]
+
+        result = json.loads(
+            self.module.search_support_articles.invoke(
+                {"query": "billing", "collections": "all"}
+            )
+        )
+
+        self.assertEqual(result["total"], 30)
+        self.assertEqual(result["returned"], 25)
+        self.assertEqual(result["omitted"], 5)
+        self.assertEqual(len(result["articles"]), 25)
 
 
 if __name__ == "__main__":

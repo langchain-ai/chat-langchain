@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -128,32 +129,16 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+def search_support_articles(
+    query: str, limit: int = 25, collections: str = "all"
+) -> str:
+    """Search published support article titles by required query, ranked by relevance with an optional collection filter and hard 25-result cap."""
     try:
+        if limit <= 0:
+            return json.dumps({"error": "limit must be greater than 0"}, indent=2)
+
+        effective_limit = min(limit, 25)
+
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
 
@@ -163,6 +148,8 @@ def search_support_articles(collections: str = "all") -> str:
                 {
                     "collections": collections,
                     "total": 0,
+                    "returned": 0,
+                    "omitted": 0,
                     "articles": [],
                     "note": "No articles returned from API",
                 },
@@ -255,6 +242,8 @@ def search_support_articles(collections: str = "all") -> str:
                 {
                     "collections": collections,
                     "total": 0,
+                    "returned": 0,
+                    "omitted": 0,
                     "articles": [],
                     "note": "No articles found",
                 },
@@ -265,10 +254,21 @@ def search_support_articles(collections: str = "all") -> str:
         for article in published_articles:
             article.pop("collection_id", None)
 
+        published_articles.sort(
+            key=lambda article: SequenceMatcher(
+                None, query.casefold(), article["title"].casefold()
+            ).ratio(),
+            reverse=True,
+        )
+        total = len(published_articles)
+        published_articles = published_articles[:effective_limit]
+
         # Return structured JSON format
         result = {
             "collections": collections,
-            "total": len(published_articles),
+            "total": total,
+            "returned": len(published_articles),
+            "omitted": total - len(published_articles),
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }

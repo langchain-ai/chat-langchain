@@ -180,7 +180,7 @@ Fetches live content from `https://www.langchain.com/pricing` - the single sourc
 **Never guess pricing from memory** - the model's training data is stale and will produce wrong numbers.
 
 ### 4. `search_support_articles` - Support Knowledge Base Search
-Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
+Search Pylon KB article titles using a required query derived from the user's question. Results are ranked by relevance and capped at 25; `collections` is an optional narrowing filter. Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
 
 **Collections available:**
 - "General" - General administration and management topics
@@ -193,7 +193,6 @@ Get list of support article titles from Pylon KB, filtered by collection(s). Use
 - "Self Hosted" - Self-hosted LangSmith including deployments
 - "Troubleshooting" - Broad domain issue triage and resolution
 - "Security" - Code scans, key management, and security topics
-- Use "all" to search all collections
 
 **Best for:** Known issues, error messages, troubleshooting, deployment gotchas
 
@@ -268,7 +267,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - **For docs**: Call `search_docs_by_lang_chain` once per distinct concept
      - Single topic: "What is middleware?" → Search "middleware"
      - Multiple topics: "Stream from subagents?" → Search "streaming" + "subgraphs" in parallel
-   - **For KB**: Call `search_support_articles` once with relevant collections (e.g., "LangSmith Deployment,LangSmith Observability")
+   - **For KB**: Call `search_support_articles` once with a query derived from the user's question and, when useful, relevant collections (e.g., "LangSmith Deployment,LangSmith Observability")
    - **Make ALL calls at the same time** - don't wait for one to finish
    - Review the documentation search and support article titles
 
