@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -122,6 +123,43 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     return _articles_cache
 
 
+def _normalize_collection_name(name: str) -> List[str]:
+    """Normalize a collection name for order-insensitive matching."""
+    return sorted(set(re.findall(r"[a-z0-9]+", name.lower())))
+
+
+def _resolve_collection_names(
+    requested_collections: List[str], collection_map: Dict[str, str]
+) -> tuple[List[str], List[str]]:
+    """Resolve collection names and retain names that do not match."""
+    collection_ids = []
+    unrecognized = []
+    for coll_name in requested_collections:
+        if coll_name in collection_map:
+            collection_ids.append(collection_map[coll_name])
+            continue
+
+        matched_key = next(
+            (key for key in collection_map if key.lower() == coll_name.lower()), None
+        )
+        if matched_key is None:
+            normalized_name = _normalize_collection_name(coll_name)
+            matched_key = next(
+                (
+                    key
+                    for key in collection_map
+                    if _normalize_collection_name(key) == normalized_name
+                ),
+                None,
+            )
+        if matched_key is None:
+            unrecognized.append(coll_name)
+        else:
+            collection_ids.append(collection_map[matched_key])
+
+    return collection_ids, unrecognized
+
+
 # =============================================================================
 # LangChain Tools
 # =============================================================================
@@ -159,6 +197,36 @@ def search_support_articles(collections: str = "all") -> str:
 
         # Handle None or empty response
         if articles is None or not articles:
+            if collections.lower() != "all":
+                try:
+                    collection_map = _fetch_collections()
+                except Exception as e:
+                    return json.dumps(
+                        {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
+                    )
+
+                requested_collections = [c.strip() for c in collections.split(",")]
+                collection_ids, unrecognized = _resolve_collection_names(
+                    requested_collections, collection_map
+                )
+                if not collection_ids:
+                    return json.dumps(
+                        {
+                            "error": f"None of the requested collections were found. Available collections: {', '.join(collection_map.keys())}"
+                        },
+                        indent=2,
+                    )
+
+                result = {
+                    "collections": collections,
+                    "total": 0,
+                    "articles": [],
+                    "note": "No articles returned from API",
+                }
+                if unrecognized:
+                    result["unrecognized_collections"] = unrecognized
+                return json.dumps(result, indent=2)
+
             return json.dumps(
                 {
                     "collections": collections,
@@ -215,25 +283,17 @@ def search_support_articles(collections: str = "all") -> str:
             requested_collections = [c.strip() for c in collections.split(",")]
 
             # Get collection IDs for requested collections
-            collection_ids = []
-            for coll_name in requested_collections:
-                if coll_name in collection_map:
-                    collection_ids.append(collection_map[coll_name])
-                else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+            collection_ids, unrecognized = _resolve_collection_names(
+                requested_collections, collection_map
+            )
+
+            if not collection_ids:
+                return json.dumps(
+                    {
+                        "error": f"None of the requested collections were found. Available collections: {', '.join(collection_map.keys())}"
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -251,15 +311,15 @@ def search_support_articles(collections: str = "all") -> str:
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
         if not published_articles:
-            return json.dumps(
-                {
-                    "collections": collections,
-                    "total": 0,
-                    "articles": [],
-                    "note": "No articles found",
-                },
-                indent=2,
-            )
+            result = {
+                "collections": collections,
+                "total": 0,
+                "articles": [],
+                "note": "No articles found",
+            }
+            if collections.lower() != "all" and unrecognized:
+                result["unrecognized_collections"] = unrecognized
+            return json.dumps(result, indent=2)
 
         # Clean up collection_id from output (internal field)
         for article in published_articles:
@@ -272,6 +332,8 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if collections.lower() != "all" and unrecognized:
+            result["unrecognized_collections"] = unrecognized
 
         return json.dumps(result, indent=2)
 
