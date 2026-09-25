@@ -1,10 +1,13 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
 import re
+from collections.abc import Hashable
 from typing import Any
 
+import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
@@ -46,12 +49,54 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self._successful_results: dict[Hashable, dict[str, ToolMessage | Command]] = {}
 
     def _tool_name(self, request: ToolCallRequest) -> str:
         return request.tool_call.get("name", "unknown_tool")
 
     def _tool_call_id(self, request: ToolCallRequest) -> str:
         return request.tool_call.get("id", "")
+
+    def _cache_key(self, request: ToolCallRequest) -> str:
+        arguments = request.tool_call.get("args", {})
+        return json.dumps(arguments, sort_keys=True, separators=(",", ":"), default=str)
+
+    def _root_run_key(self, request: ToolCallRequest) -> Hashable:
+        runtime = request.runtime
+        context = getattr(runtime, "context", None)
+        if context is not None:
+            return ("context", id(context))
+
+        config = getattr(runtime, "config", None) or {}
+        metadata = config.get("metadata", {})
+        for key in ("langgraph_run_id", "root_run_id", "run_id"):
+            if value := metadata.get(key) or config.get(key):
+                return (key, value)
+
+        configurable = config.get("configurable", {})
+        for key in ("langgraph_run_id", "root_run_id", "run_id"):
+            if value := configurable.get(key):
+                return (key, value)
+
+        return ("runtime", id(runtime))
+
+    def _cached_result(
+        self,
+        request: ToolCallRequest,
+        result: ToolMessage | Command,
+    ) -> ToolMessage | Command:
+        if not isinstance(result, ToolMessage):
+            return result
+        return ToolMessage(
+            content=result.content,
+            name=self._tool_name(request),
+            tool_call_id=self._tool_call_id(request),
+            status=result.status,
+            artifact=result.artifact,
+        )
+
+    def _is_successful(self, result: ToolMessage | Command) -> bool:
+        return not isinstance(result, ToolMessage) or result.status != "error"
 
     def _error_text(self, error: Exception) -> str:
         return str(error) or error.__class__.__name__
@@ -124,11 +169,30 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
+        root_cache = self._successful_results.setdefault(
+            self._root_run_key(request), {}
+        )
+        cache_key = f"{self._tool_name(request)}:{self._cache_key(request)}"
+        if cached := root_cache.get(cache_key):
+            return self._cached_result(request, cached)
+
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                with ls.trace(
+                    name="ToolRetryMiddleware.attempt",
+                    run_type="chain",
+                    inputs={"tool": self._tool_name(request), "attempt": attempt},
+                    metadata={
+                        "attempt": attempt,
+                        "max_attempts": self.max_attempts,
+                    },
+                ):
+                    result = await handler(request)
+                if self._is_successful(result):
+                    root_cache[cache_key] = result
+                return result
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
@@ -141,9 +205,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -169,7 +231,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]

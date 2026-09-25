@@ -1,8 +1,9 @@
 # Retry middleware for model calls with exponential backoff
 import asyncio
 import logging
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
+import langsmith as ls
 from langchain.agents.middleware.types import (
     AgentMiddleware,
     ModelCallResult,
@@ -48,13 +49,25 @@ class ModelRetryMiddleware(AgentMiddleware):
     ) -> ModelCallResult:
         last_exception: Exception | None = None
         last_retryable_reason: str | None = None
+        last_response: ModelResponse | None = None
 
         for attempt in range(self.max_retries + 1):
             try:
-                response = await handler(request)
+                with ls.trace(
+                    name="ModelRetryMiddleware.attempt",
+                    run_type="chain",
+                    inputs={"attempt": attempt + 1},
+                    metadata={
+                        "attempt": attempt + 1,
+                        "max_attempts": self.max_retries + 1,
+                    },
+                ):
+                    response = await handler(request)
+                last_response = response
                 finish_reason = self._get_finish_reason(response)
 
                 if finish_reason in RETRYABLE_FINISH_REASONS:
+                    last_retryable_reason = finish_reason
                     if attempt < self.max_retries:
                         delay = self.initial_delay * (self.backoff_factor**attempt)
                         logger.warning(
@@ -62,7 +75,6 @@ class ModelRetryMiddleware(AgentMiddleware):
                             f"attempt {attempt + 1}/{self.max_retries + 1}, "
                             f"retrying in {delay:.2f}s"
                         )
-                        last_retryable_reason = finish_reason
                         await asyncio.sleep(delay)
                         continue
 
@@ -73,23 +85,26 @@ class ModelRetryMiddleware(AgentMiddleware):
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
                     logger.warning(
-                        f"Model call failed attempt {attempt + 1}/{self.max_retries + 1}: {e}, "
-                        f"retrying in {delay:.2f}s"
+                        "Model call failed attempt %s/%s: %s, retrying in %.2fs",
+                        attempt + 1,
+                        self.max_retries + 1,
+                        e,
+                        delay,
                     )
                     await asyncio.sleep(delay)
                 else:
                     logger.error(
-                        f"Model call failed after {self.max_retries + 1} attempts: {e}"
+                        "Model call failed after %s attempts: %s",
+                        self.max_retries + 1,
+                        e,
                     )
 
         # Exhausted retries - raise for fallback middleware
         if last_exception:
             raise last_exception
 
-        if last_retryable_reason:
-            raise MalformedResponseError(
-                f"Model returned {last_retryable_reason} after {self.max_retries + 1} attempts"
-            )
+        if last_retryable_reason and last_response is not None:
+            return last_response
 
         raise RuntimeError("Unexpected state in retry middleware")
 
