@@ -128,12 +128,13 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
+def search_support_articles(query: str, collections: str | None = None) -> str:
+    """Find published public support articles whose titles match a query.
 
     Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
 
     Args:
+        query: Relevance query matched case-insensitively against article titles.
         collections: Comma-separated list of collection names to filter by.
                     Available collections:
                     - "General" - General administration and management topics
@@ -147,12 +148,12 @@ def search_support_articles(collections: str = "all") -> str:
                     - "Troubleshooting" - Broad domain issue triage and resolution
                     - "Security" - Code scans, key management, and security topics
 
-                    Use "all" to search all collections (default)
                     Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
 
     Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
+        JSON string with structure: {"query": "...", "collections": "...", "total": N, "omitted": N, "articles": [...]}
     """
+    max_results = 20
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -162,7 +163,9 @@ def search_support_articles(collections: str = "all") -> str:
             return json.dumps(
                 {
                     "collections": collections,
+                    "query": query,
                     "total": 0,
+                    "omitted": 0,
                     "articles": [],
                     "note": "No articles returned from API",
                 },
@@ -210,7 +213,7 @@ def search_support_articles(collections: str = "all") -> str:
             )
 
         # Filter by collection ID if specified
-        if collections.lower() != "all":
+        if collections and collections.lower() != "all":
             # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
 
@@ -253,24 +256,36 @@ def search_support_articles(collections: str = "all") -> str:
         if not published_articles:
             return json.dumps(
                 {
+                    "query": query,
                     "collections": collections,
                     "total": 0,
+                    "omitted": 0,
                     "articles": [],
                     "note": "No articles found",
                 },
                 indent=2,
             )
 
+        matching_articles = [
+            article
+            for article in published_articles
+            if query.casefold() in article["title"].casefold()
+        ]
+        total = len(matching_articles)
+        bounded_articles = matching_articles[:max_results]
+
         # Clean up collection_id from output (internal field)
-        for article in published_articles:
+        for article in bounded_articles:
             article.pop("collection_id", None)
 
         # Return structured JSON format
         result = {
+            "query": query,
             "collections": collections,
-            "total": len(published_articles),
-            "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "total": total,
+            "omitted": total - len(bounded_articles),
+            "articles": bounded_articles,
+            "note": "Results are public articles matched by title. Use IDs to fetch full content.",
         }
 
         return json.dumps(result, indent=2)
