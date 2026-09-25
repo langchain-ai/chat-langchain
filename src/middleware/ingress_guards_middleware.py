@@ -14,6 +14,7 @@ not synthesized; archive deploys use ``LANGSMITH_HOST_REVISION_ID`` /
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
@@ -21,6 +22,19 @@ from langgraph.runtime import Runtime
 
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
 MAX_MESSAGE_CHARS = 50_000
+REDACTED_API_KEY = "<REDACTED_API_KEY>"
+_CREDENTIAL_PATTERNS = (
+    re.compile(r"sk-[A-Za-z0-9_-]{16,}"),
+    re.compile(r"lsv2_(?:pt|sk)_[A-Za-z0-9]{16,}"),
+    re.compile(r"ghp_[A-Za-z0-9]{20,}"),
+    re.compile(r"gsk_[A-Za-z0-9]{20,}"),
+    re.compile(r"AKIA[0-9A-Z]{16}"),
+    re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"),
+)
+_GENERIC_CREDENTIAL_PATTERN = re.compile(
+    r"(?i)(\b(?:api[_-]?key|authorization|bearer)\b\s*[:=]\s*"
+    r"(?:bearer\s+)?[\"']?)(?!<REDACTED_API_KEY>)([^\s\"'`,;}\]]+)"
+)
 
 
 class IngressGuardsMiddleware(AgentMiddleware):
@@ -29,11 +43,12 @@ class IngressGuardsMiddleware(AgentMiddleware):
     def before_agent(
         self, state: AgentState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """Truncate the latest user message when it exceeds the size cap."""
+        """Redact credentials and truncate the latest user message."""
         messages = state.get("messages", [])
         for message in reversed(messages):
             if getattr(message, "type", None) == "human":
-                capped = self._truncate_content(message.content)
+                redacted = self._redact_content(message.content)
+                capped = self._truncate_content(redacted)
                 if capped is not message.content:
                     # Same id => the messages reducer overwrites in place.
                     message.content = capped
@@ -41,10 +56,48 @@ class IngressGuardsMiddleware(AgentMiddleware):
                 break
         return None
 
+    def _redact_content(self, content: Any) -> Any:
+        """Replace credential-shaped values in text content."""
+        if isinstance(content, str):
+            return self._redact_text(content)
+
+        if not isinstance(content, list):
+            return content
+
+        changed = False
+        redacted: list[Any] = []
+        for block in content:
+            if isinstance(block, str):
+                text = self._redact_text(block)
+                changed = changed or text != block
+                redacted.append(text)
+            elif (
+                isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            ):
+                text = self._redact_text(block["text"])
+                changed = changed or text != block["text"]
+                redacted.append({**block, "text": text})
+            else:
+                redacted.append(block)
+        return redacted if changed else content
+
+    def _redact_text(self, text: str) -> str:
+        """Replace credential-shaped values in a string."""
+        redacted = text
+        for pattern in _CREDENTIAL_PATTERNS:
+            redacted = pattern.sub(REDACTED_API_KEY, redacted)
+        return _GENERIC_CREDENTIAL_PATTERN.sub(rf"\1{REDACTED_API_KEY}", redacted)
+
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
         if isinstance(content, str):
-            return content[:MAX_MESSAGE_CHARS] if len(content) > MAX_MESSAGE_CHARS else content
+            return (
+                content[:MAX_MESSAGE_CHARS]
+                if len(content) > MAX_MESSAGE_CHARS
+                else content
+            )
 
         if not isinstance(content, list):
             return content
