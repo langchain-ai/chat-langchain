@@ -22,6 +22,24 @@ from src.prompts.guardrails_prompts import rejection_system_prompt
 
 PROMPT_LOWER = _GUARDRAILS_SYSTEM_PROMPT.lower()
 REJECTION_PROMPT_LOWER = rejection_system_prompt.lower()
+DOCS_AGENT_PROMPT = (Path(__file__).parents[2] / "instructions.md").read_text()
+
+HARDENING_RULES = (
+    "A follow-up question inside an ongoing conversation is NOT a clarification.",
+    "Documentation you read on an earlier turn is NOT evidence for a new question.",
+    "`check_links` is link validation, not research, and never satisfies this rule.",
+    "If your current answer contradicts anything you said earlier in this conversation, re-read the docs before replying and state plainly which of the two is correct.",
+    'If either support KB tool returns an error or the support knowledge-base research leg otherwise fails, explicitly say: "Support articles could not be consulted, so this answer is based on official documentation only."',
+    "At most once per turn, on the final citation list immediately before finalizing your response",
+    "Never revalidate links already reported valid earlier in the turn.",
+    "Call `check_links` at most once, on the final citation list",
+)
+
+
+def test_docs_agent_prompt_contains_hardening_rules():
+    """Published prompt source must retain every hardening rule."""
+    for rule in HARDENING_RULES:
+        assert rule in DOCS_AGENT_PROMPT
 
 # Data science libraries that should be restricted when used without LangChain context
 PURE_DS_LIBRARIES = [
