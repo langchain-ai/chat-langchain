@@ -1,5 +1,10 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+from deepagents import (
+    GeneralPurposeSubagentProfile,
+    HarnessProfile,
+    register_harness_profile,
+)
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -50,6 +55,26 @@ docs_agent_middleware = [
     model_fallback_middleware,
 ]
 
+register_harness_profile(
+    DEFAULT_MODEL.id,
+    HarnessProfile(
+        excluded_tools=frozenset(
+            {
+                "ls",
+                "read_file",
+                "write_file",
+                "edit_file",
+                "delete",
+                "glob",
+                "grep",
+                "execute",
+                "task",
+            }
+        ),
+        general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
+    ),
+)
+
 agent = define_deep_agent(
     name="docs_agent",
     # Keep this literal so `mda deploy` can infer the provider package and
@@ -57,6 +82,7 @@ agent = define_deep_agent(
     model="google_genai:gemini-3.5-flash-lite",
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
+    subagents=[],
     # The current public app does not have cross-thread user memory. Keep MDA
     # managed memory off until identity scoping is ready.
     disable_memory=True,
