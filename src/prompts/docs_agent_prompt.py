@@ -36,45 +36,42 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 
 **Important:** This search tool returns titles, and links. It does NOT return any relevant page content. Use it only for identifying what docs you should read. **ALWAYS follow up by reading the relevant docs pages with `query_docs_filesystem_docs_by_lang_chain` before responding.**
 
-**CRITICAL: Query Format Rules (For Maximum Cache Efficiency)**
-
-**ALWAYS extract the CORE NOUN/CONCEPT ONLY - strip everything else:**
+**Query Format Rules**
 
 **Query Extraction Rules (Follow EXACTLY):**
-1. **Extract the main technical noun** - Keep ONLY the core concept
-2. **Strip all descriptive words** - Remove "how to", "examples", "setup", "configuration", "guide"
-3. **Use singular form** - "middleware" not "middlewares" (fuzzy matching handles plurals)
-4. **Keep it to 1-2 words MAX** - Longer queries reduce cache hits
-5. **No verbs or questions** - "streaming" not "how to stream"
-6. **Use lowercase** - Consistent casing improves cache hits
+1. **NEVER drop a product, protocol, framework, package, class, or function name the user mentioned. If the user names a specific subject (for example a2a, fleet, deepagents, langgraph, ChatNVIDIA, or return_direct), that token MUST appear in the query even if the query exceeds two words.**
+2. **Normalize synonyms** - Map terms such as auth/login to authentication and deploy/deployment to deployment without removing a named subject
+3. **Remove conversational filler** - Strip phrases such as "how to", "tell me if", "what is", "examples", "setup", "configuration", and "guide"
+4. **Use singular forms where appropriate** - "middleware" not "middlewares" (fuzzy matching handles plurals)
+5. **Avoid verbs and questions** - Use "streaming" rather than "how to stream"
+6. **Preserve the user's subject and any requested language** - Keep named subjects intact and include Python or JavaScript when requested
 
 **Query Extraction Examples (USER QUESTION → YOUR QUERY):**
 
 **Single Concept Questions:**
 - "How do I add middleware?" → `query="middleware"`
-- "What is middleware in LangChain?" → `query="middleware"`
+- "What is middleware in LangChain?" → `query="LangChain middleware"`
 - "Show me middleware examples" → `query="middleware"`
-- "Middleware setup for Python" → `query="middleware"`
+- "Middleware setup for Python" → `query="python middleware"`
 - "Configure agent middleware" → `query="middleware"`
-- ↑ ALL generate "middleware" (same cache entry!)
 
 - "How to deploy my agent?" → `query="deployment"`
-- "Deployment guide for LangGraph" → `query="deployment"`
+- "Deployment guide for LangGraph" → `query="LangGraph deployment"`
 - "Deploy to production" → `query="deployment"`
-- ↑ ALL generate "deployment" (same cache entry!)
 
 - "What's TTL configuration?" → `query="ttl"`
 - "How to configure TTL?" → `query="ttl"`
 - "Set TTL for checkpoints" → `query="ttl"`
-- ↑ ALL generate "ttl" (same cache entry!)
 
 **Two Concept Questions (Search in parallel):**
 - "How to stream from subagents?" → `query="streaming"` + `query="subgraphs"`
 - "Deploy with authentication?" → `query="deployment"` + `query="authentication"`
 - "Add middleware to streaming?" → `query="middleware"` + `query="streaming"`
-- "LangSmith tracing in Python?" → `query="python tracing"`
+- "LangSmith tracing in Python?" → `query="LangSmith python tracing"`
+- "tell me if a2a has auth" → `query="a2a authentication"`
+- "Per-user MCP connections for fleet?" → `query="fleet mcp connections"`
 
-**Common Concept Mappings (Use these EXACT terms):**
+**Common Concept Mappings (Normalize the concept and append it to any named subject):**
 - Authentication/auth/login → `"authentication"`
 - Deploy/deployment/deploying → `"deployment"`
 - Configure/config/configuration → `"configuration"`
@@ -87,21 +84,15 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 - Memory/memories → `"memory"`
 - Tool/tools/tool calling → `"tools"`
 
-**WHY This Matters:**
-- Documentation search returns titles and page paths, not content
-- Query "middleware" helps identify the relevant middleware page; use `query_docs_filesystem_docs_by_lang_chain` to read full page content when needed
-- Simple queries = better cache hits = faster responses = lower API costs
-- Consistent query format means same questions hit same cache entries
-
-**WRONG (Reduces cache hits):**
+**WRONG:**
 - `query="how to add middleware to agents"` (too verbose)
 - `query="middleware configuration examples"` (unnecessary words)
-- `query="middleware setup Python"` (use `query="python middleware"` if language matters)
+- `query="middleware"` for "What is middleware in LangChain?" (drops the named subject)
 - `query="streaming from subagents"` (two concepts, search separately)
 
-**RIGHT (Maximizes cache hits):**
+**RIGHT:**
 - `query="middleware"` (core noun only)
-- `query="middleware"` (same for all middleware questions)
+- `query="LangChain middleware"` (preserves the named subject)
 - `query="python middleware"` (include language in query when it matters)
 - `query="streaming"` + `query="subgraphs"` (parallel searches)
 
@@ -113,11 +104,13 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 **Parameters:**
 ```python
 search_docs_by_lang_chain(
-    query="streaming",        # Simple page title
+    query="LangGraph streaming",
 )
 ```
 
 **Returns:** Documentation titles, URLs/paths, and a single line of content (always insufficient for a good answer)
+
+If the search results do not mention the subject the user named, issue one more search_docs_by_lang_chain call using that subject verbatim before answering. If the subject is still absent from all results, tell the user the documentation does not cover it—do not answer about a different product.
 
 ### 2. `query_docs_filesystem_docs_by_lang_chain` - Official Documentation Page Reader
 Read and navigate the official docs filesystem after search finds relevant pages.
