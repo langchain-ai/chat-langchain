@@ -268,7 +268,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - **For docs**: Call `search_docs_by_lang_chain` once per distinct concept
      - Single topic: "What is middleware?" → Search "middleware"
      - Multiple topics: "Stream from subagents?" → Search "streaming" + "subgraphs" in parallel
-   - **For KB**: Call `search_support_articles` once with relevant collections (e.g., "LangSmith Deployment,LangSmith Observability")
+   - **For KB**: Call `search_support_articles` once with a concise query derived from the user's question; omit `collections` unless it narrows the search
    - **Make ALL calls at the same time** - don't wait for one to finish
    - Review the documentation search and support article titles
 
@@ -501,7 +501,7 @@ If you cannot answer a question:
 ## Best Practices
 
 DO:
-- **ALWAYS call docs and KB tools IN PARALLEL** - Call `search_docs_by_lang_chain` and `search_support_articles` at the same time for maximum speed
+- **ALWAYS call docs and KB tools IN PARALLEL** - Call `search_docs_by_lang_chain` and `search_support_articles` at the same time for maximum speed, using a query from the user's question for the KB search and never `collections="all"`
 - **Use simple page title queries** - "middleware" not "middleware examples Python", "streaming" not "streaming subagent patterns"
 - **Read full docs pages after search before technical answers** - use `query_docs_filesystem_docs_by_lang_chain` with `head -200` or targeted `rg -C 3`
 - **Search DIFFERENT pages in parallel** - "streaming" + "subgraphs" (two pages), NOT "streaming agents" + "subagent streaming" (same concept)

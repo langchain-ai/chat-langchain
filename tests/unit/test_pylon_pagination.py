@@ -4,11 +4,9 @@ These tests do NOT require network access or LangSmith credentials.
 All HTTP calls are mocked via unittest.mock.
 """
 
-import importlib
-import sys
+import json
 import unittest
-from unittest.mock import MagicMock, call, patch
-
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -186,6 +184,55 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+
+class TestSearchSupportArticles(unittest.TestCase):
+    """Unit tests for bounded support article search."""
+
+    def setUp(self):
+        """Reset the module cache before each test."""
+        import src.tools.pylon_tools as pylon_module
+
+        pylon_module._articles_cache = None
+        pylon_module._collections_cache = {}
+        self.module = pylon_module
+
+    @patch("src.tools.pylon_tools._fetch_collections", return_value={})
+    @patch("src.tools.pylon_tools._fetch_all_articles")
+    def test_search_ranks_and_caps_results(self, mock_fetch_articles, mock_fetch_collections):
+        """Search results are title-ranked and capped with a returned count."""
+        mock_fetch_articles.return_value = [
+            {
+                "id": "a1",
+                "title": "Middleware configuration",
+                "identifier": "one",
+                "slug": "middleware",
+                "is_published": True,
+                "visibility_config": {"visibility": "public"},
+            },
+            {
+                "id": "a2",
+                "title": "Streaming responses",
+                "identifier": "two",
+                "slug": "streaming",
+                "is_published": True,
+                "visibility_config": {"visibility": "public"},
+            },
+            {
+                "id": "a3",
+                "title": "Middleware troubleshooting",
+                "identifier": "three",
+                "slug": "middleware-help",
+                "is_published": True,
+                "visibility_config": {"visibility": "public"},
+            },
+        ]
+
+        result = json.loads(self.module.search_support_articles.invoke({"query": "middleware", "limit": 1}))
+
+        self.assertEqual(result["total"], 2)
+        self.assertEqual(result["returned"], 1)
+        self.assertEqual(result["articles"][0]["id"], "a1")
 
 
 if __name__ == "__main__":
