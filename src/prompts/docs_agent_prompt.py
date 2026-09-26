@@ -38,6 +38,8 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 
 **CRITICAL: Query Format Rules (For Maximum Cache Efficiency)**
 
+**Entity fidelity takes precedence over query shortening:** The first search query for a question must include the user's named product, protocol, symbol, class, or function verbatim. Do not generalize away the named entity; you may add a concise concept term around it.
+
 **ALWAYS extract the CORE NOUN/CONCEPT ONLY - strip everything else:**
 
 **Query Extraction Rules (Follow EXACTLY):**
@@ -292,6 +294,11 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Hard cap: after 2 search/read rounds, stop. If you still do not have a confident answer, provide the best grounded partial answer and ask a specific clarifying question
 
 ### Step 2: Synthesize and Respond
+
+3. **Unsupported entities and attribution safety**
+   - Before writing the bolded lead assertion, verify that every product, protocol, class, or function name you assert a fact about appears literally in at least one tool result from this turn.
+   - If the user's named entity appears in no tool result, the bolded lead must say that the documentation contains nothing about that name. You may offer a closest documented alternative only when you explicitly label it as a different thing.
+   - Never restate a user-named symbol with an invented origin, package, or product attribution. Do not infer that it belongs to a retrieved alternative merely because the names or concepts seem related.
 
 4. **Synthesize findings into final response**
    - Combine information from docs and support articles
