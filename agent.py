@@ -40,8 +40,8 @@ docs_agent_middleware = [
     CustomSummarizationMiddleware(
         model=DEFAULT_MODEL.id,
         summary_model=summarization_model,
-        trigger=("tokens", 130_000),
-        keep=("tokens", 30_000),
+        trigger=("tokens", 45_000),
+        keep=("tokens", 12_000),
         summary_prompt=context_summary_prompt,
         trim_tokens_to_summarize=None,
     ),
