@@ -8,8 +8,7 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -17,11 +16,9 @@ import pytest
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
     _check_single_url,
-    _check_urls_async,
     _format_results,
     check_links,
 )
@@ -48,12 +45,27 @@ class _FakeStreamResponse:
 class _FakeStreamingClient:
     """Minimal client that exercises the soft-404 streaming path."""
 
-    def __init__(self, content: str, status_code: int = 200):
+    def __init__(self, content: str, status_code: int = 200, final_url: str | None = None):
         self.content = content
         self.status_code = status_code
+        self.final_url = final_url
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
-        return _FakeStreamResponse(url, self.status_code, self.content)
+        return _FakeStreamResponse(self.final_url or url, self.status_code, self.content)
+
+
+class _FakeHeadResponse:
+    def __init__(self, url: str, status_code: int):
+        self.url = url
+        self.status_code = status_code
+
+
+class _FakeHeadClient:
+    def __init__(self, response: _FakeHeadResponse):
+        self.response = response
+
+    async def head(self, url: str, **kwargs):  # noqa: ARG002
+        return self.response
 
 
 # ---------------------------------------------------------------------------
@@ -255,4 +267,60 @@ async def test_support_article_normal_content_is_valid():
 
     assert result.valid
     assert result.status_code == 200
+    assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_redirect_to_different_path_is_invalid():
+    """A redirect to a different page must not validate the requested URL."""
+    url = "https://docs.langsmith.com/reference/missing"
+    final_url = "https://docs.langsmith.com/"
+
+    result = await _check_single_url(
+        _FakeStreamingClient(
+            "<html><body>Landing page</body></html>",
+            final_url=final_url,
+        ),
+        url,
+        timeout=1.0,
+    )
+
+    assert not result.valid
+    assert result.final_url == final_url
+    assert result.error == f"Redirected to a different page: {final_url}"
+    formatted = _format_results([result])
+    assert "Invalid links:" in formatted
+    assert result.error in formatted
+
+
+@pytest.mark.asyncio
+async def test_host_only_redirect_preserving_path_is_valid():
+    """A host-only redirect that preserves the path remains valid."""
+    url = "https://example.com/reference/page"
+    final_url = "https://www.example.com/reference/page"
+
+    result = await _check_single_url(
+        _FakeHeadClient(_FakeHeadResponse(final_url, 200)),
+        url,
+        timeout=1.0,
+    )
+
+    assert result.valid
+    assert result.final_url == final_url
+    assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_direct_200_without_redirect_is_valid():
+    """A direct successful response remains valid."""
+    url = "https://example.com/reference/direct"
+
+    result = await _check_single_url(
+        _FakeHeadClient(_FakeHeadResponse(url, 200)),
+        url,
+        timeout=1.0,
+    )
+
+    assert result.valid
+    assert result.final_url is None
     assert result.error is None

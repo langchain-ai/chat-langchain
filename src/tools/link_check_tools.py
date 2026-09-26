@@ -19,6 +19,7 @@ CONTENT_CHECK_BYTES = 8192  # Only read first 8KB for soft 404 detection
 # Domains known to have soft 404s (return 200 with "not found" content)
 SOFT_404_DOMAINS = {
     "docs.langchain.com",
+    "docs.langsmith.com",
     "python.langchain.com",
     "js.langchain.com",
     "support.langchain.com",
@@ -56,6 +57,11 @@ def _needs_soft_404_check(url: str) -> bool:
         return False
 
 
+def _redirect_preserves_path(url: str, final_url: str) -> bool:
+    """Check whether a redirect preserves the requested URL path."""
+    return urlparse(url).path.rstrip("/") == urlparse(final_url).path.rstrip("/")
+
+
 def _is_soft_404(content: str) -> bool:
     """Detect soft 404 pages that return HTTP 200 but show 'not found' content."""
     if "Article Not Found" in content:
@@ -91,6 +97,14 @@ async def _check_single_url(
             # Stream response, only read first chunk for soft 404 detection
             async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
                 final_url = str(response.url) if str(response.url) != url else None
+                if final_url and not _redirect_preserves_path(url, final_url):
+                    result = LinkCheckResult(
+                        url=url, valid=False, status_code=response.status_code,
+                        final_url=final_url,
+                        error=f"Redirected to a different page: {final_url}",
+                    )
+                    _cache[url] = result
+                    return result
                 is_valid = 200 <= response.status_code < 400
 
                 if is_valid and response.status_code == 200:
@@ -121,6 +135,14 @@ async def _check_single_url(
                 response = await client.get(url, timeout=timeout, follow_redirects=True)
 
             final_url = str(response.url) if str(response.url) != url else None
+            if final_url and not _redirect_preserves_path(url, final_url):
+                result = LinkCheckResult(
+                    url=url, valid=False, status_code=response.status_code,
+                    final_url=final_url,
+                    error=f"Redirected to a different page: {final_url}",
+                )
+                _cache[url] = result
+                return result
             is_valid = 200 <= response.status_code < 400
 
             result = LinkCheckResult(
