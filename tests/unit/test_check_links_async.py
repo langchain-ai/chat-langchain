@@ -8,20 +8,18 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
+import httpx
 import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
     _check_single_url,
-    _check_urls_async,
     _format_results,
     check_links,
 )
@@ -256,3 +254,60 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_same_path_redirect_is_valid():
+    """A redirect that only changes scheme, host prefix, or trailing slash is valid."""
+    requested_url = "https://www.example.com/docs/"
+    redirected_url = "http://example.com/docs"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == requested_url:
+            return httpx.Response(302, headers={"location": redirected_url}, request=request)
+        return httpx.Response(200, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await _check_single_url(client, requested_url, timeout=1.0)
+
+    assert result.valid
+    assert result.final_url == redirected_url
+
+
+@pytest.mark.asyncio
+async def test_cross_path_redirect_is_invalid():
+    """A redirect to a different document is invalid and exposes its target."""
+    requested_url = "https://docs.langsmith.com/reference/missing"
+    redirected_url = "https://docs.langsmith.com/"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == requested_url:
+            return httpx.Response(302, headers={"location": redirected_url}, request=request)
+        return httpx.Response(200, text="Documentation home", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await _check_single_url(client, requested_url, timeout=1.0)
+
+    assert not result.valid
+    assert result.status_code == 200
+    assert result.final_url == redirected_url
+    assert result.error == f"Redirected to {redirected_url}; requested path does not exist"
+    formatted = _format_results([result])
+    assert "0/1 valid" in formatted
+    assert f"(→ {redirected_url})" in formatted
+
+
+@pytest.mark.asyncio
+async def test_unchanged_200_is_valid():
+    """An unchanged successful response remains valid."""
+    requested_url = "https://unchanged.example.com/docs"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await _check_single_url(client, requested_url, timeout=1.0)
+
+    assert result.valid
+    assert result.status_code == 200
+    assert result.final_url is None
