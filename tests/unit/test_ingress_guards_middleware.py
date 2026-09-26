@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from types import SimpleNamespace
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -13,6 +14,7 @@ from src.middleware.ingress_guards_middleware import (
     MAX_MESSAGE_CHARS,
     IngressGuardsMiddleware,
 )
+from src.prompts.guardrails_prompts import self_reference_refusal_message
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
 
@@ -34,6 +36,25 @@ def test_before_agent_noop_when_under_cap():
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "why you burn that much token to answer?",
+        "what type of calculator are you using to calculate the amount you burn? and how much accurate is this?",
+        "how does u actually manage the state of user chatting",
+        "what model are you currently using to answer those questions?",
+    ],
+)
+def test_before_agent_refuses_self_reference_questions(question):
+    middleware = IngressGuardsMiddleware()
+    state = {"messages": [HumanMessage(content=question, id="h1")]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content == self_reference_refusal_message
+    assert update["jump_to"] == "end"
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
