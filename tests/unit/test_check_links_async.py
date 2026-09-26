@@ -48,12 +48,72 @@ class _FakeStreamResponse:
 class _FakeStreamingClient:
     """Minimal client that exercises the soft-404 streaming path."""
 
-    def __init__(self, content: str, status_code: int = 200):
+    def __init__(self, content: str, status_code: int = 200, final_url: str | None = None):
         self.content = content
         self.status_code = status_code
+        self.final_url = final_url
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
-        return _FakeStreamResponse(url, self.status_code, self.content)
+        return _FakeStreamResponse(self.final_url or url, self.status_code, self.content)
+
+
+class _FakeHeadClient:
+    """Minimal client that exercises the HEAD path."""
+
+    def __init__(self, url: str, status_code: int = 200):
+        self.url = url
+        self.status_code = status_code
+
+    async def head(self, url: str, **kwargs):  # noqa: ARG002
+        response = MagicMock()
+        response.url = self.url
+        response.status_code = self.status_code
+        return response
+
+
+@pytest.mark.asyncio
+async def test_redirect_to_different_path_is_invalid():
+    """A redirect to a different path must not certify the requested URL."""
+    requested_url = "https://docs.langchain.com/langsmith/missing"
+    final_url = "https://docs.langchain.com/langsmith/observability"
+    client = _FakeStreamingClient(
+        "<html><body>Useful content</body></html>", final_url=final_url
+    )
+
+    result = await _check_single_url(client, requested_url, timeout=1.0)
+
+    assert not result.valid
+    assert result.status_code == 200
+    assert result.final_url == final_url
+    assert result.error == f"Redirected to a different page: {final_url}"
+
+
+@pytest.mark.asyncio
+async def test_redirect_to_www_with_same_path_is_valid():
+    """A redirect that only adds www. must remain valid."""
+    requested_url = "https://example.com/docs"
+    final_url = "https://www.example.com/docs"
+
+    result = await _check_single_url(
+        _FakeHeadClient(final_url), requested_url, timeout=1.0
+    )
+
+    assert result.valid
+    assert result.final_url == final_url
+
+
+@pytest.mark.asyncio
+async def test_redirect_to_different_host_with_same_path_is_valid():
+    """A redirect to another host with the same path must remain valid."""
+    requested_url = "https://example.com/docs/"
+    final_url = "https://docs.example.org/docs"
+
+    result = await _check_single_url(
+        _FakeHeadClient(final_url), requested_url, timeout=1.0
+    )
+
+    assert result.valid
+    assert result.final_url == final_url
 
 
 # ---------------------------------------------------------------------------
@@ -135,8 +195,13 @@ def test_check_links_works_in_sync_context():
     """check_links.invoke() must work when called outside an async context."""
     fake_results = [
         LinkCheckResult(url="https://example.com", valid=True, status_code=200),
-        LinkCheckResult(url="https://bad.example.com", valid=False, status_code=404,
-                        error="HTTP 404"),
+        LinkCheckResult(
+            url="https://bad.example.com",
+            valid=False,
+            status_code=404,
+            error="HTTP 404",
+            final_url="https://bad.example.com/not-found",
+        ),
     ]
 
     with patch(
@@ -151,6 +216,7 @@ def test_check_links_works_in_sync_context():
     assert "  - https://example.com" in result
     assert "  - https://bad.example.com:" in result
     assert "HTTP 404" in result
+    assert "(→ https://bad.example.com/not-found)" in result
 
 
 def test_check_links_sync_deduplicates_urls():
