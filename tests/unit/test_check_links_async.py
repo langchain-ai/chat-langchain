@@ -8,23 +8,20 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
+
+from src.tools.link_check_tools import (
+    LinkCheckResult,
+    _check_single_url,
+    check_links,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
-from src.tools.link_check_tools import (
-    LinkCheckResult,
-    _check_single_url,
-    _check_urls_async,
-    _format_results,
-    check_links,
-)
 
 
 class _FakeStreamResponse:
@@ -54,6 +51,28 @@ class _FakeStreamingClient:
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
         return _FakeStreamResponse(url, self.status_code, self.content)
+
+
+class _FakeResponse:
+    """Minimal response for non-streaming redirect tests."""
+
+    def __init__(self, url: str, status_code: int):
+        self.url = url
+        self.status_code = status_code
+
+
+class _FakeHeadClient:
+    """Minimal client for HEAD and GET redirect tests."""
+
+    def __init__(self, head_response: _FakeResponse, get_response: _FakeResponse | None = None):
+        self.head_response = head_response
+        self.get_response = get_response
+
+    async def head(self, method: str, **kwargs):  # noqa: ARG002
+        return self.head_response
+
+    async def get(self, method: str, **kwargs):  # noqa: ARG002
+        return self.get_response
 
 
 # ---------------------------------------------------------------------------
@@ -255,4 +274,44 @@ async def test_support_article_normal_content_is_valid():
 
     assert result.valid
     assert result.status_code == 200
+    assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_path_changing_redirect_is_invalid():
+    """Streaming responses must reject redirects to another path."""
+    client = _FakeStreamingClient("<html><body>Useful content</body></html>")
+    response = _FakeStreamResponse(
+        "https://docs.langchain.com/langsmith/observability",
+        200,
+        "<html><body>Useful content</body></html>",
+    )
+    client.stream = lambda method, url, **kwargs: response  # noqa: ARG005
+
+    result = await _check_single_url(
+        client,
+        "https://docs.langsmith.com/legacy-page",
+        timeout=1.0,
+    )
+
+    assert not result.valid
+    assert result.final_url == "https://docs.langchain.com/langsmith/observability"
+    assert result.error == (
+        "Redirected to a different page: https://docs.langchain.com/langsmith/observability"
+    )
+
+
+@pytest.mark.asyncio
+async def test_trailing_slash_redirect_is_valid():
+    """A redirect that only adds a trailing slash remains valid."""
+    url = "https://example.com/guide"
+    final_url = "https://example.com/guide/"
+    result = await _check_single_url(
+        _FakeHeadClient(_FakeResponse(final_url, 200)),
+        url,
+        timeout=1.0,
+    )
+
+    assert result.valid
+    assert result.final_url == final_url
     assert result.error is None
