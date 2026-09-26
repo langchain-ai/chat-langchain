@@ -22,6 +22,10 @@ SOFT_404_DOMAINS = {
     "python.langchain.com",
     "js.langchain.com",
     "support.langchain.com",
+    "docs.langsmith.com",
+    "www.langchain.com",
+    "langchain.com",
+    "academy.langchain.com",
 }
 
 # Simple in-memory cache
@@ -44,6 +48,31 @@ def _is_valid_url(url: str) -> bool:
         result = urlparse(url)
         return all([result.scheme in ("http", "https"), result.netloc])
     except Exception:
+        return False
+
+
+def _is_same_page(requested: str, final: str) -> bool:
+    """Compare URLs while ignoring redirect-safe differences."""
+    try:
+        requested_url = urlparse(requested)
+        final_url = urlparse(final)
+
+        def normalized_host(parsed_url):
+            host = parsed_url.hostname.lower() if parsed_url.hostname else ""
+            if host.startswith("www."):
+                host = host[4:]
+            return host, parsed_url.port
+
+        def normalized_path(parsed_url):
+            path = parsed_url.path or "/"
+            return path.rstrip("/") or "/"
+
+        return (
+            normalized_host(requested_url) == normalized_host(final_url)
+            and normalized_path(requested_url) == normalized_path(final_url)
+            and requested_url.query == final_url.query
+        )
+    except (ValueError, AttributeError):
         return False
 
 
@@ -91,6 +120,19 @@ async def _check_single_url(
             # Stream response, only read first chunk for soft 404 detection
             async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
                 final_url = str(response.url) if str(response.url) != url else None
+                if final_url and not _is_same_page(url, final_url):
+                    result = LinkCheckResult(
+                        url=url,
+                        valid=False,
+                        status_code=response.status_code,
+                        final_url=final_url,
+                        error=(
+                            f"Redirected to a different page ({final_url}); "
+                            "the requested page does not exist"
+                        ),
+                    )
+                    _cache[url] = result
+                    return result
                 is_valid = 200 <= response.status_code < 400
 
                 if is_valid and response.status_code == 200:
@@ -121,6 +163,19 @@ async def _check_single_url(
                 response = await client.get(url, timeout=timeout, follow_redirects=True)
 
             final_url = str(response.url) if str(response.url) != url else None
+            if final_url and not _is_same_page(url, final_url):
+                result = LinkCheckResult(
+                    url=url,
+                    valid=False,
+                    status_code=response.status_code,
+                    final_url=final_url,
+                    error=(
+                        f"Redirected to a different page ({final_url}); "
+                        "the requested page does not exist"
+                    ),
+                )
+                _cache[url] = result
+                return result
             is_valid = 200 <= response.status_code < 400
 
             result = LinkCheckResult(

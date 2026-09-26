@@ -8,23 +8,21 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+from src.tools.link_check_tools import (
+    LinkCheckResult,
+    _check_single_url,
+    _format_results,
+    check_links,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
-from src.tools.link_check_tools import (
-    LinkCheckResult,
-    _check_single_url,
-    _check_urls_async,
-    _format_results,
-    check_links,
-)
 
 
 class _FakeStreamResponse:
@@ -48,12 +46,26 @@ class _FakeStreamResponse:
 class _FakeStreamingClient:
     """Minimal client that exercises the soft-404 streaming path."""
 
-    def __init__(self, content: str, status_code: int = 200):
+    def __init__(self, content: str, status_code: int = 200, final_url: str | None = None):
         self.content = content
         self.status_code = status_code
+        self.final_url = final_url
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
-        return _FakeStreamResponse(url, self.status_code, self.content)
+        return _FakeStreamResponse(self.final_url or url, self.status_code, self.content)
+
+
+class _FakeHeadClient:
+    """Minimal client that exercises the HEAD/GET path."""
+
+    def __init__(self, final_url: str, status_code: int = 200):
+        self.response = MagicMock(url=final_url, status_code=status_code)
+
+    async def head(self, url: str, **kwargs):  # noqa: ARG002
+        return self.response
+
+    async def get(self, url: str, **kwargs):  # noqa: ARG002
+        return self.response
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +268,88 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_unrelated_redirect_is_invalid():
+    """A redirect to an unrelated page must not validate the requested URL."""
+    url = "https://example.com/missing-page"
+    final_url = "https://example.com/"
+
+    result = await _check_single_url(
+        _FakeHeadClient(final_url),
+        url,
+        timeout=1.0,
+    )
+
+    assert not result.valid
+    assert result.status_code == 200
+    assert result.final_url == final_url
+    assert result.error == (
+        f"Redirected to a different page ({final_url}); the requested page does not exist"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("url", "final_url"),
+    [
+        ("https://example.com/docs", "https://example.com/docs/"),
+        ("https://example.com/docs/", "https://example.com/docs"),
+        ("http://example.com/docs", "https://example.com/docs"),
+        ("https://www.example.com/docs#intro", "https://example.com/docs"),
+    ],
+)
+async def test_safe_redirect_normalizations_remain_valid(url, final_url):
+    """Trailing slashes, scheme upgrades, and fragments do not invalidate links."""
+    result = await _check_single_url(
+        _FakeHeadClient(final_url),
+        url,
+        timeout=1.0,
+    )
+
+    assert result.valid
+    assert result.final_url == final_url
+    assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_docs_langsmith_redirect_to_different_host_page_is_invalid():
+    """A docs.langsmith.com redirect to a different docs page must fail."""
+    url = "https://docs.langsmith.com/cron-jobs"
+    final_url = "https://docs.langchain.com/langsmith/observability"
+
+    result = await _check_single_url(
+        _FakeStreamingClient("", final_url=final_url),
+        url,
+        timeout=1.0,
+    )
+
+    assert not result.valid
+    assert result.final_url == final_url
+    assert "requested page does not exist" in result.error
+
+
+def test_mixed_results_format_dead_link_under_invalid_heading():
+    """Mixed results report the count and keep dead links under Invalid links."""
+    dead_url = "https://example.com/missing-page"
+    result = _format_results(
+        [
+            LinkCheckResult(
+                url=dead_url,
+                valid=False,
+                status_code=200,
+                final_url="https://example.com/",
+                error=(
+                    "Redirected to a different page (https://example.com/); "
+                    "the requested page does not exist"
+                ),
+            ),
+            LinkCheckResult(url="https://example.com/docs", valid=True, status_code=200),
+        ]
+    )
+
+    assert "1/2 valid" in result
+    assert "Invalid links:" in result
+    assert f"  - {dead_url}: Redirected to a different page" in result
+    assert "Valid links:" in result
