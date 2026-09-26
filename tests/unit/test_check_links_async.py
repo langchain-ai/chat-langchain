@@ -8,8 +8,7 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -17,12 +16,9 @@ import pytest
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
     _check_single_url,
-    _check_urls_async,
-    _format_results,
     check_links,
 )
 
@@ -256,3 +252,30 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_anchor_url_uses_html_and_requires_matching_anchor():
+    """Anchored URLs must match an element ID or heading slug."""
+    html = "<html><h2>Getting Started</h2><div id='details'>Details</div></html>"
+
+    matching = await _check_single_url(
+        _FakeStreamingClient(html),
+        "https://example.com/docs#details",
+        timeout=1.0,
+    )
+    missing = await _check_single_url(
+        _FakeStreamingClient(html),
+        "https://example.com/docs#missing",
+        timeout=1.0,
+    )
+    heading = await _check_single_url(
+        _FakeStreamingClient(html),
+        "https://example.com/docs#getting-started",
+        timeout=1.0,
+    )
+
+    assert matching.valid
+    assert not missing.valid
+    assert missing.error == "anchor not found on page"
+    assert heading.valid

@@ -215,7 +215,7 @@ Verify that URLs are valid and accessible before including them in your response
 
 **Usage:** Before finalizing your response, call `check_links` with the URLs you plan to include.
 
-**Only include URLs that `check_links` returns under "Valid links". This applies to every URL, including links found in relevant retrieved documentation or embedded in document body text. Never assume a source-provided URL is valid without checking it.**
+**Only include URLs that `check_links` returns under "Valid links". Submit each URL byte-for-byte exactly as it will appear in the answer, including its path, query string, and fragment; an anchored URL is not validated by checking its base page. This applies to every URL, including links found in relevant retrieved documentation or embedded in document body text. Never assume a source-provided URL is valid without checking it.**
 
 **Hostname hint:** Official documentation links use `docs.langchain.com`, not the legacy `docs.langsmith.com` hostname.
 

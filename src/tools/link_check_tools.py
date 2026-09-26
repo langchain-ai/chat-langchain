@@ -1,10 +1,12 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
+import html
 import logging
 import re
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from html.parser import HTMLParser
+from urllib.parse import unquote, urlparse
 
 import httpx
 from langchain.tools import tool
@@ -56,6 +58,46 @@ def _needs_soft_404_check(url: str) -> bool:
         return False
 
 
+class _AnchorParser(HTMLParser):
+    """Collect element IDs and heading text from an HTML document."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.ids: set[str] = set()
+        self._heading: list[str] | None = None
+        self.headings: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if element_id := attributes.get("id"):
+            self.ids.add(html.unescape(element_id))
+        if tag.lower() in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            self._heading = []
+
+    def handle_data(self, data: str) -> None:
+        if self._heading is not None:
+            self._heading.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if self._heading is not None and tag.lower() in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+            self.headings.append(" ".join("".join(self._heading).split()))
+            self._heading = None
+
+
+def _heading_slug(heading: str) -> str:
+    """Convert a heading to the common docs anchor slug format."""
+    slug = re.sub(r"[^\w\s-]", "", heading.lower())
+    return re.sub(r"[\s-]+", "-", slug).strip("-")
+
+
+def _anchor_exists(content: str, fragment: str) -> bool:
+    """Check whether an HTML document contains a requested fragment."""
+    parser = _AnchorParser()
+    parser.feed(content)
+    target = unquote(fragment)
+    return target in parser.ids or any(_heading_slug(heading) == target for heading in parser.headings)
+
+
 def _is_soft_404(content: str) -> bool:
     """Detect soft 404 pages that return HTTP 200 but show 'not found' content."""
     if "Article Not Found" in content:
@@ -86,8 +128,9 @@ async def _check_single_url(
 
     try:
         needs_content_check = _needs_soft_404_check(url)
+        has_fragment = bool(urlparse(url).fragment)
 
-        if needs_content_check:
+        if needs_content_check or has_fragment:
             # Stream response, only read first chunk for soft 404 detection
             async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
                 final_url = str(response.url) if str(response.url) != url else None
@@ -97,7 +140,7 @@ async def _check_single_url(
                     content = ""
                     async for chunk in response.aiter_text():
                         content += chunk
-                        if len(content) >= CONTENT_CHECK_BYTES:
+                        if not has_fragment and len(content) >= CONTENT_CHECK_BYTES:
                             break
 
                     if _is_soft_404(content):
@@ -107,6 +150,21 @@ async def _check_single_url(
                         )
                         _cache[url] = result
                         return result
+
+                if has_fragment and (
+                    not is_valid
+                    or response.status_code != 200
+                    or not _anchor_exists(content, urlparse(url).fragment)
+                ):
+                    result = LinkCheckResult(
+                        url=url,
+                        valid=False,
+                        status_code=response.status_code,
+                        final_url=final_url,
+                        error="anchor not found on page",
+                    )
+                    _cache[url] = result
+                    return result
 
                 result = LinkCheckResult(
                     url=url, valid=is_valid, status_code=response.status_code,
