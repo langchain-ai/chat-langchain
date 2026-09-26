@@ -19,6 +19,7 @@ CONTENT_CHECK_BYTES = 8192  # Only read first 8KB for soft 404 detection
 # Domains known to have soft 404s (return 200 with "not found" content)
 SOFT_404_DOMAINS = {
     "docs.langchain.com",
+    "docs.langsmith.com",
     "python.langchain.com",
     "js.langchain.com",
     "support.langchain.com",
@@ -36,6 +37,7 @@ class LinkCheckResult:
     status_code: int | None = None
     error: str | None = None
     final_url: str | None = None
+    redirected: bool = False
 
 
 def _is_valid_url(url: str) -> bool:
@@ -69,6 +71,20 @@ def _is_soft_404(content: str) -> bool:
     return False
 
 
+def _is_meaningful_redirect(url: str, final_url: str | None) -> bool:
+    """Check whether a redirect changes the host or path."""
+    if not final_url:
+        return False
+
+    requested = urlparse(url)
+    final = urlparse(final_url)
+    requested_netloc = requested.netloc.lower().removeprefix("www.")
+    final_netloc = final.netloc.lower().removeprefix("www.")
+    requested_path = requested.path.rstrip("/")
+    final_path = final.path.rstrip("/")
+    return requested_netloc != final_netloc or requested_path != final_path
+
+
 async def _check_single_url(
     client: httpx.AsyncClient,
     url: str,
@@ -91,6 +107,7 @@ async def _check_single_url(
             # Stream response, only read first chunk for soft 404 detection
             async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
                 final_url = str(response.url) if str(response.url) != url else None
+                needs_content_check = needs_content_check or _needs_soft_404_check(final_url or "")
                 is_valid = 200 <= response.status_code < 400
 
                 if is_valid and response.status_code == 200:
@@ -103,6 +120,7 @@ async def _check_single_url(
                     if _is_soft_404(content):
                         result = LinkCheckResult(
                             url=url, valid=False, status_code=200, final_url=final_url,
+                            redirected=_is_meaningful_redirect(url, final_url),
                             error="Soft 404: Page shows 'not found' content",
                         )
                         _cache[url] = result
@@ -110,7 +128,9 @@ async def _check_single_url(
 
                 result = LinkCheckResult(
                     url=url, valid=is_valid, status_code=response.status_code,
-                    final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
+                    final_url=final_url,
+                    redirected=_is_meaningful_redirect(url, final_url),
+                    error=None if is_valid else f"HTTP {response.status_code}",
                 )
         else:
             # Use HEAD for non-langchain domains (much faster)
@@ -121,11 +141,33 @@ async def _check_single_url(
                 response = await client.get(url, timeout=timeout, follow_redirects=True)
 
             final_url = str(response.url) if str(response.url) != url else None
+            needs_content_check = needs_content_check or _needs_soft_404_check(final_url or "")
             is_valid = 200 <= response.status_code < 400
+
+            if is_valid and response.status_code == 200 and needs_content_check:
+                async with client.stream(
+                    "GET", final_url or url, timeout=timeout, follow_redirects=True
+                ) as content_response:
+                    content = ""
+                    async for chunk in content_response.aiter_text():
+                        content += chunk
+                        if len(content) >= CONTENT_CHECK_BYTES:
+                            break
+
+                if _is_soft_404(content):
+                    result = LinkCheckResult(
+                        url=url, valid=False, status_code=200, final_url=final_url,
+                        redirected=_is_meaningful_redirect(url, final_url),
+                        error="Soft 404: Page shows 'not found' content",
+                    )
+                    _cache[url] = result
+                    return result
 
             result = LinkCheckResult(
                 url=url, valid=is_valid, status_code=response.status_code,
-                final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
+                final_url=final_url,
+                redirected=_is_meaningful_redirect(url, final_url),
+                error=None if is_valid else f"HTTP {response.status_code}",
             )
 
         _cache[url] = result
@@ -161,8 +203,9 @@ def _format_results(results: list[LinkCheckResult]) -> str:
     if not results:
         return "No URLs to check."
 
-    valid = [r for r in results if r.valid]
+    valid = [r for r in results if r.valid and not r.redirected]
     invalid = [r for r in results if not r.valid]
+    redirected = [r for r in results if r.valid and r.redirected]
 
     lines = [f"Link Check Results: {len(valid)}/{len(results)} valid\n"]
 
@@ -176,6 +219,11 @@ def _format_results(results: list[LinkCheckResult]) -> str:
         for r in valid:
             suffix = f" (→ {r.final_url})" if r.final_url else ""
             lines.append(f"  - {r.url}{suffix}")
+
+    if redirected:
+        lines.append("Redirected links (verify before use):")
+        for r in redirected:
+            lines.append(f"  - {r.url} (→ {r.final_url})")
 
     return "\n".join(lines)
 

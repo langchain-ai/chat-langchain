@@ -8,8 +8,7 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -17,11 +16,9 @@ import pytest
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
     _check_single_url,
-    _check_urls_async,
     _format_results,
     check_links,
 )
@@ -54,6 +51,20 @@ class _FakeStreamingClient:
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
         return _FakeStreamResponse(url, self.status_code, self.content)
+
+
+class _FakeHeadClient:
+    """Minimal client for testing redirects from the HEAD path."""
+
+    def __init__(self, final_url: str, content: str):
+        self.final_url = final_url
+        self.content = content
+
+    async def head(self, url: str, **kwargs):  # noqa: ARG002
+        return _FakeStreamResponse(self.final_url, 200, "")
+
+    def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
+        return _FakeStreamResponse(self.final_url, 200, self.content)
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +267,55 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_redirected_docs_link_is_not_counted_as_valid():
+    """A documentation redirect should be shown separately from valid links."""
+    result = await _check_single_url(
+        _FakeHeadClient(
+            "https://docs.langchain.com/langsmith/observability",
+            "<html><title>Observability</title></html>",
+        ),
+        "https://docs.langsmith.com/langchain-runnable",
+        timeout=1.0,
+    )
+
+    assert result.valid
+    assert result.redirected
+    formatted = _format_results([result])
+    assert "0/1 valid" in formatted
+    assert "Valid links:" not in formatted
+    assert "Redirected links (verify before use):" in formatted
+
+
+@pytest.mark.asyncio
+async def test_trailing_slash_www_redirect_is_valid():
+    """A trailing-slash and www normalization redirect remains valid."""
+    result = await _check_single_url(
+        _FakeHeadClient("https://www.dict.cc/", ""),
+        "https://dict.cc",
+        timeout=1.0,
+    )
+
+    assert result.valid
+    assert not result.redirected
+    assert "1/1 valid" in _format_results([result])
+
+
+@pytest.mark.asyncio
+async def test_soft_404_after_redirect_is_invalid():
+    """A soft 404 body on the final documentation domain is invalid."""
+    result = await _check_single_url(
+        _FakeHeadClient(
+            "https://docs.langchain.com/langsmith/observability",
+            "<html><title>Page Not Found</title></html>",
+        ),
+        "https://example.com/missing-page",
+        timeout=1.0,
+    )
+
+    assert not result.valid
+    assert result.status_code == 200
+    assert result.redirected
+    assert result.error == "Soft 404: Page shows 'not found' content"
