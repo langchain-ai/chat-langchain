@@ -61,6 +61,8 @@ const RETRYABLE_ERROR_PATTERNS = [
   "ETIMEDOUT",
 ]
 
+const FAILURE_MESSAGE = "I couldn't complete that request. Please try again."
+
 /**
  * Check if an error message indicates a retryable failure.
  * Retryable errors include: 404 (run not ingested yet), network failures
@@ -315,6 +317,20 @@ export function useStreamHandler({
     [setMessages, auth, threadId]
   )
 
+  const persistFailureMarker = useCallback(async () => {
+    if (!client) return
+
+    try {
+      await client.threads.updateState(threadId, {
+        values: {
+          messages: [{ role: "assistant", content: FAILURE_MESSAGE }],
+        },
+      })
+    } catch (error) {
+      console.warn("Unable to persist assistant failure marker:", error)
+    }
+  }, [client, threadId])
+
   /**
    * Processes the stream of agent responses.
    *
@@ -473,7 +489,8 @@ export function useStreamHandler({
         assistantToolCalls = [...existingMessage.toolCalls]
       }
 
-      for await (const chunk of streamResponse) {
+      try {
+        for await (const chunk of streamResponse) {
         // Check if user requested interrupt
         if (shouldInterruptRef?.current) {
           break
@@ -839,11 +856,35 @@ export function useStreamHandler({
             })
           })
         }
+        }
+        }
+      } catch (error) {
+        if (!shouldInterruptRef?.current) {
+          await persistFailureMarker()
+          setMessages((prev) => {
+            const existing = prev.find((m) => m.id === assistantMessageId)
+            const failureMessage: Message = {
+              id: assistantMessageId,
+              role: "assistant",
+              content: FAILURE_MESSAGE,
+              timestamp: existing?.timestamp || new Date(),
+              runId,
+              failed: true,
+            }
+            const withMessage = ensureMessageExists(prev, assistantMessageId, failureMessage)
+            return updateMessageInList(withMessage, assistantMessageId, failureMessage)
+          })
+        }
+        throw error
       }
-    }
 
     // Check if stream was interrupted
     const wasInterrupted = shouldInterruptRef?.current || false
+    const failed = !wasInterrupted && !assistantContent
+
+    if (failed) {
+      await persistFailureMarker()
+    }
 
     // Mark as complete after stream ends
     setMessages((prev) => {
@@ -858,12 +899,13 @@ export function useStreamHandler({
               ...m,
               content: wasInterrupted && !assistantContent
                 ? "Response stopped. The agent was interrupted while processing your request."
-                : assistantContent || "(No response generated)",
+                : assistantContent || FAILURE_MESSAGE,
               isThinking: false,
               thinkingDuration,
               runId,
               subgraphOutputs: subgraphOutputs.length > 0 ? subgraphOutputs : undefined,
               wasInterrupted,
+              failed,
             }
           : m
       )
@@ -876,7 +918,7 @@ export function useStreamHandler({
     }
 
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, fetchUsageMetadata, generateShareLink, onRunCreated, userId, userEmail, userName, getSegmentAnonymousId])
+  }, [client, threadId, setMessages, fetchUsageMetadata, generateShareLink, persistFailureMarker, onRunCreated, userId, userEmail, userName, getSegmentAnonymousId])
 
   return { processStream }
 }

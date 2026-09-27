@@ -666,7 +666,7 @@ export const MessageItem = memo(function MessageItem({
                     )}
                   </Button>
 
-                  {isLastAssistant && (
+                  {(isLastAssistant || message.failed) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -675,7 +675,7 @@ export const MessageItem = memo(function MessageItem({
                       className="h-8 px-2 text-xs"
                     >
                       <RefreshCw className={`w-3 h-3 mr-1 ${isRegenerating ? "animate-spin" : ""}`} />
-                      Regenerate
+                      {message.failed ? "Retry" : "Regenerate"}
                     </Button>
                   )}
                 </>
