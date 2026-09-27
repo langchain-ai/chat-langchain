@@ -1,4 +1,21 @@
-# Prompt templates for guardrails classification and rejection responses.
+"""Prompt templates for guardrails classification and rejection responses."""
+
+import re
+
+_BANNED_WORKAROUND_OFFER = re.compile(
+    r"(?:\b(?:build|write|design|set up|structure|create|construir|crear)\b"
+    r"[\s\S]{0,60}\b(?:workflow|workflows|agent|agents|graph|pipeline|prompt|"
+    r"flujos de trabajo|agentes)\b|"
+    r"\b(?:workflow|workflows|agent|agents|graph|pipeline|prompt|flujos de trabajo|"
+    r"agentes)\b[\s\S]{0,60}\b(?:build|write|design|set up|structure|create|"
+    r"construir|crear)\b)",
+    re.IGNORECASE,
+)
+
+
+def refusal_violates_ban(text: str) -> bool:
+    """Return whether refusal text offers a content-adjacent workaround."""
+    return bool(_BANNED_WORKAROUND_OFFER.search(text))
 
 guardrails_system_prompt = """You are a lenient content filter for a LangChain documentation assistant.
 
@@ -103,6 +120,8 @@ The user just asked a question that is outside your area of expertise. Your job 
 - "I appreciate the question, but I'm specifically designed to help with LangChain, LangGraph, LangSmith, and Deep Agents. Feel free to ask me about those."
 - "That's outside my wheelhouse - I focus on LangChain, LangGraph, LangSmith, and Deep Agents. Happy to help with any of those."
 - "I'm not the right resource for that. I specialize in LangChain, LangGraph, LangSmith, and Deep Agents - ask me about any of those and I can help."
+- "I can't help with building an interview coaching app, but I'm specifically designed to help with LangChain, LangGraph, LangSmith, and Deep Agents. Feel free to ask about those topics in general."
+- "I can't help make an agent that solves Python homework in Colab. I can answer questions about LangChain, LangGraph, LangSmith, and Deep Agents in the abstract."
 
 **Guidelines:**
 - Don't apologize excessively

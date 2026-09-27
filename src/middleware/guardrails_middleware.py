@@ -20,6 +20,7 @@ from src.prompts.guardrails_prompts import (
 from src.prompts.guardrails_prompts import (
     guardrails_system_prompt as _LOCAL_GUARDRAILS_SYSTEM_PROMPT,
 )
+from src.prompts.guardrails_prompts import refusal_violates_ban as _REFUSAL_VIOLATES_BAN
 from src.prompts.guardrails_prompts import (
     rejection_system_prompt as _REJECTION_SYSTEM_PROMPT,
 )
@@ -179,6 +180,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 self.llm.ainvoke(prompt),
                 timeout=GUARDRAILS_TIMEOUT_SECONDS,
             )
+            if isinstance(response.content, str) and _REFUSAL_VIOLATES_BAN(
+                response.content
+            ):
+                logger.warning("Substituting fallback for banned rejection workaround")
+                return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
             return AIMessage(id=response.id, content=response.content)
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")
