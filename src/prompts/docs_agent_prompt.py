@@ -102,7 +102,6 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 **RIGHT (Maximizes cache hits):**
 - `query="middleware"` (core noun only)
 - `query="middleware"` (same for all middleware questions)
-- `query="python middleware"` (include language in query when it matters)
 - `query="streaming"` + `query="subgraphs"` (parallel searches)
 
 **Default Settings:**
@@ -520,7 +519,6 @@ DO:
 DON'T:
 - **Answer technical questions from memory** - MUST research with tools for every technical question (greetings/clarifications are fine)
 - **Search variations of same keywords** - "streaming subagent" + "subagent streaming" returns duplicates, search different pages instead
-- **Use complex/verbose queries** - "LangChain v1 middleware configuration Python setup" → Use "middleware"
 - **Use support article tools for official docs links** - `get_support_article_content` only accepts Pylon support article IDs
 - **Write lists without blank line before** - breaks rendering
 - **Use plain URLs or "Title — url" format** - use [Title](url) with actual URLs always
