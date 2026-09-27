@@ -33,3 +33,8 @@ def test_summarization_middleware_uses_retrying_fallback_model():
         getattr(fallback, "max_attempt_number") == config.MAX_RETRIES + 1
         for fallback in summary_fallbacks
     )
+
+
+def test_summary_prompt_uses_only_the_latest_answerable_goal():
+    assert "most recent human message" in context_summary_prompt
+    assert "do not have a non-tool assistant answer" in context_summary_prompt

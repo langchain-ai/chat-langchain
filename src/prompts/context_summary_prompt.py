@@ -38,7 +38,7 @@ Use this structure:
 Summary of the conversation history until this point:
 
 ## Current User Goal
-State the user's current goal and any unresolved asks.
+Restate only the most recent human message as the user's current goal and its unresolved asks. Exclude goals from earlier turns that do not have a non-tool assistant answer; those turns are abandoned and must not influence the current goal.
 
 ## Key Context To Preserve
 Summarize durable facts, constraints, decisions, and assumptions.

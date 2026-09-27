@@ -11,6 +11,9 @@ from src.agent.config import (
     tool_retry_middleware,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
+from src.middleware.incomplete_turn_repair_middleware import (
+    IncompleteTurnRepairMiddleware,
+)
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
@@ -37,6 +40,7 @@ docs_agent_middleware = [
         fallback_model=DEFAULT_MODEL.id,
         block_off_topic=True,
     ),
+    IncompleteTurnRepairMiddleware(),
     CustomSummarizationMiddleware(
         model=DEFAULT_MODEL.id,
         summary_model=summarization_model,
