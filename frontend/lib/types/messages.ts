@@ -45,5 +45,6 @@ export interface Message {
 
   // Interruption tracking
   wasInterrupted?: boolean
-}
 
+  isError?: boolean
+}

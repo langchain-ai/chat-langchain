@@ -7,6 +7,7 @@ import type { Message, ImageAttachment } from "@/lib/types"
 import { createUserMessage, generateMessageId, extractTextFromContent } from "@/lib/utils/chat"
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
+import { FAILED_RESPONSE_MESSAGE } from "@/lib/utils/chat/failed-thread-state"
 import { useAuth } from "@/lib/auth"
 import type { AuthRegion } from "@/lib/auth"
 import { trackEvent, useAnalyticsContext } from "@/components/providers/segment-provider"
@@ -632,14 +633,19 @@ export function ChatInterface({
         return
       }
       console.error("Error streaming from LangGraph:", error)
-      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to connect to the agent"}`)
-      errorMessage.role = "assistant"
-      setMessages((prev) => [...prev, errorMessage])
-
-      if (onThreadUpdate) {
-        const messageCount = messages.length + 2
-        onThreadUpdate(threadId, customTitle || truncate(userMessage.content, 60) || "New conversation", truncate(errorMessage.content, 100), undefined, messageCount)
-      }
+      setMessages((prev) => {
+        const errorMessage: Message = {
+          id: activeRunRef.current?.assistantMessageId || generateMessageId(),
+          role: "assistant",
+          content: FAILED_RESPONSE_MESSAGE,
+          timestamp: new Date(),
+          isError: true,
+        }
+        const existing = prev.some((message) => message.id === errorMessage.id)
+        return existing
+          ? prev.map((message) => message.id === errorMessage.id ? { ...message, ...errorMessage } : message)
+          : [...prev, errorMessage]
+      })
     } finally {
       activeRunRef.current = null
       uiDispatch({ type: 'FINISH_SEND' })

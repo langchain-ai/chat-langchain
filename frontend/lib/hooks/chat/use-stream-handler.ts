@@ -35,6 +35,10 @@ import {
   ensureMessageExists,
   updateMessageInList,
 } from "../../utils/chat"
+import {
+  FAILED_RESPONSE_MESSAGE,
+  repairFailedThreadMessages,
+} from "../../utils/chat/failed-thread-state"
 import { shareRun, readRun, type LangSmithAuth } from "../../api/langsmith"
 
 // ============================================================================
@@ -473,7 +477,8 @@ export function useStreamHandler({
         assistantToolCalls = [...existingMessage.toolCalls]
       }
 
-      for await (const chunk of streamResponse) {
+      try {
+        for await (const chunk of streamResponse) {
         // Check if user requested interrupt
         if (shouldInterruptRef?.current) {
           break
@@ -841,6 +846,37 @@ export function useStreamHandler({
         }
       }
     }
+      } catch (error) {
+        try {
+          const state = await client.threads.getState(threadId)
+          const values = state.values as Record<string, unknown>
+          await client.threads.updateState(threadId, {
+            values: repairFailedThreadMessages(values),
+            checkpoint: state.checkpoint,
+          })
+        } catch (recoveryError) {
+          console.error("Failed to repair checkpoint after stream error:", recoveryError)
+        }
+
+        setMessages((prev) => {
+          const failedMessage: Message = {
+            id: assistantMessageId,
+            role: "assistant",
+            content: FAILED_RESPONSE_MESSAGE,
+            timestamp: new Date(),
+            isThinking: false,
+            isError: true,
+            runId,
+          }
+          const existing = prev.some((message) => message.id === assistantMessageId)
+          return existing
+            ? prev.map((message) =>
+                message.id === assistantMessageId ? { ...message, ...failedMessage } : message
+              )
+            : [...prev, failedMessage]
+        })
+        throw error
+      }
 
     // Check if stream was interrupted
     const wasInterrupted = shouldInterruptRef?.current || false
@@ -858,7 +894,7 @@ export function useStreamHandler({
               ...m,
               content: wasInterrupted && !assistantContent
                 ? "Response stopped. The agent was interrupted while processing your request."
-                : assistantContent || "(No response generated)",
+              : assistantContent || "(No response generated)",
               isThinking: false,
               thinkingDuration,
               runId,

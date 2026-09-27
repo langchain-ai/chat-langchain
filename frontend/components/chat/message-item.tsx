@@ -647,24 +647,26 @@ export const MessageItem = memo(function MessageItem({
             <div className="flex gap-1 sm:gap-2 items-center flex-wrap">
               {!message.isThinking && (
                 <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onCopy(message.content, message.id)}
-                    className="h-8 px-2 text-xs"
-                  >
-                    {copiedId === message.id ? (
-                      <>
-                        <Check className="w-3 h-3 mr-1" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3 mr-1" />
-                        Copy
-                      </>
-                    )}
-                  </Button>
+                  {!message.isError && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onCopy(message.content, message.id)}
+                      className="h-8 px-2 text-xs"
+                    >
+                      {copiedId === message.id ? (
+                        <>
+                          <Check className="w-3 h-3 mr-1" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 mr-1" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  )}
 
                   {isLastAssistant && (
                     <Button
@@ -675,7 +677,7 @@ export const MessageItem = memo(function MessageItem({
                       className="h-8 px-2 text-xs"
                     >
                       <RefreshCw className={`w-3 h-3 mr-1 ${isRegenerating ? "animate-spin" : ""}`} />
-                      Regenerate
+                      {message.isError ? "Retry" : "Regenerate"}
                     </Button>
                   )}
                 </>
