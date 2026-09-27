@@ -36,6 +36,7 @@ import {
   updateMessageInList,
 } from "../../utils/chat"
 import { shareRun, readRun, type LangSmithAuth } from "../../api/langsmith"
+import { getAssistantCompletionContent } from "./stream-error"
 
 // ============================================================================
 // Constants
@@ -422,6 +423,7 @@ export function useStreamHandler({
       let assistantToolCalls: ToolCall[] = []
       let runId: string | undefined = undefined
       let hasSeenNewResponse = false
+      let streamError: unknown
 
       const agentType = "docs_agent"
 
@@ -473,7 +475,16 @@ export function useStreamHandler({
         assistantToolCalls = [...existingMessage.toolCalls]
       }
 
-      for await (const chunk of streamResponse) {
+      const safeStreamResponse = (async function* () {
+        try {
+          yield* streamResponse
+        } catch (error) {
+          streamError = error
+          console.error("Error consuming LangGraph stream:", error)
+        }
+      })()
+
+      for await (const chunk of safeStreamResponse) {
         // Check if user requested interrupt
         if (shouldInterruptRef?.current) {
           break
@@ -856,9 +867,11 @@ export function useStreamHandler({
         m.id === assistantMessageId
           ? {
               ...m,
-              content: wasInterrupted && !assistantContent
-                ? "Response stopped. The agent was interrupted while processing your request."
-                : assistantContent || "(No response generated)",
+              content: getAssistantCompletionContent(
+                assistantContent,
+                wasInterrupted,
+                streamError
+              ),
               isThinking: false,
               thinkingDuration,
               runId,
