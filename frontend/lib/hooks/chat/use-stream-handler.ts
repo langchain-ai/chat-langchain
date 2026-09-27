@@ -36,6 +36,7 @@ import {
   updateMessageInList,
 } from "../../utils/chat"
 import { shareRun, readRun, type LangSmithAuth } from "../../api/langsmith"
+import { persistStreamFailure, STREAM_FAILURE_MESSAGE } from "./stream-failure"
 
 // ============================================================================
 // Constants
@@ -473,7 +474,8 @@ export function useStreamHandler({
         assistantToolCalls = [...existingMessage.toolCalls]
       }
 
-      for await (const chunk of streamResponse) {
+      try {
+        for await (const chunk of streamResponse) {
         // Check if user requested interrupt
         if (shouldInterruptRef?.current) {
           break
@@ -842,7 +844,45 @@ export function useStreamHandler({
       }
     }
 
-    // Check if stream was interrupted
+      } catch (error) {
+        if (shouldInterruptRef?.current) {
+          throw error
+        }
+
+        try {
+          await persistStreamFailure(client, threadId, assistantMessageId)
+        } catch (persistError) {
+          console.error("Failed to persist stream failure:", persistError)
+        }
+
+        assistantContent = STREAM_FAILURE_MESSAGE
+        setMessages((prev) => {
+          const existing = prev.find((m) => m.id === assistantMessageId)
+          const thinkingDuration = existing?.thinkingStartTime
+            ? Date.now() - existing.thinkingStartTime
+            : undefined
+          const baseMessage: Message = {
+            id: assistantMessageId,
+            role: "assistant",
+            content: STREAM_FAILURE_MESSAGE,
+            timestamp: new Date(),
+            isThinking: false,
+            thinkingDuration,
+            runId,
+          }
+          const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
+          return updateMessageInList(withMessage, assistantMessageId, {
+            content: STREAM_FAILURE_MESSAGE,
+            isThinking: false,
+            thinkingDuration,
+            runId,
+          })
+        })
+
+        return { assistantContent, runId }
+      }
+
+      // Check if stream was interrupted
     const wasInterrupted = shouldInterruptRef?.current || false
 
     // Mark as complete after stream ends

@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
+from langchain_core.messages import AIMessage, RemoveMessage, ToolMessage
 from langgraph.runtime import Runtime
 
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
@@ -29,22 +30,72 @@ class IngressGuardsMiddleware(AgentMiddleware):
     def before_agent(
         self, state: AgentState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """Truncate the latest user message when it exceeds the size cap."""
+        """Prune failed turns and truncate the latest user message."""
         messages = state.get("messages", [])
+        update: list[Any] = self._failed_turn_removals(messages)
         for message in reversed(messages):
             if getattr(message, "type", None) == "human":
                 capped = self._truncate_content(message.content)
                 if capped is not message.content:
                     # Same id => the messages reducer overwrites in place.
                     message.content = capped
-                    return {"messages": [message]}
+                    update.append(message)
                 break
-        return None
+        return {"messages": update} if update else None
+
+    def _failed_turn_removals(self, messages: list[Any]) -> list[RemoveMessage]:
+        """Build reducer updates for incomplete turns before the current input."""
+        human_indexes = [
+            index
+            for index, message in enumerate(messages)
+            if getattr(message, "type", None) == "human"
+        ]
+        if len(human_indexes) < 2:
+            return []
+
+        removals: list[RemoveMessage] = []
+        for start, end in zip(human_indexes, human_indexes[1:]):
+            segment = messages[start + 1 : end]
+            if not segment or not all(
+                self._is_failed_turn_message(message) for message in segment
+            ):
+                continue
+            turn_messages = messages[start:end]
+            if any(getattr(message, "id", None) is None for message in turn_messages):
+                continue
+            removals.extend(RemoveMessage(id=message.id) for message in turn_messages)
+        return removals
+
+    def _is_failed_turn_message(self, message: Any) -> bool:
+        """Return whether a message belongs to a tool-only failed turn."""
+        if isinstance(message, ToolMessage):
+            return True
+        return (
+            isinstance(message, AIMessage)
+            and bool(message.tool_calls)
+            and not self._has_text(message.content)
+        )
+
+    def _has_text(self, content: Any) -> bool:
+        """Return whether content contains non-empty textual content."""
+        if isinstance(content, str):
+            return bool(content.strip())
+        if isinstance(content, list):
+            return any(self._has_text(item) for item in content)
+        if isinstance(content, dict):
+            return isinstance(content.get("text"), str) and bool(
+                content["text"].strip()
+            )
+        return False
 
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
         if isinstance(content, str):
-            return content[:MAX_MESSAGE_CHARS] if len(content) > MAX_MESSAGE_CHARS else content
+            return (
+                content[:MAX_MESSAGE_CHARS]
+                if len(content) > MAX_MESSAGE_CHARS
+                else content
+            )
 
         if not isinstance(content, list):
             return content

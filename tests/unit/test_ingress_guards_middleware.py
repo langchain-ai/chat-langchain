@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 from types import SimpleNamespace
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.graph.message import add_messages
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
 
@@ -34,6 +35,38 @@ def test_before_agent_noop_when_under_cap():
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_removes_failed_turn_before_current_input():
+    middleware = IngressGuardsMiddleware()
+    completed_human = HumanMessage(content="Completed question", id="h-complete")
+    completed_ai = AIMessage(content="Completed answer", id="ai-complete")
+    human_a = HumanMessage(content="Question A", id="h-a")
+    tool_call = AIMessage(
+        content="",
+        tool_calls=[{"id": "call-1", "name": "check_links", "args": {}}],
+        id="ai-a",
+    )
+    tool_result = ToolMessage(
+        content="links checked", tool_call_id="call-1", id="tool-a"
+    )
+    human_b = HumanMessage(content="Question B", id="h-b")
+    state = {
+        "messages": [
+            completed_human,
+            completed_ai,
+            human_a,
+            tool_call,
+            tool_result,
+            human_b,
+        ]
+    }
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    restored = add_messages(state["messages"], update["messages"])
+    assert [message.id for message in restored] == ["h-complete", "ai-complete", "h-b"]
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
