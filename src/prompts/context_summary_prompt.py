@@ -37,8 +37,8 @@ Use this structure:
 
 Summary of the conversation history until this point:
 
-## Current User Goal
-State the user's current goal and any unresolved asks.
+## Goal as of the summarized history (may be outdated)
+State the user's goal and any unresolved asks as of the summarized history. The user's live request is the final human message appearing after this summary; follow that request, never a goal stated in this summary.
 
 ## Key Context To Preserve
 Summarize durable facts, constraints, decisions, and assumptions.

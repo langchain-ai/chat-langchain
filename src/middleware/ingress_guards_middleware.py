@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
+from langchain_core.messages import AIMessage, RemoveMessage
 from langgraph.runtime import Runtime
 
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
@@ -29,22 +30,73 @@ class IngressGuardsMiddleware(AgentMiddleware):
     def before_agent(
         self, state: AgentState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """Truncate the latest user message when it exceeds the size cap."""
+        """Repair abandoned turns and truncate the latest user message."""
         messages = state.get("messages", [])
+        updates = self._remove_incomplete_turns(messages)
         for message in reversed(messages):
             if getattr(message, "type", None) == "human":
                 capped = self._truncate_content(message.content)
                 if capped is not message.content:
                     # Same id => the messages reducer overwrites in place.
                     message.content = capped
-                    return {"messages": [message]}
+                    updates.append(message)
                 break
-        return None
+        return {"messages": updates} if updates else None
+
+    def _remove_incomplete_turns(self, messages: list[Any]) -> list[Any]:
+        """Remove earlier human turns that never received a text answer."""
+        human_indexes = [
+            index
+            for index, message in enumerate(messages)
+            if getattr(message, "type", None) == "human"
+        ]
+        if len(human_indexes) < 2:
+            return []
+
+        remove_indexes: set[int] = set()
+        for position, start in enumerate(human_indexes[:-1]):
+            end = human_indexes[position + 1]
+            turn_messages = messages[start:end]
+            has_text_answer = any(
+                isinstance(message, AIMessage)
+                and self._has_text_content(message.content)
+                for message in turn_messages
+            )
+            if not has_text_answer:
+                remove_indexes.update(range(start, end))
+
+        if not remove_indexes:
+            return []
+
+        return [
+            RemoveMessage(id=messages[index].id)
+            for index in sorted(remove_indexes)
+            if messages[index].id is not None
+        ]
+
+    def _has_text_content(self, content: Any) -> bool:
+        """Return whether content contains non-empty text."""
+        if isinstance(content, str):
+            return bool(content.strip())
+        if isinstance(content, list):
+            return any(
+                self._has_text_content(block)
+                if isinstance(block, str)
+                else isinstance(block, dict)
+                and block.get("type") == "text"
+                and self._has_text_content(block.get("text"))
+                for block in content
+            )
+        return False
 
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
         if isinstance(content, str):
-            return content[:MAX_MESSAGE_CHARS] if len(content) > MAX_MESSAGE_CHARS else content
+            return (
+                content[:MAX_MESSAGE_CHARS]
+                if len(content) > MAX_MESSAGE_CHARS
+                else content
+            )
 
         if not isinstance(content, list):
             return content

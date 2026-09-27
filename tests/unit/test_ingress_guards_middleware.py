@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 from types import SimpleNamespace
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.graph.message import add_messages
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
 
@@ -34,6 +35,39 @@ def test_before_agent_noop_when_under_cap():
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_removes_abandoned_turn_and_preserves_tool_pairing():
+    middleware = IngressGuardsMiddleware()
+    state = {
+        "messages": [
+            HumanMessage(content="old question", id="human-old"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "check_links",
+                        "args": {"urls": ["https://example.com"]},
+                        "id": "call-1",
+                        "type": "tool_call",
+                    }
+                ],
+                id="ai-tool",
+            ),
+            ToolMessage(
+                content="Link Check Results: 1/1 valid",
+                tool_call_id="call-1",
+                id="tool-result",
+            ),
+            HumanMessage(content="live question", id="human-live"),
+        ]
+    }
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+    processed_messages = add_messages(state["messages"], update["messages"])
+
+    assert [message.id for message in processed_messages] == ["human-live"]
+    assert processed_messages[-1].content == "live question"
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):

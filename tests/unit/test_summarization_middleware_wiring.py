@@ -33,3 +33,15 @@ def test_summarization_middleware_uses_retrying_fallback_model():
         getattr(fallback, "max_attempt_number") == config.MAX_RETRIES + 1
         for fallback in summary_fallbacks
     )
+
+
+def test_summary_prompt_marks_goal_as_historical():
+    assert "## Current User Goal" not in context_summary_prompt
+    assert (
+        "## Goal as of the summarized history (may be outdated)"
+        in context_summary_prompt
+    )
+    assert (
+        "The user's live request is the final human message appearing after this summary"
+        in context_summary_prompt
+    )
