@@ -36,6 +36,10 @@ import {
   updateMessageInList,
 } from "../../utils/chat"
 import { shareRun, readRun, type LangSmithAuth } from "../../api/langsmith"
+import {
+  appendRunFailureMessage,
+  RUN_FAILURE_MESSAGE,
+} from "./run-failure"
 
 // ============================================================================
 // Constants
@@ -473,7 +477,9 @@ export function useStreamHandler({
         assistantToolCalls = [...existingMessage.toolCalls]
       }
 
-      for await (const chunk of streamResponse) {
+      let streamError: unknown
+      try {
+        for await (const chunk of streamResponse) {
         // Check if user requested interrupt
         if (shouldInterruptRef?.current) {
           break
@@ -839,11 +845,17 @@ export function useStreamHandler({
             })
           })
         }
+        }
+        }
+      } catch (error) {
+        streamError = error
+        console.error("LangGraph stream failed:", error)
       }
-    }
 
-    // Check if stream was interrupted
-    const wasInterrupted = shouldInterruptRef?.current || false
+      // Check if stream was interrupted
+      const wasInterrupted = shouldInterruptRef?.current || false
+      const runFailed = !wasInterrupted && (!!streamError || !assistantContent)
+      const finalContent = runFailed ? RUN_FAILURE_MESSAGE : assistantContent
 
     // Mark as complete after stream ends
     setMessages((prev) => {
@@ -858,7 +870,7 @@ export function useStreamHandler({
               ...m,
               content: wasInterrupted && !assistantContent
                 ? "Response stopped. The agent was interrupted while processing your request."
-                : assistantContent || "(No response generated)",
+                : finalContent,
               isThinking: false,
               thinkingDuration,
               runId,
@@ -868,6 +880,22 @@ export function useStreamHandler({
           : m
       )
     })
+
+    if (runFailed) {
+      let stateUpdateError: unknown
+      try {
+        await appendRunFailureMessage(client, threadId, assistantMessageId, RUN_FAILURE_MESSAGE)
+      } catch (error) {
+        stateUpdateError = error
+        console.error("Failed to persist LangGraph run failure:", error)
+      }
+
+      if (streamError && stateUpdateError) {
+        throw streamError
+      }
+
+      return { assistantContent: finalContent, runId }
+    }
 
     // Fetch usage metadata and generate public share link if we have a runId
     if (runId) {
