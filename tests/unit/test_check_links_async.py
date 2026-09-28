@@ -8,23 +8,22 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
+
+from src.tools import link_check_tools
+from src.tools.link_check_tools import (
+    LinkCheckResult,
+    _check_single_url,
+    check_links,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
-from src.tools.link_check_tools import (
-    LinkCheckResult,
-    _check_single_url,
-    _check_urls_async,
-    _format_results,
-    check_links,
-)
 
 
 class _FakeStreamResponse:
@@ -54,6 +53,21 @@ class _FakeStreamingClient:
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
         return _FakeStreamResponse(url, self.status_code, self.content)
+
+
+class _FakeHeadClient:
+    """Minimal client for testing cached HEAD responses."""
+
+    def __init__(self, outcomes):
+        self.outcomes = iter(outcomes)
+        self.calls = 0
+
+    async def head(self, url: str, **kwargs):  # noqa: ARG002
+        self.calls += 1
+        outcome = next(self.outcomes)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return MagicMock(url=url, status_code=outcome)
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +270,50 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_timeout_is_rechecked_and_can_recover():
+    """A timeout must not permanently cache an invalid result."""
+    link_check_tools._cache.clear()
+    client = _FakeHeadClient([httpx.TimeoutException("timed out"), 200])
+
+    first_result = await _check_single_url(client, "https://example.com/retry", timeout=1.0)
+    second_result = await _check_single_url(client, "https://example.com/retry", timeout=1.0)
+
+    assert not first_result.valid
+    assert second_result.valid
+    assert client.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_cached_success_expires(monkeypatch):
+    """A cached success must be refreshed after its TTL."""
+    link_check_tools._cache.clear()
+    current_time = [100.0]
+    monkeypatch.setattr(link_check_tools.time, "monotonic", lambda: current_time[0])
+    client = _FakeHeadClient([200, 200])
+    url = "https://example.com/expiring"
+
+    await _check_single_url(client, url, timeout=1.0)
+    current_time[0] += link_check_tools.CACHE_TTL_SECONDS + 1
+    await _check_single_url(client, url, timeout=1.0)
+
+    assert client.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_cache_evicts_oldest_entry(monkeypatch):
+    """The cache must remain bounded by evicting its oldest result."""
+    link_check_tools._cache.clear()
+    monkeypatch.setattr(link_check_tools, "CACHE_MAX_ENTRIES", 2)
+    current_time = [100.0]
+    monkeypatch.setattr(link_check_tools.time, "monotonic", lambda: current_time[0])
+    client = _FakeHeadClient([200, 200, 200])
+
+    for index in range(3):
+        await _check_single_url(client, f"https://example.com/{index}", timeout=1.0)
+        current_time[0] += 1
+
+    assert len(link_check_tools._cache) == 2
+    assert "https://example.com/0" not in link_check_tools._cache
