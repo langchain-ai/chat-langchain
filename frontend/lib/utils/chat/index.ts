@@ -22,3 +22,4 @@ export {
   validateImageFile,
 } from "./validation"
 
+export { decodeBase64Text } from "./decode-base64-text"
