@@ -9,6 +9,7 @@ fast, deterministic, and require no real network access or LangSmith credentials
 """
 
 import asyncio
+import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -54,6 +55,24 @@ class _FakeStreamingClient:
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
         return _FakeStreamResponse(url, self.status_code, self.content)
+
+
+class _FakeHeadResponse:
+    """Minimal response for non-streaming link checks."""
+
+    def __init__(self, url: str, status_code: int, headers: dict[str, str] | None = None):
+        self.url = url
+        self.status_code = status_code
+        self.headers = headers or {}
+
+
+class _FakeHeadClient:
+    """Minimal client with a scripted sequence of HEAD responses."""
+
+    def __init__(self, responses: list[_FakeHeadResponse]):
+        self.responses = iter(responses)
+        self.head = AsyncMock(side_effect=lambda *args, **kwargs: next(self.responses))
+        self.get = AsyncMock()
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +275,61 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_allowlisted_docs_url_is_checked():
+    """Allowlisted documentation hosts still reach the HTTP client."""
+    client = _FakeStreamingClient("Useful documentation")
+    with patch(
+        "src.tools.link_check_tools.socket.getaddrinfo",
+        return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
+    ):
+        result = await _check_single_url(client, "https://docs.langchain.com/", timeout=1.0)
+
+    assert result.valid
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1/callback",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://localhost:8080/",
+    ],
+)
+async def test_private_hosts_are_rejected_without_network_call(url):
+    """Private and loopback targets are rejected before any HTTP request."""
+    client = MagicMock()
+    client.head = AsyncMock()
+    client.get = AsyncMock()
+    client.stream = MagicMock()
+    result = await _check_single_url(client, url, timeout=1.0)
+
+    assert not result.valid
+    assert result.error == "Host outside the documentation corpus"
+    client.head.assert_not_awaited()
+    client.get.assert_not_awaited()
+    client.stream.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_redirect_to_private_host_is_rejected():
+    """Redirects are checked before following their target URL."""
+    client = _FakeHeadClient([
+        _FakeHeadResponse(
+            "https://www.langchain.com/",
+            302,
+            {"Location": "http://127.0.0.1/"},
+        ),
+    ])
+    with patch(
+        "src.tools.link_check_tools.socket.getaddrinfo",
+        return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
+    ):
+        result = await _check_single_url(client, "https://www.langchain.com/", timeout=1.0)
+
+    assert not result.valid
+    assert result.error == "Host outside the documentation corpus"
+    client.head.assert_awaited_once()
