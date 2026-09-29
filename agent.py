@@ -1,5 +1,10 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+from deepagents import (
+    GeneralPurposeSubagentProfile,
+    HarnessProfile,
+    register_harness_profile,
+)
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -57,6 +62,25 @@ docs_agent_middleware = [
     model_retry_middleware,
     model_fallback_middleware,
 ]
+
+register_harness_profile(
+    "google_genai:gemini-3.5-flash-lite",
+    HarnessProfile(
+        excluded_tools=frozenset(
+            {
+                "ls",
+                "read_file",
+                "write_file",
+                "edit_file",
+                "delete",
+                "glob",
+                "grep",
+                "execute",
+            }
+        ),
+        general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
+    ),
+)
 
 agent = define_deep_agent(
     name="docs_agent",
