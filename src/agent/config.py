@@ -5,10 +5,14 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
+from langchain.agents.middleware import (
+    ModelCallLimitMiddleware,
+    ModelFallbackMiddleware,
+)
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
+from src.middleware.execution_limits_middleware import ExecutionTimeoutMiddleware
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -19,6 +23,15 @@ from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_RECURSION_LIMIT = 100
+DEFAULT_RUN_TIMEOUT_SECONDS = float(os.getenv("AGENT_RUN_TIMEOUT_SECONDS", "300"))
+
+server_recursion_limit_middleware = ModelCallLimitMiddleware(
+    run_limit=DEFAULT_RECURSION_LIMIT,
+    exit_behavior="end",
+)
+server_timeout_middleware = ExecutionTimeoutMiddleware(DEFAULT_RUN_TIMEOUT_SECONDS)
 
 # =============================================================================
 # Model Registry

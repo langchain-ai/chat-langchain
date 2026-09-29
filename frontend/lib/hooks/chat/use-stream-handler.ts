@@ -442,6 +442,7 @@ export function useStreamHandler({
       const streamResponse = client.runs.stream(threadId, agentType, {
         input,
         config: {
+          // Client override only; the server enforces the execution ceiling.
           recursion_limit: recursionLimit,
           tags: ["Chat-LangChain", agentType],
           metadata: traceMetadata,
