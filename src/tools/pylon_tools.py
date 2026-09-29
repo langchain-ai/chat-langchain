@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -135,6 +136,9 @@ def search_support_articles(collections: str = "all") -> str:
 
     Args:
         collections: Comma-separated list of collection names to filter by.
+                    Names are matched case-insensitively and with punctuation,
+                    whitespace, and word-order normalization. Unrecognized
+                    names are skipped and reported.
                     Available collections:
                     - "General" - General administration and management topics
                     - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
@@ -216,6 +220,11 @@ def search_support_articles(collections: str = "all") -> str:
 
             # Get collection IDs for requested collections
             collection_ids = []
+            unresolved = []
+            normalized_collection_names = {
+                key: sorted(re.findall(r"[^\W_]+", key.lower()))
+                for key in collection_map
+            }
             for coll_name in requested_collections:
                 if coll_name in collection_map:
                     collection_ids.append(collection_map[coll_name])
@@ -228,12 +237,25 @@ def search_support_articles(collections: str = "all") -> str:
                             matched = True
                             break
                     if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
+                        normalized_name = sorted(
+                            re.findall(r"[^\W_]+", coll_name.lower())
                         )
+                        for key, words in normalized_collection_names.items():
+                            if words == normalized_name:
+                                collection_ids.append(collection_map[key])
+                                matched = True
+                                break
+                    if not matched:
+                        unresolved.append(coll_name)
+
+            if not collection_ids:
+                unresolved_names = ", ".join(unresolved)
+                return json.dumps(
+                    {
+                        "error": f"Collection(s) '{unresolved_names}' not found. Available collections: {', '.join(collection_map.keys())}"
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -243,6 +265,13 @@ def search_support_articles(collections: str = "all") -> str:
             ]
 
             published_articles = filtered_articles
+
+            collection_filter_metadata = {
+                "unrecognized_collections": unresolved,
+                "available_collections": list(collection_map.keys()),
+            }
+        else:
+            collection_filter_metadata = {}
 
         # Update collection names based on collection_id (for all articles)
         collection_id_to_name = {v: k for k, v in collection_map.items()}
@@ -257,6 +286,7 @@ def search_support_articles(collections: str = "all") -> str:
                     "total": 0,
                     "articles": [],
                     "note": "No articles found",
+                    **collection_filter_metadata,
                 },
                 indent=2,
             )
@@ -271,6 +301,7 @@ def search_support_articles(collections: str = "all") -> str:
             "total": len(published_articles),
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            **collection_filter_metadata,
         }
 
         return json.dumps(result, indent=2)
