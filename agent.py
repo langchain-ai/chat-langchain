@@ -1,5 +1,6 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+from deepagents.middleware.filesystem import FilesystemMiddleware
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -29,6 +30,7 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
+    FilesystemMiddleware(tools=["read_file"]),
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
