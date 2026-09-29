@@ -62,6 +62,8 @@ cp .env.example .env
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
 
+Prompt changes in `instructions.md` or `src/prompts/docs_agent_prompt.py` alone do not update the production prompt. Push the updated prompt to Prompt Hub after changing these files.
+
 ### Running Locally
 
 #### Backend

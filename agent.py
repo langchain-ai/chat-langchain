@@ -52,6 +52,7 @@ docs_agent_middleware = [
 
 agent = define_deep_agent(
     name="docs_agent",
+    # Production uses the Hub-published prompt, so local prompt changes require a Hub re-push.
     # Keep this literal so `mda deploy` can infer the provider package and
     # preflight GOOGLE_API_KEY.
     model="google_genai:gemini-3.5-flash-lite",
