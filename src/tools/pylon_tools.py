@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -122,6 +123,17 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     return _articles_cache
 
 
+def _normalize_collection_key(name: str) -> str:
+    """Normalize collection names for loose matching."""
+    normalized = " ".join(name.strip().lower().split())
+
+    def normalize_parenthesized(match: re.Match[str]) -> str:
+        tokens = re.split(r"\s+and\s+|\s+", match.group(1).strip())
+        return "(" + " ".join(sorted(token for token in tokens if token)) + ")"
+
+    return re.sub(r"\(([^()]*)\)", normalize_parenthesized, normalized)
+
+
 # =============================================================================
 # LangChain Tools
 # =============================================================================
@@ -147,7 +159,7 @@ def search_support_articles(collections: str = "all") -> str:
                     - "Troubleshooting" - Broad domain issue triage and resolution
                     - "Security" - Code scans, key management, and security topics
 
-                    Use "all" to search all collections (default)
+                    Use "all" to search all collections (default). Collection names are matched loosely; unrecognized names are skipped when other names resolve.
                     Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
 
     Returns:
@@ -210,30 +222,42 @@ def search_support_articles(collections: str = "all") -> str:
             )
 
         # Filter by collection ID if specified
+        unrecognized = []
         if collections.lower() != "all":
-            # Parse requested collection names
             requested_collections = [c.strip() for c in collections.split(",")]
+            normalized_collection_map = {
+                _normalize_collection_key(key): value
+                for key, value in collection_map.items()
+            }
 
-            # Get collection IDs for requested collections
             collection_ids = []
             for coll_name in requested_collections:
                 if coll_name in collection_map:
                     collection_ids.append(collection_map[coll_name])
+                    continue
+
+                matched_key = next(
+                    (key for key in collection_map if key.lower() == coll_name.lower()),
+                    None,
+                )
+                if matched_key is not None:
+                    collection_ids.append(collection_map[matched_key])
+                    continue
+
+                normalized_key = _normalize_collection_key(coll_name)
+                if normalized_key in normalized_collection_map:
+                    collection_ids.append(normalized_collection_map[normalized_key])
                 else:
-                    # Try case-insensitive match
-                    matched = False
-                    for key in collection_map.keys():
-                        if key.lower() == coll_name.lower():
-                            collection_ids.append(collection_map[key])
-                            matched = True
-                            break
-                    if not matched:
-                        return json.dumps(
-                            {
-                                "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
-                            },
-                            indent=2,
-                        )
+                    unrecognized.append(coll_name)
+
+            if not collection_ids:
+                coll_name = unrecognized[0] if unrecognized else collections
+                return json.dumps(
+                    {
+                        "error": f"Collection '{coll_name}' not found. Available collections: {', '.join(collection_map.keys())}"
+                    },
+                    indent=2,
+                )
 
             # Filter articles by collection_id
             filtered_articles = [
@@ -251,15 +275,16 @@ def search_support_articles(collections: str = "all") -> str:
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
 
         if not published_articles:
-            return json.dumps(
-                {
-                    "collections": collections,
-                    "total": 0,
-                    "articles": [],
-                    "note": "No articles found",
-                },
-                indent=2,
-            )
+            result = {
+                "collections": collections,
+                "total": 0,
+                "articles": [],
+                "note": "No articles found",
+            }
+            if unrecognized:
+                result["unrecognized_collections"] = unrecognized
+                result["available_collections"] = sorted(collection_map.keys())
+            return json.dumps(result, indent=2)
 
         # Clean up collection_id from output (internal field)
         for article in published_articles:
@@ -272,6 +297,9 @@ def search_support_articles(collections: str = "all") -> str:
             "articles": published_articles,
             "note": "All articles listed are public and have content. Use IDs to fetch full content.",
         }
+        if unrecognized:
+            result["unrecognized_collections"] = unrecognized
+            result["available_collections"] = sorted(collection_map.keys())
 
         return json.dumps(result, indent=2)
 
