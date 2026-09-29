@@ -1,5 +1,10 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+from deepagents import (
+    GeneralPurposeSubagentProfile,
+    HarnessProfile,
+    register_harness_profile,
+)
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -27,6 +32,16 @@ docs_agent_tools = [
     fetch_langchain_pricing,
     check_links,
 ]
+
+register_harness_profile(
+    "google_genai:gemini-3.5-flash-lite",
+    HarnessProfile(
+        excluded_tools=frozenset(
+            {"ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"}
+        ),
+        general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
+    ),
+)
 
 docs_agent_middleware = [
     # Cap oversized user input (was auth.py). Trace metadata is applied via
