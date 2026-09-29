@@ -132,6 +132,9 @@ The agent uses a docs-first research strategy:
 mda deploy .
 ```
 
+When changing the managed docs prompt, run `python scripts/push_docs_agent_prompt.py`
+to update the configured LangSmith Prompt Hub prompt before deploying.
+
 What MDA owns in this deployment:
 
 - **Identity** — `identity.py` verifies Supabase access tokens (multi-region) and

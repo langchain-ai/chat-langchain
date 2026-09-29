@@ -1,5 +1,6 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+from langchain.agents.middleware.types import AgentMiddleware
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -19,6 +20,16 @@ from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_support_article_content, search_support_articles
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
+
+class _DisabledDefaultMiddleware(AgentMiddleware):
+    def __init__(self, middleware_name: str) -> None:
+        super().__init__()
+        self._middleware_name = middleware_name
+
+    @property
+    def name(self) -> str:
+        return self._middleware_name
+
 # The MCP docs tools are declared in connectors/mcp.py so the managed runtime
 # owns client lifecycle and appends those tools during compilation.
 docs_agent_tools = [
@@ -29,6 +40,8 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
+    _DisabledDefaultMiddleware("FilesystemMiddleware"),
+    _DisabledDefaultMiddleware("SubAgentMiddleware"),
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
