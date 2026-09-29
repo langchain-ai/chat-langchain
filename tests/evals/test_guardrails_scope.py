@@ -238,3 +238,18 @@ def test_agent_prompt_has_nsfw_refusal():
         f"terms. Found refusal terms: {found_refusal}. The prompt should "
         "instruct the agent to refuse, not just mention NSFW content."
     )
+
+
+def test_agent_prompt_has_capability_honesty_rules():
+    """Main agent prompt must disclose unsupported actions instead of claiming success."""
+    required_phrases = [
+        "You CANNOT run shell commands, execute code, or inspect the runtime",
+        "You CANNOT save, export, or produce files the user can download or retrieve",
+        "When a request contains both an action part and an informational part",
+        "open the response by saying which part could not be done",
+    ]
+    missing = [phrase for phrase in required_phrases if phrase.lower() not in AGENT_PROMPT_LOWER]
+    assert not missing, (
+        "The docs agent prompt must contain capability-honesty rules for unsupported "
+        f"actions. Missing: {missing}"
+    )
