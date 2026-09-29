@@ -8,8 +8,7 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,12 +16,11 @@ import pytest
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
+    HOST_NOT_PERMITTED,
     LinkCheckResult,
+    _cache,
     _check_single_url,
-    _check_urls_async,
-    _format_results,
     check_links,
 )
 
@@ -30,10 +28,11 @@ from src.tools.link_check_tools import (
 class _FakeStreamResponse:
     """Minimal async streaming response for _check_single_url tests."""
 
-    def __init__(self, url: str, status_code: int, content: str):
+    def __init__(self, url: str, status_code: int, content: str, headers=None):
         self.url = url
         self.status_code = status_code
         self._content = content
+        self.headers = headers or {}
 
     async def __aenter__(self):
         return self
@@ -48,12 +47,21 @@ class _FakeStreamResponse:
 class _FakeStreamingClient:
     """Minimal client that exercises the soft-404 streaming path."""
 
-    def __init__(self, content: str, status_code: int = 200):
+    def __init__(self, content: str, status_code: int = 200, headers=None):
         self.content = content
         self.status_code = status_code
+        self.headers = headers or {}
 
     def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
-        return _FakeStreamResponse(url, self.status_code, self.content)
+        return _FakeStreamResponse(url, self.status_code, self.content, self.headers)
+
+
+@pytest.fixture(autouse=True)
+def clear_link_cache():
+    """Keep URL validation tests independent from the process cache."""
+    _cache.clear()
+    yield
+    _cache.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -215,9 +223,9 @@ def test_check_links_invalid_url_format():
 
 @pytest.mark.asyncio
 async def test_check_links_async_invalid_url_format():
-    """Invalid URL in async context should also be reported correctly."""
+    """Non-HTTPS URLs should use the host refusal message."""
     fake_results = [
-        LinkCheckResult(url="ftp://not-supported", valid=False, error="Invalid URL format"),
+        LinkCheckResult(url="ftp://not-supported", valid=False, error=HOST_NOT_PERMITTED),
     ]
 
     with patch(
@@ -227,17 +235,21 @@ async def test_check_links_async_invalid_url_format():
         result = await check_links.acall({"urls": ["ftp://not-supported"]})
 
     assert "0/1 valid" in result
-    assert "Invalid URL format" in result
+    assert HOST_NOT_PERMITTED in result
 
 
 @pytest.mark.asyncio
 async def test_support_article_not_found_is_invalid_soft_404():
     """Support articles can return HTTP 200 while rendering an article-not-found page."""
-    result = await _check_single_url(
-        _FakeStreamingClient("<html><body><div>Article Not Found</div></body></html>"),
-        "https://support.langchain.com/hc/en-us/articles/missing-article",
-        timeout=1.0,
-    )
+    with patch(
+        "src.tools.link_check_tools.socket.getaddrinfo",
+        return_value=[(2, 1, 6, "", ("93.184.216.34", 443))],
+    ):
+        result = await _check_single_url(
+            _FakeStreamingClient("<html><body><div>Article Not Found</div></body></html>"),
+            "https://support.langchain.com/hc/en-us/articles/missing-article",
+            timeout=1.0,
+        )
 
     assert not result.valid
     assert result.status_code == 200
@@ -247,12 +259,109 @@ async def test_support_article_not_found_is_invalid_soft_404():
 @pytest.mark.asyncio
 async def test_support_article_normal_content_is_valid():
     """Normal support article content should still be treated as valid."""
+    with patch(
+        "src.tools.link_check_tools.socket.getaddrinfo",
+        return_value=[(2, 1, 6, "", ("93.184.216.34", 443))],
+    ):
+        result = await _check_single_url(
+            _FakeStreamingClient("<html><body><div>Useful support article</div></body></html>"),
+            "https://support.langchain.com/hc/en-us/articles/existing-article",
+            timeout=1.0,
+        )
+
+    assert result.valid
+    assert result.status_code == 200
+    assert result.error is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1/callback",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://localhost:8080/",
+        "https://192.168.1.10/internal",
+        "https://example.com/",
+    ],
+)
+async def test_check_single_url_rejects_untrusted_hosts_without_request(url):
+    """Untrusted URLs are rejected before the HTTP client is called."""
+    client = MagicMock()
+
+    result = await _check_single_url(client, url, timeout=1.0)
+
+    assert not result.valid
+    assert result.error == HOST_NOT_PERMITTED
+    client.stream.assert_not_called()
+    client.head.assert_not_called()
+    client.get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_check_single_url_rejects_allowed_hostname_resolving_private(
+    monkeypatch,
+):
+    """Allowed hostnames are rejected when DNS resolves to a private address."""
+    monkeypatch.setattr(
+        "src.tools.link_check_tools.socket.getaddrinfo",
+        lambda *args, **kwargs: [(2, 1, 6, "", ("127.0.0.1", 443))],
+    )
+    client = MagicMock()
+
     result = await _check_single_url(
-        _FakeStreamingClient("<html><body><div>Useful support article</div></body></html>"),
-        "https://support.langchain.com/hc/en-us/articles/existing-article",
+        client,
+        "https://docs.langchain.com/oss/python/langgraph/overview",
+        timeout=1.0,
+    )
+
+    assert not result.valid
+    assert result.error == HOST_NOT_PERMITTED
+    client.stream.assert_not_called()
+    client.head.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_check_single_url_rejects_private_redirect_without_following(
+    monkeypatch,
+):
+    """Redirect targets are validated without making a second request."""
+    monkeypatch.setattr(
+        "src.tools.link_check_tools.socket.getaddrinfo",
+        lambda *args, **kwargs: [(2, 1, 6, "", ("93.184.216.34", 443))],
+    )
+    client = _FakeStreamingClient(
+        "",
+        status_code=302,
+        headers={"location": "http://127.0.0.1/callback"},
+    )
+
+    result = await _check_single_url(
+        client,
+        "https://docs.langchain.com/redirect",
+        timeout=1.0,
+    )
+
+    assert not result.valid
+    assert result.error == HOST_NOT_PERMITTED
+
+
+@pytest.mark.asyncio
+async def test_check_single_url_checks_allowlisted_docs_url(
+    monkeypatch,
+):
+    """Allowlisted HTTPS documentation URLs still use the normal checker."""
+    monkeypatch.setattr(
+        "src.tools.link_check_tools.socket.getaddrinfo",
+        lambda *args, **kwargs: [(2, 1, 6, "", ("93.184.216.34", 443))],
+    )
+    client = _FakeStreamingClient("<html><title>LangGraph overview</title></html>")
+
+    result = await _check_single_url(
+        client,
+        "https://docs.langchain.com/oss/python/langgraph/overview",
         timeout=1.0,
     )
 
     assert result.valid
     assert result.status_code == 200
-    assert result.error is None
