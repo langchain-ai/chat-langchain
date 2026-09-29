@@ -1,5 +1,6 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+from langchain.agents.middleware import AgentMiddleware
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -28,7 +29,25 @@ docs_agent_tools = [
     check_links,
 ]
 
+
+class DisabledBuiltInMiddleware(AgentMiddleware):
+    """Replace a built-in middleware with no tools."""
+
+    tools = ()
+
+    def __init__(self, middleware_name: str):
+        """Set the built-in middleware name to replace."""
+        self.middleware_name = middleware_name
+
+    @property
+    def name(self) -> str:
+        """Return the built-in middleware name being replaced."""
+        return self.middleware_name
+
+
 docs_agent_middleware = [
+    DisabledBuiltInMiddleware("FilesystemMiddleware"),
+    DisabledBuiltInMiddleware("SubAgentMiddleware"),
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
@@ -56,6 +75,7 @@ agent = define_deep_agent(
     # preflight GOOGLE_API_KEY.
     model="google_genai:gemini-3.5-flash-lite",
     tools=docs_agent_tools,
+    subagents=[],
     middleware=docs_agent_middleware,
     # The current public app does not have cross-thread user memory. Keep MDA
     # managed memory off until identity scoping is ready.
