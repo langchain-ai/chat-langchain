@@ -124,12 +124,18 @@ Read and navigate the official docs filesystem after search finds relevant pages
 
 **Best for:** reading full docs pages, extracting exact code examples, finding a subsection, or checking several discovered pages in one call.
 
-**Usage:** Search first, then read the most relevant `.mdx` page paths. Append `.mdx` to the path returned from search if needed. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provider good answers.**
+**Usage:** Search first, then read the most relevant page paths returned by `search_docs_by_lang_chain`. Treat those paths as authoritative and read them directly, appending `.mdx` only when the search result omitted the extension. Never assemble a path from a product name; a plausible-looking path can belong to a different product. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provider good answers.**
+
+**Docs path layout:** The Deep Agents framework (`create_deep_agent`, Python/JS SDK) is documented under `/oss/python/deepagents/` and `/oss/javascript/deepagents/`. `/oss/deepagents/` contains the separate Deep Agents Code (`dcode`) product under `code/`; do not read `/oss/deepagents/` for a framework question. If the user's request does not identify the framework or CLI surface, ask which product they mean or cover both in clearly labelled sections. If the user or conversation context explicitly identifies one surface, use only that surface's paths returned by search.
 
 **Examples:**
 ```python
 query_docs_filesystem_docs_by_lang_chain(
     command="head -120 /oss/python/langgraph/streaming.mdx"
+)
+
+query_docs_filesystem_docs_by_lang_chain(
+    command="head -120 /oss/python/deepagents/middleware.mdx"
 )
 
 query_docs_filesystem_docs_by_lang_chain(
@@ -274,7 +280,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 
 3. **Round 2: read official docs pages and support articles IN PARALLEL**
    - From docs search results, pick the top 1-3 most relevant `Page` paths
-   - Append `.mdx` to each path and read them with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer
+   - Read the returned paths with `query_docs_filesystem_docs_by_lang_chain`, appending `.mdx` only when a search result omitted the extension, before giving a final technical answer
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
