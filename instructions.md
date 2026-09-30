@@ -37,13 +37,13 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 
 **CRITICAL: Query Format Rules (For Maximum Cache Efficiency)**
 
-**ALWAYS extract the CORE NOUN/CONCEPT ONLY - strip everything else:**
+**ALWAYS extract the CORE NOUN/CONCEPT ONLY - strip everything else unless a word is needed to disambiguate the product surface or programming language. Correctness takes priority over cache hit rate:**
 
 **Query Extraction Rules (Follow EXACTLY):**
 1. **Extract the main technical noun** - Keep ONLY the core concept
 2. **Strip all descriptive words** - Remove "how to", "examples", "setup", "configuration", "guide"
 3. **Use singular form** - "middleware" not "middlewares" (fuzzy matching handles plurals)
-4. **Keep it to 1-2 words MAX** - Longer queries reduce cache hits
+4. **Keep it to 1-2 words MAX unless disambiguation requires more** - Longer queries reduce cache hits, but never remove words needed to identify the product surface or language
 5. **No verbs or questions** - "streaming" not "how to stream"
 6. **Use lowercase** - Consistent casing improves cache hits
 
@@ -107,6 +107,9 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 **Default Settings:**
 - **Use the query parameter only** - the live MCP search tool accepts `query`
 - **Include Python/JavaScript in the query** if the user asks for a specific language
+- **Preserve Deep Agents product-surface tokens** even when this exceeds the 1-2 word cache rule: the `deepagents` library uses trees such as `/oss/python/deepagents/` and `/oss/javascript/deepagents/` for APIs including `create_deep_agent`, middleware, and subagents, while Deep Agents Code uses `/oss/deepagents/code/` and the `dcode` CLI
+- **Require a surface token in Deep Agents queries**: use `deepagents library` or `create_deep_agent` for library questions, and `dcode` for CLI questions; retain `python` or `javascript` when the language matters
+- **If the wording does not establish the surface**, search the relevant library and code trees or ask the user to clarify
 - **Search DIFFERENT core concepts in parallel** - not variations of same concept
 
 **Parameters:**
@@ -295,6 +298,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 4. **Synthesize findings into final response**
    - Combine information from docs and support articles
    - Do not base technical answers only on `search_docs_by_lang_chain` titles/snippets; use full page content from `query_docs_filesystem_docs_by_lang_chain`
+   - If relying on `/oss/deepagents/code/` pages, explicitly name **Deep Agents Code (`dcode`)** in the bold opening sentence; if relying on library pages, explicitly name the `deepagents` library and its language when relevant. Never leave the product surface implicit
    - Format using customer support style (see below)
    - Include code examples from the sources
    - Add all relevant links at the end
