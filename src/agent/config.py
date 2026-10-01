@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -13,6 +12,7 @@ from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddl
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.fallback_middleware import ObservableModelFallbackMiddleware
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -92,7 +92,8 @@ API_KEYS = [
 for key in API_KEYS:
     if value := os.getenv(key):
         os.environ[key] = value.strip()
-        logger.info(f"{key} configured")
+        if key != "GOOGLE_API_KEY":
+            logger.info(f"{key} configured")
 
 
 # =============================================================================
@@ -105,6 +106,20 @@ MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
+
+if os.getenv("GOOGLE_API_KEY_PROBE", "").lower() in {"1", "true", "yes"}:
+    try:
+        default_model.invoke("Reply with OK")
+    except Exception as error:
+        logger.error(
+            "GOOGLE_API_KEY probe failed with %s: %s",
+            error.__class__.__name__,
+            error,
+        )
+    else:
+        logger.info("GOOGLE_API_KEY configured")
+elif os.getenv("GOOGLE_API_KEY"):
+    logger.info("GOOGLE_API_KEY present; credential probe disabled")
 
 
 def _raise_for_retryable_finish_reason(response: object) -> object:
@@ -145,7 +160,9 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ObservableModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
