@@ -4,15 +4,20 @@ from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
     DEFAULT_MODEL,
+    FALLBACK_MODELS,
     GUARDRAILS_MODEL,
     duplicate_call_guard_middleware,
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
     tool_retry_middleware,
+    validate_primary_model_credentials,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
+from src.middleware.primary_circuit_breaker_middleware import (
+    PrimaryCircuitBreakerMiddleware,
+)
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
@@ -28,6 +33,8 @@ docs_agent_tools = [
     fetch_langchain_pricing,
     check_links,
 ]
+
+validate_primary_model_credentials()
 
 docs_agent_middleware = [
     # Cap oversized user input (was auth.py). Trace metadata is applied via
@@ -54,6 +61,10 @@ docs_agent_middleware = [
     # fallback chain, producing a second visible generation.
     model_retry_middleware,
     model_fallback_middleware,
+    PrimaryCircuitBreakerMiddleware(
+        primary_model=DEFAULT_MODEL.id,
+        fallback_model=FALLBACK_MODELS[0].id,
+    ),
 ]
 
 agent = define_deep_agent(

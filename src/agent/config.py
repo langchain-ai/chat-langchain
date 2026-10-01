@@ -95,6 +95,35 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+def is_credential_error(exc: BaseException) -> bool:
+    """Return whether an exception indicates invalid provider credentials."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        message = str(current).upper()
+        if "API_KEY_INVALID" in message:
+            return True
+        status_code = getattr(current, "status_code", None) or getattr(
+            current, "status", None
+        )
+        try:
+            numeric_status = int(status_code)
+        except (TypeError, ValueError):
+            numeric_status = None
+        if numeric_status in (401, 403):
+            return True
+        if not (numeric_status is not None and numeric_status >= 500):
+            class_name = type(current).__name__.lower()
+            if any(
+                marker in class_name
+                for marker in ("authentication", "unauthorized", "permissiondenied")
+            ):
+                return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
@@ -105,6 +134,25 @@ MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
+
+
+def validate_primary_model_credentials() -> None:
+    """Probe the primary model and enforce credential readiness."""
+    if os.getenv("SKIP_PRIMARY_CREDENTIAL_CHECK") == "1":
+        return
+    try:
+        default_model.invoke(
+            "Respond with OK.",
+            config={"timeout": float(os.getenv("PRIMARY_CREDENTIAL_TIMEOUT", "5"))},
+        )
+    except Exception as exc:
+        if is_credential_error(exc):
+            logger.error("Primary model credential validation failed: %s", exc)
+            if os.getenv("ALLOW_DEGRADED_PRIMARY") != "1":
+                raise
+            logger.error("Continuing with degraded primary model enabled")
+        else:
+            logger.warning("Primary model credential probe failed transiently: %s", exc)
 
 
 def _raise_for_retryable_finish_reason(response: object) -> object:
@@ -161,8 +209,10 @@ __all__ = [
     "ModelConfig",
     # Models
     "default_model",
+    "is_credential_error",
     "init_retry_fallback_model",
     "summarization_model",
+    "validate_primary_model_credentials",
     # Middleware
     "model_retry_middleware",
     "tool_retry_middleware",
