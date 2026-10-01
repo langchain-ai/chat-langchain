@@ -2,12 +2,18 @@
 
 import logging
 import os
+import threading
+import time
 from dataclasses import dataclass
 
 import dotenv
+import langsmith as ls
 from langchain.agents.middleware import ModelFallbackMiddleware
+from langchain.agents.middleware.model_fallback import _sanitize_request_for_fallback
+from langchain.agents.middleware.types import ModelRequest
 from langchain.chat_models import init_chat_model
-from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda
+from langgraph.errors import GraphBubbleUp
 
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
@@ -20,6 +26,7 @@ from src.middleware.retry_middleware import (
     _ProviderValidationAwareRunnableRetry,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
+from src.utils.model_errors import is_auth_error
 
 dotenv.load_dotenv()
 
@@ -101,6 +108,29 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+AUTH_CIRCUIT_BREAKER_SECONDS = 300.0
+_auth_circuit_breaker_until = 0.0
+_auth_circuit_breaker_lock = threading.Lock()
+
+
+def _auth_circuit_is_open() -> bool:
+    return time.monotonic() < _auth_circuit_breaker_until
+
+
+def _open_auth_circuit() -> None:
+    global _auth_circuit_breaker_until
+    with _auth_circuit_breaker_lock:
+        _auth_circuit_breaker_until = time.monotonic() + AUTH_CIRCUIT_BREAKER_SECONDS
+
+
+def _record_fallback_model(model_id: str) -> None:
+    try:
+        run_tree = ls.get_current_run_tree()
+        if run_tree:
+            run_tree.add_metadata({"served_by_fallback_model": model_id})
+    except Exception:
+        logger.debug("Could not record fallback model metadata", exc_info=True)
+
 
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
@@ -123,13 +153,169 @@ def _init_retrying_model(model: str) -> Runnable:
     )
 
 
+class _AuthAwareRunnableFallback(Runnable):
+    """Skip an invalid primary model until its credential circuit recovers."""
+
+    def __init__(self, primary: Runnable, fallbacks: list[tuple[str, Runnable]]):
+        super().__init__()
+        self.primary = primary
+        self.fallbacks = fallbacks
+        self.runnable = primary
+        self.fallback_runnables = [fallback for _, fallback in fallbacks]
+
+    def _invoke_fallback(self, input: object, config: RunnableConfig | None) -> object:
+        model_id, fallback = self.fallbacks[0]
+        _record_fallback_model(model_id)
+        return fallback.invoke(input, config=config)
+
+    def invoke(
+        self, input: object, config: RunnableConfig | None = None, **kwargs: object
+    ) -> object:
+        if _auth_circuit_is_open():
+            return self._invoke_fallback(input, config)
+        try:
+            return self.primary.invoke(input, config=config, **kwargs)
+        except GraphBubbleUp:
+            raise
+        except Exception as exc:
+            if is_auth_error(exc):
+                logger.error(
+                    "Primary model authentication failed; opening circuit breaker"
+                )
+                _open_auth_circuit()
+                return self._invoke_fallback(input, config)
+            last_exception = exc
+        for model_id, fallback in self.fallbacks:
+            try:
+                _record_fallback_model(model_id)
+                return fallback.invoke(input, config=config, **kwargs)
+            except GraphBubbleUp:
+                raise
+            except Exception as exc:
+                last_exception = exc
+        raise last_exception
+
+    async def ainvoke(
+        self, input: object, config: RunnableConfig | None = None, **kwargs: object
+    ) -> object:
+        if _auth_circuit_is_open():
+            model_id, fallback = self.fallbacks[0]
+            _record_fallback_model(model_id)
+            return await fallback.ainvoke(input, config=config, **kwargs)
+        try:
+            return await self.primary.ainvoke(input, config=config, **kwargs)
+        except GraphBubbleUp:
+            raise
+        except Exception as exc:
+            if is_auth_error(exc):
+                logger.error(
+                    "Primary model authentication failed; opening circuit breaker"
+                )
+                _open_auth_circuit()
+                model_id, fallback = self.fallbacks[0]
+                _record_fallback_model(model_id)
+                return await fallback.ainvoke(input, config=config, **kwargs)
+            last_exception = exc
+        for model_id, fallback in self.fallbacks:
+            try:
+                _record_fallback_model(model_id)
+                return await fallback.ainvoke(input, config=config, **kwargs)
+            except GraphBubbleUp:
+                raise
+            except Exception as exc:
+                last_exception = exc
+        raise last_exception
+
+
 def init_retry_fallback_model(model: str) -> Runnable:
     """Initialize a model runnable with the shared retry and fallback policy."""
     primary_model = _init_retrying_model(model)
     fallback_models = [
-        _init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS
+        (fallback.id, _init_retrying_model(fallback.id)) for fallback in FALLBACK_MODELS
     ]
-    return primary_model.with_fallbacks(fallback_models)
+    return _AuthAwareRunnableFallback(primary_model, fallback_models)
+
+
+def preflight_default_model() -> None:
+    """Make one authenticated request to validate default model credentials."""
+    try:
+        default_model.invoke("Reply with OK.")
+    except Exception as exc:
+        if is_auth_error(exc):
+            raise RuntimeError(
+                "Default model credential preflight failed; check GOOGLE_API_KEY."
+            ) from exc
+        raise RuntimeError("Default model preflight request failed.") from exc
+
+
+class AuthAwareModelFallbackMiddleware(ModelFallbackMiddleware):
+    """Fallback middleware that opens a circuit for primary auth failures."""
+
+    def __init__(self, first_model: str, *additional_models: str):
+        super().__init__(first_model, *additional_models)
+        self.fallback_model_ids = (first_model, *additional_models)
+
+    def _first_fallback_id(self) -> str:
+        return self.fallback_model_ids[0]
+
+    def _fallback_request(self, request: ModelRequest, model: object) -> ModelRequest:
+        return _sanitize_request_for_fallback(request, model).override(model=model)
+
+    def wrap_model_call(self, request, handler):
+        if _auth_circuit_is_open():
+            model = self.models[0]
+            _record_fallback_model(self._first_fallback_id())
+            return handler(self._fallback_request(request, model))
+        try:
+            return handler(request)
+        except GraphBubbleUp:
+            raise
+        except Exception as exc:
+            if is_auth_error(exc):
+                logger.error(
+                    "Primary model authentication failed; opening circuit breaker"
+                )
+                _open_auth_circuit()
+                model = self.models[0]
+                _record_fallback_model(self._first_fallback_id())
+                return handler(self._fallback_request(request, model))
+            last_exception = exc
+        for model in self.models:
+            try:
+                return handler(self._fallback_request(request, model))
+            except GraphBubbleUp:
+                raise
+            except Exception as exc:
+                last_exception = exc
+        raise last_exception
+
+    async def awrap_model_call(self, request, handler):
+        if _auth_circuit_is_open():
+            model = self.models[0]
+            _record_fallback_model(self._first_fallback_id())
+            return await handler(self._fallback_request(request, model))
+        try:
+            return await handler(request)
+        except GraphBubbleUp:
+            raise
+        except Exception as exc:
+            if is_auth_error(exc):
+                logger.error(
+                    "Primary model authentication failed; opening circuit breaker"
+                )
+                _open_auth_circuit()
+                model = self.models[0]
+                _record_fallback_model(self._first_fallback_id())
+                return await handler(self._fallback_request(request, model))
+            last_exception = exc
+        for model in self.models:
+            try:
+                return await handler(self._fallback_request(request, model))
+            except GraphBubbleUp:
+                raise
+            except Exception as exc:
+                last_exception = exc
+        raise last_exception
 
 
 summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
@@ -145,7 +331,9 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = AuthAwareModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -162,6 +350,8 @@ __all__ = [
     # Models
     "default_model",
     "init_retry_fallback_model",
+    "is_auth_error",
+    "preflight_default_model",
     "summarization_model",
     # Middleware
     "model_retry_middleware",
