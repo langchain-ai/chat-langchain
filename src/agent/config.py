@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -16,8 +15,10 @@ from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMid
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
+    ModelFallbackWithCircuitBreakerMiddleware,
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
+    is_model_unavailable,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -120,6 +121,7 @@ def _init_retrying_model(model: str) -> Runnable:
         bound=init_chat_model(model=model)
         | RunnableLambda(_raise_for_retryable_finish_reason),
         max_attempt_number=MAX_RETRIES + 1,
+        model=model,
     )
 
 
@@ -129,7 +131,21 @@ def init_retry_fallback_model(model: str) -> Runnable:
     fallback_models = [
         _init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS
     ]
-    return primary_model.with_fallbacks(fallback_models)
+    primary_chain = primary_model.with_fallbacks(fallback_models)
+    fallback_chain = fallback_models[0].with_fallbacks(fallback_models[1:])
+    fallback_chain_with_circuit_breaker = RunnableLambda(
+        lambda value, config=None: (
+            fallback_chain.invoke(value, config)
+            if is_model_unavailable(model)
+            else primary_chain.invoke(value, config)
+        ),
+        afunc=lambda value, config=None: (
+            fallback_chain.ainvoke(value, config)
+            if is_model_unavailable(model)
+            else primary_chain.ainvoke(value, config)
+        ),
+    )
+    return fallback_chain_with_circuit_breaker
 
 
 summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
@@ -145,7 +161,9 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ModelFallbackWithCircuitBreakerMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
