@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -15,9 +14,11 @@ from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddl
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
+    AuthAwareModelFallbackMiddleware,
     MalformedResponseError,
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
+    is_auth_error,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -95,6 +96,63 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+def _credential_check_disabled() -> bool:
+    """Return whether startup credential probes are disabled."""
+    return any(
+        os.getenv(name, "").lower() in {"1", "true", "yes"}
+        for name in ("SKIP_PROVIDER_CREDENTIAL_CHECK", "OFFLINE_MODE")
+    ) or bool(os.getenv("PYTEST_CURRENT_TEST"))
+
+
+def _validate_provider_credential(config: ModelConfig, value: str) -> None:
+    """Make a low-cost authenticated request for a provider credential."""
+    if config.provider == "google":
+        from google import genai
+
+        next(iter(genai.Client(api_key=value).models.list(config={"page_size": 1})), None)
+    elif config.provider == "openai":
+        from openai import OpenAI
+
+        OpenAI(api_key=value).models.list()
+    elif config.provider == "anthropic":
+        from anthropic import Anthropic
+
+        Anthropic(api_key=value).models.list(limit=1)
+
+
+def _check_provider_credentials() -> None:
+    """Validate configured provider credentials before model initialization."""
+    if _credential_check_disabled():
+        logger.info("Provider credential checks disabled")
+        return
+    for config in MODELS.values():
+        value = os.getenv(config.api_key_env)
+        if not value:
+            continue
+        try:
+            _validate_provider_credential(config, value)
+        except Exception as exception:
+            if is_auth_error(exception):
+                logger.error("Rejected credential for %s", config.api_key_env)
+                if config is DEFAULT_MODEL and os.getenv("ALLOW_DEGRADED_START", "").lower() not in {
+                    "1",
+                    "true",
+                    "yes",
+                }:
+                    raise RuntimeError(
+                        f"Credential rejected for primary model {config.name}"
+                    ) from exception
+            else:
+                logger.warning(
+                    "Could not validate %s during startup: %s",
+                    config.api_key_env,
+                    exception,
+                )
+
+
+_check_provider_credentials()
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
@@ -116,10 +174,12 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 
 def _init_retrying_model(model: str) -> Runnable:
+    provider = model.split(":", 1)[0].replace("_genai", "")
     return _ProviderValidationAwareRunnableRetry(
         bound=init_chat_model(model=model)
         | RunnableLambda(_raise_for_retryable_finish_reason),
         max_attempt_number=MAX_RETRIES + 1,
+        provider=provider,
     )
 
 
@@ -145,7 +205,7 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = AuthAwareModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
