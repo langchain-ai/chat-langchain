@@ -22,11 +22,11 @@ def test_summarization_middleware_uses_retrying_fallback_model():
     )
 
     summary_model = middleware.summary_model
-    summary_primary = getattr(summary_model, "runnable", None)
-    summary_fallbacks = getattr(summary_model, "fallbacks", [])
+    summary_primary = summary_model.runnable
+    summary_fallbacks = summary_model.fallback_runnables
 
     assert middleware.model.model == "gemini-3.5-flash-lite"
-    assert type(summary_model).__name__ == "RunnableWithFallbacks"
+    assert type(summary_model).__name__ == "_AuthAwareRunnableFallback"
     assert getattr(summary_primary, "max_attempt_number") == config.MAX_RETRIES + 1
     assert len(summary_fallbacks) == len(config.FALLBACK_MODELS)
     assert all(
