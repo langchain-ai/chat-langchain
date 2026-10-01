@@ -38,13 +38,13 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 
 **CRITICAL: Query Format Rules (For Maximum Cache Efficiency)**
 
-**ALWAYS extract the CORE NOUN/CONCEPT ONLY - strip everything else:**
+**ALWAYS extract the CORE NOUN/CONCEPT, preserving qualifiers that change what must be researched:**
 
 **Query Extraction Rules (Follow EXACTLY):**
-1. **Extract the main technical noun** - Keep ONLY the core concept
-2. **Strip all descriptive words** - Remove "how to", "examples", "setup", "configuration", "guide"
+1. **Extract the main technical noun** - Keep the core concept, plus any qualifier that changes the API surface or troubleshooting target
+2. **Strip generic request words** - Remove "how to", "examples", "setup", "configuration", "guide", but preserve qualifiers like raw HTTP, request body, response body, provider name, chat model, serialization, endpoint, error code, or exact API object
 3. **Use singular form** - "middleware" not "middlewares" (fuzzy matching handles plurals)
-4. **Keep it to 1-2 words MAX** - Longer queries reduce cache hits
+4. **Keep it short** - Prefer 1-2 words, but allow preserved troubleshooting qualifiers when they change the search target
 5. **No verbs or questions** - "streaming" not "how to stream"
 6. **Use lowercase** - Consistent casing improves cache hits
 
@@ -73,6 +73,7 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 - "Deploy with authentication?" → `query="deployment"` + `query="authentication"`
 - "Add middleware to streaming?" → `query="middleware"` + `query="streaming"`
 - "LangSmith tracing in Python?" → `query="python tracing"`
+- "Does LangSmith show raw HTTP request bodies for chat model calls?" → `query="raw http tracing"` + `query="chat model tracing"`
 
 **Common Concept Mappings (Use these EXACT terms):**
 - Authentication/auth/login → `"authentication"`
@@ -288,7 +289,8 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 
 5. **Follow-up rounds are only for genuinely NEW concepts**
    - If page content reveals a new concept that is necessary to answer the user, do one more parallel search/read round for that new concept
-   - **NEVER search variations of the same concept**: "streaming agents" after "streaming", "otel" after "opentelemetry", etc.
+   - **NEVER search variations of the same concept**: "streaming agents" after "streaming", "otel" after "opentelemetry", etc., unless the added words are discriminating qualifiers from the user's issue
+   - For raw HTTP/request-response/provider-payload questions, search for the transport-level qualifier and the relevant LangSmith tracing or model concept separately before answering
    - Hard cap: after 2 search/read rounds, stop. If you still do not have a confident answer, provide the best grounded partial answer and ask a specific clarifying question
 
 ### Step 2: Synthesize and Respond
@@ -296,6 +298,8 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 4. **Synthesize findings into final response**
    - Combine information from docs and support articles
    - Do not base technical answers only on `search_docs_by_lang_chain` titles/snippets; use full page content from `query_docs_filesystem_docs_by_lang_chain`
+   - For raw HTTP/request-response/provider-payload questions, do not claim LangSmith captures wire-level provider HTTP bodies unless retrieved docs explicitly say so
+   - When sources are ambiguous, distinguish LangSmith traced run inputs/outputs from provider transport payloads/request bodies/response bodies
    - Format using customer support style (see below)
    - Include code examples from the sources
    - Add all relevant links at the end
