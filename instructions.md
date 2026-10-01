@@ -128,27 +128,27 @@ Read and navigate the official docs filesystem after search finds relevant pages
 
 **Best for:** reading full docs pages, extracting exact code examples, finding a subsection, or checking several discovered pages in one call.
 
-**Usage:** Search first, then read the most relevant `.mdx` page paths. Append `.mdx` to each path returned from search if needed. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provider good answers.**
+**Usage:** Search first, then construct each filesystem read path as `/` plus the exact `Page:` value returned by the search result plus `.mdx`. For example, `Page: langsmith/evaluators` must be read from `/langsmith/evaluators.mdx`. LangSmith pages are not under `/oss/python/` or `/oss/`. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provider good answers.**
 
 **Examples:**
 ```python
 query_docs_filesystem_docs_by_lang_chain(
-    command="head -120 /oss/python/langgraph/streaming.mdx"
+    command="head -120 /langsmith/evaluators.mdx"
 )
 
 query_docs_filesystem_docs_by_lang_chain(
-    command='rg -C 4 "stream subgraph" /oss/python/langgraph/streaming.mdx'
+    command='rg -C 4 "evaluator" /langsmith/evaluators.mdx'
 )
 
 query_docs_filesystem_docs_by_lang_chain(
-    command="head -80 /oss/python/langgraph/streaming.mdx /oss/python/langgraph/subgraphs.mdx"
+    command="head -80 /langsmith/evaluators.mdx /langsmith/observability.mdx"
 )
 ```
 
 **Guidelines:**
 - Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
-- Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` -> `https://docs.langchain.com/oss/python/langgraph/streaming`.
+- Convert filesystem paths to public URLs by removing `.mdx` and preserving the exact `Page:` value: `/langsmith/evaluators.mdx` -> `https://docs.langchain.com/langsmith/evaluators`.
 
 **IMPORTANT - Create Anchor Links to Subsections:**
 When you find relevant content in a specific subsection, create a direct anchor link:
