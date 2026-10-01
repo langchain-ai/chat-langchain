@@ -26,11 +26,6 @@ def _middleware(monkeypatch):
         ObservableModelFallbackMiddleware
     )
     middleware.models = [FakeModel()]
-    monkeypatch.setattr(
-        "src.middleware.observable_model_fallback_middleware._sanitize_request_for_fallback",
-        lambda request, model: request,
-        raising=False,
-    )
     return middleware
 
 
