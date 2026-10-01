@@ -5,6 +5,7 @@ from managed_deepagents import define_deep_agent
 from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
+    duplicate_call_guard_middleware,
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
@@ -45,7 +46,12 @@ docs_agent_middleware = [
         summary_prompt=context_summary_prompt,
         trim_tokens_to_summarize=None,
     ),
+    duplicate_call_guard_middleware,
     tool_retry_middleware,
+    # Post-hoc answer guards (docs research, citation, answer sanity) are
+    # intentionally not wired here: they re-invoke the model after the first
+    # answer has already streamed, and those retries route through the
+    # fallback chain, producing a second visible generation.
     model_retry_middleware,
     model_fallback_middleware,
 ]

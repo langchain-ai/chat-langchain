@@ -103,7 +103,6 @@ operations go through the managed identity and connector surface.
 │   │   ├── pricing_tools.py    # Pricing fetch
 │   │   └── link_check_tools.py # URL validation
 │   ├── prompts/
-│   │   ├── docs_agent_prompt.py # Hub push / eval mirror of instructions.md
 │   │   ├── guardrails_prompts.py
 │   │   └── context_summary_prompt.py
 │   └── middleware/
