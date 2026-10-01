@@ -29,6 +29,58 @@ def test_before_agent_truncates_oversized_human_message():
     assert len(update["messages"][0].content) == MAX_MESSAGE_CHARS
 
 
+def test_before_agent_redacts_secret_in_plain_string_message():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(content="Use sk-1234567890abcdef in this request", id="h1")
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content == "Use <REDACTED_API_KEY> in this request"
+
+
+def test_before_agent_redacts_secret_in_text_content_block():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content=[
+            {"type": "text", "text": "Use ghp_1234567890abcdef in this request"},
+            {"type": "image", "source": "unchanged"},
+        ],
+        id="h1",
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content == [
+        {"type": "text", "text": "Use <REDACTED_API_KEY> in this request"},
+        {"type": "image", "source": "unchanged"},
+    ]
+
+
+def test_redaction_noop_preserves_content_identity():
+    middleware = IngressGuardsMiddleware()
+    content = [{"type": "text", "text": "Hello"}]
+
+    assert middleware._redact_secrets(content) is content
+
+
+def test_before_agent_redacts_secret_before_truncation():
+    middleware = IngressGuardsMiddleware()
+    token = "sk-" + "a" * 27
+    human = HumanMessage(
+        content=("x" * (MAX_MESSAGE_CHARS - 26)) + " " + token,
+        id="h1",
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update["messages"][0].content.endswith("<REDACTED_API_KEY>")
+    assert token not in update["messages"][0].content
+    assert len(update["messages"][0].content) <= MAX_MESSAGE_CHARS
+
+
 def test_before_agent_noop_when_under_cap():
     middleware = IngressGuardsMiddleware()
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
