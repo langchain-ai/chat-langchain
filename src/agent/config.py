@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -15,6 +14,8 @@ from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddl
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
+    AuthAwareModelFallbackMiddleware,
+    AuthAwareRunnableFallback,
     MalformedResponseError,
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
@@ -129,7 +130,7 @@ def init_retry_fallback_model(model: str) -> Runnable:
     fallback_models = [
         _init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS
     ]
-    return primary_model.with_fallbacks(fallback_models)
+    return AuthAwareRunnableFallback(primary_model, fallback_models)
 
 
 summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
@@ -145,7 +146,9 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = AuthAwareModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
