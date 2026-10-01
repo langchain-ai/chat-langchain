@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -13,6 +12,9 @@ from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddl
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.model_fallback_middleware import (
+    CredentialAwareModelFallbackMiddleware,
+)
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -95,6 +97,33 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+def _validation_models() -> list[ModelConfig]:
+    models = [DEFAULT_MODEL, GUARDRAILS_MODEL, *FALLBACK_MODELS]
+    return list({model.provider: model for model in models}.values())
+
+
+def validate_provider_credentials(*, fatal: bool = False) -> dict[str, str]:
+    """Validate configured provider credentials with one authenticated request."""
+    failures: dict[str, str] = {}
+    for model in _validation_models():
+        if not os.getenv(model.api_key_env):
+            continue
+        try:
+            init_chat_model(model=model.id).invoke("ping")
+        except Exception as error:
+            failures[model.provider] = model.api_key_env
+            logger.error(
+                "Credential validation failed for provider %s using %s: %s",
+                model.provider,
+                model.api_key_env,
+                error,
+            )
+    if fatal and failures:
+        variables = ", ".join(failures.values())
+        raise RuntimeError(f"Provider credential validation failed: {variables}")
+    return failures
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
@@ -145,7 +174,9 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = CredentialAwareModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -174,4 +205,5 @@ __all__ = [
     # Config
     "MAX_RETRIES",
     "logger",
+    "validate_provider_credentials",
 ]
