@@ -10,6 +10,7 @@ from src.agent.config import (
     model_retry_middleware,
     summarization_model,
     tool_retry_middleware,
+    validate_provider_keys,
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
@@ -19,6 +20,8 @@ from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_support_article_content, search_support_articles
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
+
+validate_provider_keys()
 
 # The MCP docs tools are declared in connectors/mcp.py so the managed runtime
 # owns client lifecycle and appends those tools during compilation.
