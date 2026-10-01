@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -16,6 +15,7 @@ from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMid
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
+    ModelAuthFallbackMiddleware,
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
 )
@@ -95,12 +95,42 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+def _run_model_credential_preflight() -> None:
+    """Validate the default provider credential without blocking non-strict startup."""
+    api_key = os.getenv(DEFAULT_MODEL.api_key_env)
+    if not api_key:
+        return
+    strict = os.getenv("STRICT_MODEL_PREFLIGHT", "").lower() in {"1", "true", "yes", "on"}
+    try:
+        if DEFAULT_MODEL.provider == "google":
+            from google import genai
+
+            client = genai.Client(api_key=api_key)
+            next(iter(client.models.list(config={"page_size": 1})), None)
+        elif DEFAULT_MODEL.provider == "openai":
+            from openai import OpenAI
+
+            OpenAI(api_key=api_key).models.list()
+        elif DEFAULT_MODEL.provider == "anthropic":
+            from anthropic import Anthropic
+
+            Anthropic(api_key=api_key).models.list(limit=1)
+    except Exception as exception:
+        logger.error("Default model credential preflight failed: %s", exception)
+        if strict:
+            raise RuntimeError("Default model credential preflight failed") from exception
+
+
+_run_model_credential_preflight()
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_AUTH_COOLDOWN_SECONDS = float(os.getenv("MODEL_AUTH_COOLDOWN_SECONDS", "300"))
 
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
@@ -145,7 +175,11 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ModelAuthFallbackMiddleware(
+    DEFAULT_MODEL.id,
+    *[m.id for m in FALLBACK_MODELS],
+    cooldown_seconds=MODEL_AUTH_COOLDOWN_SECONDS,
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -173,5 +207,6 @@ __all__ = [
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
+    "MODEL_AUTH_COOLDOWN_SECONDS",
     "logger",
 ]
