@@ -5,11 +5,14 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
+from src.middleware.auth_fallback_middleware import (
+    AuthenticationAwareModelFallbackMiddleware,
+)
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
@@ -18,6 +21,7 @@ from src.middleware.retry_middleware import (
     MalformedResponseError,
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
+    is_authentication_error,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -95,6 +99,21 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+def _credential_check_enabled() -> bool:
+    setting = os.getenv("MODEL_CREDENTIAL_CHECK")
+    if setting is not None:
+        return setting.strip().lower() in {"1", "true", "yes", "on"}
+    return any(
+        os.getenv(name)
+        for name in (
+            "LANGSMITH_HOST_PROJECT_NAME",
+            "LANGSMITH_ENV",
+            "LANGGRAPH_DEPLOYMENT_ID",
+            "LANGCHAIN_REVISION_ID",
+        )
+    )
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
@@ -105,6 +124,32 @@ MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
+
+
+def _check_default_model_credentials() -> None:
+    """Make one authenticated request to the configured primary model."""
+    if not _credential_check_enabled():
+        return
+    try:
+        default_model.invoke([HumanMessage(content="ping")])
+    except Exception as exception:
+        if is_authentication_error(exception):
+            logger.error(
+                "Credential check failed for primary model %s: %s",
+                DEFAULT_MODEL.id,
+                exception,
+            )
+            raise RuntimeError(
+                f"Primary model credential check failed for {DEFAULT_MODEL.id}"
+            ) from exception
+        logger.warning(
+            "Credential check could not verify primary model %s: %s",
+            DEFAULT_MODEL.id,
+            exception,
+        )
+
+
+_check_default_model_credentials()
 
 
 def _raise_for_retryable_finish_reason(response: object) -> object:
@@ -145,7 +190,11 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = AuthenticationAwareModelFallbackMiddleware(
+    DEFAULT_MODEL.id,
+    *[m.id for m in FALLBACK_MODELS],
+    cooldown_seconds=float(os.getenv("MODEL_AUTH_COOLDOWN_SECONDS", "300")),
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
