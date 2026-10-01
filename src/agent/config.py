@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -13,6 +12,11 @@ from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddl
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.primary_auth_breaker_middleware import (
+    PrimaryAuthBreaker,
+    PrimaryAuthBreakerMiddleware,
+    probe_primary_model,
+)
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -105,6 +109,12 @@ MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
+primary_auth_breaker = PrimaryAuthBreaker(
+    ttl=float(os.getenv("PRIMARY_AUTH_BREAKER_TTL", "300"))
+)
+probe_primary_model(
+    default_model, DEFAULT_MODEL.id, DEFAULT_MODEL.api_key_env, primary_auth_breaker
+)
 
 
 def _raise_for_retryable_finish_reason(response: object) -> object:
@@ -145,7 +155,11 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = PrimaryAuthBreakerMiddleware(
+    DEFAULT_MODEL.id,
+    [model.id for model in FALLBACK_MODELS],
+    breaker=primary_auth_breaker,
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
