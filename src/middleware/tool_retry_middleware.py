@@ -9,6 +9,7 @@ from langchain.agents.middleware import AgentMiddleware, AgentState
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
+from pydantic import ValidationError
 
 from src.tools.pylon_tools import PylonUnavailableError
 
@@ -44,6 +45,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
     ):
+        """Configure retry limits and backoff timing."""
         super().__init__()
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
@@ -92,6 +94,21 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         return any(marker in text for marker in RETRYABLE_ERROR_MARKERS)
 
+    def _is_validation_error(self, error: Exception) -> bool:
+        text = self._error_text(error)
+        return isinstance(error, ValidationError) or bool(
+            re.match(r"^\d+\s+validation errors?\b", text, re.IGNORECASE)
+        )
+
+    def _validation_error_content(self, request: ToolCallRequest) -> str:
+        tool_name = self._tool_name(request)
+        if tool_name == "check_links":
+            return (
+                "Invalid check_links arguments. Expected urls as a URL, a list of URLs, "
+                "or text containing URLs; timeout is optional."
+            )
+        return f"Invalid arguments for {tool_name}. Expected arguments matching the tool schema."
+
     def _tool_message(
         self,
         request: ToolCallRequest,
@@ -128,6 +145,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
+        """Execute a tool call with transient-failure retries."""
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_attempts + 1):
@@ -154,6 +172,17 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                         tool_name,
                     )
                     return self._tool_message(request, "No results found.")
+
+                if self._is_validation_error(error):
+                    logger.info(
+                        "Tool %s received invalid arguments; skipping retry",
+                        tool_name,
+                    )
+                    return self._tool_message(
+                        request,
+                        self._validation_error_content(request),
+                        status="error",
+                    )
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
                     delay = self.initial_delay * (

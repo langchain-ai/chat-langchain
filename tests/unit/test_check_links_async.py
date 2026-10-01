@@ -23,6 +23,7 @@ from src.tools.link_check_tools import (
     _check_single_url,
     _check_urls_async,
     _format_results,
+    _normalize_urls,
     check_links,
 )
 
@@ -184,6 +185,49 @@ def test_check_links_empty_list():
     # No mock needed — the early-return branch is hit before any async work.
     result = check_links.invoke({"urls": []})
     assert result == "No URLs provided to check."
+
+
+@pytest.mark.asyncio
+async def test_check_links_missing_urls_with_extra_keys():
+    """Unknown top-level arguments should normalize to no URLs."""
+    result = await check_links.ainvoke({"yarn": "true"})
+
+    assert result == "No URLs provided to check."
+
+
+def test_normalize_urls_stringified_empty_list():
+    """A JSON string containing an empty list should normalize cleanly."""
+    assert _normalize_urls("[]") == []
+
+
+def test_normalize_urls_valid_urls_alias():
+    """The valid_urls alias should be accepted."""
+    assert _normalize_urls({"valid_urls": ["https://example.com"]}) == [
+        "https://example.com"
+    ]
+
+
+def test_normalize_urls_markdown_fragment():
+    """Embedded URLs should be extracted from markdown text."""
+    assert _normalize_urls("Read [the docs](https://docs.langchain.com/guide).") == [
+        "https://docs.langchain.com/guide"
+    ]
+
+
+def test_format_results_suggests_nearby_known_domain():
+    """Near-miss known domains should include a corrected URL suggestion."""
+    result = _format_results(
+        [
+            LinkCheckResult(
+                url="https://docs.langchain.0om/guide",
+                valid=False,
+                status_code=404,
+                error="HTTP 404",
+            )
+        ]
+    )
+
+    assert "suggested URL: https://docs.langchain.com/guide" in result
 
 
 @pytest.mark.asyncio

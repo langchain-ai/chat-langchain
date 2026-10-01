@@ -1,13 +1,16 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
+import json
 import logging
 import re
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 from langchain.tools import tool
+from pydantic import BaseModel, ConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,15 @@ SOFT_404_DOMAINS = {
 
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
+
+
+class CheckLinksInput(BaseModel):
+    """Flexible input schema for the link checker."""
+
+    model_config = ConfigDict(extra="allow")
+
+    urls: Any = None
+    timeout: float = DEFAULT_TIMEOUT
 
 
 @dataclass
@@ -67,6 +79,87 @@ def _is_soft_404(content: str) -> bool:
         if any(phrase in title for phrase in ['not found', '404', 'page not found']):
             return True
     return False
+
+
+def _normalize_urls(raw: Any) -> list[str]:
+    """Normalize flexible tool input into unique URLs."""
+    normalized: list[str] = []
+
+    def add(value: Any) -> None:
+        if value is None:
+            return
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, (list, dict)):
+                add(parsed)
+                return
+            for match in re.findall(r"https?://[^\s<>\"']+", value):
+                cleaned = match.strip("`*_[]{}<>")
+                while cleaned and cleaned[-1] in ".,;:!?)]}`*_":
+                    cleaned = cleaned[:-1]
+                while cleaned and cleaned[0] in "([{":
+                    cleaned = cleaned[1:]
+                if cleaned:
+                    normalized.append(cleaned)
+            return
+        if isinstance(value, list):
+            for item in value:
+                add(item)
+            return
+        if isinstance(value, dict):
+            for key in ("urls", "valid_urls", "links", "url"):
+                if key in value:
+                    add(value[key])
+                    return
+
+    add(raw)
+    return list(dict.fromkeys(normalized))
+
+
+def _edit_distance_at_most_one(left: str, right: str) -> bool:
+    """Check whether two strings differ by at most one edit."""
+    if abs(len(left) - len(right)) > 1:
+        return False
+    differences = 0
+    left_index = right_index = 0
+    while left_index < len(left) and right_index < len(right):
+        if left[left_index] == right[right_index]:
+            left_index += 1
+            right_index += 1
+            continue
+        differences += 1
+        if differences > 1:
+            return False
+        if len(left) > len(right):
+            left_index += 1
+        elif len(right) > len(left):
+            right_index += 1
+        else:
+            left_index += 1
+            right_index += 1
+    if left_index < len(left) or right_index < len(right):
+        differences += 1
+    return differences <= 1
+
+
+def _suggest_corrected_url(result: LinkCheckResult) -> str | None:
+    """Suggest a known domain for a near-miss failing URL."""
+    is_connection_failure = result.error and any(
+        marker in result.error.lower() for marker in ("connection failed", "dns")
+    )
+    if result.status_code != 404 and not is_connection_failure:
+        return None
+    parsed = urlparse(result.url)
+    host = parsed.hostname
+    if not host:
+        return None
+    for domain in SOFT_404_DOMAINS:
+        if _edit_distance_at_most_one(host.lower(), domain):
+            return parsed._replace(netloc=domain).geturl()
+    return None
 
 
 async def _check_single_url(
@@ -168,7 +261,12 @@ def _format_results(results: list[LinkCheckResult]) -> str:
 
     if invalid:
         lines.append("Invalid links:")
-        lines.extend(f"  - {r.url}: {r.error}" for r in invalid)
+        for result in invalid:
+            suggestion = _suggest_corrected_url(result)
+            detail = result.error
+            if suggestion:
+                detail = f"{detail}; suggested URL: {suggestion}"
+            lines.append(f"  - {result.url}: {detail}")
         lines.append("")
 
     if valid:
@@ -180,23 +278,27 @@ def _format_results(results: list[LinkCheckResult]) -> str:
     return "\n".join(lines)
 
 
-@tool
-async def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
+@tool(args_schema=CheckLinksInput)
+async def check_links(
+    urls: Any = None,
+    timeout: float = DEFAULT_TIMEOUT,
+    **extra: Any,
+) -> str:
     """Check if URLs are valid and accessible before including them in a response.
 
     Args:
-        urls: List of URLs to validate.
+        urls: A URL, a list of URLs, or text containing URLs.
         timeout: Timeout per request in seconds (default: 10).
 
     Returns:
         Formatted results showing which URLs are valid/invalid with details.
     """
-    if not urls:
+    raw_input = dict(extra)
+    if urls is not None:
+        raw_input["urls"] = urls
+    normalized_urls = _normalize_urls(raw_input)
+    if not normalized_urls:
         return "No URLs provided to check."
 
-    # Deduplicate while preserving order
-    seen = set()
-    unique_urls = [u for u in urls if not (u in seen or seen.add(u))]
-
-    results = await _check_urls_async(unique_urls, timeout)
+    results = await _check_urls_async(normalized_urls, timeout)
     return _format_results(results)
