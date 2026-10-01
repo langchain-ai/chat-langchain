@@ -16,6 +16,7 @@ from src.agent.config import (
 )
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
+from src.middleware.prior_turn_tool_trim_middleware import PriorTurnToolTrimMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
@@ -49,6 +50,7 @@ docs_agent_middleware = [
         summary_prompt=context_summary_prompt,
         trim_tokens_to_summarize=None,
     ),
+    PriorTurnToolTrimMiddleware(),
     duplicate_call_guard_middleware,
     tool_retry_middleware,
     docs_research_guard_middleware,
