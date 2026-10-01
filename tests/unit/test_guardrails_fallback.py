@@ -96,3 +96,38 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected_metadata"),
+    [("ALLOWED", "allowed"), ("BLOCKED", "blocked")],
+)
+def test_guardrails_records_decision_on_root_metadata(
+    monkeypatch, decision, expected_metadata
+):
+    middleware = _middleware_with_models()
+    recorded: list[dict[str, str]] = []
+
+    async def _classify_query(messages):  # noqa: ARG001
+        return {"decision": decision, "explanation": "test explanation"}
+
+    monkeypatch.setattr(middleware, "_classify_query", _classify_query)
+    monkeypatch.setattr(
+        guardrails_module,
+        "set_root_metadata",
+        lambda **values: recorded.append(values),
+    )
+    monkeypatch.setattr(
+        middleware,
+        "_generate_rejection_message",
+        lambda content: asyncio.sleep(0, result=HumanMessage(content=content)),
+    )
+
+    asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="How do agents work?")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert recorded == [{"guardrail_decision": expected_metadata}]
