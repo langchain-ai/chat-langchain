@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 
+from src.middleware.retry_middleware import get_served_model_metadata
 from src.utils.prompt_provenance import get_prompt_provenance
 
 _PROVENANCE_GRAPH_ID = "docs_agent"
@@ -17,12 +18,13 @@ _PROVENANCE_GRAPH_ID = "docs_agent"
 def build_docs_agent_trace_metadata(
     *,
     graph_id: str = _PROVENANCE_GRAPH_ID,
-) -> dict[str, str]:
+) -> dict[str, object]:
     """Return metadata that should land on the root LangSmith run."""
-    metadata: dict[str, str] = {
+    metadata: dict[str, object] = {
         "source_type": "Chat-LangChain",
         **get_prompt_provenance(graph_id),
     }
+    metadata.update(get_served_model_metadata())
     revision = os.environ.get("LANGCHAIN_REVISION_ID") or os.environ.get(
         "LANGSMITH_HOST_REVISION_ID"
     )
