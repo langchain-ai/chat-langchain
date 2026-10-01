@@ -2,12 +2,19 @@
 
 import logging
 import os
+import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import dotenv
+import httpx
+import langsmith as ls
 from langchain.agents.middleware import ModelFallbackMiddleware
+from langchain.agents.middleware.model_fallback import _sanitize_request_for_fallback
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
+from langgraph.errors import GraphBubbleUp
 
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
@@ -95,6 +102,41 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+def _validate_provider_keys() -> None:
+    """Validate configured provider keys when explicitly enabled."""
+    if os.getenv("VALIDATE_PROVIDER_KEYS_ON_STARTUP", "").lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
+        return
+
+    google_api_key = os.getenv("GOOGLE_API_KEY")
+    if not google_api_key:
+        return
+
+    try:
+        response = httpx.get(
+            "https://generativelanguage.googleapis.com/v1beta/models",
+            params={"key": google_api_key},
+            timeout=5,
+        )
+    except httpx.HTTPError as exc:
+        logger.error("Google API key validation failed: %s", exc)
+        raise RuntimeError("Google API key validation failed") from exc
+
+    if response.status_code in {401, 403} or response.is_error:
+        logger.error(
+            "Google API key validation failed with HTTP %s: %s",
+            response.status_code,
+            response.text[:200],
+        )
+        raise RuntimeError("Google API key is invalid")
+
+
+_validate_provider_keys()
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
@@ -134,6 +176,179 @@ def init_retry_fallback_model(model: str) -> Runnable:
 
 summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 
+
+AUTH_BREAKER_COOLDOWN_SECONDS = float(
+    os.getenv("MODEL_AUTH_BREAKER_COOLDOWN_SECONDS", "300")
+)
+_auth_breaker_lock = threading.Lock()
+_auth_breaker_until = 0.0
+
+
+def _auth_failure_reason(error: BaseException) -> str | None:
+    """Return the auth failure reason for a provider exception."""
+    pending = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+
+        reason = str(getattr(current, "reason", "")).upper()
+        status = getattr(current, "status_code", None) or getattr(
+            current, "status", None
+        )
+        response = getattr(current, "response", None)
+        response_status = getattr(response, "status_code", None)
+        if reason in {"API_KEY_INVALID", "PERMISSION_DENIED", "UNAUTHENTICATED"}:
+            return reason
+        try:
+            status = int(status) if status is not None else None
+            response_status = (
+                int(response_status) if response_status is not None else None
+            )
+        except (TypeError, ValueError):
+            status = response_status = None
+        if status in {401, 403} or response_status in {401, 403}:
+            return f"HTTP_{status or response_status}"
+
+        pending.extend(
+            cause
+            for cause in (
+                getattr(current, "__cause__", None),
+                getattr(current, "__context__", None),
+            )
+            if cause is not None
+        )
+    return None
+
+
+def _breaker_is_open() -> bool:
+    with _auth_breaker_lock:
+        return time.monotonic() < _auth_breaker_until
+
+
+def _open_auth_breaker() -> None:
+    global _auth_breaker_until
+    with _auth_breaker_lock:
+        _auth_breaker_until = time.monotonic() + AUTH_BREAKER_COOLDOWN_SECONDS
+
+
+def _record_auth_fallback(serving_model: str, reason: str) -> None:
+    try:
+        run_tree = ls.get_current_run_tree()
+        if run_tree:
+            run_tree.add_metadata(
+                {
+                    "model_fallback_reason": "auth",
+                    "model_fallback_serving_model": serving_model,
+                    "model_fallback_auth_reason": reason,
+                }
+            )
+            run_tree.add_tags(["model-fallback-auth", f"serving-model:{serving_model}"])
+    except Exception:
+        logger.debug("Unable to record model fallback metadata", exc_info=True)
+
+
+class AuthAwareModelFallbackMiddleware(ModelFallbackMiddleware):
+    """Skip a primary model after an authentication failure cooldown begins."""
+
+    def __init__(self, first_model: str, *additional_models: str) -> None:
+        super().__init__(first_model, *additional_models)
+        self.model_ids = [first_model, *additional_models]
+
+    def _fallback(
+        self,
+        request,
+        handler: Callable,
+        last_exception: Exception | None = None,
+        reason: str | None = None,
+    ):
+        for model_id, fallback_model in zip(self.model_ids, self.models, strict=True):
+            fallback_request = _sanitize_request_for_fallback(request, fallback_model)
+            try:
+                response = handler(fallback_request.override(model=fallback_model))
+                if reason:
+                    _record_auth_fallback(model_id, reason)
+                return response
+            except GraphBubbleUp:
+                raise
+            except Exception as exc:
+                last_exception = exc
+        raise last_exception
+
+    async def _afallback(
+        self,
+        request,
+        handler: Callable,
+        last_exception: Exception | None = None,
+        reason: str | None = None,
+    ):
+        for model_id, fallback_model in zip(self.model_ids, self.models, strict=True):
+            fallback_request = _sanitize_request_for_fallback(request, fallback_model)
+            try:
+                response = await handler(
+                    fallback_request.override(model=fallback_model)
+                )
+                if reason:
+                    _record_auth_fallback(model_id, reason)
+                return response
+            except GraphBubbleUp:
+                raise
+            except Exception as exc:
+                last_exception = exc
+        raise last_exception
+
+    def wrap_model_call(self, request, handler):
+        if _breaker_is_open():
+            return self._fallback(request, handler, reason="circuit_open")
+        try:
+            return handler(request)
+        except GraphBubbleUp:
+            raise
+        except Exception as exc:
+            reason = _auth_failure_reason(exc)
+            if reason:
+                provider = getattr(
+                    request.model, "_llm_type", request.model.__class__.__name__
+                )
+                logger.error(
+                    "Primary model authentication failed for %s (%s); using fallback: %s",
+                    provider,
+                    reason,
+                    exc,
+                )
+                _open_auth_breaker()
+            return self._fallback(request, handler, exc, reason)
+
+    async def awrap_model_call(self, request, handler):
+        if _breaker_is_open():
+            return await self._afallback(request, handler, reason="circuit_open")
+        try:
+            return await handler(request)
+        except GraphBubbleUp:
+            raise
+        except Exception as exc:
+            reason = _auth_failure_reason(exc)
+            if reason:
+                provider = getattr(
+                    request.model, "_llm_type", request.model.__class__.__name__
+                )
+                logger.error(
+                    "Primary model authentication failed for %s (%s); using fallback: %s",
+                    provider,
+                    reason,
+                    exc,
+                )
+                _open_auth_breaker()
+            return await self._afallback(request, handler, exc, reason)
+
+
+def _init_auth_aware_fallback_middleware() -> AuthAwareModelFallbackMiddleware:
+    middleware = AuthAwareModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+    return middleware
+
+
 # =============================================================================
 # Middleware
 # =============================================================================
@@ -145,7 +360,7 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = _init_auth_aware_fallback_middleware()
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
