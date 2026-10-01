@@ -5,25 +5,35 @@ from langsmith import testing as t
 
 docs_agent_prompt = (Path(__file__).parents[2] / "instructions.md").read_text()
 
+HARDENING_RULES = (
+    "A follow-up question inside an ongoing conversation is NOT a clarification.",
+    "Documentation you read on an earlier turn is NOT evidence for a new question.",
+    "`check_links` is link validation, not research, and never satisfies this rule.",
+    "If your current answer contradicts anything you said earlier in this conversation, re-read the docs before replying and state plainly which of the two is correct.",
+    'If either support KB tool returns an error or the support knowledge-base research leg otherwise fails, explicitly say: "Support articles could not be consulted, so this answer is based on official documentation only."',
+    "At most once per turn, on the final citation list immediately before finalizing your response",
+    "Never revalidate links already reported valid earlier in the turn.",
+    "Call `check_links` at most once, on the final citation list",
+)
+
+
+@pytest.mark.parametrize("rule", HARDENING_RULES)
+def test_prompt_contains_hardening_rule(rule):
+    """Prompt must retain every recovered hardening rule."""
+    assert rule in docs_agent_prompt
+
 
 @pytest.mark.langsmith
 def test_prompt_instructs_agent_to_avoid_repeat_searches():
     """Prompt must instruct agent not to repeat searches already in conversation."""
     t.log_inputs({"prompt_length": len(docs_agent_prompt)})
 
-    # Check for anti-repetition instruction in the prompt
-    prompt_lower = docs_agent_prompt.lower()
-
-    has_no_repeat_instruction = any([
-        "already" in prompt_lower and "search" in prompt_lower,
-        "do not re-search" in prompt_lower,
-        "don't re-search" in prompt_lower,
-        "avoid repeat" in prompt_lower,
-        "already retrieved" in prompt_lower,
-        "already in" in prompt_lower and "history" in prompt_lower,
-        "conversation already" in prompt_lower,
-        "skip" in prompt_lower and "already" in prompt_lower,
-    ])
+    has_no_repeat_instruction = (
+        "Never call `search_docs_by_lang_chain` or `search_support_articles` "
+        "with a query that already has results in the message history - "
+        "re-searching duplicates context and causes token overflow"
+        in docs_agent_prompt
+    )
 
     t.log_outputs({"has_no_repeat_instruction": has_no_repeat_instruction})
     t.log_reference_outputs({"has_no_repeat_instruction": True})
