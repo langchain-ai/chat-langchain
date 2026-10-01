@@ -5,8 +5,8 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
@@ -17,7 +17,11 @@ from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
     ModelRetryMiddleware,
+    PrimaryAwareModelFallbackMiddleware,
+    _is_auth_error,
     _ProviderValidationAwareRunnableRetry,
+    log_auth_failure_once,
+    primary_circuit_breaker,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -103,8 +107,31 @@ for key in API_KEYS:
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = (
+    init_chat_model(model=DEFAULT_MODEL.id)
+    if os.getenv(DEFAULT_MODEL.api_key_env)
+    else None
+)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
+
+
+def _validate_primary_credentials() -> None:
+    if default_model is None or os.getenv("SKIP_PRIMARY_CREDENTIAL_VALIDATION") in {
+        "1",
+        "true",
+        "yes",
+    }:
+        return
+    try:
+        default_model.invoke([HumanMessage(content="health check")])
+    except Exception as exc:
+        if _is_auth_error(exc):
+            primary_circuit_breaker.record_failure(DEFAULT_MODEL.id, exc)
+            log_auth_failure_once(DEFAULT_MODEL.id)
+        else:
+            logger.warning(
+                "Primary model credential check failed for %s", DEFAULT_MODEL.id
+            )
 
 
 def _raise_for_retryable_finish_reason(response: object) -> object:
@@ -115,11 +142,26 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
     return response
 
 
+_validate_primary_credentials()
+
+
 def _init_retrying_model(model: str) -> Runnable:
+    model_config = next((item for item in MODELS.values() if item.id == model), None)
+    if model_config is not None and not os.getenv(model_config.api_key_env):
+        return _ProviderValidationAwareRunnableRetry(
+            bound=RunnableLambda(
+                lambda _input: (_ for _ in ()).throw(
+                    RuntimeError(f"Credentials are not configured for {model}")
+                )
+            ),
+            max_attempt_number=MAX_RETRIES + 1,
+            model_id=model,
+        )
     return _ProviderValidationAwareRunnableRetry(
         bound=init_chat_model(model=model)
         | RunnableLambda(_raise_for_retryable_finish_reason),
         max_attempt_number=MAX_RETRIES + 1,
+        model_id=model,
     )
 
 
@@ -138,14 +180,20 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 # Middleware
 # =============================================================================
 
-model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
+model_retry_middleware = ModelRetryMiddleware(
+    max_retries=MAX_RETRIES,
+    primary_model_id=DEFAULT_MODEL.id,
+)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 duplicate_call_guard_middleware = DuplicateCallGuardMiddleware()
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = PrimaryAwareModelFallbackMiddleware(
+    DEFAULT_MODEL.id,
+    *[m.id for m in FALLBACK_MODELS if os.getenv(m.api_key_env)],
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
