@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextvars
 import os
 import re
+import unicodedata
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -53,9 +54,30 @@ _DOCS_URL_PATTERN = re.compile(r"https://docs\.langchain\.com/[^\s<>\]\)\"']+")
 _CODE_BLOCK_PATTERN = re.compile(r"```.*?(?:```|$)", re.DOTALL)
 _LARGE_RESULT_POINTER_PATTERN = re.compile(r"^/large_tool_results/[^\s]+$")
 _NONTECHNICAL_USER_TURN_PATTERN = re.compile(
-    r"(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|hola|bonjour|salut|"
+    r"[!.?,¿¡\s]*(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|hola|bonjour|salut|"
     r"你好|您好|こんにちは|こんばんは|привет|здравствуйте|what\s+can\s+you\s+do|"
-    r"who\s+are\s+you|(?:can\s+you\s+)?help(?:\s+me)?)[!.?,\s]*",
+    r"who\s+are\s+you|how\s+can\s+you\s+help(?:\s+me)?|"
+    r"como\s+(?:pode|voce\s+pod?e|puede|puedes)\s+(?:me\s+)?(?:ajudar|ayudar)(?:me)?|"
+    r"o\s+que\s+voce\s+faz|que\s+puedes\s+hacer|quem\s+e\s+voce|"
+    r"quien\s+eres|comment\s+(?:pouvez|peux)\s+vous\s+aider|"
+    r"wer\s+bist\s+du|was\s+kannst\s+du\s+tun|come\s+puoi\s+aiutarmi|"
+    r"cosa\s+puoi\s+fare|chi\s+sei|как\s+ты\s+можешь\s+мне\s+помочь|"
+    r"что\s+ты\s+умеешь|кто\s+ты|你能帮我什么|你是谁|何ができますか|"
+    r"あなたは誰|what\s+do\s+you\s+do|what\s+are\s+your\s+"
+    r"(?:strengths|weaknesses)(?:\s+and\s+(?:strengths|weaknesses))*|"
+    r"(?:can\s+you\s+)?help(?:\s+me)?)[!.?,¿¡\s]*",
+    re.IGNORECASE,
+)
+_CAPABILITY_CONNECTOR_PATTERN = re.compile(
+    r"\b(?:and|or|also|e|ou|y|o|et|ou|und|oder|и|или|または|以及)\b",
+    re.IGNORECASE,
+)
+_INFORMATION_REQUEST_PATTERN = re.compile(
+    r"\b(?:what|how|why|when|where|who|which|whose|can|could|would|"
+    r"tell|explain|show|give|describe|list|compare|help|"
+    r"como|que|quien|por\s+que|dime|explica|muestra|da|describe|lista|compara|"
+    r"comment|pourquoi|quand|ou|qui|dites|expliquez|montrez|"
+    r"wie|warum|wann|wo|wer|welche|sag|erklaer|zeig)\b",
     re.IGNORECASE,
 )
 _TECHNICAL_USER_SIGNAL_PATTERN = re.compile(
@@ -219,7 +241,30 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         text = self._message_text(message).strip()
         if _TECHNICAL_USER_SIGNAL_PATTERN.search(text):
             return True
-        return len(text) > 120 or not _NONTECHNICAL_USER_TURN_PATTERN.fullmatch(text)
+        if len(text) > 120:
+            return True
+        normalized_text = self._normalize_user_turn(text)
+        if self._is_capability_turn(normalized_text):
+            return False
+        if (
+            "?" not in text
+            and not _INFORMATION_REQUEST_PATTERN.search(normalized_text)
+            and not _TECHNICAL_IDENTIFIER_PATTERN.search(text)
+        ):
+            return False
+        return True
+
+    def _is_capability_turn(self, text: str) -> bool:
+        remainder = _NONTECHNICAL_USER_TURN_PATTERN.sub("", text)
+        remainder = _CAPABILITY_CONNECTOR_PATTERN.sub("", remainder)
+        return not remainder.strip("!.?,¿¡ \t\n")
+
+    def _normalize_user_turn(self, text: str) -> str:
+        return "".join(
+            character
+            for character in unicodedata.normalize("NFKD", text)
+            if not unicodedata.combining(character)
+        )
 
     def _message_text(self, message: BaseMessage) -> str:
         content: Any = getattr(message, "content", "")
