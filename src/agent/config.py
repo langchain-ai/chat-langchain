@@ -2,10 +2,10 @@
 
 import logging
 import os
+import sys
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -13,6 +13,13 @@ from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddl
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.model_fallback import (
+    AuthenticationAwareModelFallbackMiddleware,
+    AuthenticationAwareRetry,
+    AuthenticationAwareRunnableWithFallbacks,
+    ModelAvailabilityState,
+    is_authentication_failure,
+)
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -101,10 +108,35 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_AUTH_COOLDOWN_SECONDS = float(os.getenv("MODEL_AUTH_COOLDOWN_SECONDS", "300"))
+primary_model_availability = ModelAvailabilityState(MODEL_AUTH_COOLDOWN_SECONDS)
 
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
+
+
+def _run_model_preflight() -> None:
+    """Check the configured primary model credentials with one minimal request."""
+    if not os.getenv(DEFAULT_MODEL.api_key_env):
+        return
+    if "pytest" in sys.modules and os.getenv("MODEL_PREFLIGHT") != "1":
+        return
+    try:
+        default_model.invoke("Reply with OK")
+    except Exception as error:
+        if is_authentication_failure(error):
+            primary_model_availability.mark_unavailable()
+            logger.error("Default model authentication preflight failed: %s", error)
+            if os.getenv("STRICT_MODEL_PREFLIGHT") == "1":
+                raise
+        else:
+            logger.warning(
+                "Default model authentication preflight was inconclusive: %s", error
+            )
+
+
+_run_model_preflight()
 
 
 def _raise_for_retryable_finish_reason(response: object) -> object:
@@ -115,20 +147,33 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
     return response
 
 
-def _init_retrying_model(model: str) -> Runnable:
+def _init_retrying_model(model: str, track_auth: bool = False) -> Runnable:
+    bound = init_chat_model(model=model) | RunnableLambda(
+        _raise_for_retryable_finish_reason
+    )
+    if track_auth:
+        return AuthenticationAwareRetry(
+            bound=bound,
+            max_attempt_number=MAX_RETRIES + 1,
+            availability=primary_model_availability,
+            model_id=model,
+        )
     return _ProviderValidationAwareRunnableRetry(
-        bound=init_chat_model(model=model)
-        | RunnableLambda(_raise_for_retryable_finish_reason),
+        bound=bound,
         max_attempt_number=MAX_RETRIES + 1,
     )
 
 
 def init_retry_fallback_model(model: str) -> Runnable:
     """Initialize a model runnable with the shared retry and fallback policy."""
-    primary_model = _init_retrying_model(model)
+    primary_model = _init_retrying_model(model, track_auth=model == DEFAULT_MODEL.id)
     fallback_models = [
         _init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS
     ]
+    if model == DEFAULT_MODEL.id:
+        return AuthenticationAwareRunnableWithFallbacks(
+            primary_model, fallback_models, primary_model_availability
+        )
     return primary_model.with_fallbacks(fallback_models)
 
 
@@ -145,7 +190,11 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = AuthenticationAwareModelFallbackMiddleware(
+    DEFAULT_MODEL.id,
+    primary_model_availability,
+    *[m.id for m in FALLBACK_MODELS],
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
