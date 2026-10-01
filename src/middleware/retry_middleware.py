@@ -10,6 +10,7 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.runnables import RunnableWithFallbacks
 from langchain_core.runnables.retry import RunnableRetry
 from tenacity import retry_if_exception
 
@@ -19,6 +20,14 @@ logger = logging.getLogger(__name__)
 RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
 }
+
+
+def is_non_retryable_request_error(exception: BaseException) -> bool:
+    """Return whether an exception represents an invalid provider request."""
+    return (
+        isinstance(exception, ValueError)
+        or getattr(exception, "status_code", None) == 400
+    )
 
 
 class MalformedResponseError(Exception):
@@ -32,9 +41,61 @@ class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     def _kwargs_retrying(self) -> dict[str, object]:
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
-            lambda exception: not isinstance(exception, ValueError)
+            lambda exception: not is_non_retryable_request_error(exception)
         )
         return kwargs
+
+
+class _ProviderValidationAwareRunnableWithFallbacks(RunnableWithFallbacks):
+    def invoke(self, input, config=None, **kwargs):
+        if self.exception_key is not None and not isinstance(input, dict):
+            raise ValueError(
+                "If 'exception_key' is specified then input must be a dictionary."
+                f"However found a type of {type(input)} for input"
+            )
+        first_exception = None
+        last_exception = None
+        for runnable in self.runnables:
+            try:
+                if self.exception_key and last_exception is not None:
+                    input[self.exception_key] = last_exception
+                return runnable.invoke(input, config, **kwargs)
+            except self.exceptions_to_handle as exception:
+                if is_non_retryable_request_error(exception):
+                    raise
+                if first_exception is None:
+                    first_exception = exception
+                last_exception = exception
+            except BaseException:
+                raise
+        if first_exception is None:
+            raise RuntimeError("No error stored at end of fallbacks.")
+        raise first_exception
+
+    async def ainvoke(self, input, config=None, **kwargs):
+        if self.exception_key is not None and not isinstance(input, dict):
+            raise ValueError(
+                "If 'exception_key' is specified then input must be a dictionary."
+                f"However found a type of {type(input)} for input"
+            )
+        first_exception = None
+        last_exception = None
+        for runnable in self.runnables:
+            try:
+                if self.exception_key and last_exception is not None:
+                    input[self.exception_key] = last_exception
+                return await runnable.ainvoke(input, config, **kwargs)
+            except self.exceptions_to_handle as exception:
+                if is_non_retryable_request_error(exception):
+                    raise
+                if first_exception is None:
+                    first_exception = exception
+                last_exception = exception
+            except BaseException:
+                raise
+        if first_exception is None:
+            raise RuntimeError("No error stored at end of fallbacks.")
+        raise first_exception
 
 
 class ModelRetryMiddleware(AgentMiddleware):
@@ -86,7 +147,7 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if is_non_retryable_request_error(e):
                     raise
                 last_exception = e
                 if attempt < self.max_retries:
@@ -113,4 +174,10 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = [
+    "ModelRetryMiddleware",
+    "MalformedResponseError",
+    "is_non_retryable_request_error",
+    "_ProviderValidationAwareRunnableRetry",
+    "_ProviderValidationAwareRunnableWithFallbacks",
+]
