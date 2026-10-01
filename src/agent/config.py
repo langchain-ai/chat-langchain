@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -14,10 +13,15 @@ from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
 from src.middleware.retry_middleware import (
+    AUTH_BREAKER_COOLDOWN_SECONDS,
     RETRYABLE_FINISH_REASONS,
+    AuthenticationAwareModelFallbackMiddleware,
+    AuthenticationCircuitBreaker,
     MalformedResponseError,
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
+    is_authentication_error,
+    mark_fallback_used,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -107,6 +111,47 @@ default_model = init_chat_model(model=DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
+def validate_provider_authentication() -> dict[str, bool]:
+    """Check configured provider credentials without stopping startup."""
+    results: dict[str, bool] = {}
+    if os.getenv("MODEL_STARTUP_AUTH_CHECK", "true").lower() == "false":
+        logger.info("Provider authentication checks disabled")
+        return results
+    for model_config in MODELS.values():
+        if not os.getenv(model_config.api_key_env):
+            continue
+        try:
+            model = (
+                default_model
+                if model_config.id == DEFAULT_MODEL.id
+                else init_chat_model(model=model_config.id, max_tokens=1)
+            )
+            model.invoke("health check")
+            results[model_config.provider] = True
+            logger.info("%s authentication check passed", model_config.provider)
+        except Exception as exception:
+            results[model_config.provider] = False
+            level = logger.error
+            if model_config.id == DEFAULT_MODEL.id:
+                level(
+                    "PRIMARY MODEL AUTHENTICATION CHECK FAILED for %s (%s): %s",
+                    model_config.provider,
+                    model_config.id,
+                    exception,
+                )
+            else:
+                level(
+                    "Provider authentication check failed for %s (%s): %s",
+                    model_config.provider,
+                    model_config.id,
+                    exception,
+                )
+    return results
+
+
+provider_authentication = validate_provider_authentication()
+
+
 def _raise_for_retryable_finish_reason(response: object) -> object:
     metadata = getattr(response, "response_metadata", None) or {}
     finish_reason = metadata.get("finish_reason", "")
@@ -125,10 +170,56 @@ def _init_retrying_model(model: str) -> Runnable:
 
 def init_retry_fallback_model(model: str) -> Runnable:
     """Initialize a model runnable with the shared retry and fallback policy."""
-    primary_model = _init_retrying_model(model)
-    fallback_models = [
-        _init_retrying_model(fallback.id) for fallback in FALLBACK_MODELS
-    ]
+    breaker = AuthenticationCircuitBreaker(model, AUTH_BREAKER_COOLDOWN_SECONDS)
+    primary = _init_retrying_model(model)
+
+    def invoke_primary(value, config=None):
+        if breaker.is_open:
+            raise RuntimeError(f"Authentication breaker open for {model}")
+        try:
+            return primary.invoke(value, config=config)
+        except Exception as exception:
+            if is_authentication_error(exception):
+                breaker.open(exception)
+            raise
+
+    async def ainvoke_primary(value, config=None):
+        if breaker.is_open:
+            raise RuntimeError(f"Authentication breaker open for {model}")
+        try:
+            return await primary.ainvoke(value, config=config)
+        except Exception as exception:
+            if is_authentication_error(exception):
+                breaker.open(exception)
+            raise
+
+    primary_model = RunnableLambda(invoke_primary, afunc=ainvoke_primary)
+    primary_model.max_attempt_number = getattr(
+        primary, "max_attempt_number", MAX_RETRIES + 1
+    )
+    fallback_models = []
+    for fallback in FALLBACK_MODELS:
+        fallback_model = _init_retrying_model(fallback.id)
+
+        def invoke_fallback(
+            value, config=None, *, model=fallback_model, model_id=fallback.id
+        ):
+            result = model.invoke(value, config=config)
+            mark_fallback_used(model_id)
+            return result
+
+        async def ainvoke_fallback(
+            value, config=None, *, model=fallback_model, model_id=fallback.id
+        ):
+            result = await model.ainvoke(value, config=config)
+            mark_fallback_used(model_id)
+            return result
+
+        wrapped_fallback = RunnableLambda(invoke_fallback, afunc=ainvoke_fallback)
+        wrapped_fallback.max_attempt_number = getattr(
+            fallback_model, "max_attempt_number", MAX_RETRIES + 1
+        )
+        fallback_models.append(wrapped_fallback)
     return primary_model.with_fallbacks(fallback_models)
 
 
@@ -145,7 +236,10 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = AuthenticationAwareModelFallbackMiddleware(
+    DEFAULT_MODEL.id,
+    *[m.id for m in FALLBACK_MODELS],
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
