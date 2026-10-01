@@ -27,6 +27,21 @@ class MalformedResponseError(Exception):
     pass
 
 
+def is_authentication_error(exception: BaseException) -> bool:
+    """Return whether an exception identifies an invalid provider credential."""
+    status_code = getattr(exception, "status_code", None) or getattr(
+        exception, "http_status", None
+    )
+    if status_code in {401, 403}:
+        return True
+    details = " ".join(
+        str(getattr(exception, attribute, ""))
+        for attribute in ("reason", "code", "body", "response", "message")
+    )
+    details = f"{details} {exception}".upper()
+    return "API_KEY_INVALID" in details or "PERMISSION_DENIED" in details
+
+
 class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     @property
     def _kwargs_retrying(self) -> dict[str, object]:
@@ -86,7 +101,7 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if isinstance(e, ValueError) or is_authentication_error(e):
                     raise
                 last_exception = e
                 if attempt < self.max_retries:
@@ -113,4 +128,8 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = [
+    "ModelRetryMiddleware",
+    "MalformedResponseError",
+    "is_authentication_error",
+]
