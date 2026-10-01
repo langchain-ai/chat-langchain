@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -13,6 +12,10 @@ from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddl
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.model_fallback_middleware import (
+    ObservableModelFallbackMiddleware,
+    auth_failure_reason,
+)
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -95,6 +98,42 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+def _env_flag(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def validate_model_credentials() -> None:
+    """Validate configured model credentials when startup checks are enabled."""
+    if not _env_flag("VALIDATE_MODEL_CREDENTIALS"):
+        return
+    for model in [DEFAULT_MODEL, *FALLBACK_MODELS]:
+        if not os.getenv(model.api_key_env):
+            continue
+        try:
+            init_chat_model(model=model.id).invoke("ping")
+        except Exception as error:
+            reason = auth_failure_reason(error, model.id)
+            if reason is None:
+                logger.warning(
+                    "Credential check failed for %s model %s: %s",
+                    model.provider,
+                    model.name,
+                    error,
+                )
+                continue
+            logger.error(
+                "Credential rejected for %s model %s: %s",
+                model.provider,
+                model.name,
+                reason,
+            )
+            if model is DEFAULT_MODEL and _env_flag("FAIL_ON_INVALID_PRIMARY_KEY"):
+                raise
+
+
+validate_model_credentials()
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
@@ -145,7 +184,9 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ObservableModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -171,6 +212,7 @@ __all__ = [
     "citation_guard_middleware",
     "answer_sanity_guard_middleware",
     "model_fallback_middleware",
+    "validate_model_credentials",
     # Config
     "MAX_RETRIES",
     "logger",
