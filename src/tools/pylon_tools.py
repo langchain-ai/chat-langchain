@@ -203,6 +203,25 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     return _articles_cache
 
 
+def _public_articles(
+    articles: List[Dict[str, Any]] | None = None,
+) -> List[Dict[str, Any]]:
+    """Return published, public articles with supported identifiers."""
+    articles = _fetch_all_articles() if articles is None else articles
+    return [
+        article
+        for article in articles
+        if (
+            article.get("is_published", False)
+            and article.get("title")
+            and article.get("title") != "Untitled"
+            and article.get("visibility_config", {}).get("visibility") == "public"
+            and article.get("identifier")
+            and article.get("slug")
+        )
+    ]
+
+
 # =============================================================================
 # LangChain Tools
 # =============================================================================
@@ -230,32 +249,22 @@ def search_support_articles(query: str, collections: str = "all") -> str:
 
         # Filter to only PUBLIC visibility articles with valid titles
         published_articles = []
-        for article in articles:
-            if (
-                article.get("is_published", False)
-                and article.get("title")
-                and article.get("title") != "Untitled"
-                and article.get("visibility_config", {}).get("visibility") == "public"
-                and article.get("identifier")
-                and article.get("slug")
-            ):
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier")
-                slug = article.get("slug")
-                support_url = (
-                    f"https://support.langchain.com/articles/{identifier}-{slug}"
-                )
+        for article in _public_articles(articles):
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier")
+            slug = article.get("slug")
+            support_url = f"https://support.langchain.com/articles/{identifier}-{slug}"
 
-                published_articles.append(
-                    {
-                        "id": article.get("id"),
-                        "article_id": article.get("id"),
-                        "title": article.get("title", ""),
-                        "url": support_url,
-                        "collection_id": article.get("collection_id"),
-                        "body": article.get("current_published_content_html", ""),
-                    }
-                )
+            published_articles.append(
+                {
+                    "id": article.get("id"),
+                    "article_id": article.get("id"),
+                    "title": article.get("title", ""),
+                    "url": support_url,
+                    "collection_id": article.get("collection_id"),
+                    "body": article.get("current_published_content_html", ""),
+                }
+            )
 
         if not published_articles:
             return json.dumps(
@@ -426,11 +435,13 @@ def get_support_article_content(article_id: str) -> str:
     """
     try:
         # Use cached articles (already fetched by search_support_articles)
-        articles = _fetch_all_articles()
+        all_articles = _fetch_all_articles()
 
         # Handle None or empty response
-        if articles is None or not articles:
+        if all_articles is None or not all_articles:
             return "No articles available in the knowledge base."
+
+        articles = _public_articles(all_articles)
 
         # Build reverse mapping: collection_id -> collection_name
         collection_map = _fetch_collections()
