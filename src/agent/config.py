@@ -94,6 +94,9 @@ for key in API_KEYS:
         os.environ[key] = value.strip()
         logger.info(f"{key} configured")
 
+if not os.getenv(DEFAULT_MODEL.api_key_env):
+    logger.error("%s is not configured for the default model", DEFAULT_MODEL.api_key_env)
+
 
 # =============================================================================
 # Model Initialization
@@ -120,6 +123,7 @@ def _init_retrying_model(model: str) -> Runnable:
         bound=init_chat_model(model=model)
         | RunnableLambda(_raise_for_retryable_finish_reason),
         max_attempt_number=MAX_RETRIES + 1,
+        provider_model=model,
     )
 
 
