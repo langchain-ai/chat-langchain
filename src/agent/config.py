@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -13,6 +12,10 @@ from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddl
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.observable_model_fallback_middleware import (
+    ObservableModelFallbackMiddleware,
+    is_provider_auth_error,
+)
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -107,6 +110,42 @@ default_model = init_chat_model(model=DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
+def validate_provider_credentials() -> None:
+    """Make a minimal authenticated request to each configured provider model."""
+    strict = os.getenv("STRICT_PROVIDER_PREFLIGHT", "").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    for model_config in [DEFAULT_MODEL, *FALLBACK_MODELS]:
+        try:
+            model = (
+                default_model
+                if model_config.id == DEFAULT_MODEL.id
+                else init_chat_model(model=model_config.id)
+            )
+            model.invoke("Reply with OK.", config={"timeout": 10})
+        except Exception as error:
+            if is_provider_auth_error(error):
+                logger.error(
+                    "Provider credential preflight failed for %s: %s",
+                    model_config.id,
+                    error,
+                )
+                if strict:
+                    raise
+            else:
+                logger.warning(
+                    "Provider credential preflight could not reach %s: %s",
+                    model_config.id,
+                    error,
+                )
+
+
+validate_provider_credentials()
+
+
 def _raise_for_retryable_finish_reason(response: object) -> object:
     metadata = getattr(response, "response_metadata", None) or {}
     finish_reason = metadata.get("finish_reason", "")
@@ -145,7 +184,9 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ObservableModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -161,6 +202,7 @@ __all__ = [
     "ModelConfig",
     # Models
     "default_model",
+    "validate_provider_credentials",
     "init_retry_fallback_model",
     "summarization_model",
     # Middleware
