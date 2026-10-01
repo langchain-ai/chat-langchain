@@ -3,11 +3,15 @@
 import logging
 import os
 from dataclasses import dataclass
+from threading import Lock
+from typing import Any
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
+from langchain.agents.middleware.types import ModelCallResult, ModelRequest
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
+from langsmith.run_helpers import set_run_metadata
 
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
@@ -90,9 +94,20 @@ API_KEYS = [
 ]
 
 for key in API_KEYS:
-    if value := os.getenv(key):
-        os.environ[key] = value.strip()
+    value = os.getenv(key, "").strip()
+    if value:
+        os.environ[key] = value
         logger.info(f"{key} configured")
+
+
+def _log_primary_model_key_status() -> None:
+    if not os.getenv(DEFAULT_MODEL.api_key_env, "").strip():
+        logger.error(
+            "%s is not configured for the primary model", DEFAULT_MODEL.api_key_env
+        )
+
+
+_log_primary_model_key_status()
 
 
 # =============================================================================
@@ -105,6 +120,26 @@ MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
+
+
+def _validate_primary_model_key() -> None:
+    if os.getenv("VALIDATE_MODEL_KEYS") != "1":
+        return
+
+    try:
+        default_model.invoke("ping")
+    except Exception as exc:
+        logger.error(
+            "Primary model %s rejected %s: %s",
+            DEFAULT_MODEL.name,
+            DEFAULT_MODEL.api_key_env,
+            exc,
+        )
+        if os.getenv("VALIDATE_MODEL_KEYS_FAIL_FAST") == "1":
+            raise
+
+
+_validate_primary_model_key()
 
 
 def _raise_for_retryable_finish_reason(response: object) -> object:
@@ -145,7 +180,77 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+
+def _is_authentication_failure(exception: BaseException) -> bool:
+    seen: set[int] = set()
+    current: BaseException | None = exception
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        message = str(current).upper()
+        if "API_KEY_INVALID" in message:
+            return True
+        for candidate in (current, getattr(current, "response", None)):
+            status = getattr(candidate, "status_code", None)
+            if status in (401, 403):
+                return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+class PrimaryModelFallbackMiddleware(ModelFallbackMiddleware):
+    """Record primary authentication failures before using model fallbacks."""
+
+    _auth_failure_logged = False
+    _auth_failure_lock = Lock()
+
+    @classmethod
+    def _record_auth_failure(cls) -> None:
+        with cls._auth_failure_lock:
+            if not cls._auth_failure_logged:
+                logger.error(
+                    "Primary model authentication failed for %s (%s); using fallback models",
+                    DEFAULT_MODEL.name,
+                    DEFAULT_MODEL.provider,
+                )
+                cls._auth_failure_logged = True
+        set_run_metadata(primary_model_error="auth", served_by_fallback=True)
+
+    def wrap_model_call(self, request: ModelRequest, handler: Any) -> ModelCallResult:
+        primary_attempt = True
+
+        def recording_handler(current_request: ModelRequest) -> ModelCallResult:
+            nonlocal primary_attempt
+            try:
+                return handler(current_request)
+            except Exception as exc:
+                if primary_attempt and _is_authentication_failure(exc):
+                    self._record_auth_failure()
+                primary_attempt = False
+                raise
+
+        return super().wrap_model_call(request, recording_handler)
+
+    async def awrap_model_call(
+        self, request: ModelRequest, handler: Any
+    ) -> ModelCallResult:
+        primary_attempt = True
+
+        async def recording_handler(current_request: ModelRequest) -> ModelCallResult:
+            nonlocal primary_attempt
+            try:
+                return await handler(current_request)
+            except Exception as exc:
+                if primary_attempt and _is_authentication_failure(exc):
+                    self._record_auth_failure()
+                primary_attempt = False
+                raise
+
+        return await super().awrap_model_call(request, recording_handler)
+
+
+model_fallback_middleware = PrimaryModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
