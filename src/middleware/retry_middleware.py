@@ -13,6 +13,8 @@ from langchain.agents.middleware.types import (
 from langchain_core.runnables.retry import RunnableRetry
 from tenacity import retry_if_exception
 
+from src.middleware.model_error_utils import is_auth_or_permission_error
+
 logger = logging.getLogger(__name__)
 
 # Finish reasons that indicate a retryable failure (not an exception)
@@ -33,6 +35,7 @@ class _ProviderValidationAwareRunnableRetry(RunnableRetry):
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
             lambda exception: not isinstance(exception, ValueError)
+            and not is_auth_or_permission_error(exception)
         )
         return kwargs
 
@@ -86,7 +89,7 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if isinstance(e, ValueError) or is_auth_or_permission_error(e):
                     raise
                 last_exception = e
                 if attempt < self.max_retries:

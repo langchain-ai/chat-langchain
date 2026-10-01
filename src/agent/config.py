@@ -2,9 +2,11 @@
 
 import logging
 import os
+import sys
 from dataclasses import dataclass
 
 import dotenv
+from google import genai
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
@@ -13,6 +15,7 @@ from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddl
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.fallback_visibility_middleware import FallbackVisibilityMiddleware
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -95,6 +98,33 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+def validate_primary_model_key() -> None:
+    """Validate the configured primary model key with its provider."""
+    api_key = os.getenv(DEFAULT_MODEL.api_key_env)
+    if not api_key:
+        return
+
+    try:
+        if DEFAULT_MODEL.provider == "google":
+            client = genai.Client(api_key=api_key)
+            next(iter(client.models.list(config={"page_size": 1})), None)
+        else:
+            raise RuntimeError(f"No key validator for {DEFAULT_MODEL.provider}")
+    except Exception as error:
+        logger.error(
+            "Primary model %s rejected %s: %s",
+            DEFAULT_MODEL.id,
+            type(error).__name__,
+            error,
+        )
+        if os.getenv("STRICT_MODEL_KEYS") == "1":
+            raise
+
+
+if "pytest" not in sys.modules:
+    validate_primary_model_key()
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
@@ -146,6 +176,9 @@ citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_visibility_middleware = FallbackVisibilityMiddleware(
+    DEFAULT_MODEL.id, *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -171,6 +204,7 @@ __all__ = [
     "citation_guard_middleware",
     "answer_sanity_guard_middleware",
     "model_fallback_middleware",
+    "model_fallback_visibility_middleware",
     # Config
     "MAX_RETRIES",
     "logger",
