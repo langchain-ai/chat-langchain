@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from types import SimpleNamespace
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
 
@@ -32,6 +32,58 @@ def test_before_agent_truncates_oversized_human_message():
 def test_before_agent_noop_when_under_cap():
     middleware = IngressGuardsMiddleware()
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
+
+    assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_removes_incomplete_turn_and_tool_messages():
+    middleware = IngressGuardsMiddleware()
+    state = {
+        "messages": [
+            HumanMessage(content="Q1", id="h1"),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "lookup", "args": {}, "id": "call1"}],
+                id="a1",
+            ),
+            ToolMessage(content="result", tool_call_id="call1", id="t1"),
+            HumanMessage(content="Q2", id="h2"),
+        ]
+    }
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert [message.id for message in update["messages"]] == ["h1", "a1", "t1"]
+
+
+def test_before_agent_preserves_completed_turn():
+    middleware = IngressGuardsMiddleware()
+    state = {
+        "messages": [
+            HumanMessage(content="Q1", id="h1"),
+            AIMessage(content="A1", id="a1"),
+            HumanMessage(content="Q2", id="h2"),
+        ]
+    }
+
+    assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_preserves_turn_with_final_text_after_tools():
+    middleware = IngressGuardsMiddleware()
+    state = {
+        "messages": [
+            HumanMessage(content="Q1", id="h1"),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "lookup", "args": {}, "id": "call1"}],
+                id="a1",
+            ),
+            ToolMessage(content="result", tool_call_id="call1", id="t1"),
+            AIMessage(content="A1", id="a2"),
+            HumanMessage(content="Q2", id="h2"),
+        ]
+    }
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
