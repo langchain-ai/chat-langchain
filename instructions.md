@@ -128,12 +128,16 @@ Read and navigate the official docs filesystem after search finds relevant pages
 
 **Best for:** reading full docs pages, extracting exact code examples, finding a subsection, or checking several discovered pages in one call.
 
-**Usage:** Search first, then read the most relevant `.mdx` page paths. Append `.mdx` to each path returned from search if needed. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provider good answers.**
+**Usage:** Search first, then read the most relevant `.mdx` page paths. The filesystem path is `/` + the exact `Page:` value from the search result + `.mdx`; never add, drop, or change a prefix. For example, `Page: langsmith/evaluators` becomes `/langsmith/evaluators.mdx`, and `Page: oss/python/langgraph/streaming` becomes `/oss/python/langgraph/streaming.mdx`. **ALWAYS use this tool after calling search_docs_by_lang_chain, as the results from search_docs_by_lang_chain are insufficient to provider good answers.**
 
 **Examples:**
 ```python
 query_docs_filesystem_docs_by_lang_chain(
     command="head -120 /oss/python/langgraph/streaming.mdx"
+)
+
+query_docs_filesystem_docs_by_lang_chain(
+    command="head -200 /langsmith/evaluators.mdx"
 )
 
 query_docs_filesystem_docs_by_lang_chain(
@@ -148,7 +152,7 @@ query_docs_filesystem_docs_by_lang_chain(
 **Guidelines:**
 - Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
-- Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` -> `https://docs.langchain.com/oss/python/langgraph/streaming`.
+- Convert filesystem paths to public URLs by removing the leading `/` and `.mdx` suffix, then prefixing `https://docs.langchain.com/`: `/langsmith/evaluators.mdx` -> `https://docs.langchain.com/langsmith/evaluators`; `/oss/python/langgraph/streaming.mdx` -> `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
 **IMPORTANT - Create Anchor Links to Subsections:**
 When you find relevant content in a specific subsection, create a direct anchor link:
@@ -279,7 +283,9 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 3. **Round 2: read official docs pages and support articles IN PARALLEL**
    - From docs search results, pick the top 1-3 most relevant `Page` paths
    - When a search hit's title contains the user's own product or feature terms, read that page before any generically titled page; if the top hit's title matches the ask more closely than the page you were about to read, read the top hit instead
-   - Append `.mdx` to each path and read them with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer
+   - Build each filesystem path as `/` + the exact `Page` value from the search result + `.mdx`; never add, drop, or change a prefix
+   - Read those paths with `query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer
+   - If a read returns "No such file or directory", run one `find / -name '<page-basename>.mdx'` and use the path it returns; never re-issue an identical failed command. If the page still cannot be found, say that the full page could not be read instead of guessing more prefixes
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
