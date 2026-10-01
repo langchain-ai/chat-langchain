@@ -83,6 +83,22 @@ def _article_matches_id(article: Dict[str, Any], article_id: str) -> bool:
     return requested_id in {value.casefold() for value in identifiers if value}
 
 
+def _public_articles(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return published articles with public visibility and valid identifiers."""
+    return [
+        article
+        for article in articles
+        if (
+            article.get("is_published", False)
+            and article.get("title")
+            and article.get("title") != "Untitled"
+            and article.get("visibility_config", {}).get("visibility") == "public"
+            and article.get("identifier")
+            and article.get("slug")
+        )
+    ]
+
+
 def _article_suggestions(articles: List[Dict[str, Any]], article_id: str) -> str:
     """Return close article title and UUID suggestions for an unknown ID."""
     requested_id = str(article_id).strip().casefold()
@@ -228,34 +244,23 @@ def search_support_articles(query: str, collections: str = "all") -> str:
                 }
             )
 
-        # Filter to only PUBLIC visibility articles with valid titles
         published_articles = []
-        for article in articles:
-            if (
-                article.get("is_published", False)
-                and article.get("title")
-                and article.get("title") != "Untitled"
-                and article.get("visibility_config", {}).get("visibility") == "public"
-                and article.get("identifier")
-                and article.get("slug")
-            ):
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier")
-                slug = article.get("slug")
-                support_url = (
-                    f"https://support.langchain.com/articles/{identifier}-{slug}"
-                )
+        for article in _public_articles(articles):
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier")
+            slug = article.get("slug")
+            support_url = f"https://support.langchain.com/articles/{identifier}-{slug}"
 
-                published_articles.append(
-                    {
-                        "id": article.get("id"),
-                        "article_id": article.get("id"),
-                        "title": article.get("title", ""),
-                        "url": support_url,
-                        "collection_id": article.get("collection_id"),
-                        "body": article.get("current_published_content_html", ""),
-                    }
-                )
+            published_articles.append(
+                {
+                    "id": article.get("id"),
+                    "article_id": article.get("id"),
+                    "title": article.get("title", ""),
+                    "url": support_url,
+                    "collection_id": article.get("collection_id"),
+                    "body": article.get("current_published_content_html", ""),
+                }
+            )
 
         if not published_articles:
             return json.dumps(
@@ -437,7 +442,7 @@ def get_support_article_content(article_id: str) -> str:
         collection_id_to_name = {v: k for k, v in collection_map.items()}
 
         # Find the article by ID
-        for article in articles:
+        for article in _public_articles(articles):
             if _article_matches_id(article, article_id):
                 title = article.get("title", "Untitled")
                 # Look up collection name by collection_id; fall back to default
@@ -465,7 +470,7 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        suggestions = _article_suggestions(articles, article_id)
+        suggestions = _article_suggestions(_public_articles(articles), article_id)
         return (
             f"Article ID {article_id} not found in knowledge base. "
             f"Closest matches: {suggestions}"

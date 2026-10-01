@@ -21,7 +21,7 @@ ARTICLE = {
 
 @pytest.mark.parametrize(
     "article_id",
-    ["uuid-123", "12345", "12345-troubleshooting-login"],
+    ["uuid-123", "12345", "troubleshooting-login", "12345-troubleshooting-login"],
 )
 def test_get_support_article_content_resolves_supported_identifiers(article_id):
     with (
@@ -54,6 +54,54 @@ def test_get_support_article_content_suggests_closest_articles_on_miss():
     assert "Article ID login-help not found in knowledge base" in result
     assert "Troubleshooting Login (ID: uuid-123)" in result
     assert "Resetting Login (ID: uuid-456)" in result
+
+
+@pytest.mark.parametrize(
+    "visibility_overrides",
+    [{"is_published": False}, {"visibility_config": {"visibility": "private"}}],
+)
+def test_get_support_article_content_does_not_return_non_public_articles(
+    visibility_overrides,
+):
+    non_public_article = {**ARTICLE, "id": "private-uuid", **visibility_overrides}
+    with (
+        patch(
+            "src.tools.pylon_tools._fetch_all_articles",
+            return_value=[non_public_article],
+        ),
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+        ),
+    ):
+        result = get_support_article_content.invoke({"article_id": "private-uuid"})
+
+    assert "not found in knowledge base" in result
+    assert "Helpful content" not in result
+
+
+def test_get_support_article_content_suggestions_exclude_non_public_articles():
+    non_public_article = {
+        **ARTICLE,
+        "id": "private-uuid",
+        "title": "Login Help Internal Runbook",
+    }
+    non_public_article["visibility_config"] = {"visibility": "private"}
+    with (
+        patch(
+            "src.tools.pylon_tools._fetch_all_articles",
+            return_value=[non_public_article, ARTICLE],
+        ),
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+        ),
+    ):
+        result = get_support_article_content.invoke({"article_id": "login-help"})
+
+    assert "Login Help Internal Runbook" not in result
+    assert "private-uuid" not in result
+    assert "Troubleshooting Login (ID: uuid-123)" in result
 
 
 def test_search_support_articles_normalizes_parenthetical_collection_words():
