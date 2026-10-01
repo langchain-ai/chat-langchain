@@ -5,7 +5,6 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
@@ -17,7 +16,10 @@ from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
     ModelRetryMiddleware,
+    ProviderAwareModelFallbackMiddleware,
     _ProviderValidationAwareRunnableRetry,
+    classify_provider_authentication_error,
+    is_strict_authentication_validation,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -95,6 +97,53 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+def _is_enabled(value: str | None, default: bool = True) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def validate_primary_model_credential(
+    model_config: ModelConfig = DEFAULT_MODEL,
+    model_factory=init_chat_model,
+    strict: bool | None = None,
+) -> None:
+    """Validate the primary model credential with one authenticated call."""
+    strict = is_strict_authentication_validation() if strict is None else strict
+    api_key = os.getenv(model_config.api_key_env, "").strip()
+    if not api_key:
+        message = f"Missing primary model credential {model_config.api_key_env}"
+        if strict:
+            raise RuntimeError(message)
+        logger.error(message)
+        return
+
+    try:
+        model_factory(model_config.id).invoke("ping")
+    except BaseException as exception:
+        reason = classify_provider_authentication_error(
+            exception, model_config.provider
+        )
+        if reason:
+            message = (
+                f"Primary model credential rejected by {model_config.provider} "
+                f"({reason})"
+            )
+            if strict:
+                raise RuntimeError(message) from exception
+            logger.error(message)
+            return
+        logger.warning(
+            "Primary model credential validation could not complete for %s: %s",
+            model_config.provider,
+            exception,
+        )
+
+
+if _is_enabled(os.getenv("MODEL_STARTUP_VALIDATION")):
+    validate_primary_model_credential()
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
@@ -145,7 +194,9 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ProviderAwareModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
