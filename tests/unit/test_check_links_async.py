@@ -8,23 +8,33 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+import socket
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+from src.tools.link_check_tools import (
+    LinkCheckResult,
+    _cache,
+    _check_single_url,
+    check_links,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
 
-from src.tools.link_check_tools import (
-    LinkCheckResult,
-    _check_single_url,
-    _check_urls_async,
-    _format_results,
-    check_links,
-)
+
+@pytest.fixture(autouse=True)
+def clear_link_cache():
+    _cache.clear()
+    yield
+    _cache.clear()
+
+
+def _global_dns_results(host, port, *args, **kwargs):  # noqa: ANN001
+    return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
 
 
 class _FakeStreamResponse:
@@ -33,6 +43,7 @@ class _FakeStreamResponse:
     def __init__(self, url: str, status_code: int, content: str):
         self.url = url
         self.status_code = status_code
+        self.headers = {}
         self._content = content
 
     async def __aenter__(self):
@@ -60,8 +71,10 @@ class _FakeStreamingClient:
 # Fixture: a canned async replacement for _check_urls_async
 # ---------------------------------------------------------------------------
 
+
 def _make_async_check_mock(results: list[LinkCheckResult]):
     """Return an async function that ignores its arguments and returns *results*."""
+
     async def _mock_check_urls_async(urls, timeout):  # noqa: ARG001
         return results
 
@@ -73,6 +86,7 @@ def _make_async_check_mock(results: list[LinkCheckResult]):
 #    (this is the regression test — it FAILS before the fix because the old
 #    code calls asyncio.run() inside an already-running event loop).
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_check_links_works_in_async_context():
@@ -131,12 +145,17 @@ async def test_check_links_async_context_does_not_raise_runtime_error():
 #     e.g. in plain scripts or sync test runners).
 # ===========================================================================
 
+
 def test_check_links_works_in_sync_context():
     """check_links.invoke() must work when called outside an async context."""
     fake_results = [
         LinkCheckResult(url="https://example.com", valid=True, status_code=200),
-        LinkCheckResult(url="https://bad.example.com", valid=False, status_code=404,
-                        error="HTTP 404"),
+        LinkCheckResult(
+            url="https://bad.example.com",
+            valid=False,
+            status_code=404,
+            error="HTTP 404",
+        ),
     ]
 
     with patch(
@@ -166,7 +185,13 @@ def test_check_links_sync_deduplicates_urls():
         new=_recording_mock,
     ):
         result = check_links.invoke(
-            {"urls": ["https://example.com", "https://example.com", "https://example.com"]}
+            {
+                "urls": [
+                    "https://example.com",
+                    "https://example.com",
+                    "https://example.com",
+                ]
+            }
         )
 
     # _check_urls_async should have been called with exactly ONE unique URL
@@ -178,6 +203,7 @@ def test_check_links_sync_deduplicates_urls():
 # ===========================================================================
 # 3. Edge cases
 # ===========================================================================
+
 
 def test_check_links_empty_list():
     """Passing an empty list should return the 'no URLs' message without error."""
@@ -217,7 +243,9 @@ def test_check_links_invalid_url_format():
 async def test_check_links_async_invalid_url_format():
     """Invalid URL in async context should also be reported correctly."""
     fake_results = [
-        LinkCheckResult(url="ftp://not-supported", valid=False, error="Invalid URL format"),
+        LinkCheckResult(
+            url="ftp://not-supported", valid=False, error="Invalid URL format"
+        ),
     ]
 
     with patch(
@@ -233,11 +261,16 @@ async def test_check_links_async_invalid_url_format():
 @pytest.mark.asyncio
 async def test_support_article_not_found_is_invalid_soft_404():
     """Support articles can return HTTP 200 while rendering an article-not-found page."""
-    result = await _check_single_url(
-        _FakeStreamingClient("<html><body><div>Article Not Found</div></body></html>"),
-        "https://support.langchain.com/hc/en-us/articles/missing-article",
-        timeout=1.0,
-    )
+    with patch(
+        "src.tools.link_check_tools.socket.getaddrinfo", new=_global_dns_results
+    ):
+        result = await _check_single_url(
+            _FakeStreamingClient(
+                "<html><body><div>Article Not Found</div></body></html>"
+            ),
+            "https://support.langchain.com/hc/en-us/articles/missing-article",
+            timeout=1.0,
+        )
 
     assert not result.valid
     assert result.status_code == 200
@@ -247,12 +280,93 @@ async def test_support_article_not_found_is_invalid_soft_404():
 @pytest.mark.asyncio
 async def test_support_article_normal_content_is_valid():
     """Normal support article content should still be treated as valid."""
-    result = await _check_single_url(
-        _FakeStreamingClient("<html><body><div>Useful support article</div></body></html>"),
-        "https://support.langchain.com/hc/en-us/articles/existing-article",
-        timeout=1.0,
-    )
+    with patch(
+        "src.tools.link_check_tools.socket.getaddrinfo", new=_global_dns_results
+    ):
+        result = await _check_single_url(
+            _FakeStreamingClient(
+                "<html><body><div>Useful support article</div></body></html>"
+            ),
+            "https://support.langchain.com/hc/en-us/articles/existing-article",
+            timeout=1.0,
+        )
 
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1/",
+        "http://10.0.0.1/",
+        "https://example.com/",
+    ],
+)
+async def test_out_of_scope_urls_are_rejected_without_requests(url):
+    client = MagicMock()
+
+    result = await _check_single_url(client, url, timeout=1.0)
+
+    assert not result.valid
+    assert (
+        result.error
+        == "Out of scope: only LangChain documentation hosts can be checked"
+    )
+    client.stream.assert_not_called()
+    client.get.assert_not_called()
+    client.head.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_private_resolved_address_is_rejected_without_requests():
+    client = MagicMock()
+
+    with patch(
+        "src.tools.link_check_tools.socket.getaddrinfo",
+        return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.10", 443))
+        ],
+    ):
+        result = await _check_single_url(
+            client, "https://docs.langchain.com/", timeout=1.0
+        )
+
+    assert not result.valid
+    assert (
+        result.error
+        == "Out of scope: only LangChain documentation hosts can be checked"
+    )
+    client.stream.assert_not_called()
+
+
+class _FakeRedirectClient:
+    def __init__(self):
+        self.requested_urls = []
+
+    def stream(self, method: str, url: str, **kwargs):  # noqa: ARG002
+        self.requested_urls.append(url)
+        response = _FakeStreamResponse(url, 302, "")
+        response.headers = {"Location": "https://example.com/private"}
+        return response
+
+
+@pytest.mark.asyncio
+async def test_redirect_to_disallowed_host_is_rejected_before_request():
+    client = _FakeRedirectClient()
+
+    with patch(
+        "src.tools.link_check_tools.socket.getaddrinfo", new=_global_dns_results
+    ):
+        result = await _check_single_url(
+            client, "https://docs.langchain.com/", timeout=1.0
+        )
+
+    assert not result.valid
+    assert (
+        result.error
+        == "Out of scope: only LangChain documentation hosts can be checked"
+    )
+    assert client.requested_urls == ["https://docs.langchain.com/"]
