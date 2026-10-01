@@ -47,3 +47,61 @@ def test_model_retry_wrapper_does_not_retry_provider_validation_error():
         runnable.invoke("request")
 
     assert calls == 1
+
+
+def test_authentication_error_is_not_retried():
+    middleware = ModelRetryMiddleware(max_retries=2, initial_delay=0)
+    calls = 0
+
+    async def handler(request: ModelRequest):
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("API_KEY_INVALID")
+
+    with pytest.raises(RuntimeError, match="API_KEY_INVALID"):
+        asyncio.run(
+            middleware.awrap_model_call(
+                ModelRequest(model=object(), messages=[HumanMessage(content="Hi")]),
+                handler,
+            )
+        )
+
+    assert calls == 1
+
+
+def test_transient_error_is_retried():
+    middleware = ModelRetryMiddleware(max_retries=2, initial_delay=0)
+    calls = 0
+
+    async def handler(request: ModelRequest):
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("temporary failure")
+
+    with pytest.raises(RuntimeError, match="temporary failure"):
+        asyncio.run(
+            middleware.awrap_model_call(
+                ModelRequest(model=object(), messages=[HumanMessage(content="Hi")]),
+                handler,
+            )
+        )
+
+    assert calls == 3
+
+
+def test_model_retry_wrapper_does_not_retry_authentication_error():
+    calls = 0
+
+    def invoke(_input):
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("API_KEY_INVALID")
+
+    runnable = _ProviderValidationAwareRunnableRetry(
+        bound=RunnableLambda(invoke), max_attempt_number=3
+    )
+
+    with pytest.raises(RuntimeError, match="API_KEY_INVALID"):
+        runnable.invoke("request")
+
+    assert calls == 1

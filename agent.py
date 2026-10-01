@@ -7,6 +7,7 @@ from src.agent.config import (
     GUARDRAILS_MODEL,
     duplicate_call_guard_middleware,
     model_fallback_middleware,
+    model_fallback_visibility_middleware,
     model_retry_middleware,
     summarization_model,
     tool_retry_middleware,
@@ -53,6 +54,7 @@ docs_agent_middleware = [
     # answer has already streamed, and those retries route through the
     # fallback chain, producing a second visible generation.
     model_retry_middleware,
+    model_fallback_visibility_middleware,
     model_fallback_middleware,
 ]
 
