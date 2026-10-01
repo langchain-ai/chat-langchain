@@ -52,8 +52,8 @@ docs_agent_middleware = [
     # intentionally not wired here: they re-invoke the model after the first
     # answer has already streamed, and those retries route through the
     # fallback chain, producing a second visible generation.
-    model_retry_middleware,
     model_fallback_middleware,
+    model_retry_middleware,
 ]
 
 agent = define_deep_agent(

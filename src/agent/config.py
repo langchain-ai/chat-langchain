@@ -5,8 +5,8 @@ import os
 from dataclasses import dataclass
 
 import dotenv
-from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
@@ -14,7 +14,9 @@ from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
 from src.middleware.retry_middleware import (
+    PRIMARY_MODEL_CIRCUIT_BREAKER,
     RETRYABLE_FINISH_REASONS,
+    AuthAwareModelFallbackMiddleware,
     MalformedResponseError,
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
@@ -91,8 +93,36 @@ API_KEYS = [
 
 for key in API_KEYS:
     if value := os.getenv(key):
+        if not value.strip():
+            continue
         os.environ[key] = value.strip()
         logger.info(f"{key} configured")
+
+
+def validate_configured_model_credentials() -> None:
+    """Validate configured provider credentials with minimal authenticated calls."""
+    models_by_key = {
+        model.api_key_env: model for model in [DEFAULT_MODEL, *FALLBACK_MODELS]
+    }
+    validated_models: set[str] = set()
+    for key in API_KEYS:
+        if not os.getenv(key) or key not in models_by_key:
+            continue
+        model_config = models_by_key[key]
+        if model_config.id in validated_models:
+            continue
+        model = init_chat_model(model=model_config.id)
+        try:
+            model.invoke([HumanMessage(content="credential check")], max_tokens=1)
+        except Exception as error:
+            logger.error("Credential validation failed for %s", model_config.id)
+            raise RuntimeError(
+                f"Credential validation failed for {model_config.id}"
+            ) from error
+        validated_models.add(model_config.id)
+
+
+validate_configured_model_credentials()
 
 
 # =============================================================================
@@ -145,7 +175,11 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = AuthAwareModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS],
+    primary_model_id=DEFAULT_MODEL.id,
+    circuit_breaker=PRIMARY_MODEL_CIRCUIT_BREAKER,
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
