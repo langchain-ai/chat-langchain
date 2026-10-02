@@ -5,8 +5,10 @@ import os
 from dataclasses import dataclass
 
 import dotenv
+import openai
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.retry_middleware import (
@@ -100,6 +102,45 @@ MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
+
+
+def _is_output_limit_error(error: Exception) -> bool:
+    message = str(error).lower()
+    return "max_tokens" in message and "output limit" in message
+
+
+def validate_configured_model_credentials() -> dict[str, bool]:
+    """Check configured provider credentials without stopping startup."""
+    results: dict[str, bool] = {}
+    for model_config in MODELS.values():
+        if not os.getenv(model_config.api_key_env):
+            continue
+        try:
+            if model_config.provider == "openai":
+                openai.OpenAI().models.retrieve(model_config.id.removeprefix("openai:"))
+            else:
+                init_chat_model(model=model_config.id).invoke(
+                    [HumanMessage(content="credential check")], max_tokens=1
+                )
+        except Exception as error:
+            if model_config.provider != "openai" and _is_output_limit_error(error):
+                results[model_config.provider] = True
+                logger.info("%s authentication check passed", model_config.provider)
+                continue
+            results[model_config.provider] = False
+            logger.error(
+                "Provider authentication check failed for %s (%s): %s",
+                model_config.provider,
+                model_config.id,
+                error,
+            )
+        else:
+            results[model_config.provider] = True
+            logger.info("%s authentication check passed", model_config.provider)
+    return results
+
+
+provider_authentication = validate_configured_model_credentials()
 
 
 def _raise_for_retryable_finish_reason(response: object) -> object:
