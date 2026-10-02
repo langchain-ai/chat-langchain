@@ -14,6 +14,15 @@ from src.utils.prompt_provenance import get_prompt_provenance
 _PROVENANCE_GRAPH_ID = "docs_agent"
 
 
+def get_deployment_environment() -> str:
+    """Return the deployment environment inferred from hosted deployment variables."""
+    git_ref = os.environ.get("LANGSMITH_LANGGRAPH_GIT_REF", "")
+    host_project_name = os.environ.get("LANGSMITH_HOST_PROJECT_NAME", "")
+    if git_ref.startswith("langsmith-engine/") or "-pr-" in host_project_name:
+        return "preview"
+    return "production"
+
+
 def build_docs_agent_trace_metadata(
     *,
     graph_id: str = _PROVENANCE_GRAPH_ID,
@@ -21,6 +30,7 @@ def build_docs_agent_trace_metadata(
     """Return metadata that should land on the root LangSmith run."""
     metadata: dict[str, str] = {
         "source_type": "Chat-LangChain",
+        "environment": get_deployment_environment(),
         **get_prompt_provenance(graph_id),
     }
     revision = os.environ.get("LANGCHAIN_REVISION_ID") or os.environ.get(
@@ -31,4 +41,4 @@ def build_docs_agent_trace_metadata(
     return metadata
 
 
-__all__ = ["build_docs_agent_trace_metadata"]
+__all__ = ["build_docs_agent_trace_metadata", "get_deployment_environment"]

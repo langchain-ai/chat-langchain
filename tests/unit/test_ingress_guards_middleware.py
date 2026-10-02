@@ -13,7 +13,10 @@ from src.middleware.ingress_guards_middleware import (
     MAX_MESSAGE_CHARS,
     IngressGuardsMiddleware,
 )
-from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
+from src.utils.trace_root_metadata import (
+    build_docs_agent_trace_metadata,
+    get_deployment_environment,
+)
 
 
 def test_before_agent_truncates_oversized_human_message():
@@ -37,6 +40,8 @@ def test_before_agent_noop_when_under_cap():
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_LANGGRAPH_GIT_REF", raising=False)
+    monkeypatch.delenv("LANGSMITH_HOST_PROJECT_NAME", raising=False)
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
     monkeypatch.setattr(
@@ -53,11 +58,35 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
         == "local:src/prompts/guardrails_prompts.py"
     )
     assert metadata["LANGSMITH_AGENT_VERSION"] == "rev-a"
+    assert metadata["environment"] == "production"
 
 
 def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_LANGGRAPH_GIT_REF", raising=False)
+    monkeypatch.delenv("LANGSMITH_HOST_PROJECT_NAME", raising=False)
     monkeypatch.delenv("LANGCHAIN_REVISION_ID", raising=False)
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "host-rev")
 
     metadata = build_docs_agent_trace_metadata()
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+
+
+def test_get_deployment_environment_detects_preview_git_ref(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_LANGGRAPH_GIT_REF", "langsmith-engine/preview-id")
+    monkeypatch.delenv("LANGSMITH_HOST_PROJECT_NAME", raising=False)
+
+    assert get_deployment_environment() == "preview"
+
+
+def test_get_deployment_environment_detects_preview_project(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_LANGGRAPH_GIT_REF", raising=False)
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "chat-langchain-pr-123")
+
+    assert get_deployment_environment() == "preview"
+
+
+def test_get_deployment_environment_defaults_to_production(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_LANGGRAPH_GIT_REF", raising=False)
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "chat-langchain")
+
+    assert get_deployment_environment() == "production"
