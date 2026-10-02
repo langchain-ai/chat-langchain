@@ -8,6 +8,7 @@ from src.agent.config import (
     duplicate_call_guard_middleware,
     model_fallback_middleware,
     model_retry_middleware,
+    prompt_injection_guard_middleware,
     summarization_model,
     tool_retry_middleware,
 )
@@ -48,6 +49,7 @@ docs_agent_middleware = [
     ),
     duplicate_call_guard_middleware,
     tool_retry_middleware,
+    prompt_injection_guard_middleware,
     # Post-hoc answer guards (docs research, citation, answer sanity) are
     # intentionally not wired here: they re-invoke the model after the first
     # answer has already streamed, and those retries route through the
