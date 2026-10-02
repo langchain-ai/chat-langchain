@@ -132,6 +132,11 @@ The agent uses a docs-first research strategy:
 mda deploy .
 ```
 
+Preview deployments must set `LANGSMITH_PROJECT` to a PR-specific, non-production
+LangSmith project (for example, `engine-chat-langchain-pr-1039`). Never point a
+preview deployment at the production project, so deploy-time checks and test
+traffic cannot affect production traces, dashboards, or alerts.
+
 What MDA owns in this deployment:
 
 - **Identity** — `identity.py` verifies Supabase access tokens (multi-region) and

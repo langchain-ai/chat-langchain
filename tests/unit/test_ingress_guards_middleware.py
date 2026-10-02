@@ -61,3 +61,35 @@ def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch
 
     metadata = build_docs_agent_trace_metadata()
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+
+
+def test_build_docs_agent_trace_metadata_marks_host_project_previews(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "engine-chat-langchain-pr-1039")
+    monkeypatch.delenv("LANGSMITH_LANGGRAPH_GIT_REF", raising=False)
+    monkeypatch.delenv("DEPLOY_ENVIRONMENT", raising=False)
+
+    assert build_docs_agent_trace_metadata()["environment"] == "preview"
+
+
+def test_build_docs_agent_trace_metadata_marks_git_ref_previews(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_HOST_PROJECT_NAME", raising=False)
+    monkeypatch.setenv("LANGSMITH_LANGGRAPH_GIT_REF", "langsmith-engine/pr-1039")
+    monkeypatch.delenv("DEPLOY_ENVIRONMENT", raising=False)
+
+    assert build_docs_agent_trace_metadata()["environment"] == "preview"
+
+
+def test_build_docs_agent_trace_metadata_uses_explicit_environment(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_HOST_PROJECT_NAME", raising=False)
+    monkeypatch.delenv("LANGSMITH_LANGGRAPH_GIT_REF", raising=False)
+    monkeypatch.setenv("DEPLOY_ENVIRONMENT", "staging")
+
+    assert build_docs_agent_trace_metadata()["environment"] == "staging"
+
+
+def test_build_docs_agent_trace_metadata_defaults_to_production(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_HOST_PROJECT_NAME", raising=False)
+    monkeypatch.delenv("LANGSMITH_LANGGRAPH_GIT_REF", raising=False)
+    monkeypatch.delenv("DEPLOY_ENVIRONMENT", raising=False)
+
+    assert build_docs_agent_trace_metadata()["environment"] == "production"

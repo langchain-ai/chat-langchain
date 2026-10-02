@@ -21,6 +21,7 @@ def build_docs_agent_trace_metadata(
     """Return metadata that should land on the root LangSmith run."""
     metadata: dict[str, str] = {
         "source_type": "Chat-LangChain",
+        "environment": _trace_environment(),
         **get_prompt_provenance(graph_id),
     }
     revision = os.environ.get("LANGCHAIN_REVISION_ID") or os.environ.get(
@@ -29,6 +30,15 @@ def build_docs_agent_trace_metadata(
     if revision:
         metadata["LANGSMITH_AGENT_VERSION"] = revision
     return metadata
+
+
+def _trace_environment() -> str:
+    """Return the deployment environment for root-run filtering."""
+    host_project_name = os.getenv("LANGSMITH_HOST_PROJECT_NAME", "")
+    git_ref = os.getenv("LANGSMITH_LANGGRAPH_GIT_REF", "")
+    if "-pr-" in host_project_name or git_ref.startswith("langsmith-engine/"):
+        return "preview"
+    return os.getenv("DEPLOY_ENVIRONMENT", "production")
 
 
 __all__ = ["build_docs_agent_trace_metadata"]
