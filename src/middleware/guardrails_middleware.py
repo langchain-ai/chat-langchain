@@ -31,7 +31,7 @@ GUARDRAILS_DATASET_NAME = "Chat-LangChain-Guardrails-Samples"
 ALLOWED_SAMPLE_RATE = 0.01  # 1% of allowed queries go to dataset
 GUARDRAILS_MAX_RETRIES = 2
 GUARDRAILS_TIMEOUT_SECONDS = 10
-_USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
+_USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "true").lower() in {
     "1",
     "true",
     "yes",
