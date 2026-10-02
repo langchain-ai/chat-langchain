@@ -430,6 +430,9 @@ export function useStreamHandler({
       // rather than from a cached value — see getSegmentAnonymousId's doc
       // comment. Omitted entirely (never a placeholder) when unavailable.
       const segmentAnonymousId = getSegmentAnonymousId?.() ?? null
+      const environment = process.env.NEXT_PUBLIC_LANGSMITH_HOST_PROJECT_NAME?.includes("-pr-")
+        ? "preview"
+        : "production"
       const traceMetadata = {
         user_id: userId || "unknown",
         ...(userEmail && userEmail !== userId ? { user_email: userEmail } : {}),
@@ -437,6 +440,7 @@ export function useStreamHandler({
         ...(segmentAnonymousId ? { segment_anonymous_id: segmentAnonymousId } : {}),
         source_type: "Chat-LangChain",
         graph: agentType,
+        environment,
       }
 
       const streamResponse = client.runs.stream(threadId, agentType, {
