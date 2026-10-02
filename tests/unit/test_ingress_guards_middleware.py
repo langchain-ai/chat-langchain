@@ -39,6 +39,9 @@ def test_before_agent_noop_when_under_cap():
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
+    monkeypatch.setenv(
+        "LANGSMITH_HOST_PROJECT_NAME", "engine-chat-langchain-pr-1039-716389"
+    )
     monkeypatch.setattr(
         "src.utils.prompt_provenance._USE_LOCAL_PROMPTS",
         True,
@@ -47,6 +50,7 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
     metadata = build_docs_agent_trace_metadata()
 
     assert metadata["source_type"] == "Chat-LangChain"
+    assert metadata["environment"] == "preview"
     assert metadata["prompt_source"] == "local:instructions.md"
     assert (
         metadata["guardrails_prompt_source"]
@@ -58,6 +62,8 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
 def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch):
     monkeypatch.delenv("LANGCHAIN_REVISION_ID", raising=False)
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "host-rev")
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "chat-langchain-external")
 
     metadata = build_docs_agent_trace_metadata()
+    assert metadata["environment"] == "production"
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
