@@ -154,6 +154,15 @@ def test_guardrails_prompt_allows_langchain_resource_questions():
     assert "which to use" in PROMPT_LOWER
 
 
+def test_guardrails_prompt_allows_analysis_of_injected_pasted_content():
+    """Embedded instructions must not block a legitimate analysis request."""
+    assert "summarize or analyze langchain-related pasted, quoted, or serialized content" in PROMPT_LOWER
+    assert "remain allowed" in PROMPT_LOWER
+    assert "untrusted data" in PROMPT_LOWER
+    assert "where the user is directing the assistant" in PROMPT_LOWER
+    assert "quoted or pasted instructions" in PROMPT_LOWER
+
+
 def test_guardrails_prompt_allows_bare_technical_follow_ups():
     """Layman-terms follow-ups after LangGraph questions must be allowed."""
     assert "in layman terms" in PROMPT_LOWER
