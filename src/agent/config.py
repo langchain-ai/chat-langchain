@@ -2,12 +2,20 @@
 
 import logging
 import os
+import threading
 from dataclasses import dataclass
 
 import dotenv
+from anthropic import Anthropic
+from anthropic import AuthenticationError as AnthropicAuthenticationError
+from google import genai
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
+from langsmith import tracing_context
+from openai import AuthenticationError as OpenAIAuthenticationError
+from openai import OpenAI
+from openai import PermissionDeniedError as OpenAIPermissionDeniedError
 
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
@@ -93,6 +101,86 @@ for key in API_KEYS:
     if value := os.getenv(key):
         os.environ[key] = value.strip()
         logger.info(f"{key} configured")
+
+
+_credential_probe_completed = False
+_credential_probe_results: dict[str, bool | None] = {}
+_credential_probe_lock = threading.Lock()
+
+
+def _is_authentication_error(error: Exception) -> bool:
+    if isinstance(
+        error,
+        (
+            OpenAIAuthenticationError,
+            OpenAIPermissionDeniedError,
+            AnthropicAuthenticationError,
+        ),
+    ):
+        return True
+    response = getattr(error, "response", None)
+    status_code = getattr(error, "status_code", None) or getattr(
+        response, "status_code", None
+    )
+    return status_code in {401, 403} or "API_KEY_INVALID" in str(error).upper()
+
+
+def _probe_configured_model(model_config: ModelConfig) -> None:
+    model_name = model_config.id.split(":", 1)[-1]
+    api_key = os.environ[model_config.api_key_env]
+    if model_config.provider == "openai":
+        OpenAI(api_key=api_key).models.retrieve(model_name)
+    elif model_config.provider == "anthropic":
+        Anthropic(api_key=api_key).models.retrieve(model_name)
+    elif model_config.provider == "google":
+        genai.Client(api_key=api_key).models.get(model=model_name)
+    else:
+        raise ValueError(f"Unsupported provider: {model_config.provider}")
+
+
+def validate_provider_authentication() -> dict[str, bool | None]:
+    """Check configured provider credentials once without generating output."""
+    global _credential_probe_completed
+    with _credential_probe_lock:
+        if _credential_probe_completed:
+            return dict(_credential_probe_results)
+        if os.getenv("MODEL_STARTUP_AUTH_CHECK", "true").lower() == "false":
+            _credential_probe_completed = True
+            logger.info("Provider authentication checks disabled")
+            return {}
+
+        for model_config in MODELS.values():
+            if not os.getenv(model_config.api_key_env):
+                continue
+            try:
+                with tracing_context(enabled=False):
+                    _probe_configured_model(model_config)
+            except Exception as error:
+                if _is_authentication_error(error):
+                    _credential_probe_results[model_config.provider] = False
+                    logger.error(
+                        "Provider authentication check failed for %s (%s): %s",
+                        model_config.provider,
+                        model_config.id,
+                        error,
+                    )
+                else:
+                    _credential_probe_results[model_config.provider] = None
+                    logger.warning(
+                        "Provider credential probe inconclusive for %s (%s): %s",
+                        model_config.provider,
+                        model_config.id,
+                        error,
+                    )
+            else:
+                _credential_probe_results[model_config.provider] = True
+                logger.info("%s authentication check passed", model_config.provider)
+
+        _credential_probe_completed = True
+        return dict(_credential_probe_results)
+
+
+validate_provider_authentication()
 
 
 # =============================================================================
