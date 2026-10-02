@@ -36,6 +36,7 @@ import {
   updateMessageInList,
 } from "../../utils/chat"
 import { shareRun, readRun, type LangSmithAuth } from "../../api/langsmith"
+import { decodeBase64Utf8 } from "./decode-base64"
 
 // ============================================================================
 // Constants
@@ -375,7 +376,7 @@ export function useStreamHandler({
             // Text files: decode base64 and send as text block
             try {
               // Decode base64 to get text content
-              const decodedContent = atob(file.base64 || '')
+              const decodedContent = decodeBase64Utf8(file.base64 || '')
               console.log(`📄 Decoded file ${file.name}:`, {
                 mimeType: file.mimeType,
                 size: file.size,
