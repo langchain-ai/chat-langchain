@@ -7,7 +7,9 @@ from dataclasses import dataclass
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import Runnable, RunnableLambda
+from langsmith import tracing_context
 
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
@@ -86,8 +88,51 @@ API_KEYS = [
 
 for key in API_KEYS:
     if value := os.getenv(key):
-        os.environ[key] = value.strip()
-        logger.info(f"{key} configured")
+        if value.strip():
+            os.environ[key] = value.strip()
+            logger.info(f"{key} configured")
+
+
+def _probe_limit_reached(error: Exception) -> bool:
+    message = str(error).lower()
+    return (
+        ("max_tokens" in message or "max_completion_tokens" in message)
+        and "reached" in message
+    )
+
+
+def validate_configured_model_credentials() -> None:
+    """Validate configured provider credentials without tracing startup probes."""
+    models_by_key = {
+        model.api_key_env: model for model in [DEFAULT_MODEL, *FALLBACK_MODELS]
+    }
+    validated_models: set[str] = set()
+    for key in API_KEYS:
+        if not os.getenv(key) or key not in models_by_key:
+            continue
+        model_config = models_by_key[key]
+        if model_config.id in validated_models:
+            continue
+        model = init_chat_model(model=model_config.id)
+        try:
+            with tracing_context(enabled=False):
+                model.invoke(
+                    [HumanMessage(content="credential check")],
+                    max_tokens=16,
+                    config={"tags": ["probe"], "metadata": {"probe": True}},
+                )
+        except Exception as error:
+            if _probe_limit_reached(error):
+                validated_models.add(model_config.id)
+                continue
+            logger.warning(
+                "Credential validation failed for %s: %s", model_config.id, error
+            )
+            continue
+        validated_models.add(model_config.id)
+
+
+validate_configured_model_credentials()
 
 
 # =============================================================================
