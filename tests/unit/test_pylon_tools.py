@@ -37,6 +37,22 @@ def test_get_support_article_content_resolves_supported_identifiers(article_id):
     assert "Helpful content" in result
 
 
+def test_get_support_article_content_starts_with_precedence_note():
+    with (
+        patch("src.tools.pylon_tools._fetch_all_articles", return_value=[ARTICLE]),
+        patch(
+            "src.tools.pylon_tools._fetch_collections",
+            return_value={"OSS (LangChain and LangGraph)": "oss-id"},
+        ),
+    ):
+        result = get_support_article_content.invoke({"article_id": "uuid-123"})
+
+    assert result.startswith(
+        "Note: support articles may predate the official docs; "
+        "when they conflict, official docs take precedence."
+    )
+
+
 def test_get_support_article_content_suggests_closest_articles_on_miss():
     other_article = {**ARTICLE, "id": "uuid-456", "title": "Resetting Login"}
     with (

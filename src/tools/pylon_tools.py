@@ -457,7 +457,9 @@ def get_support_article_content(article_id: str) -> str:
                     support_url = "URL not available"
 
                 # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+                return f"""Note: support articles may predate the official docs; when they conflict, official docs take precedence.
+
+ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
