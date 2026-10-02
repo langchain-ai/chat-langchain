@@ -88,7 +88,7 @@ def test_resolve_hub_provenance_without_overrides_uses_default_client(monkeypatc
 
 
 def test_guardrails_prompt_import_renders_without_invoke(monkeypatch):
-    monkeypatch.delenv("USE_LOCAL_PROMPTS", raising=False)
+    monkeypatch.setenv("USE_LOCAL_PROMPTS", "false")
 
     class FakeTemplate:
         metadata = {"lc_hub_commit_hash": "guardrails-commit"}
