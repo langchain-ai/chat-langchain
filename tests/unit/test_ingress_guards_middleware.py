@@ -55,6 +55,26 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
     assert metadata["LANGSMITH_AGENT_VERSION"] == "rev-a"
 
 
+def test_build_docs_agent_trace_metadata_marks_preview_deployments(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_DEPLOYMENT_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("LANGSMITH_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("LANGSMITH_ENV", raising=False)
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "engine-chat-langchain-pr-123")
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "preview"
+
+
+def test_build_docs_agent_trace_metadata_honors_explicit_environment(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_DEPLOYMENT_ENVIRONMENT", "production")
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "engine-chat-langchain-pr-123")
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "production"
+
+
 def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch):
     monkeypatch.delenv("LANGCHAIN_REVISION_ID", raising=False)
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "host-rev")
