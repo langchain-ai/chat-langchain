@@ -53,6 +53,15 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
         == "local:src/prompts/guardrails_prompts.py"
     )
     assert metadata["LANGSMITH_AGENT_VERSION"] == "rev-a"
+    assert metadata["environment"] == "production"
+
+
+def test_build_docs_agent_trace_metadata_uses_environment(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_ENVIRONMENT", "preview")
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "preview"
 
 
 def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch):
