@@ -21,6 +21,13 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from src.middleware.injected_output import (
+    INJECTED_OUTPUT_FALLBACK,
+    INJECTED_OUTPUT_RETRY,
+    is_injected_output,
+    replace_response_text,
+    response_text,
+)
 from src.tools.link_check_tools import _check_urls_async
 
 DOCS_TOOLS = frozenset(
@@ -92,6 +99,20 @@ class CitationGuardMiddleware(AgentMiddleware):
     ) -> ModelCallResult:
         """Validate and repair documentation citations after model calls."""
         response = await handler(request)
+        if is_injected_output(request, response_text(response)):
+            retry_response = await handler(
+                request.override(
+                    messages=[
+                        *request.messages,
+                        HumanMessage(content=INJECTED_OUTPUT_RETRY),
+                    ],
+                    system_message=self._retry_system_message(request),
+                )
+            )
+            if not is_injected_output(request, response_text(retry_response)):
+                return retry_response
+            return replace_response_text(retry_response, INJECTED_OUTPUT_FALLBACK)
+        initial_response = response
         if self._has_pending_tool_calls(self._response_messages(response)):
             return response
 
@@ -115,6 +136,8 @@ class CitationGuardMiddleware(AgentMiddleware):
                     system_message=self._retry_system_message(request),
                 )
                 retry_response = await handler(retry_request)
+                if is_injected_output(request, response_text(retry_response)):
+                    return initial_response
                 retry_footer, retry_invalid_urls = await self._invalid_footer_urls(
                     retry_response, turn_messages
                 )
@@ -136,9 +159,10 @@ class CitationGuardMiddleware(AgentMiddleware):
             self._message_text(footer_message), invalid_urls
         )
         turn_key = self._turn_key(request.messages)
-        if not self._urls_in_footer_text(repaired_text) and request.state.get(
-            _RETRY_MARKER
-        ) != turn_key:
+        if (
+            not self._urls_in_footer_text(repaired_text)
+            and request.state.get(_RETRY_MARKER) != turn_key
+        ):
             request.state[_RETRY_MARKER] = turn_key
             retry_request = request.override(
                 messages=[
@@ -148,6 +172,8 @@ class CitationGuardMiddleware(AgentMiddleware):
                 system_message=self._retry_system_message(request),
             )
             retry_response = await handler(retry_request)
+            if is_injected_output(request, response_text(retry_response)):
+                return initial_response
             retry_footer, retry_invalid_urls = await self._invalid_footer_urls(
                 retry_response, turn_messages
             )

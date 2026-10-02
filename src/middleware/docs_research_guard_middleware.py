@@ -22,6 +22,14 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from src.middleware.injected_output import (
+    INJECTED_OUTPUT_FALLBACK,
+    INJECTED_OUTPUT_RETRY,
+    is_injected_output,
+    replace_response_text,
+    response_text,
+)
+
 SEARCH_TOOLS = frozenset(
     {
         "search_docs_by_lang_chain",
@@ -90,10 +98,23 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
     ) -> ModelCallResult:
         """Require fresh research before returning a technical answer."""
         response = await handler(request)
+        if is_injected_output(request, response_text(response)):
+            retry_response = await handler(
+                request.override(
+                    messages=[
+                        *request.messages,
+                        HumanMessage(content=INJECTED_OUTPUT_RETRY),
+                    ]
+                )
+            )
+            if not is_injected_output(request, response_text(retry_response)):
+                return retry_response
+            return replace_response_text(retry_response, INJECTED_OUTPUT_FALLBACK)
         if not self._should_retry(request, response):
             self._clear_attempts(self._turn_key(request.messages))
             return response
 
+        initial_response = response
         turn_key = self._turn_key(request.messages)
         while self._attempt_count(turn_key) < _MAX_FORCED_ATTEMPTS:
             self._record_attempt(turn_key)
@@ -106,6 +127,9 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
                 tool_choice=FORCED_RESEARCH_TOOL_NAME,
             )
             response = await handler(retry_request)
+            if is_injected_output(request, response_text(response)):
+                self._clear_attempts(turn_key)
+                return initial_response
             if self._has_pending_tool_calls(self._response_messages(response)):
                 return response
             if self._has_research_tool(

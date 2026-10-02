@@ -14,6 +14,14 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
+from src.middleware.injected_output import (
+    INJECTED_OUTPUT_FALLBACK,
+    INJECTED_OUTPUT_RETRY,
+    is_injected_output,
+    replace_response_text,
+    response_text,
+)
+
 _RETRY_INSTRUCTIONS = (
     "Answer the user's question in clear prose using this turn's retrieved documentation. "
     "End with a Relevant docs: footer containing only URLs that check_links reported valid."
@@ -44,6 +52,18 @@ class AnswerSanityGuardMiddleware(AgentMiddleware):
     ) -> ModelCallResult:
         """Validate a terminal answer and retry one degenerate response."""
         response = await handler(request)
+        if is_injected_output(request, response_text(response)):
+            retry_response = await handler(
+                request.override(
+                    messages=[
+                        *request.messages,
+                        HumanMessage(content=INJECTED_OUTPUT_RETRY),
+                    ]
+                )
+            )
+            if not is_injected_output(request, response_text(retry_response)):
+                return retry_response
+            return replace_response_text(retry_response, INJECTED_OUTPUT_FALLBACK)
         response_messages = self._response_messages(response)
         if self._has_pending_tool_calls(response_messages):
             return response
@@ -60,6 +80,8 @@ class AnswerSanityGuardMiddleware(AgentMiddleware):
                 ]
             )
         )
+        if is_injected_output(request, response_text(retry_response)):
+            return response
         retry_messages = self._response_messages(retry_response)
         if self._has_pending_tool_calls(retry_messages):
             return retry_response
