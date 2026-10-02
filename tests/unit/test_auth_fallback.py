@@ -1,7 +1,9 @@
 import asyncio
+import importlib
 
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableLambda
 
 from src.middleware.retry_middleware import (
     AuthenticationAwareModelFallbackMiddleware,
@@ -17,6 +19,18 @@ class ProviderError(Exception):
         self.status_code = status_code
 
 
+class HealthCheckModel:
+    def __init__(self, error):
+        self.error = error
+        self.kwargs = None
+
+    def invoke(self, value, **kwargs):
+        self.kwargs = kwargs
+        if self.error is None:
+            return value
+        raise self.error
+
+
 def _request():
     return ModelRequest(model=object(), messages=[HumanMessage(content="Hi")])
 
@@ -30,6 +44,57 @@ def test_authentication_error_shapes_are_classified():
     assert not is_authentication_error(ProviderError("temporary outage", 500))
 
 
+def _load_config(monkeypatch):
+    monkeypatch.setenv("MODEL_STARTUP_AUTH_CHECK", "false")
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "langchain.chat_models.init_chat_model",
+        lambda model, **kwargs: RunnableLambda(lambda value, **_: value),
+    )
+    import src.agent.config as config
+
+    return importlib.reload(config)
+
+
+def test_startup_auth_check_ignores_output_limit_error(monkeypatch):
+    config = _load_config(monkeypatch)
+    model_config = config.ModelConfig(
+        id="openai:test-model",
+        name="Test Model",
+        provider="openai",
+        api_key_env="OPENAI_API_KEY",
+    )
+    model = HealthCheckModel(ProviderError("max_tokens or model output limit was reached", 400))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("MODEL_STARTUP_AUTH_CHECK", "true")
+    monkeypatch.setattr(config, "MODELS", {"test": model_config})
+    monkeypatch.setattr(config, "DEFAULT_MODEL", model_config)
+    monkeypatch.setattr(config, "default_model", model)
+
+    assert config.validate_provider_authentication() == {}
+    assert model.kwargs == {"max_tokens": 16}
+
+
+def test_startup_auth_check_reports_unauthorized_error(monkeypatch):
+    config = _load_config(monkeypatch)
+    model_config = config.ModelConfig(
+        id="openai:test-model",
+        name="Test Model",
+        provider="openai",
+        api_key_env="OPENAI_API_KEY",
+    )
+    model = HealthCheckModel(ProviderError("unauthorized", 401))
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("MODEL_STARTUP_AUTH_CHECK", "true")
+    monkeypatch.setattr(config, "MODELS", {"test": model_config})
+    monkeypatch.setattr(config, "DEFAULT_MODEL", model_config)
+    monkeypatch.setattr(config, "default_model", model)
+
+    assert config.validate_provider_authentication() == {"openai": False}
+
+
 def test_breaker_opens_and_closes_after_cooldown(monkeypatch):
     now = 100.0
     monkeypatch.setattr("src.middleware.retry_middleware.time.monotonic", lambda: now)
@@ -41,6 +106,7 @@ def test_breaker_opens_and_closes_after_cooldown(monkeypatch):
 
 
 def test_fallback_skips_primary_while_breaker_is_open(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     middleware = AuthenticationAwareModelFallbackMiddleware(
         "google:model", "openai:model", cooldown_seconds=60
     )

@@ -124,24 +124,31 @@ def validate_provider_authentication() -> dict[str, bool]:
             model = (
                 default_model
                 if model_config.id == DEFAULT_MODEL.id
-                else init_chat_model(model=model_config.id, max_tokens=1)
+                else init_chat_model(model=model_config.id)
             )
-            model.invoke("health check")
+            model.invoke("health check", max_tokens=16)
             results[model_config.provider] = True
             logger.info("%s authentication check passed", model_config.provider)
         except Exception as exception:
-            results[model_config.provider] = False
-            level = logger.error
-            if model_config.id == DEFAULT_MODEL.id:
-                level(
-                    "PRIMARY MODEL AUTHENTICATION CHECK FAILED for %s (%s): %s",
-                    model_config.provider,
-                    model_config.id,
-                    exception,
-                )
+            if is_authentication_error(exception):
+                results[model_config.provider] = False
+                if model_config.id == DEFAULT_MODEL.id:
+                    logger.error(
+                        "PRIMARY MODEL AUTHENTICATION CHECK FAILED for %s (%s): %s",
+                        model_config.provider,
+                        model_config.id,
+                        exception,
+                    )
+                else:
+                    logger.error(
+                        "Provider authentication check failed for %s (%s): %s",
+                        model_config.provider,
+                        model_config.id,
+                        exception,
+                    )
             else:
-                level(
-                    "Provider authentication check failed for %s (%s): %s",
+                logger.warning(
+                    "Provider authentication check indeterminate for %s (%s): %s",
                     model_config.provider,
                     model_config.id,
                     exception,
