@@ -7,7 +7,9 @@ from dataclasses import dataclass
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import Runnable, RunnableLambda
+from langsmith import tracing_context
 
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
@@ -90,6 +92,36 @@ for key in API_KEYS:
         logger.info(f"{key} configured")
 
 
+def validate_configured_model_credentials() -> None:
+    """Validate configured provider credentials with minimal authenticated calls."""
+    if os.getenv("MODEL_STARTUP_AUTH_CHECK", "true").lower() == "false":
+        logger.info("Provider authentication checks disabled")
+        return
+    models_by_key = {
+        model.api_key_env: model for model in [DEFAULT_MODEL, *FALLBACK_MODELS]
+    }
+    validated_models: set[str] = set()
+    for key in API_KEYS:
+        if not os.getenv(key) or key not in models_by_key:
+            continue
+        model_config = models_by_key[key]
+        if model_config.id in validated_models:
+            continue
+        model = init_chat_model(model=model_config.id)
+        try:
+            with tracing_context(enabled=False):
+                model.invoke([HumanMessage(content="credential check")], max_tokens=16)
+        except Exception as error:
+            logger.error("Credential validation failed for %s", model_config.id)
+            raise RuntimeError(
+                f"Credential validation failed for {model_config.id}"
+            ) from error
+        validated_models.add(model_config.id)
+
+
+validate_configured_model_credentials()
+
+
 # =============================================================================
 # Model Initialization
 # =============================================================================
@@ -149,6 +181,7 @@ __all__ = [
     "GUARDRAILS_MODEL",
     "FALLBACK_MODELS",
     "ModelConfig",
+    "validate_configured_model_credentials",
     # Models
     "default_model",
     "init_retry_fallback_model",
