@@ -13,7 +13,10 @@ from src.middleware.ingress_guards_middleware import (
     MAX_MESSAGE_CHARS,
     IngressGuardsMiddleware,
 )
-from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
+from src.utils.trace_root_metadata import (
+    build_docs_agent_trace_metadata,
+    configure_tracing_environment,
+)
 
 
 def test_before_agent_truncates_oversized_human_message():
@@ -37,6 +40,7 @@ def test_before_agent_noop_when_under_cap():
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_DEPLOYMENT_TYPE", "prod")
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
     monkeypatch.setattr(
@@ -47,6 +51,7 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
     metadata = build_docs_agent_trace_metadata()
 
     assert metadata["source_type"] == "Chat-LangChain"
+    assert metadata["environment"] == "production"
     assert metadata["prompt_source"] == "local:instructions.md"
     assert (
         metadata["guardrails_prompt_source"]
@@ -56,8 +61,35 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
 
 
 def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch):
+    monkeypatch.delenv("LANGSMITH_DEPLOYMENT_TYPE", raising=False)
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "engine-chat-langchain-pr-123")
     monkeypatch.delenv("LANGCHAIN_REVISION_ID", raising=False)
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "host-rev")
 
     metadata = build_docs_agent_trace_metadata()
+    assert metadata["environment"] == "preview"
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+
+
+def test_configure_tracing_environment_removes_replica_endpoint_for_previews(
+    monkeypatch,
+):
+    monkeypatch.delenv("LANGSMITH_DEPLOYMENT_TYPE", raising=False)
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "engine-chat-langchain-pr-123")
+    monkeypatch.setenv("LANGSMITH_RUNS_ENDPOINTS", "https://replica.example")
+
+    configure_tracing_environment()
+
+    assert "LANGSMITH_RUNS_ENDPOINTS" not in os.environ
+
+
+def test_configure_tracing_environment_keeps_replica_endpoint_for_production(
+    monkeypatch,
+):
+    monkeypatch.setenv("LANGSMITH_DEPLOYMENT_TYPE", "prod")
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "engine-chat-langchain")
+    monkeypatch.setenv("LANGSMITH_RUNS_ENDPOINTS", "https://replica.example")
+
+    configure_tracing_environment()
+
+    assert os.environ["LANGSMITH_RUNS_ENDPOINTS"] == "https://replica.example"

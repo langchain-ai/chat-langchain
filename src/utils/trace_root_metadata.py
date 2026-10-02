@@ -12,6 +12,23 @@ import os
 from src.utils.prompt_provenance import get_prompt_provenance
 
 _PROVENANCE_GRAPH_ID = "docs_agent"
+_PRODUCTION_DEPLOYMENT_TYPES = {"prod", "production"}
+
+
+def _is_preview_deployment() -> bool:
+    deployment_type = os.environ.get("LANGSMITH_DEPLOYMENT_TYPE", "").lower()
+    if deployment_type:
+        return deployment_type not in _PRODUCTION_DEPLOYMENT_TYPES
+    return "-pr-" in os.environ.get("LANGSMITH_HOST_PROJECT_NAME", "").lower()
+
+
+def configure_tracing_environment() -> None:
+    """Disable replica tracing unless the deployment is explicitly production."""
+    if _is_preview_deployment():
+        os.environ.pop("LANGSMITH_RUNS_ENDPOINTS", None)
+
+
+configure_tracing_environment()
 
 
 def build_docs_agent_trace_metadata(
@@ -21,6 +38,7 @@ def build_docs_agent_trace_metadata(
     """Return metadata that should land on the root LangSmith run."""
     metadata: dict[str, str] = {
         "source_type": "Chat-LangChain",
+        "environment": "preview" if _is_preview_deployment() else "production",
         **get_prompt_provenance(graph_id),
     }
     revision = os.environ.get("LANGCHAIN_REVISION_ID") or os.environ.get(
@@ -31,4 +49,4 @@ def build_docs_agent_trace_metadata(
     return metadata
 
 
-__all__ = ["build_docs_agent_trace_metadata"]
+__all__ = ["build_docs_agent_trace_metadata", "configure_tracing_environment"]
