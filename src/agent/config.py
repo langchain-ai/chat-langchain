@@ -8,6 +8,7 @@ import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
+from langsmith import tracing_context
 
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
@@ -19,6 +20,12 @@ from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+
+def invoke_startup_probe(model: Runnable, prompt: object, **kwargs: object) -> object:
+    """Invoke a startup model probe without creating a LangSmith run."""
+    with tracing_context(enabled=False):
+        return model.invoke(prompt, **kwargs)
 
 # =============================================================================
 # Model Registry
@@ -157,6 +164,7 @@ __all__ = [
     "model_retry_middleware",
     "tool_retry_middleware",
     "model_fallback_middleware",
+    "invoke_startup_probe",
     # Config
     "MAX_RETRIES",
     "logger",
