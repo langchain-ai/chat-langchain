@@ -15,8 +15,10 @@ from src.middleware.retry_middleware import (
     ModelRetryMiddleware,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
+from src.utils.langsmith_runtime import configure_langsmith_project
 
 dotenv.load_dotenv()
+configure_langsmith_project()
 
 logger = logging.getLogger(__name__)
 

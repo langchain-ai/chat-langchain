@@ -13,6 +13,7 @@ from src.middleware.ingress_guards_middleware import (
     MAX_MESSAGE_CHARS,
     IngressGuardsMiddleware,
 )
+from src.utils.langsmith_runtime import configure_langsmith_project
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
 
@@ -53,6 +54,7 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
         == "local:src/prompts/guardrails_prompts.py"
     )
     assert metadata["LANGSMITH_AGENT_VERSION"] == "rev-a"
+    assert metadata["environment"] == "production"
 
 
 def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch):
@@ -61,3 +63,22 @@ def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch
 
     metadata = build_docs_agent_trace_metadata()
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+
+
+def test_preview_metadata_and_project_are_deployment_scoped(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "engine-chat-langchain-pr-123")
+    monkeypatch.delenv("LANGSMITH_PROJECT", raising=False)
+
+    configure_langsmith_project()
+
+    assert os.environ["LANGSMITH_PROJECT"] == "engine-chat-langchain-pr-123"
+    assert build_docs_agent_trace_metadata()["environment"] == "preview"
+
+
+def test_preview_preserves_deployment_project(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_HOST_PROJECT_NAME", "engine-chat-langchain-pr-123")
+    monkeypatch.setenv("LANGSMITH_PROJECT", "preview-project")
+
+    configure_langsmith_project()
+
+    assert os.environ["LANGSMITH_PROJECT"] == "preview-project"
