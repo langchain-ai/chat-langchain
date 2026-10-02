@@ -14,6 +14,7 @@ export {
 
 // Content helpers
 export { extractTextFromContent } from "./content-helpers"
+export { decodeBase64Text } from "./decode-base64-text"
 
 // Validation
 export {

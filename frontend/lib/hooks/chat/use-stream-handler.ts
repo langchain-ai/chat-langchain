@@ -34,6 +34,7 @@ import {
   extractTextFromContent,
   ensureMessageExists,
   updateMessageInList,
+  decodeBase64Text,
 } from "../../utils/chat"
 import { shareRun, readRun, type LangSmithAuth } from "../../api/langsmith"
 
@@ -374,14 +375,7 @@ export function useStreamHandler({
           } else {
             // Text files: decode base64 and send as text block
             try {
-              // Decode base64 to get text content
-              const decodedContent = atob(file.base64 || '')
-              console.log(`📄 Decoded file ${file.name}:`, {
-                mimeType: file.mimeType,
-                size: file.size,
-                contentLength: decodedContent.length,
-                preview: decodedContent.slice(0, 100)
-              })
+              const decodedContent = decodeBase64Text(file.base64 || '')
               contentBlocks.push({
                 type: "text",
                 text: `**File: ${file.name || 'unknown'}**\n\`\`\`\n${decodedContent}\n\`\`\``
