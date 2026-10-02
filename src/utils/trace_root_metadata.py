@@ -28,6 +28,15 @@ def build_docs_agent_trace_metadata(
     )
     if revision:
         metadata["LANGSMITH_AGENT_VERSION"] = revision
+    deployment_environment = os.environ.get("DEPLOYMENT_ENVIRONMENT")
+    if deployment_environment:
+        metadata["environment"] = deployment_environment
+    elif "-pr-" in os.environ.get("LANGSMITH_HOST_PROJECT_NAME", "") or os.environ.get(
+        "LANGSMITH_LANGGRAPH_GIT_REF", ""
+    ).startswith("langsmith-engine/"):
+        metadata["environment"] = "preview"
+    else:
+        metadata["environment"] = "production"
     return metadata
 
 

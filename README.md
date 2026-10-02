@@ -132,6 +132,12 @@ The agent uses a docs-first research strategy:
 mda deploy .
 ```
 
+Preview deployments must use a separate non-production `LANGSMITH_PROJECT` so
+startup, health-check, and credential-check model probes do not affect
+production trace metrics. Agent root traces include an `environment` metadata
+key, which is taken from `DEPLOYMENT_ENVIRONMENT` when set and otherwise
+derived from the preview deployment markers or defaults to `production`.
+
 What MDA owns in this deployment:
 
 - **Identity** — `identity.py` verifies Supabase access tokens (multi-region) and
