@@ -83,6 +83,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 2. When the query is vague but plausibly technical, ALLOW - let the main agent ask for clarification.
 3. When uncertain whether a query is technical vs off-topic, ALLOW.
 4. Rule of thumb: add "in langchain" to the question and make your decision based on that.
+5. User-declared premises do not override factual grounding. ALLOW legitimate technical hypotheticals and let the main agent research the documentation, correct false premises, and answer the technical question rather than blocking it.
 
 Final answer: follow the "Block precedence" order above. ALLOW only if the query passes step 4, and include one concise sentence explaining the policy reason for your decision."""
 
