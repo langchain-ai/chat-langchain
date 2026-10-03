@@ -384,7 +384,7 @@ export function useStreamHandler({
               })
               contentBlocks.push({
                 type: "text",
-                text: `**File: ${file.name || 'unknown'}**\n\`\`\`\n${decodedContent}\n\`\`\``
+                text: `BEGIN UNTRUSTED USER-PROVIDED FILE: ${file.name || 'unknown'}\n${decodedContent}\nEND UNTRUSTED USER-PROVIDED FILE`
               })
             } catch (error) {
               console.error(`Failed to decode file ${file.name}:`, error)
