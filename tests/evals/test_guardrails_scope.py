@@ -183,6 +183,18 @@ def test_guardrails_prompt_default_is_still_allow():
     )
 
 
+def test_guardrails_prompt_allows_multilingual_greetings_and_agent_meta_questions():
+    """Greetings and genuine assistant meta questions must be allowed in every language."""
+    assert "in every language" in PROMPT_LOWER
+    assert "كيف حالك" in PROMPT_LOWER
+    assert "你好" in PROMPT_LOWER
+    assert "介绍一下你自己" in PROMPT_LOWER
+    assert "你的优势是什么" in PROMPT_LOWER
+    assert "hola, ¿cómo estás?" in PROMPT_LOWER
+    assert "are allowed in any language" in PROMPT_LOWER
+    assert "unless an unconditional zero-tolerance block applies" in PROMPT_LOWER
+
+
 def test_guardrails_prompt_allows_langsmith_billing_unit_formulas():
     """LangSmith billing-unit formulas must be classified as ALLOWED."""
     query = "LCCs = (Total LCUs x 1.50) + (Total LSUs x 1.00)."
