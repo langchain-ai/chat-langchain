@@ -4,7 +4,7 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -96,3 +96,61 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_arabic_greeting_skips_guardrails_classifier(monkeypatch):
+    middleware = _middleware_with_models()
+
+    async def _fail_classification(messages):  # noqa: ARG001
+        raise AssertionError("greeting should not be classified")
+
+    monkeypatch.setattr(middleware, "_classify_query", _fail_classification)
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="مرحبا، كيف حالك؟")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert result["guardrail_history"][-1]["decision"] == "ALLOWED"
+
+
+def test_chinese_strengths_question_skips_guardrails_classifier(monkeypatch):
+    middleware = _middleware_with_models()
+
+    async def _fail_classification(messages):  # noqa: ARG001
+        raise AssertionError("assistant-meta question should not be classified")
+
+    monkeypatch.setattr(middleware, "_classify_query", _fail_classification)
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="介绍一下你的优势")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert result["guardrail_history"][-1]["decision"] == "ALLOWED"
+
+
+def test_clearly_off_topic_request_still_uses_classifier(monkeypatch):
+    classifier = FakeStructuredModel(
+        [{"decision": "BLOCKED", "explanation": "Unrelated request."}]
+    )
+    middleware = _middleware_with_models(("classifier", classifier))
+
+    async def _rejection(content):  # noqa: ARG001
+        return AIMessage(content="That is outside my scope.")
+
+    monkeypatch.setattr(middleware, "_generate_rejection_message", _rejection)
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="Give me a recipe for pizza.")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert classifier.calls == 1
+    assert result["off_topic_query"] is True

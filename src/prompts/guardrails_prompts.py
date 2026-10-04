@@ -53,10 +53,10 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - Arithmetic, formulas, and cost estimates whose operands are LangSmith billing units, including LCUs, LSUs, LangChain Credits (LCC), seats, traces, plan tiers, or invoices. These are billing questions, not math problems, even when the message is only a formula or a number.
 
 ## ALWAYS ALLOW - Agent meta questions and greetings:
-- Greetings: "hi", "hello", "hey", "good morning"
-- "what can you do", "what are your capabilities", "how can you help"
-- "who are you", "what is this", "how does this work", "what are you"
-- Any short question asking about the assistant's scope, capabilities, or identity
+- Greetings, small talk, and short questions about the assistant's identity, strengths, or capabilities are ALLOWED in any language.
+- Examples include: "hi", "hello", "مرحبا، كيف حالك؟", "你好，你好吗？", "Hola, ¿cómo estás?", "こんにちは、お元気ですか？"
+- Identity and capability examples include: "introduce yourself", "what are your strengths", "介绍一下你的优势", "¿quién eres?", and "あなたの強みは何ですか？"
+- The non-technical/off-topic block never applies to short conversational or assistant-meta messages.
 
 ## ALWAYS BLOCK - Zero Tolerance (independent of all other criteria, block with 100% confidence):
 - Sexually explicit, pornographic, NSFW, or adult content of any kind, including requests to write erotic / crossdressing / fetish stories.
