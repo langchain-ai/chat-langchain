@@ -54,8 +54,11 @@ _CODE_BLOCK_PATTERN = re.compile(r"```.*?(?:```|$)", re.DOTALL)
 _LARGE_RESULT_POINTER_PATTERN = re.compile(r"^/large_tool_results/[^\s]+$")
 _NONTECHNICAL_USER_TURN_PATTERN = re.compile(
     r"(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|hola|bonjour|salut|"
-    r"你好|您好|こんにちは|こんばんは|привет|здравствуйте|what\s+can\s+you\s+do|"
-    r"who\s+are\s+you|(?:can\s+you\s+)?help(?:\s+me)?)[!.?,\s]*",
+    r"مرحبا(?:[،,]?\s*كيف\s+حالك)?|你好(?:\s*你好吗)?|您好|こんにちは|こんばんは|привет|"
+    r"здравствуйте|what\s+can\s+you\s+do|who\s+are\s+you|what\s+are\s+your\s+"
+    r"(?:strengths|capabilities)|introduce\s+(?:yourself|your\s+strengths)|"
+    r"介绍一下(?:你自己|你的优势)|自己紹介して|あなたの強みは何ですか|"
+    r"(?:can\s+you\s+)?help(?:\s+me)?)[!.?,\s！？，。、؟]*",
     re.IGNORECASE,
 )
 _TECHNICAL_USER_SIGNAL_PATTERN = re.compile(
@@ -78,6 +81,17 @@ _FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 _FORCED_ATTEMPTS: contextvars.ContextVar[dict[str, int]] = contextvars.ContextVar(
     "docs_research_guard_forced_attempts", default={}
 )
+
+
+def is_short_non_technical_message(text: str) -> bool:
+    """Return whether text is a short greeting or assistant-meta message."""
+    text = text.strip()
+    return (
+        bool(text)
+        and len(text) <= 120
+        and not _TECHNICAL_USER_SIGNAL_PATTERN.search(text)
+        and bool(_NONTECHNICAL_USER_TURN_PATTERN.fullmatch(text))
+    )
 
 
 class DocsResearchGuardMiddleware(AgentMiddleware):
@@ -217,9 +231,7 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
 
     def _user_turn_has_technical_signal(self, message: BaseMessage) -> bool:
         text = self._message_text(message).strip()
-        if _TECHNICAL_USER_SIGNAL_PATTERN.search(text):
-            return True
-        return len(text) > 120 or not _NONTECHNICAL_USER_TURN_PATTERN.fullmatch(text)
+        return not is_short_non_technical_message(text)
 
     def _message_text(self, message: BaseMessage) -> str:
         content: Any = getattr(message, "content", "")

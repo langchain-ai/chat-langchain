@@ -14,6 +14,9 @@ from langgraph.runtime import Runtime
 from langsmith import Client
 from typing_extensions import NotRequired, TypedDict
 
+from src.middleware.docs_research_guard_middleware import (
+    is_short_non_technical_message,
+)
 from src.prompts.guardrails_prompts import (
     fallback_rejection_message as _FALLBACK_REJECTION_MESSAGE,
 )
@@ -210,6 +213,14 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         )
         safe_last_content = self._content_to_safe_text(last_content)
         query_preview = safe_last_content[:100]
+
+        if isinstance(last_message, HumanMessage) and is_short_non_technical_message(
+            safe_last_content
+        ):
+            guardrail_history = self._append_guardrail_turn(
+                state.get("guardrail_history", []), safe_last_content, "ALLOWED"
+            )
+            return {"guardrail_history": guardrail_history}
 
         # One classifier, every turn. Covers topic relevance + zero-tolerance
         # categories (NSFW, fiction, harmful-use-case, prompt-extraction,
