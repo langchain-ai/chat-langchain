@@ -1,20 +1,14 @@
 """Suppress duplicate tool calls within a single human turn."""
 
-import asyncio
-import contextvars
 import json
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, MutableMapping
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
-from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
-_TurnState = tuple[str, dict[tuple[str, str], str], set[str]]
-_TURN_STATE: contextvars.ContextVar[_TurnState | None] = contextvars.ContextVar(
-    "duplicate_call_guard_turn_state", default=None
-)
 _DUPLICATE_NOTE = (
     "This exact tool call was already made on this turn; do not repeat it."
 )
@@ -34,10 +28,12 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
     ) -> ToolMessage | Command:
         """Handle a tool call with per-turn duplicate suppression."""
         tool_name = str(request.tool_call.get("name", "unknown_tool"))
-        turn_state = self._turn_state(request)
-        seen_calls = turn_state[1]
+        seen_calls, check_links_count = self._turn_ledger(request)
+        node_cache = self._node_cache(request)
+        seen_calls.update(node_cache)
+        check_links_count = sum(call_key[0] == "check_links" for call_key in seen_calls)
 
-        if tool_name == "check_links" and "check_links" in turn_state[2]:
+        if tool_name == "check_links" and check_links_count >= 1:
             return self._tool_message(request, _CHECK_LINKS_REFUSAL)
 
         call_key = (tool_name, self._canonical_args(request.tool_call.get("args", {})))
@@ -48,38 +44,69 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
                 f"{_DUPLICATE_NOTE}\n{cached_content}",
             )
 
-        if tool_name == "check_links":
-            turn_state[2].add("check_links")
-
         result = await handler(request)
         if isinstance(result, ToolMessage) and result.status == "success":
-            seen_calls[call_key] = self._content_text(result.content)
+            node_cache[call_key] = self._content_text(result.content)
         return result
 
-    def _turn_state(self, request: ToolCallRequest) -> _TurnState:
-        turn_key = f"{self._execution_key(request)}:{self._turn_key(request.state)}"
-        current = _TURN_STATE.get()
-        if current is None or current[0] != turn_key:
-            current = (turn_key, {}, set())
-            _TURN_STATE.set(current)
-        return current
-
-    def _execution_key(self, request: ToolCallRequest) -> str:
-        runtime = request.runtime
-        config = getattr(runtime, "config", None)
-        run_id = config.get("run_id") if isinstance(config, Mapping) else None
-        if run_id:
-            return f"run:{run_id}"
-        task = asyncio.current_task()
-        return f"task:{id(task)}"
-
-    def _turn_key(self, state: Any) -> str:
-        messages = self._messages(state)
+    def _turn_ledger(
+        self, request: ToolCallRequest
+    ) -> tuple[dict[tuple[str, str], str], int]:
+        messages = self._messages(request.state)
+        turn_start = 0
         for index in range(len(messages) - 1, -1, -1):
             message = messages[index]
-            if isinstance(message, HumanMessage) or getattr(message, "type", None) == "human":
+            if (
+                isinstance(message, HumanMessage)
+                or getattr(message, "type", None) == "human"
+            ):
+                turn_start = index
+                break
+        current_turn = messages[turn_start:]
+        tool_messages = {
+            message.tool_call_id: message
+            for message in current_turn
+            if isinstance(message, ToolMessage)
+        }
+        ledger = {}
+        for message in current_turn:
+            if not isinstance(message, AIMessage):
+                continue
+            for tool_call in message.tool_calls:
+                tool_message = tool_messages.get(tool_call.get("id"))
+                if tool_message is None or self._is_error(tool_message):
+                    continue
+                call_key = (
+                    str(tool_call.get("name", "unknown_tool")),
+                    self._canonical_args(tool_call.get("args", {})),
+                )
+                ledger[call_key] = self._content_text(tool_message.content)
+        check_links_count = sum(call_key[0] == "check_links" for call_key in ledger)
+        return ledger, check_links_count
+
+    def _node_cache(self, request: ToolCallRequest) -> dict[tuple[str, str], str]:
+        state = request.state
+        if isinstance(state, MutableMapping):
+            caches = state.setdefault("_duplicate_call_guard_node_cache", {})
+            if isinstance(caches, dict):
+                turn_key = self._turn_key(self._messages(state))
+                cache = caches.setdefault(turn_key, {})
+                if isinstance(cache, dict):
+                    return cache
+        return {}
+
+    def _turn_key(self, messages: list[BaseMessage]) -> str:
+        for index in range(len(messages) - 1, -1, -1):
+            message = messages[index]
+            if (
+                isinstance(message, HumanMessage)
+                or getattr(message, "type", None) == "human"
+            ):
                 return f"{index}:{getattr(message, 'id', None)}:{message.content!r}"
         return "no-human-message"
+
+    def _is_error(self, message: ToolMessage) -> bool:
+        return str(message.status).lower() in {"error", "failure", "failed"}
 
     def _messages(self, state: Any) -> list[BaseMessage]:
         if isinstance(state, Mapping):
@@ -89,7 +116,9 @@ class DuplicateCallGuardMiddleware(AgentMiddleware):
         return list(messages)
 
     def _canonical_args(self, args: Any) -> str:
-        return json.dumps(args, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return json.dumps(
+            args, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
 
     def _content_text(self, content: Any) -> str:
         if isinstance(content, str):
