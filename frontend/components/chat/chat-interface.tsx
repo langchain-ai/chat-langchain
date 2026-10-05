@@ -14,6 +14,7 @@ import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
 import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
 import { ChatInput } from "./chat-input"
+import { isImeComposing, shouldSubmitOnEnter } from "@/lib/ime"
 import { createLangGraphClient } from "@/lib/api/langgraph-client"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import {
@@ -203,6 +204,7 @@ export function ChatInterface({
 
   // Textarea ref for auto-focus
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isComposingRef = useRef(false)
 
   // Track previous loading state to detect completion of AI response
   const prevIsLoadingRef = useRef(false)
@@ -867,13 +869,26 @@ export function ChatInterface({
   }
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && isImeComposing(e, isComposingRef.current)) {
+      return
+    }
+    if (shouldSubmitOnEnter(e, isComposingRef.current)) {
       e.preventDefault()
       if (userId) {
         handleSend()
       }
     }
   }, [userId, handleSend])
+
+  const handleCompositionStart = useCallback(() => {
+    isComposingRef.current = true
+  }, [])
+
+  const handleCompositionEnd = useCallback(() => {
+    setTimeout(() => {
+      isComposingRef.current = false
+    }, 0)
+  }, [])
 
   const handleFileButtonClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -954,6 +969,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}
@@ -983,6 +1000,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}

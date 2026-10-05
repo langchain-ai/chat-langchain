@@ -11,6 +11,7 @@ import type { Message } from "@/lib/types"
 import { INPUT_TOO_LONG_MESSAGE, MAX_INPUT_CHARS } from "@/lib/constants/features"
 import { useState, useMemo, useEffect, useCallback, memo, useRef } from "react"
 import Image from "next/image"
+import { isImeComposing, shouldSubmitOnEnter } from "@/lib/ime"
 
 // ============================================================================
 // Constants
@@ -226,6 +227,28 @@ export const MessageItem = memo(function MessageItem({
   const [editContent, setEditContent] = useState(message.content.slice(0, MAX_INPUT_CHARS))
   const [editError, setEditError] = useState<string | null>(null)
   const prevContentRef = useRef(message.content)
+  const editIsComposingRef = useRef(false)
+  const commentIsComposingRef = useRef(false)
+
+  const handleEditCompositionStart = useCallback(() => {
+    editIsComposingRef.current = true
+  }, [])
+
+  const handleEditCompositionEnd = useCallback(() => {
+    setTimeout(() => {
+      editIsComposingRef.current = false
+    }, 0)
+  }, [])
+
+  const handleCommentCompositionStart = useCallback(() => {
+    commentIsComposingRef.current = true
+  }, [])
+
+  const handleCommentCompositionEnd = useCallback(() => {
+    setTimeout(() => {
+      commentIsComposingRef.current = false
+    }, 0)
+  }, [])
 
   // Sync editContent when message.content changes (e.g., during streaming)
   useEffect(() => {
@@ -473,11 +496,16 @@ export const MessageItem = memo(function MessageItem({
                   onChange={(e) => setLimitedEditContent(e.target.value)}
                   onBeforeInput={handleEditBeforeInput}
                   onPaste={handleEditPaste}
+                  onCompositionStart={handleEditCompositionStart}
+                  onCompositionEnd={handleEditCompositionEnd}
                   maxLength={MAX_INPUT_CHARS}
                   className="min-h-[80px] text-sm"
                   autoFocus
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
+                      if (e.key === "Enter" && isImeComposing(e, editIsComposingRef.current)) {
+                        return
+                      }
+                      if (shouldSubmitOnEnter(e, editIsComposingRef.current)) {
                         e.preventDefault()
                         handleSaveEdit()
                       } else if (e.key === "Escape") {
@@ -743,8 +771,13 @@ export const MessageItem = memo(function MessageItem({
                   placeholder="Add feedback about this response..."
                   className="min-h-[60px] text-xs"
                   autoFocus
+                  onCompositionStart={handleCommentCompositionStart}
+                  onCompositionEnd={handleCommentCompositionEnd}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
+                    if (e.key === "Enter" && isImeComposing(e, commentIsComposingRef.current)) {
+                      return
+                    }
+                    if (shouldSubmitOnEnter(e, commentIsComposingRef.current)) {
                       e.preventDefault()
                       if (feedbackComment[message.id]?.trim() && message.feedback) {
                         onSubmitComment(message.id)
