@@ -9,6 +9,7 @@ from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
+from src.middleware.model_call_timeout_middleware import ModelCallTimeoutMiddleware
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -96,6 +97,7 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "45"))
 
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
@@ -112,7 +114,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_chat_model(model=model, timeout=MODEL_CALL_TIMEOUT_SECONDS)
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -134,6 +136,7 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
+model_call_timeout_middleware = ModelCallTimeoutMiddleware(MODEL_CALL_TIMEOUT_SECONDS)
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
@@ -157,7 +160,9 @@ __all__ = [
     "model_retry_middleware",
     "tool_retry_middleware",
     "model_fallback_middleware",
+    "model_call_timeout_middleware",
     # Config
     "MAX_RETRIES",
+    "MODEL_CALL_TIMEOUT_SECONDS",
     "logger",
 ]

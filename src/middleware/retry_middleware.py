@@ -70,6 +70,8 @@ class ModelRetryMiddleware(AgentMiddleware):
 
             except Exception as e:
                 last_exception = e
+                if isinstance(e, asyncio.TimeoutError):
+                    raise
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
                     logger.warning(
