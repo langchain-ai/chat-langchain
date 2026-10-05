@@ -96,6 +96,7 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "45"))
 
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
@@ -132,7 +133,10 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 # Middleware
 # =============================================================================
 
-model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
+model_retry_middleware = ModelRetryMiddleware(
+    max_retries=MAX_RETRIES,
+    timeout_seconds=MODEL_CALL_TIMEOUT_SECONDS,
+)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
