@@ -21,6 +21,37 @@ RETRYABLE_FINISH_REASONS = {
 }
 
 
+def _is_non_retryable(exc: BaseException) -> bool:
+    """Return whether an exception represents a provider validation failure."""
+    pending = [exc]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, ValueError):
+            return True
+
+        status_code = getattr(current, "status_code", None)
+        response = getattr(current, "response", None)
+        response_status_code = getattr(response, "status_code", None)
+        class_name = type(current).__name__
+        if (
+            status_code == 400
+            or response_status_code == 400
+            or "invalid_request_error" in str(current)
+            or class_name.endswith(("InvalidRequestError", "BadRequestError"))
+        ):
+            return True
+
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
+
+
 class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
 
@@ -32,7 +63,7 @@ class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     def _kwargs_retrying(self) -> dict[str, object]:
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
-            lambda exception: not isinstance(exception, ValueError)
+            lambda exception: not _is_non_retryable(exception)
         )
         return kwargs
 
@@ -86,7 +117,7 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if _is_non_retryable(e):
                     raise
                 last_exception = e
                 if attempt < self.max_retries:
