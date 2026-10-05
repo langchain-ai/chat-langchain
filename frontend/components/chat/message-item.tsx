@@ -226,6 +226,21 @@ export const MessageItem = memo(function MessageItem({
   const [editContent, setEditContent] = useState(message.content.slice(0, MAX_INPUT_CHARS))
   const [editError, setEditError] = useState<string | null>(null)
   const prevContentRef = useRef(message.content)
+  const isComposingRef = useRef(false)
+  const compositionEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleCompositionStart = useCallback(() => {
+    if (compositionEndTimeoutRef.current) {
+      clearTimeout(compositionEndTimeoutRef.current)
+    }
+    isComposingRef.current = true
+  }, [])
+
+  const handleCompositionEnd = useCallback(() => {
+    compositionEndTimeoutRef.current = setTimeout(() => {
+      isComposingRef.current = false
+    }, 0)
+  }, [])
 
   // Sync editContent when message.content changes (e.g., during streaming)
   useEffect(() => {
@@ -478,12 +493,17 @@ export const MessageItem = memo(function MessageItem({
                   autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
+                        if (e.nativeEvent.isComposing || e.keyCode === 229 || isComposingRef.current) {
+                          return
+                        }
                         e.preventDefault()
                         handleSaveEdit()
                       } else if (e.key === "Escape") {
                         handleCancelEdit()
                       }
                     }}
+                    onCompositionStart={handleCompositionStart}
+                    onCompositionEnd={handleCompositionEnd}
                     onBlur={handleCancelEdit}
                     onFocus={(e) => {
                       // Select all text on focus for easier editing
@@ -745,6 +765,9 @@ export const MessageItem = memo(function MessageItem({
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
+                      if (e.nativeEvent.isComposing || e.keyCode === 229 || isComposingRef.current) {
+                        return
+                      }
                       e.preventDefault()
                       if (feedbackComment[message.id]?.trim() && message.feedback) {
                         onSubmitComment(message.id)
@@ -753,6 +776,8 @@ export const MessageItem = memo(function MessageItem({
                       onCancelComment(message.id)
                     }
                   }}
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={handleCompositionEnd}
                 />
                 {!message.feedback && (
                   <p className="text-[10px] text-muted-foreground mt-1">

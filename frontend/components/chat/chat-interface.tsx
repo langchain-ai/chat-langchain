@@ -203,6 +203,8 @@ export function ChatInterface({
 
   // Textarea ref for auto-focus
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isComposingRef = useRef(false)
+  const compositionEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Track previous loading state to detect completion of AI response
   const prevIsLoadingRef = useRef(false)
@@ -866,8 +868,24 @@ export function ChatInterface({
     setTimeout(() => uiDispatch({ type: 'SET_COPIED_ID', payload: null }), 2000)
   }
 
+  const handleCompositionStart = useCallback(() => {
+    if (compositionEndTimeoutRef.current) {
+      clearTimeout(compositionEndTimeoutRef.current)
+    }
+    isComposingRef.current = true
+  }, [])
+
+  const handleCompositionEnd = useCallback(() => {
+    compositionEndTimeoutRef.current = setTimeout(() => {
+      isComposingRef.current = false
+    }, 0)
+  }, [])
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
+      if (e.nativeEvent.isComposing || e.keyCode === 229 || isComposingRef.current) {
+        return
+      }
       e.preventDefault()
       if (userId) {
         handleSend()
@@ -954,6 +972,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}
@@ -983,6 +1003,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}
