@@ -9,6 +9,7 @@ from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
+from src.middleware.model_timeout_middleware import MODEL_CALL_TIMEOUT_SECONDS
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -98,7 +99,10 @@ for key in API_KEYS:
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(
+    model=DEFAULT_MODEL.id,
+    timeout=MODEL_CALL_TIMEOUT_SECONDS,
+)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -112,7 +116,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_chat_model(model=model, timeout=MODEL_CALL_TIMEOUT_SECONDS)
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
