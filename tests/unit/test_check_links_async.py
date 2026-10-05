@@ -8,8 +8,7 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -17,12 +16,9 @@ import pytest
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
     _check_single_url,
-    _check_urls_async,
-    _format_results,
     check_links,
 )
 
@@ -183,6 +179,47 @@ def test_check_links_empty_list():
     """Passing an empty list should return the 'no URLs' message without error."""
     # No mock needed — the early-return branch is hit before any async work.
     result = check_links.invoke({"urls": []})
+    assert result == "No URLs provided to check."
+
+
+@pytest.mark.asyncio
+async def test_check_links_missing_urls_key():
+    """Missing URLs should reach the tool's no-URLs guard."""
+    result = await check_links.ainvoke({"yarn": "true"})
+    assert result == "No URLs provided to check."
+
+
+@pytest.mark.asyncio
+async def test_check_links_promotes_valid_urls_key():
+    """Result-shaped input should promote valid_urls and ignore extra fields."""
+    seen_urls: list[list[str]] = []
+
+    async def _recording_mock(urls, timeout):  # noqa: ARG001
+        seen_urls.append(list(urls))
+        return [LinkCheckResult(url=urls[0], valid=True, status_code=200)]
+
+    with patch(
+        "src.tools.link_check_tools._check_urls_async",
+        new=_recording_mock,
+    ):
+        result = await check_links.ainvoke(
+            {
+                "annotations": [],
+                "error": None,
+                "valid_urls": [
+                    "https://docs.langchain.com/oss/javascript/langgraph/streaming"
+                ],
+            }
+        )
+
+    assert seen_urls == [["https://docs.langchain.com/oss/javascript/langgraph/streaming"]]
+    assert "1/1 valid" in result
+
+
+@pytest.mark.asyncio
+async def test_check_links_coerces_json_string_urls():
+    """A JSON-encoded empty URL list should reach the no-URLs guard."""
+    result = await check_links.ainvoke({"urls": "[]"})
     assert result == "No URLs provided to check."
 
 

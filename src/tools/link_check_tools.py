@@ -1,6 +1,7 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -8,6 +9,7 @@ from urllib.parse import urlparse
 
 import httpx
 from langchain.tools import tool
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -180,17 +182,42 @@ def _format_results(results: list[LinkCheckResult]) -> str:
     return "\n".join(lines)
 
 
-@tool
+class CheckLinksArgs(BaseModel):
+    """Arguments accepted by the link-checking tool."""
+
+    urls: list[str] = Field(default_factory=list, description="List of URLs to validate.")
+    timeout: float = DEFAULT_TIMEOUT
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def promote_url_aliases(cls, values):
+        """Promote supported URL aliases when urls is absent."""
+        if isinstance(values, dict) and "urls" not in values:
+            for alias in ("valid_urls", "links"):
+                if alias in values:
+                    return {**values, "urls": values[alias]}
+        return values
+
+    @field_validator("urls", mode="before")
+    @classmethod
+    def coerce_urls(cls, value):
+        """Coerce string inputs into URL lists."""
+        if isinstance(value, str):
+            value = value.strip()
+            if value.startswith("["):
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    return []
+            return [fragment for fragment in re.split(r"[,\s]+", value) if fragment]
+        return value
+
+
+@tool(args_schema=CheckLinksArgs)
 async def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
-    """Check if URLs are valid and accessible before including them in a response.
-
-    Args:
-        urls: List of URLs to validate.
-        timeout: Timeout per request in seconds (default: 10).
-
-    Returns:
-        Formatted results showing which URLs are valid/invalid with details.
-    """
+    """Check URLs before including them in a response; pass a JSON array of URL strings in `urls`, not `valid_urls`."""
     if not urls:
         return "No URLs provided to check."
 
