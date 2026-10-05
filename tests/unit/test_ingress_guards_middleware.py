@@ -37,6 +37,7 @@ def test_before_agent_noop_when_under_cap():
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
+    monkeypatch.delenv("APP_ENVIRONMENT", raising=False)
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
     monkeypatch.setattr(
@@ -46,6 +47,7 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
 
     metadata = build_docs_agent_trace_metadata()
 
+    assert metadata["environment"] == "production"
     assert metadata["source_type"] == "Chat-LangChain"
     assert metadata["prompt_source"] == "local:instructions.md"
     assert (
@@ -61,3 +63,11 @@ def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch
 
     metadata = build_docs_agent_trace_metadata()
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+
+
+def test_build_docs_agent_trace_metadata_uses_app_environment(monkeypatch):
+    monkeypatch.setenv("APP_ENVIRONMENT", "staging")
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata["environment"] == "staging"
