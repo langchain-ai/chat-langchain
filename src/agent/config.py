@@ -9,6 +9,7 @@ from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
+from src.middleware.model_timeout_middleware import ModelTimeoutMiddleware
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -136,6 +137,7 @@ model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_timeout_middleware = ModelTimeoutMiddleware()
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -157,6 +159,7 @@ __all__ = [
     "model_retry_middleware",
     "tool_retry_middleware",
     "model_fallback_middleware",
+    "model_timeout_middleware",
     # Config
     "MAX_RETRIES",
     "logger",
