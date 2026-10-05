@@ -36,6 +36,50 @@ def test_before_agent_noop_when_under_cap():
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
 
+def test_before_agent_redacts_lsv2_secret_in_curl_snippet():
+    middleware = IngressGuardsMiddleware()
+    secret = "lsv2_sk_" + "a" * 32
+    human = HumanMessage(
+        content=f'curl -H "X-Api-Key: {secret}" https://api.smith.langchain.com',
+        id="h1",
+    )
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert secret not in update["messages"][0].content
+    assert "<REDACTED_API_KEY>" in update["messages"][0].content
+
+
+def test_redaction_leaves_ordinary_prose_and_code_unchanged():
+    middleware = IngressGuardsMiddleware()
+    content = "Use `api_key` as the variable name, not a real credential."
+
+    assert middleware._redact_secrets(content) == content
+
+
+def test_redaction_does_not_mangle_placeholder():
+    middleware = IngressGuardsMiddleware()
+
+    assert middleware._redact_secrets("api_key=YOUR_API_KEY") == "api_key=YOUR_API_KEY"
+
+
+def test_redaction_handles_list_content_blocks():
+    middleware = IngressGuardsMiddleware()
+    secret = "ghp_" + "b" * 32
+    content = [
+        {"type": "image_url", "image_url": {"url": "https://example.com/image.png"}},
+        {"type": "text", "text": f"token: {secret}"},
+        "No credential here.",
+    ]
+
+    redacted = middleware._redact_secrets(content)
+
+    assert redacted[0] is content[0]
+    assert redacted[1]["text"] == "<REDACTED_API_KEY>"
+    assert redacted[2] == content[2]
+
+
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
