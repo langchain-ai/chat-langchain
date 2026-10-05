@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import random
+import re
 from typing import Any, Literal
 
 import langsmith as ls
@@ -48,6 +49,84 @@ _GUARDRAILS_PROMPT_HUB_NAME = (
 
 # Cache for dataset ID to avoid repeated lookups
 _dataset_id_cache: str | None = None
+_STOPWORDS = {
+    "about",
+    "after",
+    "also",
+    "can",
+    "could",
+    "does",
+    "from",
+    "give",
+    "have",
+    "help",
+    "into",
+    "just",
+    "make",
+    "need",
+    "please",
+    "show",
+    "that",
+    "the",
+    "this",
+    "tell",
+    "use",
+    "what",
+    "when",
+    "where",
+    "with",
+    "why",
+    "want",
+    "would",
+    "your",
+}
+_IN_SCOPE_PRODUCT_NAMES = {
+    "agents",
+    "deepagents",
+    "fleet",
+    "langchain",
+    "langgraph",
+    "langsmith",
+}
+_OFFER_PHRASE_RE = re.compile(
+    r"\b(?:can|could|would|happy to|feel free to|offer to|help you|help with|"
+    r"assist with|show you how to|guide you through|ask me about)\b"
+)
+_WORKFLOW_REROUTE_RE = re.compile(
+    r"\b(?:workflow|workflows|agent|agents|pipeline|pipelines|integration|"
+    r"integrations)\b"
+)
+_SUBJECT_SPECIFIC_REROUTE_RE = re.compile(
+    r"\b(?:document processing|information workflow|health-related|medical|"
+    r"healthcare|cooking|recipe|recipes|guacamole|food)\b"
+)
+_LANGCHAIN_TOOL_RE = re.compile(
+    r"\b(?:langchain|langgraph|langsmith|deep agents|deepagents|agent)\b"
+)
+_WORD_RE = re.compile(r"\w+")
+
+
+def _contains_content_adjacent_offer(response_content, blocked_content) -> bool:
+    """Detect refusal text that reroutes the declined request through tools."""
+    response_text = str(response_content).lower()
+    response_tokens = set(_WORD_RE.findall(response_text))
+    request_tokens = {
+        token
+        for token in _WORD_RE.findall(str(blocked_content).lower())
+        if len(token) >= 4
+        and token not in _STOPWORDS
+        and token not in _IN_SCOPE_PRODUCT_NAMES
+    }
+    if _OFFER_PHRASE_RE.search(response_text) and any(
+        token in response_tokens for token in request_tokens
+    ):
+        return True
+    return bool(
+        _OFFER_PHRASE_RE.search(response_text)
+        and _WORKFLOW_REROUTE_RE.search(response_text)
+        and _SUBJECT_SPECIFIC_REROUTE_RE.search(response_text)
+        and _LANGCHAIN_TOOL_RE.search(response_text)
+    )
 
 
 class GuardrailsDecision(TypedDict):
@@ -187,6 +266,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 self.llm.ainvoke(prompt),
                 timeout=GUARDRAILS_TIMEOUT_SECONDS,
             )
+            if _contains_content_adjacent_offer(response.content, content):
+                logger.info("Replacing content-adjacent refusal offer with fallback")
+                return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
             return AIMessage(id=response.id, content=response.content)
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")

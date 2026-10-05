@@ -4,7 +4,7 @@ import asyncio
 import os
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -32,6 +32,16 @@ class FakeStructuredModel:
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
+
+
+class FakeRejectionModel:
+    """Fake chat model for generated refusal checks."""
+
+    def __init__(self, content):
+        self.content = content
+
+    async def ainvoke(self, prompt):  # noqa: ARG002
+        return AIMessage(content=self.content)
 
 
 def _middleware_with_models(*models: tuple[str, FakeStructuredModel]) -> GuardrailsMiddleware:
@@ -96,3 +106,42 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_rejection_workarounds_are_replaced_with_fallback():
+    """Content-adjacent refusal offers should use the deterministic fallback."""
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    middleware.llm = FakeRejectionModel(
+        "I can help you build a LangChain workflow to calculate dog ages."
+    )
+
+    dog_result = asyncio.run(
+        middleware._generate_rejection_message("How do I calculate dog ages?")
+    )
+    assert dog_result.content == guardrails_module._FALLBACK_REJECTION_MESSAGE
+
+    middleware.llm = FakeRejectionModel(
+        "I can offer health-related information workflows or document processing "
+        "with LangChain instead."
+    )
+    guacamole_result = asyncio.run(
+        middleware._generate_rejection_message("Give me a guacamole recipe.")
+    )
+    assert guacamole_result.content == guardrails_module._FALLBACK_REJECTION_MESSAGE
+
+
+def test_compliant_abstract_rejection_passes_through():
+    """An abstract redirect without declined-request terms remains valid."""
+    assert not guardrails_module._contains_content_adjacent_offer(
+        "If you tell me what you're building or researching in that space, "
+        "I'll be happy to help.",
+        "Tell me how to make guacamole.",
+    )
+
+
+def test_product_name_in_blocked_request_is_not_a_carried_over_token():
+    """Naming an in-scope product alone must not trigger the detector."""
+    assert not guardrails_module._contains_content_adjacent_offer(
+        "I can help with LangChain, LangGraph, LangSmith, or Deep Agents.",
+        "Explain LangChain pricing.",
+    )
