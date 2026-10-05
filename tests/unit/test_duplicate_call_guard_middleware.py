@@ -3,17 +3,23 @@
 import asyncio
 
 import pytest
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
 
 
-def _request(name: str, call_id: str, args: dict, content: str = "Question"):
+def _request(
+    name: str,
+    call_id: str,
+    args: dict,
+    content: str = "Question",
+    messages=None,
+):
     return ToolCallRequest(
         tool_call={"name": name, "id": call_id, "args": args},
         tool=None,
-        state={"messages": [HumanMessage(content=content)]},
+        state={"messages": messages or [HumanMessage(content=content)]},
         runtime=None,
     )
 
@@ -31,11 +37,29 @@ def test_identical_call_returns_cached_content_with_current_call_identity():
         )
 
     async def invoke():
+        messages = [HumanMessage(content="Question")]
         first = await middleware.awrap_tool_call(
-            _request("search_docs", "call-1", {"query": "middleware"}), handler
+            _request(
+                "search_docs", "call-1", {"query": "middleware"}, messages=messages
+            ),
+            handler,
+        )
+        messages.extend(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {"name": "search_docs", "id": "call-1", "args": {"query": "middleware"}}
+                    ],
+                ),
+                first,
+            ]
         )
         second = await middleware.awrap_tool_call(
-            _request("search_docs", "call-2", {"query": "middleware"}), handler
+            _request(
+                "search_docs", "call-2", {"query": "middleware"}, messages=messages
+            ),
+            handler,
         )
         return first, second
 
@@ -116,12 +140,38 @@ def test_check_links_allows_one_invocation_per_turn():
         )
 
     async def invoke():
+        messages = [HumanMessage(content="Question")]
         first = await middleware.awrap_tool_call(
-            _request("check_links", "call-1", {"urls": ["https://one.example"]}),
+            _request(
+                "check_links",
+                "call-1",
+                {"urls": ["https://one.example"]},
+                messages=messages,
+            ),
             handler,
         )
+        messages.extend(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "check_links",
+                            "id": "call-1",
+                            "args": {"urls": ["https://one.example"]},
+                        }
+                    ],
+                ),
+                first,
+            ]
+        )
         second = await middleware.awrap_tool_call(
-            _request("check_links", "call-2", {"urls": ["https://two.example"]}),
+            _request(
+                "check_links",
+                "call-2",
+                {"urls": ["https://two.example"]},
+                messages=messages,
+            ),
             handler,
         )
         return first, second
