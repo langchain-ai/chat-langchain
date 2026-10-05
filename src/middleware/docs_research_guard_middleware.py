@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextvars
 import os
 import re
 from collections.abc import Awaitable, Callable
@@ -10,6 +9,7 @@ from typing import Any
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
+    AgentState,
     ModelCallResult,
     ModelRequest,
     ModelResponse,
@@ -72,16 +72,21 @@ _TECHNICAL_IDENTIFIER_PATTERN = re.compile(
     r"(?:^|\s)(?:\$\s*)?(?:python(?:3)?|pip|uv|npm|pnpm|poetry|git|curl)\s+\S+",
     re.MULTILINE,
 )
-_FORCED_TURN: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "docs_research_guard_forced_turn", default=None
-)
-_FORCED_ATTEMPTS: contextvars.ContextVar[dict[str, int]] = contextvars.ContextVar(
-    "docs_research_guard_forced_attempts", default={}
-)
+_FORCED_TURN_KEY = "_docs_research_guard_forced_turn"
+_FORCED_ATTEMPTS_KEY = "_docs_research_guard_forced_attempts"
+
+
+class DocsResearchGuardState(AgentState, total=False):
+    """State persisted by the documentation research guard."""
+
+    _docs_research_guard_forced_turn: str
+    _docs_research_guard_forced_attempts: int
 
 
 class DocsResearchGuardMiddleware(AgentMiddleware):
     """Force fresh documentation research before terminal technical answers."""
+
+    state_schema = DocsResearchGuardState
 
     async def awrap_model_call(
         self,
@@ -90,13 +95,14 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
     ) -> ModelCallResult:
         """Require fresh research before returning a technical answer."""
         response = await handler(request)
+        state = self._state_for_turn(request)
         if not self._should_retry(request, response):
-            self._clear_attempts(self._turn_key(request.messages))
+            self._clear_attempts(state)
             return response
 
         turn_key = self._turn_key(request.messages)
-        while self._attempt_count(turn_key) < _MAX_FORCED_ATTEMPTS:
-            self._record_attempt(turn_key)
+        while self._attempt_count(state, turn_key) < _MAX_FORCED_ATTEMPTS:
+            self._record_attempt(state, turn_key)
             retry_request = request.override(
                 messages=[
                     *request.messages,
@@ -111,15 +117,15 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
             if self._has_research_tool(
                 self._turn_messages(request.messages, self._response_messages(response))
             ):
-                self._clear_attempts(turn_key)
+                self._clear_attempts(state)
                 return response
             if not self._is_substantive_technical_answer(
                 self._response_messages(response)
             ):
-                self._clear_attempts(turn_key)
+                self._clear_attempts(state)
                 return response
 
-        self._clear_attempts(turn_key)
+        self._clear_attempts(state)
         return self._sanitize_response(request, response)
 
     def _should_retry(self, request: ModelRequest, response: ModelResponse) -> bool:
@@ -237,21 +243,25 @@ class DocsResearchGuardMiddleware(AgentMiddleware):
         content = f"{existing}\n\n{_RETRY_INSTRUCTIONS}".strip()
         return SystemMessage(content=content)
 
-    def _attempt_count(self, turn_key: str) -> int:
-        return _FORCED_ATTEMPTS.get().get(turn_key, 0)
+    def _state_for_turn(self, request: ModelRequest) -> dict[str, Any]:
+        state = request.state if isinstance(request.state, dict) else {}
+        turn_key = self._turn_key(request.messages)
+        if state.get(_FORCED_TURN_KEY) != turn_key:
+            state[_FORCED_TURN_KEY] = turn_key
+            state[_FORCED_ATTEMPTS_KEY] = 0
+        return state
 
-    def _record_attempt(self, turn_key: str) -> None:
-        attempts = dict(_FORCED_ATTEMPTS.get())
-        attempts[turn_key] = attempts.get(turn_key, 0) + 1
-        _FORCED_ATTEMPTS.set(attempts)
-        _FORCED_TURN.set(turn_key)
+    def _attempt_count(self, state: dict[str, Any], turn_key: str) -> int:
+        if state.get(_FORCED_TURN_KEY) != turn_key:
+            return 0
+        return int(state.get(_FORCED_ATTEMPTS_KEY, 0))
 
-    def _clear_attempts(self, turn_key: str) -> None:
-        attempts = dict(_FORCED_ATTEMPTS.get())
-        attempts.pop(turn_key, None)
-        _FORCED_ATTEMPTS.set(attempts)
-        if _FORCED_TURN.get() == turn_key:
-            _FORCED_TURN.set(None)
+    def _record_attempt(self, state: dict[str, Any], turn_key: str) -> None:
+        state[_FORCED_TURN_KEY] = turn_key
+        state[_FORCED_ATTEMPTS_KEY] = self._attempt_count(state, turn_key) + 1
+
+    def _clear_attempts(self, state: dict[str, Any]) -> None:
+        state[_FORCED_ATTEMPTS_KEY] = 0
 
     def _sanitize_response(
         self, request: ModelRequest, response: ModelResponse
