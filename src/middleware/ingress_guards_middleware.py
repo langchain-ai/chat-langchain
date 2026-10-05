@@ -4,12 +4,10 @@ These were previously enforced in ``src/api/auth.py`` (``validate_inputs``).
 Under MDA, identity/thread scoping is declared in ``identity.py``; this
 middleware only caps oversized user input.
 
-Trace metadata (prompt provenance, ``LANGSMITH_AGENT_VERSION``, ``source_type``)
-is applied at agent compile time via ``define_deep_agent(metadata=...)`` in
-``agent.py`` — nested ``before_agent`` spans cannot reliably update the
-LangSmith root run. Git-linked host fields (``LANGSMITH_LANGGRAPH_GIT_*``) are
-not synthesized; archive deploys use ``LANGSMITH_HOST_REVISION_ID`` /
-``LANGSMITH_AGENT_VERSION`` instead.
+Trace metadata is applied in the generated request entrypoint so the root run
+can receive request-time identity; nested ``before_agent`` spans cannot
+reliably update the LangSmith root run. Git-linked host fields are used to
+classify preview deployments when no explicit environment is configured.
 """
 
 from __future__ import annotations
