@@ -1,7 +1,8 @@
 # Retry middleware for model calls with exponential backoff
 import asyncio
 import logging
-from typing import Awaitable, Callable
+import threading
+from collections.abc import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -22,6 +23,70 @@ class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
 
     pass
+
+
+class ModelCallTimeoutMiddleware(AgentMiddleware):
+    """Raise when a model call exceeds the configured timeout."""
+
+    def __init__(self, timeout: float):
+        """Initialize the model call timeout."""
+        super().__init__()
+        self.timeout = timeout
+
+    @staticmethod
+    def _model_name(request: ModelRequest) -> str:
+        model = request.model
+        return str(
+            getattr(model, "model", None)
+            or getattr(model, "model_name", None)
+            or type(model).__name__
+        )
+
+    def _timeout_error(self, request: ModelRequest) -> TimeoutError:
+        model_name = self._model_name(request)
+        logger.warning(
+            "Model call timed out after %.2fs: %s",
+            self.timeout,
+            model_name,
+        )
+        return TimeoutError(
+            f"Model call timed out after {self.timeout:.2f}s: {model_name}"
+        )
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelCallResult:
+        """Bound an asynchronous model call."""
+        try:
+            return await asyncio.wait_for(handler(request), timeout=self.timeout)
+        except TimeoutError as exc:
+            raise self._timeout_error(request) from exc
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelCallResult:
+        """Bound a synchronous model call."""
+        result: list[ModelResponse] = []
+        error: list[Exception] = []
+
+        def run_handler() -> None:
+            try:
+                result.append(handler(request))
+            except Exception as exc:
+                error.append(exc)
+
+        thread = threading.Thread(target=run_handler, daemon=True)
+        thread.start()
+        thread.join(timeout=self.timeout)
+        if thread.is_alive():
+            raise self._timeout_error(request)
+        if error:
+            raise error[0]
+        return result[0]
 
 
 class ModelRetryMiddleware(AgentMiddleware):
@@ -94,4 +159,8 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = [
+    "MalformedResponseError",
+    "ModelCallTimeoutMiddleware",
+    "ModelRetryMiddleware",
+]
