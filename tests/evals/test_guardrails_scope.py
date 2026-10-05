@@ -157,8 +157,32 @@ def test_guardrails_prompt_allows_langchain_resource_questions():
 def test_guardrails_prompt_allows_bare_technical_follow_ups():
     """Layman-terms follow-ups after LangGraph questions must be allowed."""
     assert "in layman terms" in PROMPT_LOWER
-    assert "technical follow-up questions about prior langchain / langgraph" in PROMPT_LOWER
+    assert (
+        "technical follow-up questions about prior langchain / langgraph"
+        in PROMPT_LOWER
+    )
     assert "in-scope technical questions" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_allows_langchain_pii_middleware_questions():
+    """LangChain PII middleware documentation questions must be allowed."""
+    query = "How do I hide credit-card PII with LangChain's PII middleware?"
+    assert "pii middleware" in PROMPT_LOWER
+    assert "credit card numbers" in PROMPT_LOWER
+    assert "privacy, pii, redaction, moderation, or security features" in PROMPT_LOWER
+    assert "documentation questions and must be allowed" in PROMPT_LOWER
+    assert "langchain" in query.lower()
+    assert "pii" in query.lower()
+
+
+def test_guardrails_prompt_allows_multilingual_langchain_getting_started():
+    """LangChain getting-started questions in another language must be allowed."""
+    query = "¿Cómo empiezo con LangChain?"
+    assert "getting-started, orientation" in PROMPT_LOWER
+    assert "in any language" in PROMPT_LOWER
+    assert "the language the user writes in is never a reason to block" in PROMPT_LOWER
+    assert "a langchain question asked in spanish" in PROMPT_LOWER
+    assert "langchain" in query.lower()
 
 
 # ---------------------------------------------------------------------------
