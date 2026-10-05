@@ -21,6 +21,36 @@ RETRYABLE_FINISH_REASONS = {
 }
 
 
+def is_permanent_model_error(exception: BaseException) -> bool:
+    """Return whether a model error should bypass retries."""
+    if isinstance(exception, ValueError):
+        return True
+
+    exception_name = type(exception).__name__
+    if exception_name.endswith(("InvalidRequestError", "BadRequestError")):
+        return True
+
+    status_values = []
+    for attribute in ("status_code", "code"):
+        try:
+            status_values.append(getattr(exception, attribute, None))
+        except Exception:
+            pass
+    try:
+        response = getattr(exception, "response", None)
+        status_values.append(getattr(response, "status_code", None))
+    except Exception:
+        pass
+
+    for status in status_values:
+        try:
+            if int(status) in {400, 401, 403, 404, 422}:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
 class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
 
@@ -32,7 +62,7 @@ class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     def _kwargs_retrying(self) -> dict[str, object]:
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
-            lambda exception: not isinstance(exception, ValueError)
+            lambda exception: not is_permanent_model_error(exception)
         )
         return kwargs
 
@@ -86,7 +116,10 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if is_permanent_model_error(e):
+                    logger.warning(
+                        "Permanent model error %s; not retrying", type(e).__name__
+                    )
                     raise
                 last_exception = e
                 if attempt < self.max_retries:
