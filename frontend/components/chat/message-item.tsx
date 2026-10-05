@@ -226,6 +226,8 @@ export const MessageItem = memo(function MessageItem({
   const [editContent, setEditContent] = useState(message.content.slice(0, MAX_INPUT_CHARS))
   const [editError, setEditError] = useState<string | null>(null)
   const prevContentRef = useRef(message.content)
+  const isEditingComposingRef = useRef(false)
+  const isFeedbackComposingRef = useRef(false)
 
   // Sync editContent when message.content changes (e.g., during streaming)
   useEffect(() => {
@@ -473,11 +475,16 @@ export const MessageItem = memo(function MessageItem({
                   onChange={(e) => setLimitedEditContent(e.target.value)}
                   onBeforeInput={handleEditBeforeInput}
                   onPaste={handleEditPaste}
+                  onCompositionStart={() => { isEditingComposingRef.current = true }}
+                  onCompositionEnd={() => { isEditingComposingRef.current = false }}
                   maxLength={MAX_INPUT_CHARS}
                   className="min-h-[80px] text-sm"
                   autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
+                        if (e.nativeEvent.isComposing || e.keyCode === 229 || isEditingComposingRef.current) {
+                          return
+                        }
                         e.preventDefault()
                         handleSaveEdit()
                       } else if (e.key === "Escape") {
@@ -743,8 +750,13 @@ export const MessageItem = memo(function MessageItem({
                   placeholder="Add feedback about this response..."
                   className="min-h-[60px] text-xs"
                   autoFocus
+                  onCompositionStart={() => { isFeedbackComposingRef.current = true }}
+                  onCompositionEnd={() => { isFeedbackComposingRef.current = false }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
+                      if (e.nativeEvent.isComposing || e.keyCode === 229 || isFeedbackComposingRef.current) {
+                        return
+                      }
                       e.preventDefault()
                       if (feedbackComment[message.id]?.trim() && message.feedback) {
                         onSubmitComment(message.id)
