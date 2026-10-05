@@ -226,6 +226,28 @@ export const MessageItem = memo(function MessageItem({
   const [editContent, setEditContent] = useState(message.content.slice(0, MAX_INPUT_CHARS))
   const [editError, setEditError] = useState<string | null>(null)
   const prevContentRef = useRef(message.content)
+  const editIsComposingRef = useRef(false)
+  const feedbackIsComposingRef = useRef(false)
+
+  const handleEditCompositionStart = useCallback(() => {
+    editIsComposingRef.current = true
+  }, [])
+
+  const handleEditCompositionEnd = useCallback(() => {
+    setTimeout(() => {
+      editIsComposingRef.current = false
+    }, 0)
+  }, [])
+
+  const handleFeedbackCompositionStart = useCallback(() => {
+    feedbackIsComposingRef.current = true
+  }, [])
+
+  const handleFeedbackCompositionEnd = useCallback(() => {
+    setTimeout(() => {
+      feedbackIsComposingRef.current = false
+    }, 0)
+  }, [])
 
   // Sync editContent when message.content changes (e.g., during streaming)
   useEffect(() => {
@@ -476,19 +498,27 @@ export const MessageItem = memo(function MessageItem({
                   maxLength={MAX_INPUT_CHARS}
                   className="min-h-[80px] text-sm"
                   autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSaveEdit()
-                      } else if (e.key === "Escape") {
-                        handleCancelEdit()
-                      }
-                    }}
-                    onBlur={handleCancelEdit}
-                    onFocus={(e) => {
-                      // Select all text on focus for easier editing
-                      e.target.select()
-                    }}
+                  onCompositionStart={handleEditCompositionStart}
+                  onCompositionEnd={handleEditCompositionEnd}
+                  onKeyDown={(e) => {
+                    if (
+                      e.key === "Enter" &&
+                      !e.shiftKey &&
+                      !editIsComposingRef.current &&
+                      !e.nativeEvent.isComposing &&
+                      e.keyCode !== 229
+                    ) {
+                      e.preventDefault()
+                      handleSaveEdit()
+                    } else if (e.key === "Escape") {
+                      handleCancelEdit()
+                    }
+                  }}
+                  onBlur={handleCancelEdit}
+                  onFocus={(e) => {
+                    // Select all text on focus for easier editing
+                    e.target.select()
+                  }}
                 />
                 {editError && (
                   <div className="mt-1 text-xs text-destructive">
@@ -743,8 +773,16 @@ export const MessageItem = memo(function MessageItem({
                   placeholder="Add feedback about this response..."
                   className="min-h-[60px] text-xs"
                   autoFocus
+                  onCompositionStart={handleFeedbackCompositionStart}
+                  onCompositionEnd={handleFeedbackCompositionEnd}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
+                    if (
+                      e.key === "Enter" &&
+                      !e.shiftKey &&
+                      !feedbackIsComposingRef.current &&
+                      !e.nativeEvent.isComposing &&
+                      e.keyCode !== 229
+                    ) {
                       e.preventDefault()
                       if (feedbackComment[message.id]?.trim() && message.feedback) {
                         onSubmitComment(message.id)

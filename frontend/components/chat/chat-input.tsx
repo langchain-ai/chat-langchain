@@ -18,6 +18,8 @@ interface ChatInputProps {
   onBeforeInput: (e: React.FormEvent<HTMLTextAreaElement>) => void
   onSend: () => void
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  onCompositionStart: (e: React.CompositionEvent<HTMLTextAreaElement>) => void
+  onCompositionEnd: (e: React.CompositionEvent<HTMLTextAreaElement>) => void
   isLoading: boolean
   isStopping: boolean
   onStop: () => void
@@ -58,6 +60,8 @@ export function ChatInput({
   onBeforeInput,
   onSend,
   onKeyDown,
+  onCompositionStart,
+  onCompositionEnd,
   isLoading,
   isStopping,
   onStop,
@@ -196,6 +200,8 @@ export function ChatInput({
                     onChange={(e) => onInputChange(e.target.value)}
                     onBeforeInput={onBeforeInput}
                     onKeyDown={onKeyDown}
+                    onCompositionStart={onCompositionStart}
+                    onCompositionEnd={onCompositionEnd}
                     onPaste={onPaste}
                     maxLength={MAX_INPUT_CHARS}
                     placeholder={
