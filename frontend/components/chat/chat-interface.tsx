@@ -765,6 +765,8 @@ export function ChatInterface({
     console.log('User requested stop')
     uiDispatch({ type: 'SET_STOPPING', payload: true })
     shouldInterruptRef.current = true
+    messageQueueRef.current = []
+    setQueuedMessagesDisplay([])
     const activeRun = activeRunRef.current
     if (!activeRun) return
 
@@ -867,6 +869,10 @@ export function ChatInterface({
   }
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
+      return
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       if (userId) {
