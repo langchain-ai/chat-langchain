@@ -432,7 +432,7 @@ def test_message_text_ignores_non_text_blocks():
     assert middleware._message_text(message) == "Answer"
 
 
-def test_search_results_satisfy_research_requirement():
+def test_search_only_results_force_docs_read():
     middleware = DocsResearchGuardMiddleware()
     calls: list[ModelRequest] = []
     request = ModelRequest(
@@ -459,7 +459,107 @@ def test_search_results_satisfy_research_requirement():
 
     asyncio.run(middleware.awrap_model_call(request, handler))
 
+    assert len(calls) == 3
+    assert all(
+        call.tool_choice == "query_docs_filesystem_docs_by_lang_chain"
+        for call in calls[1:]
+    )
+    assert all(
+        "query_docs_filesystem_docs_by_lang_chain" in call.messages[-1].content
+        for call in calls[1:]
+    )
+
+
+def test_docs_search_and_read_satisfy_research_requirement():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="Explain StateGraph."),
+            ToolMessage(
+                content="StateGraph combines state and nodes.",
+                name="search_docs_by_lang_chain",
+                tool_call_id="search",
+            ),
+            ToolMessage(
+                content="StateGraph is documented here.",
+                name="query_docs_filesystem_docs_by_lang_chain",
+                tool_call_id="read",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="StateGraph is the graph class described in the docs."
+                )
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
     assert len(calls) == 1
+
+
+def test_support_search_only_forces_support_read():
+    middleware = DocsResearchGuardMiddleware()
+    calls: list[ModelRequest] = []
+    request = ModelRequest(
+        model=object(),
+        messages=[
+            HumanMessage(content="How do I configure billing for LangSmith?"),
+            ToolMessage(
+                content="The billing article matches the question.",
+                name="search_support_articles",
+                tool_call_id="search",
+            ),
+        ],
+    )
+
+    async def handler(request: ModelRequest) -> ModelResponse:
+        calls.append(request)
+        return ModelResponse(
+            result=[
+                AIMessage(
+                    content="The billing article describes the configuration options."
+                )
+            ]
+        )
+
+    asyncio.run(middleware.awrap_model_call(request, handler))
+
+    assert len(calls) == 3
+    assert all(call.tool_choice == "get_support_article_content" for call in calls[1:])
+    assert all("search_support_articles" in call.messages[-1].content for call in calls[1:])
+    assert all("get_support_article_content" in call.messages[-1].content for call in calls[1:])
+
+
+def test_incomplete_pairs_progress_to_remaining_read_tool():
+    middleware = DocsResearchGuardMiddleware()
+    messages = [
+        HumanMessage(content="Explain StateGraph and LangSmith billing."),
+        ToolMessage(
+            content="StateGraph combines state and nodes.",
+            name="search_docs_by_lang_chain",
+            tool_call_id="docs-search",
+        ),
+        ToolMessage(
+            content="The billing article matches the question.",
+            name="search_support_articles",
+            tool_call_id="support-search",
+        ),
+    ]
+
+    assert middleware._missing_research_tool(messages, set()) == (
+        "query_docs_filesystem_docs_by_lang_chain"
+    )
+    assert middleware._missing_research_tool(
+        messages, {"query_docs_filesystem_docs_by_lang_chain"}
+    ) == "get_support_article_content"
 
 
 def test_unread_large_result_pointer_does_not_satisfy_research_requirement():
