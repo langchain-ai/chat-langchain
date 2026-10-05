@@ -6,8 +6,10 @@ import re
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, RemoveMessage, ToolMessage
+from langchain_core.tools import BaseTool
 from langgraph.prebuilt.tool_node import ToolCallRequest
+from langgraph.runtime import Runtime
 from langgraph.types import Command
 
 from src.tools.pylon_tools import PylonUnavailableError
@@ -44,10 +46,77 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
     ):
+        """Initialize retry settings and the compiled tool registry."""
         super().__init__()
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self._tools_by_name: dict[str, BaseTool] = {}
+
+    def _set_tool_registry(self, tools: list[BaseTool] | None) -> None:
+        if tools:
+            self._tools_by_name = {tool.name: tool for tool in tools}
+
+    def _registered_tool_names(self) -> list[str]:
+        return list(self._tools_by_name)
+
+    def _resolve_tool_name(self, name: str) -> str | None:
+        if name in self._tools_by_name:
+            return name
+
+        cleaned_name = "".join(character for character in name if character.isprintable())
+        trailing_name = cleaned_name.rsplit(":", 1)[-1]
+        if trailing_name in self._tools_by_name:
+            return trailing_name
+
+        return next(
+            (
+                registered_name
+                for registered_name in sorted(
+                    self._tools_by_name, key=len, reverse=True
+                )
+                if registered_name in cleaned_name
+            ),
+            None,
+        )
+
+    def _prune_invalid_tool_calls(self, state: AgentState) -> dict[str, Any] | None:
+        messages = state.get("messages", [])
+        if not self._tools_by_name:
+            return None
+
+        updates: list[Any] = []
+        tool_messages_by_id = {
+            message.tool_call_id: message
+            for message in messages
+            if isinstance(message, ToolMessage)
+        }
+        for message in messages:
+            if not isinstance(message, AIMessage) or not message.tool_calls:
+                continue
+
+            valid_tool_calls = [
+                tool_call
+                for tool_call in message.tool_calls
+                if tool_call.get("name") in self._tools_by_name
+            ]
+            invalid_tool_calls = [
+                tool_call
+                for tool_call in message.tool_calls
+                if tool_call.get("name") not in self._tools_by_name
+            ]
+            if not invalid_tool_calls or message.id is None:
+                continue
+
+            updates.append(RemoveMessage(id=message.id))
+            updates.extend(
+                RemoveMessage(id=tool_messages_by_id[tool_call["id"]].id)
+                for tool_call in invalid_tool_calls
+                if tool_call.get("id") in tool_messages_by_id
+            )
+            updates.append(message.model_copy(update={"tool_calls": valid_tool_calls}))
+
+        return {"messages": updates} if updates else None
 
     def _tool_name(self, request: ToolCallRequest) -> str:
         return request.tool_call.get("name", "unknown_tool")
@@ -128,6 +197,31 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
+        """Normalize tool names and retry transient execution failures."""
+        runtime_tools = getattr(request.runtime, "tools", None)
+        self._set_tool_registry(runtime_tools)
+        if not runtime_tools and request.tool is not None:
+            self._set_tool_registry([request.tool])
+
+        requested_name = request.tool_call.get("name", "")
+        resolved_name = self._resolve_tool_name(requested_name)
+        if resolved_name is not None and resolved_name != requested_name:
+            request = request.override(
+                tool_call={**request.tool_call, "name": resolved_name},
+                tool=self._tools_by_name[resolved_name],
+            )
+        elif resolved_name is None and self._tools_by_name:
+            return ToolMessage(
+                content=(
+                    "Unknown tool. Use one of: "
+                    + ", ".join(self._registered_tool_names())
+                    + "."
+                ),
+                name="tool_error",
+                tool_call_id=self._tool_call_id(request),
+                status="error",
+            )
+
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_attempts + 1):
@@ -185,6 +279,12 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
         return self._tool_message(request, self._final_error_content(request, last_error))
+
+    def before_model(
+        self, state: AgentState, runtime: Runtime
+    ) -> dict[str, Any] | None:
+        """Remove invalid checkpointed tool calls before model execution."""
+        return self._prune_invalid_tool_calls(state)
 
 
 __all__ = ["ToolRetryMiddleware"]
