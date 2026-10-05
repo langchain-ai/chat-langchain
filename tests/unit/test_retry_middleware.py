@@ -31,6 +31,42 @@ def test_provider_validation_error_is_not_retried():
     assert calls == 1
 
 
+def test_model_timeout_retries_and_raises_timeout_error():
+    middleware = ModelRetryMiddleware(max_retries=2, initial_delay=0, timeout=0.01)
+    calls = 0
+
+    async def handler(request: ModelRequest):
+        nonlocal calls
+        calls += 1
+        await asyncio.Event().wait()
+
+    with pytest.raises(TimeoutError, match="timed out after 3 attempts"):
+        asyncio.run(
+            middleware.awrap_model_call(
+                ModelRequest(model=object(), messages=[HumanMessage(content="Hi")]),
+                handler,
+            )
+        )
+
+    assert calls == 3
+
+
+def test_model_timeout_allows_fast_handler():
+    middleware = ModelRetryMiddleware(max_retries=2, initial_delay=0, timeout=0.1)
+
+    async def handler(request: ModelRequest):
+        return "ok"
+
+    result = asyncio.run(
+        middleware.awrap_model_call(
+            ModelRequest(model=object(), messages=[HumanMessage(content="Hi")]),
+            handler,
+        )
+    )
+
+    assert result == "ok"
+
+
 def test_model_retry_wrapper_does_not_retry_provider_validation_error():
     calls = 0
 

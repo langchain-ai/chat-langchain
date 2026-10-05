@@ -45,12 +45,14 @@ class ModelRetryMiddleware(AgentMiddleware):
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
+        timeout: float = 60.0,
     ):
         """Configure retry attempts and backoff timing."""
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self.timeout = timeout
 
     def _get_finish_reason(self, response: ModelResponse) -> str:
         """Extract finish_reason from response metadata."""
@@ -68,7 +70,9 @@ class ModelRetryMiddleware(AgentMiddleware):
 
         for attempt in range(self.max_retries + 1):
             try:
-                response = await handler(request)
+                response = await asyncio.wait_for(
+                    handler(request), timeout=self.timeout
+                )
                 finish_reason = self._get_finish_reason(response)
 
                 if finish_reason in RETRYABLE_FINISH_REASONS:
@@ -103,6 +107,10 @@ class ModelRetryMiddleware(AgentMiddleware):
 
         # Exhausted retries - raise for fallback middleware
         if last_exception:
+            if isinstance(last_exception, asyncio.TimeoutError):
+                raise TimeoutError(
+                    f"Model call timed out after {self.max_retries + 1} attempts"
+                ) from last_exception
             raise last_exception
 
         if last_retryable_reason:
