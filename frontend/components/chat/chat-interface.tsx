@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth"
 import type { AuthRegion } from "@/lib/auth"
 import { trackEvent, useAnalyticsContext } from "@/components/providers/segment-provider"
 import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
+import { useCompositionGuard } from "@/lib/hooks/use-composition-guard"
 import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
 import { ChatInput } from "./chat-input"
@@ -100,6 +101,7 @@ export function ChatInterface({
   const { state: uiState, dispatch: uiDispatch, setInput } = useChatState(threadId)
   const [inputError, setInputError] = useState<string | null>(null)
   const inputLengthRef = useRef(uiState.input.length)
+  const { onCompositionStart, onCompositionEnd, shouldIgnoreKeyDown } = useCompositionGuard()
 
   // File upload state
   const {
@@ -867,13 +869,17 @@ export function ChatInterface({
   }
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && shouldIgnoreKeyDown(e)) {
+      return
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       if (userId) {
         handleSend()
       }
     }
-  }, [userId, handleSend])
+  }, [userId, handleSend, shouldIgnoreKeyDown])
 
   const handleFileButtonClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -954,6 +960,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={onCompositionStart}
+            onCompositionEnd={onCompositionEnd}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}
@@ -983,6 +991,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={onCompositionStart}
+            onCompositionEnd={onCompositionEnd}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}
