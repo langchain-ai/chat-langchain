@@ -34,6 +34,17 @@ class FakeStructuredModel:
         return outcome
 
 
+class FakeRejectionModel:
+    """Fake model that captures the rejection prompt."""
+
+    def __init__(self):
+        self.prompt = None
+
+    async def ainvoke(self, prompt):
+        self.prompt = prompt
+        return HumanMessage(content="A rejection response.")
+
+
 def _middleware_with_models(*models: tuple[str, FakeStructuredModel]) -> GuardrailsMiddleware:
     middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
     middleware.classifier_llms = list(models)
@@ -96,3 +107,56 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_blocked_rejection_prompt_includes_classifier_explanation(monkeypatch):
+    """The blocked query's policy reason should reach the rejection model."""
+    middleware = _middleware_with_models()
+    rejection_model = FakeRejectionModel()
+    middleware.llm = rejection_model
+
+    async def _blocked_query(messages, guardrail_history=None):  # noqa: ARG001
+        return {
+            "decision": "BLOCKED",
+            "explanation": "The request is unrelated to LangChain documentation.",
+        }
+
+    monkeypatch.setattr(middleware, "_classify_query", _blocked_query)
+
+    asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="Write a poem about rain.")]},
+            Runtime(context=None),
+        )
+    )
+
+    rejection_content = rejection_model.prompt[1].content
+    assert "The request is unrelated to LangChain documentation." in rejection_content
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Write a poem about rain.",
+        [
+            {"type": "text", "text": "Write a poem about rain."},
+            {"type": "image_url", "image_url": {"url": "https://example.com/image"}},
+        ],
+    ],
+)
+def test_rejection_content_includes_policy_reason(content):
+    """Rejection prompts include the policy reason for every content shape."""
+    middleware = _middleware_with_models()
+
+    result = middleware._build_rejection_content(
+        content, "The request is unrelated to LangChain documentation."
+    )
+
+    if isinstance(result, str):
+        assert "The request is unrelated to LangChain documentation." in result
+    else:
+        assert any(
+            "The request is unrelated to LangChain documentation." in block.get("text", "")
+            for block in result
+            if block.get("type") == "text"
+        )
