@@ -1,6 +1,8 @@
-# Retry middleware for model calls with exponential backoff
+"""Middleware for timing out and retrying model calls."""
+
 import asyncio
 import logging
+import os
 from typing import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
@@ -24,13 +26,45 @@ class MalformedResponseError(Exception):
     pass
 
 
+class ModelTimeoutMiddleware(AgentMiddleware):
+    """Bound each asynchronous model call to a configured timeout."""
+
+    def __init__(self, timeout: float | None = None):
+        """Initialize the model call timeout."""
+        super().__init__()
+        self.timeout = (
+            timeout
+            if timeout is not None
+            else float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "60"))
+        )
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelCallResult:
+        """Execute a synchronous model call without async timeout handling."""
+        return handler(request)
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelCallResult:
+        """Execute one model call with the configured timeout."""
+        return await asyncio.wait_for(handler(request), timeout=self.timeout)
+
+
 class ModelRetryMiddleware(AgentMiddleware):
+    """Retry model calls that fail or return retryable finish reasons."""
+
     def __init__(
         self,
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
     ):
+        """Initialize retry behavior."""
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
@@ -46,6 +80,7 @@ class ModelRetryMiddleware(AgentMiddleware):
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
+        """Retry asynchronous model calls according to the configured policy."""
         last_exception: Exception | None = None
         last_retryable_reason: str | None = None
 
@@ -68,6 +103,8 @@ class ModelRetryMiddleware(AgentMiddleware):
 
                 return response
 
+            except TimeoutError:
+                raise
             except Exception as e:
                 last_exception = e
                 if attempt < self.max_retries:
@@ -94,4 +131,4 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = ["ModelRetryMiddleware", "ModelTimeoutMiddleware", "MalformedResponseError"]
