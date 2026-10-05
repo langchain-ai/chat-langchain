@@ -10,6 +10,7 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.messages import AIMessage
 from langchain_core.runnables.retry import RunnableRetry
 from tenacity import retry_if_exception
 
@@ -19,6 +20,52 @@ logger = logging.getLogger(__name__)
 RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
 }
+
+
+def _body_contains_invalid_request_error(body: object) -> bool:
+    if isinstance(body, str):
+        return "invalid_request_error" in body
+    if isinstance(body, dict):
+        try:
+            return any(
+                _body_contains_invalid_request_error(key)
+                or _body_contains_invalid_request_error(value)
+                for key, value in body.items()
+            )
+        except Exception:
+            return False
+    if isinstance(body, (list, tuple, set)):
+        return any(_body_contains_invalid_request_error(value) for value in body)
+    return False
+
+
+def _is_non_retryable(exc: BaseException) -> bool:
+    if isinstance(exc, ValueError):
+        return True
+
+    try:
+        status_code = getattr(exc, "status_code", None)
+    except Exception:
+        status_code = None
+    try:
+        http_status = getattr(exc, "http_status", None)
+    except Exception:
+        http_status = None
+    if status_code == 400 or http_status == 400:
+        return True
+
+    try:
+        exception_name = type(exc).__name__
+    except Exception:
+        exception_name = ""
+    if exception_name.endswith(("InvalidRequestError", "BadRequestError")):
+        return True
+
+    try:
+        body = getattr(exc, "body", None)
+    except Exception:
+        body = None
+    return _body_contains_invalid_request_error(body)
 
 
 class MalformedResponseError(Exception):
@@ -32,7 +79,7 @@ class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     def _kwargs_retrying(self) -> dict[str, object]:
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
-            lambda exception: not isinstance(exception, ValueError)
+            lambda exception: not _is_non_retryable(exception)
         )
         return kwargs
 
@@ -88,6 +135,17 @@ class ModelRetryMiddleware(AgentMiddleware):
             except Exception as e:
                 if isinstance(e, ValueError):
                     raise
+                if _is_non_retryable(e):
+                    return ModelResponse(
+                        result=[
+                            AIMessage(
+                                content=(
+                                    "The model rejected this request as invalid. "
+                                    "Please revise it and try again."
+                                )
+                            )
+                        ]
+                    )
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
