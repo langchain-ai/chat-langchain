@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import random
+from functools import lru_cache
 from typing import Any, Literal
 
 import langsmith as ls
@@ -77,32 +78,47 @@ class GuardrailsState(AgentState):
     guardrail_history: NotRequired[list[GuardrailTurn]]
 
 
-if _USE_LOCAL_PROMPTS:
-    _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
-    guardrails_prompt_commit = None
-    guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
-    logger.info("Using local guardrails prompt because USE_LOCAL_PROMPTS is enabled")
-else:
-    _langsmith_client = Client()
+@lru_cache(maxsize=4)
+def _load_guardrails_prompt(hub_name: str) -> tuple[str, str | None, str]:
+    """Load and render the guardrails prompt once per process."""
     try:
-        _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
+        _prompt_template = Client().pull_prompt(hub_name)
         _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.format_messages(messages=[])[
             0
         ].content
         guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
             "lc_hub_commit_hash"
         )
-        guardrails_prompt_source = f"hub:{_GUARDRAILS_PROMPT_HUB_NAME}"
         logger.info(
-            f"Loaded guardrails prompt from hub: {_GUARDRAILS_PROMPT_HUB_NAME} @ {(guardrails_prompt_commit or '')[:8]}"
+            f"Loaded guardrails prompt from hub: {hub_name} @ {(guardrails_prompt_commit or '')[:8]}"
+        )
+        return (
+            _GUARDRAILS_SYSTEM_PROMPT,
+            guardrails_prompt_commit,
+            f"hub:{hub_name}",
         )
     except Exception:
         logger.warning(
-            f"Failed to pull guardrails prompt from hub ({_GUARDRAILS_PROMPT_HUB_NAME}), falling back to local file"
+            f"Failed to pull guardrails prompt from hub ({hub_name}), falling back to local file"
         )
-        _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
-        guardrails_prompt_commit = None
-        guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
+        return (
+            _LOCAL_GUARDRAILS_SYSTEM_PROMPT,
+            None,
+            "local:src/prompts/guardrails_prompts.py",
+        )
+
+
+if _USE_LOCAL_PROMPTS:
+    _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
+    guardrails_prompt_commit = None
+    guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
+    logger.info("Using local guardrails prompt because USE_LOCAL_PROMPTS is enabled")
+else:
+    (
+        _GUARDRAILS_SYSTEM_PROMPT,
+        guardrails_prompt_commit,
+        guardrails_prompt_source,
+    ) = _load_guardrails_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
 
 
 class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
