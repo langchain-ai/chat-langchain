@@ -36,6 +36,56 @@ def test_before_agent_noop_when_under_cap():
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
 
+def test_before_agent_redacts_langsmith_key():
+    middleware = IngressGuardsMiddleware()
+    key = "lsv2_sk_" + "a" * 24
+    human = HumanMessage(content=f"Use {key} here", id="h1")
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == "Use lsv2_sk_<redacted> here"
+
+
+def test_redaction_noop_preserves_content_identity():
+    middleware = IngressGuardsMiddleware()
+    content = "No credentials here"
+
+    result = middleware._truncate_content(content)
+
+    assert result == content
+    assert result is content
+
+
+def test_before_agent_redacts_list_content_blocks():
+    middleware = IngressGuardsMiddleware()
+    key = "lsv2_pt_" + "b" * 24
+    human = HumanMessage(
+        content=[{"type": "text", "text": f"Credential: {key}"}], id="h1"
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == [
+        {"type": "text", "text": "Credential: lsv2_pt_<redacted>"}
+    ]
+
+
+def test_redaction_and_truncation_compose():
+    middleware = IngressGuardsMiddleware()
+    key = "lsv2_sk_" + "c" * 24
+    content = f"{key} {'x' * MAX_MESSAGE_CHARS}"
+
+    result = middleware._truncate_content(content)
+
+    assert len(result) == MAX_MESSAGE_CHARS
+    assert result.startswith("lsv2_sk_<redacted>")
+    assert key not in result
+
+
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
