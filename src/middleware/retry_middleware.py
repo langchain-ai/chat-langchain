@@ -86,7 +86,7 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if isinstance(e, (TimeoutError, ValueError)):
                     raise
                 last_exception = e
                 if attempt < self.max_retries:

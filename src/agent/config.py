@@ -13,6 +13,7 @@ from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddl
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.model_timeout_middleware import ModelCallTimeoutMiddleware
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -101,9 +102,13 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "90"))
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(
+    model=DEFAULT_MODEL.id,
+    timeout=MODEL_CALL_TIMEOUT_SECONDS,
+)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -117,7 +122,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return _ProviderValidationAwareRunnableRetry(
-        bound=init_chat_model(model=model)
+        bound=init_chat_model(model=model, timeout=MODEL_CALL_TIMEOUT_SECONDS)
         | RunnableLambda(_raise_for_retryable_finish_reason),
         max_attempt_number=MAX_RETRIES + 1,
     )
@@ -145,7 +150,13 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ModelFallbackMiddleware(
+    *[
+        init_chat_model(model=m.id, timeout=MODEL_CALL_TIMEOUT_SECONDS)
+        for m in FALLBACK_MODELS
+    ]
+)
+model_timeout_middleware = ModelCallTimeoutMiddleware(MODEL_CALL_TIMEOUT_SECONDS)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -171,7 +182,9 @@ __all__ = [
     "citation_guard_middleware",
     "answer_sanity_guard_middleware",
     "model_fallback_middleware",
+    "model_timeout_middleware",
     # Config
     "MAX_RETRIES",
+    "MODEL_CALL_TIMEOUT_SECONDS",
     "logger",
 ]
