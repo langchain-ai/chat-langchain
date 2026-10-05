@@ -31,8 +31,9 @@ import type {
   ImageAttachment,
 } from "../../types"
 import {
-  extractTextFromContent,
   ensureMessageExists,
+  getAssistantAnswerText,
+  resolveLatestAssistantAnswer,
   updateMessageInList,
 } from "../../utils/chat"
 import { shareRun, readRun, type LangSmithAuth } from "../../api/langsmith"
@@ -705,24 +706,13 @@ export function useStreamHandler({
       // Handle "values" mode - final state with complete output
       // IMPORTANT: Skip subgraph events to avoid showing subagent content in main chat
       if (eventType === "values" && !isSubgraphEvent && data?.messages && Array.isArray(data.messages)) {
-        // Find the last assistant message
-        const finalAIMessage = [...data.messages].reverse().find((msg: any) =>
-          msg.type === "ai" || msg.role === "assistant"
-        )
-
-        const finalContent = finalAIMessage?.content ? extractTextFromContent(finalAIMessage.content) : ""
-        const hasFinalMessage = !finalAIMessage?.tool_calls || finalAIMessage.tool_calls.length === 0
-
-        // IMPORTANT: Skip subagent responses (they typically start with JSON like '{"answer":')
-        const looksLikeSubagentResponse = finalContent.trim().startsWith('{') || finalContent.trim().startsWith('{"answer')
+        const finalContent = resolveLatestAssistantAnswer(data.messages)
 
         // Only set content if:
         // 1. We have final content
-        // 2. No pending tool calls
-        // 3. Haven't set content yet
-        // 4. Not a subagent response
-        // 5. We've seen NEW streaming content for this request (prevents using old thread history)
-        if (finalContent && hasFinalMessage && !looksLikeSubagentResponse && hasSeenNewResponse && !assistantContent) {
+        // 2. Haven't set content yet
+        // 3. We've seen NEW streaming content for this request (prevents using old thread history)
+        if (finalContent && hasSeenNewResponse && !assistantContent) {
           assistantContent = finalContent
 
           setMessages((prev) => {
@@ -760,13 +750,7 @@ export function useStreamHandler({
         }
 
         if (aiChunk?.content) {
-          const streamedContent = extractTextFromContent(aiChunk.content)
-
-          // IMPORTANT: Skip subagent responses (they typically start with JSON like '{"answer":')
-          const looksLikeSubagentResponse = streamedContent.trim().startsWith('{') || streamedContent.trim().startsWith('{"answer')
-          if (looksLikeSubagentResponse) {
-            continue
-          }
+          const streamedContent = getAssistantAnswerText(aiChunk)
 
           // Only update if we have content and no pending tool calls (check array length)
           const hasPendingToolCalls = aiChunk.tool_calls && Array.isArray(aiChunk.tool_calls) && aiChunk.tool_calls.length > 0
@@ -845,7 +829,7 @@ export function useStreamHandler({
               ...m,
               content: wasInterrupted && !assistantContent
                 ? "Response stopped. The agent was interrupted while processing your request."
-                : assistantContent || "(No response generated)",
+                : assistantContent || "The agent did not return a valid answer. Please try again.",
               isThinking: false,
               thinkingDuration,
               runId,
