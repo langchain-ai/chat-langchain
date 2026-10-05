@@ -101,9 +101,13 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "90"))
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(
+    model=DEFAULT_MODEL.id,
+    timeout=MODEL_CALL_TIMEOUT_SECONDS,
+)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -117,7 +121,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return _ProviderValidationAwareRunnableRetry(
-        bound=init_chat_model(model=model)
+        bound=init_chat_model(model=model, timeout=MODEL_CALL_TIMEOUT_SECONDS)
         | RunnableLambda(_raise_for_retryable_finish_reason),
         max_attempt_number=MAX_RETRIES + 1,
     )
@@ -138,7 +142,10 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 # Middleware
 # =============================================================================
 
-model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
+model_retry_middleware = ModelRetryMiddleware(
+    max_retries=MAX_RETRIES,
+    call_timeout=MODEL_CALL_TIMEOUT_SECONDS,
+)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 duplicate_call_guard_middleware = DuplicateCallGuardMiddleware()
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
@@ -173,5 +180,6 @@ __all__ = [
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
+    "MODEL_CALL_TIMEOUT_SECONDS",
     "logger",
 ]
