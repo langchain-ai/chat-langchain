@@ -10,6 +10,7 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.messages import AIMessage
 from langchain_core.runnables.retry import RunnableRetry
 from tenacity import retry_if_exception
 
@@ -65,10 +66,12 @@ class ModelRetryMiddleware(AgentMiddleware):
         """Retry transient failures from the wrapped model handler."""
         last_exception: Exception | None = None
         last_retryable_reason: str | None = None
+        all_attempts_timed_out = True
 
         for attempt in range(self.max_retries + 1):
             try:
                 response = await handler(request)
+                all_attempts_timed_out = False
                 finish_reason = self._get_finish_reason(response)
 
                 if finish_reason in RETRYABLE_FINISH_REASONS:
@@ -89,6 +92,9 @@ class ModelRetryMiddleware(AgentMiddleware):
                 if isinstance(e, ValueError):
                     raise
                 last_exception = e
+                all_attempts_timed_out = all_attempts_timed_out and isinstance(
+                    e, TimeoutError
+                )
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
                     logger.warning(
@@ -103,6 +109,17 @@ class ModelRetryMiddleware(AgentMiddleware):
 
         # Exhausted retries - raise for fallback middleware
         if last_exception:
+            if all_attempts_timed_out:
+                return ModelResponse(
+                    result=[
+                        AIMessage(
+                            content=(
+                                "I'm sorry, but the model took too long to respond. "
+                                "Please try again."
+                            )
+                        )
+                    ]
+                )
             raise last_exception
 
         if last_retryable_reason:
