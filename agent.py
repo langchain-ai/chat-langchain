@@ -7,6 +7,7 @@ from src.agent.config import (
     GUARDRAILS_MODEL,
     model_fallback_middleware,
     model_retry_middleware,
+    model_timeout_middleware,
     summarization_model,
     tool_retry_middleware,
 )
@@ -48,6 +49,7 @@ docs_agent_middleware = [
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
+    model_timeout_middleware,
 ]
 
 agent = define_deep_agent(
