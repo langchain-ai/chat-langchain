@@ -18,8 +18,7 @@ def test_retry_middleware_is_in_agent_middleware_list():
     t.log_reference_outputs({"expected": "ModelRetryMiddleware in middleware"})
 
     assert any(isinstance(m, ModelRetryMiddleware) for m in docs_agent_middleware), (
-        f"ModelRetryMiddleware not found in docs_agent_middleware. "
-        f"Found: {types}"
+        f"ModelRetryMiddleware not found in docs_agent_middleware. Found: {types}"
     )
 
 
@@ -29,7 +28,19 @@ def test_retry_middleware_config_is_exported():
 
     t.log_inputs({"check": "model_retry_middleware exported from config"})
 
-    assert hasattr(config, "model_retry_middleware"), "model_retry_middleware not in config"
+    assert hasattr(config, "model_retry_middleware"), (
+        "model_retry_middleware not in config"
+    )
     assert isinstance(config.model_retry_middleware, ModelRetryMiddleware)
     t.log_outputs({"result": "model_retry_middleware found and is correct type"})
-    t.log_reference_outputs({"expected": "model_retry_middleware exported and correct type"})
+    t.log_reference_outputs(
+        {"expected": "model_retry_middleware exported and correct type"}
+    )
+
+
+@pytest.mark.langsmith
+def test_fallback_middleware_wraps_retry_middleware():
+    """Ensure fallback handles the retry middleware's final exception."""
+    types = [type(m).__name__ for m in docs_agent_middleware]
+
+    assert types.index("ModelFallbackMiddleware") < types.index("ModelRetryMiddleware")

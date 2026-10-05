@@ -1,7 +1,8 @@
 # Retry middleware for model calls with exponential backoff
 import asyncio
 import logging
-from typing import Awaitable, Callable
+import os
+from collections.abc import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -11,6 +12,7 @@ from langchain.agents.middleware.types import (
 )
 
 logger = logging.getLogger(__name__)
+MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "45"))
 
 # Finish reasons that indicate a retryable failure (not an exception)
 RETRYABLE_FINISH_REASONS = {
@@ -30,16 +32,27 @@ class ModelRetryMiddleware(AgentMiddleware):
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
+        timeout_seconds: float = MODEL_CALL_TIMEOUT_SECONDS,
     ):
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self.timeout_seconds = timeout_seconds
 
     def _get_finish_reason(self, response: ModelResponse) -> str:
         """Extract finish_reason from response metadata."""
         metadata = getattr(response, "response_metadata", None) or {}
         return metadata.get("finish_reason", "")
+
+    def _get_model_name(self, request: ModelRequest) -> str:
+        model = request.model
+        return (
+            getattr(model, "model", None)
+            or getattr(model, "model_name", None)
+            or getattr(model, "_llm_type", None)
+            or type(model).__name__
+        )
 
     async def awrap_model_call(
         self,
@@ -51,7 +64,9 @@ class ModelRetryMiddleware(AgentMiddleware):
 
         for attempt in range(self.max_retries + 1):
             try:
-                response = await handler(request)
+                response = await asyncio.wait_for(
+                    handler(request), timeout=self.timeout_seconds
+                )
                 finish_reason = self._get_finish_reason(response)
 
                 if finish_reason in RETRYABLE_FINISH_REASONS:
@@ -68,6 +83,20 @@ class ModelRetryMiddleware(AgentMiddleware):
 
                 return response
 
+            except TimeoutError as e:
+                last_exception = e
+                logger.warning(
+                    f"Model call timed out for {self._get_model_name(request)} "
+                    f"on attempt {attempt + 1}/{self.max_retries + 1} "
+                    f"after {self.timeout_seconds:.2f}s"
+                )
+                if attempt < self.max_retries:
+                    delay = self.initial_delay * (self.backoff_factor**attempt)
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        f"Model call timed out after {self.max_retries + 1} attempts"
+                    )
             except Exception as e:
                 last_exception = e
                 if attempt < self.max_retries:
