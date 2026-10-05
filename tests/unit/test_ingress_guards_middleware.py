@@ -36,6 +36,48 @@ def test_before_agent_noop_when_under_cap():
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
 
+def test_before_agent_redacts_langsmith_key_in_curl_header():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content='curl -H "X-Api-Key: lsv2_sk_' + "a" * 24 + '" https://example.com',
+        id="h1",
+    )
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert "lsv2_sk_" not in update["messages"][0].content
+    assert "[REDACTED_CREDENTIAL]" in update["messages"][0].content
+
+
+def test_before_agent_redacts_authorization_bearer_header_in_text_block():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content=[
+            {
+                "type": "text",
+                "text": "Authorization: Bearer " + "t" * 30,
+            }
+        ],
+        id="h1",
+    )
+
+    update = middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == [
+        {"type": "text", "text": "[REDACTED_CREDENTIAL]"}
+    ]
+
+
+def test_before_agent_preserves_obvious_credential_placeholder():
+    middleware = IngressGuardsMiddleware()
+    placeholder = "lsv2_sk_YOUR_" + "x" * 24
+    human = HumanMessage(content=placeholder, id="h1")
+
+    assert middleware.before_agent({"messages": [human]}, runtime=SimpleNamespace()) is None
+
+
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
     monkeypatch.setenv("LANGCHAIN_REVISION_ID", "rev-a")
     monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "rev-b")
