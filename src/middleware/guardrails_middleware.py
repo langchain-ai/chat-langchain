@@ -173,12 +173,17 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         except Exception as e:
             logger.warning(f"Failed to add query to dataset: {e}")
 
-    async def _generate_rejection_message(self, content) -> AIMessage:
+    async def _generate_rejection_message(
+        self, content, explanation: str
+    ) -> AIMessage:
         """Generate a friendly rejection message for off-topic queries."""
+        if not explanation.strip():
+            return AIMessage(content=_FALLBACK_REJECTION_MESSAGE)
+
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
             HumanMessage(
-                content=self._build_rejection_content(content)
+                content=self._build_rejection_content(content, explanation)
             ),
         ]
 
@@ -269,7 +274,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             return {"guardrail_history": guardrail_history}
 
         # Generate rejection and block
-        off_topic_message = await self._generate_rejection_message(last_content)
+        off_topic_message = await self._generate_rejection_message(
+            last_content, explanation
+        )
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
@@ -313,12 +320,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return " ".join(part for part in parts if part).strip()
 
-    def _build_rejection_content(self, content) -> str | list:
+    def _build_rejection_content(self, content, explanation: str) -> str | list:
         """Build rejection prompt while preserving images for vision-capable models."""
         instruction = (
             "The user asked the following request. Consider both the text and any "
             "attached images, then generate a brief, friendly response explaining "
-            "this is outside your scope."
+            "this is outside your scope. Policy reason for this refusal: "
+            f"{explanation}"
         )
 
         if not isinstance(content, list):
@@ -336,7 +344,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 "type": "text",
                 "text": (
                     "Generate a brief, friendly response explaining this is outside "
-                    "your scope."
+                    "your scope. Policy reason for this refusal: "
+                    f"{explanation}"
                 ),
             }
         )
