@@ -11,6 +11,7 @@ os.environ["USE_LOCAL_PROMPTS"] = "1"
 
 from src.middleware.ingress_guards_middleware import (
     MAX_MESSAGE_CHARS,
+    REDACTION_PLACEHOLDER,
     IngressGuardsMiddleware,
 )
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
@@ -34,6 +35,65 @@ def test_before_agent_noop_when_under_cap():
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_redacts_api_key_in_curl_content():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content="curl https://api.example.test -H 'X-Api-Key: lsv2_sk_fake_test_key_123'",
+        id="h1",
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert (
+        update["messages"][0].content
+        == f"curl https://api.example.test -H '{REDACTION_PLACEHOLDER}'"
+    )
+
+
+def test_before_agent_redacts_email_in_filesystem_path():
+    middleware = IngressGuardsMiddleware()
+    human = HumanMessage(
+        content="Use /Users/alice@example.com/Documents/notes as the root path.",
+        id="h1",
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content == (
+        f"Use /Users/{REDACTION_PLACEHOLDER}/Documents/notes as the root path."
+    )
+
+
+def test_before_agent_preserves_plain_docs_question():
+    middleware = IngressGuardsMiddleware()
+    state = {"messages": [HumanMessage(content="How do I configure retries?", id="h1")]}
+
+    assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_preserves_non_text_content_blocks():
+    middleware = IngressGuardsMiddleware()
+    image = {"type": "image_url", "image_url": {"url": "data:image/png;base64,fake"}}
+    human = HumanMessage(
+        content=[
+            {"type": "text", "text": "token=synthetic_fake_token"},
+            image,
+        ],
+        id="h1",
+    )
+    state = {"messages": [human]}
+
+    update = middleware.before_agent(state, runtime=SimpleNamespace())
+
+    assert update is not None
+    assert update["messages"][0].content[0]["text"] == REDACTION_PLACEHOLDER
+    assert update["messages"][0].content[1] == image
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):
