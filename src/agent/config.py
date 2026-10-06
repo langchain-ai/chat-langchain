@@ -96,9 +96,15 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_TIMEOUT_SECONDS = float(os.getenv("MODEL_TIMEOUT_SECONDS", "30"))
+MODEL_PROVIDER_MAX_RETRIES = int(os.getenv("MODEL_PROVIDER_MAX_RETRIES", "1"))
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(
+    model=DEFAULT_MODEL.id,
+    timeout=MODEL_TIMEOUT_SECONDS,
+    max_retries=MODEL_PROVIDER_MAX_RETRIES,
+)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -112,7 +118,11 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_chat_model(
+            model=model,
+            timeout=MODEL_TIMEOUT_SECONDS,
+            max_retries=MODEL_PROVIDER_MAX_RETRIES,
+        )
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -132,10 +142,22 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 # Middleware
 # =============================================================================
 
-model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
+model_retry_middleware = ModelRetryMiddleware(
+    max_retries=MAX_RETRIES,
+    timeout_seconds=MODEL_TIMEOUT_SECONDS,
+)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ModelFallbackMiddleware(
+    *[
+        init_chat_model(
+            model=m.id,
+            timeout=MODEL_TIMEOUT_SECONDS,
+            max_retries=MODEL_PROVIDER_MAX_RETRIES,
+        )
+        for m in FALLBACK_MODELS
+    ]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -149,6 +171,7 @@ __all__ = [
     "GUARDRAILS_MODEL",
     "FALLBACK_MODELS",
     "ModelConfig",
+    "MODEL_TIMEOUT_SECONDS",
     # Models
     "default_model",
     "init_retry_fallback_model",
