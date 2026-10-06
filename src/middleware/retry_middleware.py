@@ -1,6 +1,7 @@
 # Retry middleware for model calls with exponential backoff
 import asyncio
 import logging
+import os
 from typing import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
@@ -11,6 +12,8 @@ from langchain.agents.middleware.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "30"))
 
 # Finish reasons that indicate a retryable failure (not an exception)
 RETRYABLE_FINISH_REASONS = {
@@ -51,7 +54,9 @@ class ModelRetryMiddleware(AgentMiddleware):
 
         for attempt in range(self.max_retries + 1):
             try:
-                response = await handler(request)
+                response = await asyncio.wait_for(
+                    handler(request), timeout=MODEL_CALL_TIMEOUT_SECONDS
+                )
                 finish_reason = self._get_finish_reason(response)
 
                 if finish_reason in RETRYABLE_FINISH_REASONS:
@@ -68,6 +73,31 @@ class ModelRetryMiddleware(AgentMiddleware):
 
                 return response
 
+            except TimeoutError:
+                if attempt < self.max_retries:
+                    delay = self.initial_delay * (self.backoff_factor**attempt)
+                    logger.warning(
+                        "Model call timed out after %.2fs on attempt %s/%s, "
+                        "retrying in %.2fs",
+                        MODEL_CALL_TIMEOUT_SECONDS,
+                        attempt + 1,
+                        self.max_retries + 1,
+                        delay,
+                    )
+                    last_exception = TimeoutError(
+                        f"Model call timed out after {MODEL_CALL_TIMEOUT_SECONDS}s"
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    last_exception = TimeoutError(
+                        f"Model call timed out after {MODEL_CALL_TIMEOUT_SECONDS}s"
+                    )
+                    logger.error(
+                        "Model call timed out after %.2fs on final attempt (%s/%s)",
+                        MODEL_CALL_TIMEOUT_SECONDS,
+                        attempt + 1,
+                        self.max_retries + 1,
+                    )
             except Exception as e:
                 last_exception = e
                 if attempt < self.max_retries:
@@ -94,4 +124,8 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = [
+    "MODEL_CALL_TIMEOUT_SECONDS",
+    "ModelRetryMiddleware",
+    "MalformedResponseError",
+]
