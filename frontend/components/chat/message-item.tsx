@@ -478,6 +478,7 @@ export const MessageItem = memo(function MessageItem({
                   autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
+                        if (e.nativeEvent.isComposing || e.keyCode === 229) return
                         e.preventDefault()
                         handleSaveEdit()
                       } else if (e.key === "Escape") {
@@ -745,6 +746,7 @@ export const MessageItem = memo(function MessageItem({
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
+                      if (e.nativeEvent.isComposing || e.keyCode === 229) return
                       e.preventDefault()
                       if (feedbackComment[message.id]?.trim() && message.feedback) {
                         onSubmitComment(message.id)
