@@ -100,6 +100,7 @@ export function ChatInterface({
   const { state: uiState, dispatch: uiDispatch, setInput } = useChatState(threadId)
   const [inputError, setInputError] = useState<string | null>(null)
   const inputLengthRef = useRef(uiState.input.length)
+  const isComposingRef = useRef(false)
 
   // File upload state
   const {
@@ -867,6 +868,8 @@ export function ChatInterface({
   }
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229 || isComposingRef.current) return
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       if (userId) {
@@ -954,6 +957,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={() => { isComposingRef.current = true }}
+            onCompositionEnd={() => { setTimeout(() => { isComposingRef.current = false }, 0) }}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}
@@ -983,6 +988,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={() => { isComposingRef.current = true }}
+            onCompositionEnd={() => { setTimeout(() => { isComposingRef.current = false }, 0) }}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}

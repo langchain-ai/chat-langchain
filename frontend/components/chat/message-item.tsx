@@ -226,6 +226,7 @@ export const MessageItem = memo(function MessageItem({
   const [editContent, setEditContent] = useState(message.content.slice(0, MAX_INPUT_CHARS))
   const [editError, setEditError] = useState<string | null>(null)
   const prevContentRef = useRef(message.content)
+  const isComposingRef = useRef(false)
 
   // Sync editContent when message.content changes (e.g., during streaming)
   useEffect(() => {
@@ -477,6 +478,8 @@ export const MessageItem = memo(function MessageItem({
                   className="min-h-[80px] text-sm"
                   autoFocus
                     onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing || e.keyCode === 229 || isComposingRef.current) return
+
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault()
                         handleSaveEdit()
@@ -484,6 +487,8 @@ export const MessageItem = memo(function MessageItem({
                         handleCancelEdit()
                       }
                     }}
+                    onCompositionStart={() => { isComposingRef.current = true }}
+                    onCompositionEnd={() => { setTimeout(() => { isComposingRef.current = false }, 0) }}
                     onBlur={handleCancelEdit}
                     onFocus={(e) => {
                       // Select all text on focus for easier editing
@@ -744,6 +749,8 @@ export const MessageItem = memo(function MessageItem({
                   className="min-h-[60px] text-xs"
                   autoFocus
                   onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing || e.keyCode === 229 || isComposingRef.current) return
+
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault()
                       if (feedbackComment[message.id]?.trim() && message.feedback) {
@@ -753,6 +760,8 @@ export const MessageItem = memo(function MessageItem({
                       onCancelComment(message.id)
                     }
                   }}
+                  onCompositionStart={() => { isComposingRef.current = true }}
+                  onCompositionEnd={() => { setTimeout(() => { isComposingRef.current = false }, 0) }}
                 />
                 {!message.feedback && (
                   <p className="text-[10px] text-muted-foreground mt-1">
