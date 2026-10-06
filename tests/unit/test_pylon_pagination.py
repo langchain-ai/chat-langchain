@@ -4,11 +4,8 @@ These tests do NOT require network access or LangSmith credentials.
 All HTTP calls are mocked via unittest.mock.
 """
 
-import importlib
-import sys
 import unittest
-from unittest.mock import MagicMock, call, patch
-
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -186,6 +183,56 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
         self.assertEqual(result, [])
         mock_get.assert_called_once()
+
+    def test_article_content_includes_updated_timestamp(self):
+        """Article content includes an updated timestamp when available."""
+        self.module._articles_cache = [
+            {
+                "id": "a1",
+                "title": "Article 1",
+                "identifier": "article-1",
+                "slug": "article-1",
+                "updated_at": "2026-01-02T03:04:05Z",
+                "current_published_content_html": "Content",
+            }
+        ]
+
+        result = self.module.get_support_article_content.invoke({"article_id": "a1"})
+
+        self.assertIn("Updated: 2026-01-02T03:04:05Z", result)
+
+    def test_article_content_omits_missing_updated_timestamp(self):
+        """Article content omits the updated line when no timestamp exists."""
+        self.module._articles_cache = [
+            {
+                "id": "a1",
+                "title": "Article 1",
+                "identifier": "article-1",
+                "slug": "article-1",
+                "current_published_content_html": "Content",
+            }
+        ]
+
+        result = self.module.get_support_article_content.invoke({"article_id": "a1"})
+
+        self.assertNotIn("Updated:", result)
+
+    def test_article_content_uses_published_timestamp_as_fallback(self):
+        """Article content uses the published timestamp when updated is absent."""
+        self.module._articles_cache = [
+            {
+                "id": "a1",
+                "title": "Article 1",
+                "identifier": "article-1",
+                "slug": "article-1",
+                "published_at": "2025-12-31T23:59:59Z",
+                "current_published_content_html": "Content",
+            }
+        ]
+
+        result = self.module.get_support_article_content.invoke({"article_id": "a1"})
+
+        self.assertIn("Updated: 2025-12-31T23:59:59Z", result)
 
 
 if __name__ == "__main__":

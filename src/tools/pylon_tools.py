@@ -43,6 +43,15 @@ _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
 
 
+def _get_article_timestamp(article: Dict[str, Any]) -> Any | None:
+    """Get an article's last-updated timestamp, falling back to published."""
+    return (
+        article.get("updated_at")
+        or article.get("last_updated_at")
+        or article.get("published_at")
+    )
+
+
 def _get_headers() -> Dict[str, str]:
     """Get API headers with authentication."""
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
@@ -187,16 +196,18 @@ def search_support_articles(collections: str = "all") -> str:
                     f"https://support.langchain.com/articles/{identifier}-{slug}"
                 )
 
-                published_articles.append(
-                    {
-                        "id": article.get("id"),
-                        "title": article.get("title", ""),
-                        "url": support_url,
-                        "collection_id": article.get(
-                            "collection_id"
-                        ),  # Keep for filtering, will be set later
-                    }
-                )
+                article_summary = {
+                    "id": article.get("id"),
+                    "title": article.get("title", ""),
+                    "url": support_url,
+                    "collection_id": article.get(
+                        "collection_id"
+                    ),  # Keep for filtering, will be set later
+                }
+                timestamp = _get_article_timestamp(article)
+                if timestamp:
+                    article_summary["updated_at"] = timestamp
+                published_articles.append(article_summary)
 
         if not published_articles:
             return "No published articles available in the knowledge base."
@@ -335,12 +346,14 @@ def get_support_article_content(article_id: str) -> str:
                 else:
                     support_url = "URL not available"
 
-                # Only return id, title, url, collection, content
+                timestamp = _get_article_timestamp(article)
+                updated_line = f"Updated: {timestamp}\n" if timestamp else ""
+
                 return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
-
+{updated_line}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
