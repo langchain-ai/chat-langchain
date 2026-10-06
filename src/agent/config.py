@@ -3,6 +3,7 @@
 import logging
 import os
 from dataclasses import dataclass
+from typing import Any
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
@@ -96,9 +97,21 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "30"))
+
+
+def _model_timeout_kwargs(model: str) -> dict[str, Any]:
+    provider = model.split(":", 1)[0]
+    if provider == "google_genai":
+        return {"request_timeout": MODEL_CALL_TIMEOUT_SECONDS}
+    return {"timeout": MODEL_CALL_TIMEOUT_SECONDS}
+
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(
+    model=DEFAULT_MODEL.id,
+    **_model_timeout_kwargs(DEFAULT_MODEL.id),
+)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -112,7 +125,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_chat_model(model=model, **_model_timeout_kwargs(model))
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -159,5 +172,6 @@ __all__ = [
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
+    "MODEL_CALL_TIMEOUT_SECONDS",
     "logger",
 ]
