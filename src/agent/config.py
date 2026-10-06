@@ -19,6 +19,7 @@ from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
+MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "30"))
 
 # =============================================================================
 # Model Registry
@@ -98,7 +99,9 @@ for key in API_KEYS:
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(
+    model=DEFAULT_MODEL.id, timeout=MODEL_CALL_TIMEOUT_SECONDS
+)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -112,7 +115,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_chat_model(model=model, timeout=MODEL_CALL_TIMEOUT_SECONDS)
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -159,5 +162,6 @@ __all__ = [
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
+    "MODEL_CALL_TIMEOUT_SECONDS",
     "logger",
 ]
