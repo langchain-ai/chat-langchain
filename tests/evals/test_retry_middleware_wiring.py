@@ -4,6 +4,7 @@ from langsmith import testing as t
 
 from agent import docs_agent_middleware
 from src.agent import config
+from src.middleware.model_timeout_middleware import ModelTimeoutMiddleware
 from src.middleware.retry_middleware import ModelRetryMiddleware
 
 
@@ -33,3 +34,13 @@ def test_retry_middleware_config_is_exported():
     assert isinstance(config.model_retry_middleware, ModelRetryMiddleware)
     t.log_outputs({"result": "model_retry_middleware found and is correct type"})
     t.log_reference_outputs({"expected": "model_retry_middleware exported and correct type"})
+
+
+@pytest.mark.langsmith
+def test_timeout_middleware_is_inner_model_wrapper():
+    """Ensure timeout middleware is wired closest to model execution."""
+
+    types = [type(m).__name__ for m in docs_agent_middleware]
+
+    assert isinstance(docs_agent_middleware[-1], ModelTimeoutMiddleware)
+    assert types.index("ModelFallbackMiddleware") < types.index("ModelRetryMiddleware")
