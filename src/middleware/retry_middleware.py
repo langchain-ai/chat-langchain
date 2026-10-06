@@ -1,6 +1,8 @@
-# Retry middleware for model calls with exponential backoff
+"""Retry middleware for model calls with exponential backoff."""
+
 import asyncio
 import logging
+import time
 from typing import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
@@ -25,12 +27,15 @@ class MalformedResponseError(Exception):
 
 
 class ModelRetryMiddleware(AgentMiddleware):
+    """Retry failed model calls before raising the final exception."""
+
     def __init__(
         self,
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
     ):
+        """Initialize retry limits and backoff settings."""
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
@@ -41,11 +46,64 @@ class ModelRetryMiddleware(AgentMiddleware):
         metadata = getattr(response, "response_metadata", None) or {}
         return metadata.get("finish_reason", "")
 
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelCallResult:
+        """Retry synchronous model calls after exceptions or retryable responses."""
+        last_exception: Exception | None = None
+        last_retryable_reason: str | None = None
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = handler(request)
+                finish_reason = self._get_finish_reason(response)
+
+                if finish_reason in RETRYABLE_FINISH_REASONS:
+                    if attempt < self.max_retries:
+                        delay = self.initial_delay * (self.backoff_factor**attempt)
+                        logger.warning(
+                            f"Retryable response ({finish_reason}) "
+                            f"attempt {attempt + 1}/{self.max_retries + 1}, "
+                            f"retrying in {delay:.2f}s"
+                        )
+                        last_retryable_reason = finish_reason
+                        time.sleep(delay)
+                        continue
+
+                return response
+
+            except Exception as e:
+                last_exception = e
+                if attempt < self.max_retries:
+                    delay = self.initial_delay * (self.backoff_factor**attempt)
+                    logger.warning(
+                        f"Model call failed attempt {attempt + 1}/{self.max_retries + 1}: {e}, "
+                        f"retrying in {delay:.2f}s"
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(
+                        f"Model call failed after {self.max_retries + 1} attempts: {e}"
+                    )
+
+        if last_exception:
+            raise last_exception
+
+        if last_retryable_reason:
+            raise MalformedResponseError(
+                f"Model returned {last_retryable_reason} after {self.max_retries + 1} attempts"
+            )
+
+        raise RuntimeError("Unexpected state in retry middleware")
+
     async def awrap_model_call(
         self,
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
+        """Retry asynchronous model calls after exceptions or retryable responses."""
         last_exception: Exception | None = None
         last_retryable_reason: str | None = None
 
