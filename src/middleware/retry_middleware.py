@@ -24,6 +24,23 @@ class MalformedResponseError(Exception):
     pass
 
 
+class ModelTimeoutMiddleware(AgentMiddleware):
+    """Bound each individual model attempt."""
+
+    def __init__(self, timeout: float):
+        """Initialize the per-attempt timeout."""
+        super().__init__()
+        self.timeout = timeout
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelCallResult:
+        """Raise asyncio.TimeoutError when a model attempt exceeds the deadline."""
+        return await asyncio.wait_for(handler(request), timeout=self.timeout)
+
+
 class ModelRetryMiddleware(AgentMiddleware):
     def __init__(
         self,
@@ -94,4 +111,8 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = [
+    "MalformedResponseError",
+    "ModelRetryMiddleware",
+    "ModelTimeoutMiddleware",
+]

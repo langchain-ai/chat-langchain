@@ -120,11 +120,24 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
             fallback_model = DEFAULT_MODEL.id
 
-        self.llm = init_chat_model(model=model, temperature=0)
+        from src.agent.config import MODEL_CALL_TIMEOUT_SECONDS
+
+        self.llm = init_chat_model(
+            model=model,
+            temperature=0,
+            timeout=MODEL_CALL_TIMEOUT_SECONDS,
+        )
         self.classifier_llms = [(model, self.llm)]
         if fallback_model != model:
             self.classifier_llms.append(
-                (fallback_model, init_chat_model(model=fallback_model, temperature=0))
+                (
+                    fallback_model,
+                    init_chat_model(
+                        model=fallback_model,
+                        temperature=0,
+                        timeout=MODEL_CALL_TIMEOUT_SECONDS,
+                    ),
+                )
             )
         self.block_off_topic = block_off_topic
         logger.info(
