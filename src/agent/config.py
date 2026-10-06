@@ -9,6 +9,7 @@ from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
+from src.middleware.model_timeout_middleware import ModelCallTimeoutMiddleware
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -96,6 +97,7 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "30"))
 
 # Primary model. Public callers cannot switch this at runtime.
 default_model = init_chat_model(model=DEFAULT_MODEL.id)
@@ -133,6 +135,7 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 # =============================================================================
 
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
+model_call_timeout_middleware = ModelCallTimeoutMiddleware(MODEL_CALL_TIMEOUT_SECONDS)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
@@ -155,9 +158,11 @@ __all__ = [
     "summarization_model",
     # Middleware
     "model_retry_middleware",
+    "model_call_timeout_middleware",
     "tool_retry_middleware",
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
+    "MODEL_CALL_TIMEOUT_SECONDS",
     "logger",
 ]
