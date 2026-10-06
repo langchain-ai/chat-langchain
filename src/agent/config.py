@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
+from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.retry_middleware import (
@@ -96,9 +97,22 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_TIMEOUT_SECONDS = float(os.getenv("MODEL_TIMEOUT_SECONDS", "30"))
+
+
+def init_timed_chat_model(model: str, **kwargs: object) -> BaseChatModel:
+    """Initialize a provider model with the shared request timeout."""
+    provider = model.split(":", 1)[0]
+    timeout_kwarg = "request_timeout" if provider == "google_genai" else "timeout"
+    kwargs.setdefault(timeout_kwarg, MODEL_TIMEOUT_SECONDS)
+    if provider == "openai":
+        kwargs.setdefault("stream_chunk_timeout", MODEL_TIMEOUT_SECONDS)
+    return init_chat_model(model=model, **kwargs)
+
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_timed_chat_model(DEFAULT_MODEL.id)
+guardrails_model = init_timed_chat_model(GUARDRAILS_MODEL.id, temperature=0)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -112,7 +126,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_timed_chat_model(model)
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -135,7 +149,9 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ModelFallbackMiddleware(
+    *[init_timed_chat_model(model.id) for model in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -151,6 +167,8 @@ __all__ = [
     "ModelConfig",
     # Models
     "default_model",
+    "guardrails_model",
+    "init_timed_chat_model",
     "init_retry_fallback_model",
     "summarization_model",
     # Middleware
@@ -159,5 +177,6 @@ __all__ = [
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
+    "MODEL_TIMEOUT_SECONDS",
     "logger",
 ]

@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
-from langchain.chat_models import init_chat_model
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
 from langsmith import Client
@@ -104,27 +104,54 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
     def __init__(
         self,
-        model: str | None = None,
-        fallback_model: str | None = None,
+        model: str | BaseChatModel | None = None,
+        fallback_model: str | BaseChatModel | None = None,
         block_off_topic: bool = True,
     ):
         """Initialize guardrails with a primary classifier and fallback model."""
         super().__init__()
         if model is None:
-            from src.agent.config import DEFAULT_MODEL, GUARDRAILS_MODEL
+            from src.agent.config import default_model, guardrails_model
 
-            model = GUARDRAILS_MODEL.id
-            fallback_model = fallback_model or DEFAULT_MODEL.id
+            model = guardrails_model
+            fallback_model = fallback_model or default_model
         elif fallback_model is None:
-            from src.agent.config import DEFAULT_MODEL
+            from src.agent.config import default_model
 
-            fallback_model = DEFAULT_MODEL.id
+            fallback_model = default_model
 
-        self.llm = init_chat_model(model=model, temperature=0)
-        self.classifier_llms = [(model, self.llm)]
-        if fallback_model != model:
+        from src.agent.config import init_timed_chat_model
+
+        primary_name = (
+            model
+            if isinstance(model, str)
+            else getattr(
+                model, "model_name", getattr(model, "model", type(model).__name__)
+            )
+        )
+        self.llm = (
+            init_timed_chat_model(model, temperature=0)
+            if isinstance(model, str)
+            else model
+        )
+        self.classifier_llms = [(primary_name, self.llm)]
+        fallback_name = (
+            fallback_model
+            if isinstance(fallback_model, str)
+            else getattr(
+                fallback_model,
+                "model_name",
+                getattr(fallback_model, "model", type(fallback_model).__name__),
+            )
+        )
+        if fallback_name != primary_name:
             self.classifier_llms.append(
-                (fallback_model, init_chat_model(model=fallback_model, temperature=0))
+                (
+                    fallback_name,
+                    init_timed_chat_model(fallback_model, temperature=0)
+                    if isinstance(fallback_model, str)
+                    else fallback_model,
+                )
             )
         self.block_off_topic = block_off_topic
         logger.info(
