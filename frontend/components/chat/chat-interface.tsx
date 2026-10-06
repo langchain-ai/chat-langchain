@@ -203,6 +203,8 @@ export function ChatInterface({
 
   // Textarea ref for auto-focus
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isComposingRef = useRef(false)
+  const pendingSubmitRef = useRef(false)
 
   // Track previous loading state to detect completion of AI response
   const prevIsLoadingRef = useRef(false)
@@ -868,11 +870,32 @@ export function ChatInterface({
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
+      if (e.nativeEvent.isComposing || e.keyCode === 229 || isComposingRef.current) {
+        pendingSubmitRef.current = true
+        return
+      }
+
       e.preventDefault()
       if (userId) {
         handleSend()
       }
     }
+  }, [userId, handleSend])
+
+  const handleCompositionStart = useCallback(() => {
+    isComposingRef.current = true
+  }, [])
+
+  const handleCompositionEnd = useCallback(() => {
+    setTimeout(() => {
+      isComposingRef.current = false
+      if (pendingSubmitRef.current) {
+        pendingSubmitRef.current = false
+        if (userId) {
+          handleSend()
+        }
+      }
+    }, 0)
   }, [userId, handleSend])
 
   const handleFileButtonClick = useCallback((e: React.MouseEvent) => {
@@ -954,6 +977,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}
@@ -983,6 +1008,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}

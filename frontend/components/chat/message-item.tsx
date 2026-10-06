@@ -226,6 +226,8 @@ export const MessageItem = memo(function MessageItem({
   const [editContent, setEditContent] = useState(message.content.slice(0, MAX_INPUT_CHARS))
   const [editError, setEditError] = useState<string | null>(null)
   const prevContentRef = useRef(message.content)
+  const isEditComposingRef = useRef(false)
+  const pendingEditSubmitRef = useRef(false)
 
   // Sync editContent when message.content changes (e.g., during streaming)
   useEffect(() => {
@@ -295,6 +297,34 @@ export const MessageItem = memo(function MessageItem({
       setEditError(INPUT_TOO_LONG_MESSAGE)
     }
   }, [])
+
+  const handleEditKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      if (e.nativeEvent.isComposing || e.keyCode === 229 || isEditComposingRef.current) {
+        pendingEditSubmitRef.current = true
+        return
+      }
+
+      e.preventDefault()
+      handleSaveEdit()
+    } else if (e.key === "Escape") {
+      handleCancelEdit()
+    }
+  }, [handleCancelEdit, handleSaveEdit])
+
+  const handleEditCompositionStart = useCallback(() => {
+    isEditComposingRef.current = true
+  }, [])
+
+  const handleEditCompositionEnd = useCallback(() => {
+    setTimeout(() => {
+      isEditComposingRef.current = false
+      if (pendingEditSubmitRef.current) {
+        pendingEditSubmitRef.current = false
+        handleSaveEdit()
+      }
+    }, 0)
+  }, [handleSaveEdit])
 
   // Track code block index to generate stable IDs during streaming
   const codeBlockIndexRef = useRef(0)
@@ -473,17 +503,12 @@ export const MessageItem = memo(function MessageItem({
                   onChange={(e) => setLimitedEditContent(e.target.value)}
                   onBeforeInput={handleEditBeforeInput}
                   onPaste={handleEditPaste}
+                  onCompositionStart={handleEditCompositionStart}
+                  onCompositionEnd={handleEditCompositionEnd}
                   maxLength={MAX_INPUT_CHARS}
                   className="min-h-[80px] text-sm"
                   autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSaveEdit()
-                      } else if (e.key === "Escape") {
-                        handleCancelEdit()
-                      }
-                    }}
+                    onKeyDown={handleEditKeyDown}
                     onBlur={handleCancelEdit}
                     onFocus={(e) => {
                       // Select all text on focus for easier editing
