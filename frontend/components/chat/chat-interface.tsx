@@ -203,6 +203,7 @@ export function ChatInterface({
 
   // Textarea ref for auto-focus
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isComposingRef = useRef(false)
 
   // Track previous loading state to detect completion of AI response
   const prevIsLoadingRef = useRef(false)
@@ -867,6 +868,10 @@ export function ChatInterface({
   }
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isComposingRef.current || e.nativeEvent.isComposing || e.keyCode === 229) {
+      return
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       if (userId) {
@@ -874,6 +879,16 @@ export function ChatInterface({
       }
     }
   }, [userId, handleSend])
+
+  const handleCompositionStart = useCallback(() => {
+    isComposingRef.current = true
+  }, [])
+
+  const handleCompositionEnd = useCallback(() => {
+    setTimeout(() => {
+      isComposingRef.current = false
+    }, 0)
+  }, [])
 
   const handleFileButtonClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -954,6 +969,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}
@@ -983,6 +1000,8 @@ export function ChatInterface({
             onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
             onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             isLoading={uiState.isLoading}
             isStopping={uiState.isStopping}
             onStop={handleStop}
