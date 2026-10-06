@@ -61,6 +61,7 @@ cp .env.example .env
 | `PYLON_API_KEY`     | Pylon API key for support KB                                                            |
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
+| `MODEL_TIMEOUT_SECONDS` | Optional. Per-call model timeout in seconds (default: `45`)                          |
 
 ### Running Locally
 

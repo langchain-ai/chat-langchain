@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 GUARDRAILS_DATASET_NAME = "Chat-LangChain-Guardrails-Samples"
 ALLOWED_SAMPLE_RATE = 0.01  # 1% of allowed queries go to dataset
 GUARDRAILS_MAX_RETRIES = 2
-GUARDRAILS_TIMEOUT_SECONDS = 10
+MODEL_TIMEOUT_SECONDS = float(os.getenv("MODEL_TIMEOUT_SECONDS", "45"))
 _USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
     "1",
     "true",
@@ -120,11 +120,20 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
             fallback_model = DEFAULT_MODEL.id
 
-        self.llm = init_chat_model(model=model, temperature=0)
+        self.llm = init_chat_model(
+            model=model, temperature=0, timeout=MODEL_TIMEOUT_SECONDS
+        )
         self.classifier_llms = [(model, self.llm)]
         if fallback_model != model:
             self.classifier_llms.append(
-                (fallback_model, init_chat_model(model=fallback_model, temperature=0))
+                (
+                    fallback_model,
+                    init_chat_model(
+                        model=fallback_model,
+                        temperature=0,
+                        timeout=MODEL_TIMEOUT_SECONDS,
+                    ),
+                )
             )
         self.block_off_topic = block_off_topic
         logger.info(
@@ -177,7 +186,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         try:
             response = await asyncio.wait_for(
                 self.llm.ainvoke(prompt),
-                timeout=GUARDRAILS_TIMEOUT_SECONDS,
+                timeout=MODEL_TIMEOUT_SECONDS,
             )
             return AIMessage(id=response.id, content=response.content)
         except Exception as e:
@@ -427,7 +436,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                         structured_llm.ainvoke(
                             prompt, config={"callbacks": [], "tags": ["guardrails"]}
                         ),
-                        timeout=GUARDRAILS_TIMEOUT_SECONDS,
+                        timeout=MODEL_TIMEOUT_SECONDS,
                     )
                     if model_index > 0:
                         logger.info(
