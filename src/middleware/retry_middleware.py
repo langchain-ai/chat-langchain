@@ -1,7 +1,8 @@
 # Retry middleware for model calls with exponential backoff
 import asyncio
 import logging
-from typing import Awaitable, Callable
+import os
+from collections.abc import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -30,11 +31,13 @@ class ModelRetryMiddleware(AgentMiddleware):
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
+        timeout_seconds: float = float(os.getenv("MODEL_CALL_TIMEOUT_SECONDS", "45")),
     ):
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self.timeout_seconds = timeout_seconds
 
     def _get_finish_reason(self, response: ModelResponse) -> str:
         """Extract finish_reason from response metadata."""
@@ -51,7 +54,9 @@ class ModelRetryMiddleware(AgentMiddleware):
 
         for attempt in range(self.max_retries + 1):
             try:
-                response = await handler(request)
+                response = await asyncio.wait_for(
+                    handler(request), timeout=self.timeout_seconds
+                )
                 finish_reason = self._get_finish_reason(response)
 
                 if finish_reason in RETRYABLE_FINISH_REASONS:
@@ -73,7 +78,8 @@ class ModelRetryMiddleware(AgentMiddleware):
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
                     logger.warning(
-                        f"Model call failed attempt {attempt + 1}/{self.max_retries + 1}: {e}, "
+                        f"Model call failed attempt "
+                        f"{attempt + 1}/{self.max_retries + 1}: {e}, "
                         f"retrying in {delay:.2f}s"
                     )
                     await asyncio.sleep(delay)
@@ -88,7 +94,8 @@ class ModelRetryMiddleware(AgentMiddleware):
 
         if last_retryable_reason:
             raise MalformedResponseError(
-                f"Model returned {last_retryable_reason} after {self.max_retries + 1} attempts"
+                f"Model returned {last_retryable_reason} after "
+                f"{self.max_retries + 1} attempts"
             )
 
         raise RuntimeError("Unexpected state in retry middleware")
