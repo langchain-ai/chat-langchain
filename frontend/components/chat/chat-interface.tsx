@@ -20,6 +20,7 @@ import {
   INPUT_TOO_LONG_MESSAGE,
   MAX_INPUT_CHARS,
 } from "@/lib/constants/features"
+import { shouldSubmitOnEnter } from "@/lib/utils/keyboard"
 
 // Enhanced scrollbar styles with smooth transitions
 const scrollbarStyles = `
@@ -864,7 +865,8 @@ export function ChatInterface({
   }
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
+    if (shouldSubmitOnEnter(e)) {
       e.preventDefault()
       if (userId) {
         handleSend()

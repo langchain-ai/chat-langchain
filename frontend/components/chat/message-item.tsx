@@ -9,6 +9,7 @@ import { ThinkingTimer } from "./animations/thinking-timer"
 import { AnimatedThinking } from "./animations/animated-thinking"
 import type { Message } from "@/lib/types"
 import { INPUT_TOO_LONG_MESSAGE, MAX_INPUT_CHARS } from "@/lib/constants/features"
+import { shouldSubmitOnEnter } from "@/lib/utils/keyboard"
 import { useState, useMemo, useEffect, useCallback, memo, useRef } from "react"
 import Image from "next/image"
 
@@ -477,7 +478,8 @@ export const MessageItem = memo(function MessageItem({
                   className="min-h-[80px] text-sm"
                   autoFocus
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
+                      if (e.nativeEvent.isComposing || e.keyCode === 229) return
+                      if (shouldSubmitOnEnter(e)) {
                         e.preventDefault()
                         handleSaveEdit()
                       } else if (e.key === "Escape") {
@@ -744,7 +746,8 @@ export const MessageItem = memo(function MessageItem({
                   className="min-h-[60px] text-xs"
                   autoFocus
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
+                    if (e.nativeEvent.isComposing || e.keyCode === 229) return
+                    if (shouldSubmitOnEnter(e)) {
                       e.preventDefault()
                       if (feedbackComment[message.id]?.trim() && message.feedback) {
                         onSubmitComment(message.id)
