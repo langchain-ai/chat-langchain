@@ -5,6 +5,7 @@ from managed_deepagents import define_deep_agent
 from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
+    default_model,
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
@@ -46,15 +47,13 @@ docs_agent_middleware = [
         trim_tokens_to_summarize=None,
     ),
     tool_retry_middleware,
-    model_retry_middleware,
     model_fallback_middleware,
+    model_retry_middleware,
 ]
 
 agent = define_deep_agent(
     name="docs_agent",
-    # Keep this literal so `mda deploy` can infer the provider package and
-    # preflight GOOGLE_API_KEY.
-    model="google_genai:gemini-3.5-flash-lite",
+    model=default_model,
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     # The current public app does not have cross-thread user memory. Keep MDA
