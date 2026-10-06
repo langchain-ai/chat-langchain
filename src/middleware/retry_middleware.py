@@ -1,7 +1,7 @@
 # Retry middleware for model calls with exponential backoff
 import asyncio
 import logging
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
@@ -30,11 +30,13 @@ class ModelRetryMiddleware(AgentMiddleware):
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
+        timeout: float | None = None,
     ):
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self.timeout = timeout
 
     def _get_finish_reason(self, response: ModelResponse) -> str:
         """Extract finish_reason from response metadata."""
@@ -51,7 +53,12 @@ class ModelRetryMiddleware(AgentMiddleware):
 
         for attempt in range(self.max_retries + 1):
             try:
-                response = await handler(request)
+                if self.timeout is None:
+                    response = await handler(request)
+                else:
+                    response = await asyncio.wait_for(
+                        handler(request), timeout=self.timeout
+                    )
                 finish_reason = self._get_finish_reason(response)
 
                 if finish_reason in RETRYABLE_FINISH_REASONS:
@@ -72,15 +79,35 @@ class ModelRetryMiddleware(AgentMiddleware):
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
-                    logger.warning(
-                        f"Model call failed attempt {attempt + 1}/{self.max_retries + 1}: {e}, "
-                        f"retrying in {delay:.2f}s"
-                    )
+                    if isinstance(e, TimeoutError) and self.timeout is not None:
+                        logger.warning(
+                            "Model call timed out after %ss, attempt %s/%s; "
+                            "retrying in %.2fs",
+                            self.timeout,
+                            attempt + 1,
+                            self.max_retries + 1,
+                            delay,
+                        )
+                    else:
+                        logger.warning(
+                            f"Model call failed attempt "
+                            f"{attempt + 1}/{self.max_retries + 1}: {e}, "
+                            f"retrying in {delay:.2f}s"
+                        )
                     await asyncio.sleep(delay)
                 else:
-                    logger.error(
-                        f"Model call failed after {self.max_retries + 1} attempts: {e}"
-                    )
+                    if isinstance(e, TimeoutError) and self.timeout is not None:
+                        logger.error(
+                            "Model call timed out after %ss on final attempt %s/%s",
+                            self.timeout,
+                            attempt + 1,
+                            self.max_retries + 1,
+                        )
+                    else:
+                        logger.error(
+                            f"Model call failed after "
+                            f"{self.max_retries + 1} attempts: {e}"
+                        )
 
         # Exhausted retries - raise for fallback middleware
         if last_exception:
@@ -88,7 +115,8 @@ class ModelRetryMiddleware(AgentMiddleware):
 
         if last_retryable_reason:
             raise MalformedResponseError(
-                f"Model returned {last_retryable_reason} after {self.max_retries + 1} attempts"
+                f"Model returned {last_retryable_reason} after "
+                f"{self.max_retries + 1} attempts"
             )
 
         raise RuntimeError("Unexpected state in retry middleware")
