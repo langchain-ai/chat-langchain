@@ -1,8 +1,8 @@
-"""Ingress guards: input caps for Chat LangChain on Managed Deep Agents.
+"""Ingress guards for Chat LangChain on Managed Deep Agents.
 
 These were previously enforced in ``src/api/auth.py`` (``validate_inputs``).
 Under MDA, identity/thread scoping is declared in ``identity.py``; this
-middleware only caps oversized user input.
+middleware caps oversized input and marks orphaned turns in model requests only.
 
 Trace metadata (prompt provenance, ``LANGSMITH_AGENT_VERSION``, ``source_type``)
 is applied at agent compile time via ``define_deep_agent(metadata=...)`` in
@@ -14,9 +14,16 @@ not synthesized; archive deploys use ``LANGSMITH_HOST_REVISION_ID`` /
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
+from langchain.agents.middleware.types import (
+    ModelCallResult,
+    ModelRequest,
+    ModelResponse,
+)
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
@@ -24,7 +31,41 @@ MAX_MESSAGE_CHARS = 50_000
 
 
 class IngressGuardsMiddleware(AgentMiddleware):
-    """Cap oversized user input at agent ingress."""
+    """Cap user input and disambiguate orphaned turns for the model."""
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelCallResult:
+        """Mark orphaned turns without changing checkpointed messages."""
+        return handler(self._mark_orphaned_turns(request))
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelCallResult:
+        """Mark orphaned turns without changing checkpointed messages."""
+        return await handler(self._mark_orphaned_turns(request))
+
+    def _mark_orphaned_turns(self, request: ModelRequest) -> ModelRequest:
+        messages: list[BaseMessage] = []
+        for index, message in enumerate(request.messages):
+            messages.append(message)
+            if (
+                isinstance(message, HumanMessage)
+                and index + 1 < len(request.messages)
+                and isinstance(request.messages[index + 1], HumanMessage)
+            ):
+                messages.append(
+                    AIMessage(
+                        content="(No answer was produced for this message because the run was interrupted.)"
+                    )
+                )
+        if len(messages) == len(request.messages):
+            return request
+        return request.override(messages=messages)
 
     def before_agent(
         self, state: AgentState, runtime: Runtime
@@ -44,7 +85,11 @@ class IngressGuardsMiddleware(AgentMiddleware):
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
         if isinstance(content, str):
-            return content[:MAX_MESSAGE_CHARS] if len(content) > MAX_MESSAGE_CHARS else content
+            return (
+                content[:MAX_MESSAGE_CHARS]
+                if len(content) > MAX_MESSAGE_CHARS
+                else content
+            )
 
         if not isinstance(content, list):
             return content
