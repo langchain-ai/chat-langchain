@@ -7,7 +7,7 @@ Your summary will replace the older part of the conversation. The most recent co
 ## Goals
 
 Prioritize information that is still unresolved or likely needed later:
-- Open user questions, unresolved bugs, incomplete tasks, and pending follow-ups
+- Unresolved bugs, incomplete tasks, and pending follow-ups relevant to the latest human message; earlier unanswered requests were cancelled
 - Decisions already made, constraints, assumptions, and user preferences
 - Important code paths, repo/file names, APIs, error messages, commands, and configuration values
 - Relevant docs/support resources already discovered
@@ -38,7 +38,7 @@ Use this structure:
 Summary of the conversation history until this point:
 
 ## Current User Goal
-State the user's current goal and any unresolved asks.
+Take the current user goal only from the latest human message, not earlier unanswered requests. If the latest human message is outside the history being summarized, leave the current goal to the preserved messages.
 
 ## Key Context To Preserve
 Summarize durable facts, constraints, decisions, and assumptions.
@@ -50,7 +50,7 @@ List important docs paths/URLs, support article IDs/titles, pricing/link-check f
 List completed implementation/debugging steps, changed files, and verification results if relevant.
 
 ## Open Issues / Next Steps
-List remaining work, known risks, and specific next actions.
+List remaining work, known risks, and specific next actions relevant to the latest human message, not cancelled requests.
 
 <messages>
 {messages}
