@@ -1,6 +1,13 @@
 from pathlib import Path
 
 
+def test_latest_user_message_takes_priority():
+    instructions = (Path(__file__).parents[2] / "instructions.md").read_text()
+
+    assert "Answer the latest user message" in instructions
+    assert "address them only if the latest message refers to them" in instructions
+
+
 def test_yes_no_answers_require_retrieved_evidence():
     instructions = (Path(__file__).parents[2] / "instructions.md").read_text()
 
