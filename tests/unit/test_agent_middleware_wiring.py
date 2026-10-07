@@ -2,6 +2,11 @@ from agent import docs_agent_middleware
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
+from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
+
+
+def test_ingress_guards_precede_model_call_middlewares():
+    assert isinstance(docs_agent_middleware[0], IngressGuardsMiddleware)
 
 
 def test_regenerating_answer_guards_are_not_wired():
