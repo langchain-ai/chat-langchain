@@ -114,6 +114,7 @@ interface UseStreamHandlerProps {
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   shouldInterruptRef?: React.MutableRefObject<boolean>
   onRunCreated?: (runId: string) => void
+  onAssistantContent?: (assistantMessageId: string) => void
   userId?: string | null
   userEmail?: string | null
   userName?: string | null
@@ -167,6 +168,7 @@ export function useStreamHandler({
   setMessages,
   shouldInterruptRef,
   onRunCreated,
+  onAssistantContent,
   userId,
   userEmail,
   userName,
@@ -724,6 +726,7 @@ export function useStreamHandler({
         // 5. We've seen NEW streaming content for this request (prevents using old thread history)
         if (finalContent && hasFinalMessage && !looksLikeSubagentResponse && hasSeenNewResponse && !assistantContent) {
           assistantContent = finalContent
+          onAssistantContent?.(assistantMessageId)
 
           setMessages((prev) => {
             const baseMessage: Message = {
@@ -773,6 +776,7 @@ export function useStreamHandler({
           if (streamedContent && !hasPendingToolCalls) {
             // Accumulate the streamed content
             assistantContent = streamedContent
+            onAssistantContent?.(assistantMessageId)
             hasSeenNewResponse = true // Mark that we've seen new content
 
             setMessages((prev) => {
@@ -863,7 +867,7 @@ export function useStreamHandler({
     }
 
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, fetchUsageMetadata, generateShareLink, onRunCreated, userId, userEmail, userName])
+  }, [client, threadId, setMessages, fetchUsageMetadata, generateShareLink, onRunCreated, onAssistantContent, userId, userEmail, userName])
 
   return { processStream }
 }
