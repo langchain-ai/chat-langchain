@@ -2,6 +2,13 @@ from agent import docs_agent_middleware
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
+from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
+from src.middleware.orphan_human_middleware import OrphanHumanMiddleware
+
+
+def test_orphan_human_middleware_follows_ingress_guards():
+    assert isinstance(docs_agent_middleware[0], IngressGuardsMiddleware)
+    assert isinstance(docs_agent_middleware[1], OrphanHumanMiddleware)
 
 
 def test_regenerating_answer_guards_are_not_wired():
