@@ -1,8 +1,8 @@
-"""Ingress guards: input caps for Chat LangChain on Managed Deep Agents.
+"""Ingress guards: input caps and stopped-turn context for Chat LangChain.
 
 These were previously enforced in ``src/api/auth.py`` (``validate_inputs``).
 Under MDA, identity/thread scoping is declared in ``identity.py``; this
-middleware only caps oversized user input.
+middleware caps oversized user input and marks unanswered earlier turns as context.
 
 Trace metadata (prompt provenance, ``LANGSMITH_AGENT_VERSION``, ``source_type``)
 is applied at agent compile time via ``define_deep_agent(metadata=...)`` in
@@ -21,30 +21,78 @@ from langgraph.runtime import Runtime
 
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
 MAX_MESSAGE_CHARS = 50_000
+STOPPED_MESSAGE_PREFIX = (
+    "[Earlier message sent before the previous answer was stopped - "
+    "context only, not the current question]\n"
+)
 
 
 class IngressGuardsMiddleware(AgentMiddleware):
-    """Cap oversized user input at agent ingress."""
+    """Cap user input and distinguish stopped turns from the current question."""
 
     def before_agent(
         self, state: AgentState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """Truncate the latest user message when it exceeds the size cap."""
+        """Cap the latest user message and mark trailing earlier ones as context."""
         messages = state.get("messages", [])
+        updated_messages = []
         for message in reversed(messages):
             if getattr(message, "type", None) == "human":
                 capped = self._truncate_content(message.content)
                 if capped is not message.content:
-                    # Same id => the messages reducer overwrites in place.
-                    message.content = capped
-                    return {"messages": [message]}
+                    updated_messages.append(
+                        message.model_copy(update={"content": capped})
+                    )
                 break
-        return None
+
+        trailing_humans = []
+        for message in reversed(messages):
+            if getattr(message, "type", None) != "human":
+                break
+            trailing_humans.append(message)
+        for message in reversed(trailing_humans[1:]):
+            marked = self._mark_stopped_content(message.content)
+            if marked is not message.content:
+                updated_messages.append(message.model_copy(update={"content": marked}))
+
+        return {"messages": updated_messages} if updated_messages else None
+
+    def _mark_stopped_content(self, content: Any) -> Any:
+        """Prefix stopped-turn content once while preserving content blocks."""
+        if isinstance(content, str):
+            return (
+                content
+                if content.startswith(STOPPED_MESSAGE_PREFIX)
+                else STOPPED_MESSAGE_PREFIX + content
+            )
+        if not isinstance(content, list):
+            return content
+        if content:
+            first_block = content[0]
+            first_text = (
+                first_block
+                if isinstance(first_block, str)
+                else (
+                    first_block.get("text")
+                    if isinstance(first_block, dict)
+                    and first_block.get("type") == "text"
+                    else None
+                )
+            )
+            if isinstance(first_text, str) and first_text.startswith(
+                STOPPED_MESSAGE_PREFIX
+            ):
+                return content
+        return [{"type": "text", "text": STOPPED_MESSAGE_PREFIX}, *content]
 
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
         if isinstance(content, str):
-            return content[:MAX_MESSAGE_CHARS] if len(content) > MAX_MESSAGE_CHARS else content
+            return (
+                content[:MAX_MESSAGE_CHARS]
+                if len(content) > MAX_MESSAGE_CHARS
+                else content
+            )
 
         if not isinstance(content, list):
             return content
