@@ -74,6 +74,7 @@ interface ActiveRun {
   runId?: string
   assistantMessageId: string
   cancelRequested?: boolean
+  hasAssistantOutput?: boolean
 }
 
 export function ChatInterface({
@@ -246,11 +247,20 @@ export function ChatInterface({
     activeRunRef.current.runId = runId
 
     if (activeRunRef.current.cancelRequested && client) {
-      void client.runs.cancel(threadId, runId).catch((error) => {
+      const cancellation = activeRunRef.current.hasAssistantOutput
+        ? client.runs.cancel(threadId, runId)
+        : client.runs.cancel(threadId, runId, false, "rollback")
+      void cancellation.catch((error) => {
         console.warn("Unable to cancel LangGraph run:", error)
       })
     }
   }, [client, threadId])
+
+  const handleAssistantContent = useCallback((assistantMessageId: string) => {
+    if (activeRunRef.current?.assistantMessageId === assistantMessageId) {
+      activeRunRef.current.hasAssistantOutput = true
+    }
+  }, [])
 
   // ============================================================================
   // Custom Hooks
@@ -262,6 +272,7 @@ export function ChatInterface({
     setMessages,
     shouldInterruptRef,
     onRunCreated: handleRunCreated,
+    onAssistantContent: handleAssistantContent,
     userId,
     userEmail,
     userName,
@@ -769,7 +780,11 @@ export function ChatInterface({
 
     if (client && activeRun.runId) {
       try {
-        await client.runs.cancel(threadId, activeRun.runId)
+        if (activeRun.hasAssistantOutput) {
+          await client.runs.cancel(threadId, activeRun.runId)
+        } else {
+          await client.runs.cancel(threadId, activeRun.runId, false, "rollback")
+        }
       } catch (error) {
         console.warn("Unable to cancel LangGraph run:", error)
       }
