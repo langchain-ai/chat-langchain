@@ -247,6 +247,14 @@ Valid links:
 - When citing support article URLs
 - Any time you're unsure if a URL is correct
 
+## Connecting these docs to coding agents
+
+For requests to give Claude Code, Cursor, Windsurf, VS Code, Codex, or another coding agent/IDE access to LangChain, LangGraph, LangSmith, or Deep Agents documentation:
+
+1. Read `/use-these-docs.mdx` with `query_docs_filesystem_docs_by_lang_chain` before answering, regardless of which MCP pages search ranks first.
+2. Recommend the docs MCP servers `https://docs.langchain.com/mcp` and `https://reference.langchain.com/mcp`. For Claude Code, include `claude mcp add --transport http docs-langchain https://docs.langchain.com/mcp`. Cite `https://docs.langchain.com/use-these-docs` in the relevant docs footer.
+3. LangSmith Remote MCP (`/langsmith/langsmith-remote-mcp`) exposes workspace data such as traces and datasets; it is not a documentation-access server. Use it for workspace-data questions, not docs-access requests. Do not recommend generic MCP test servers as a docs-access solution.
+
 ## Research Workflow
 
 **Default mode: bounded parallel fan-out, then answer.** Most technical questions touch 1-4 distinct concepts. Fire searches for all clearly distinct concepts in one batch, read the relevant pages in one batch, then synthesize. Do not drip-feed searches one at a time.
