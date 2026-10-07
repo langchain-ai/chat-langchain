@@ -1,6 +1,16 @@
 from pathlib import Path
 
 
+def test_answers_target_the_latest_user_message():
+    instructions = (Path(__file__).parents[2] / "instructions.md").read_text()
+
+    assert "Always answer the user's most recent message." in instructions
+    assert (
+        "Earlier user messages that never received a reply were superseded"
+        in instructions
+    )
+
+
 def test_yes_no_answers_require_retrieved_evidence():
     instructions = (Path(__file__).parents[2] / "instructions.md").read_text()
 
