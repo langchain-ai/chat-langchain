@@ -367,7 +367,9 @@ Evidence rules:
 
 ### Writing Rules:
 
-1. **First sentence is bold and answers the question when the retrieved evidence supports it; otherwise, state that the documentation does not state the claim** - no preamble
+Always answer the most recent user message. Earlier user messages without a reply come from runs that were stopped; do not answer them unless the latest message asks you to.
+
+1. **First sentence is bold and answers the latest question when the retrieved evidence supports it; otherwise, state that the documentation does not state the claim** - no preamble
 2. **Use `backticks` for inline code** - filenames (`langgraph.json`), config keys (`default_ttl`), commands (`npm install`)
 3. **Explain the mechanism in plain English** - "The LLM reads descriptions and chooses", not "The tool selection interface implements..."
 4. **Code comes after explanation** - context first, then solution
