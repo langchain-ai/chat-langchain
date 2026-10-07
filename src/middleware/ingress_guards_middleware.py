@@ -1,8 +1,8 @@
-"""Ingress guards: input caps for Chat LangChain on Managed Deep Agents.
+"""Ingress guards: turn normalization and input caps on Managed Deep Agents.
 
 These were previously enforced in ``src/api/auth.py`` (``validate_inputs``).
 Under MDA, identity/thread scoping is declared in ``identity.py``; this
-middleware only caps oversized user input.
+middleware normalizes regenerated turns and caps oversized user input.
 
 Trace metadata (prompt provenance, ``LANGSMITH_AGENT_VERSION``, ``source_type``)
 is applied at agent compile time via ``define_deep_agent(metadata=...)`` in
@@ -14,9 +14,10 @@ not synthesized; archive deploys use ``LANGSMITH_HOST_REVISION_ID`` /
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
+from langchain_core.messages import RemoveMessage
 from langgraph.runtime import Runtime
 
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
@@ -24,27 +25,37 @@ MAX_MESSAGE_CHARS = 50_000
 
 
 class IngressGuardsMiddleware(AgentMiddleware):
-    """Cap oversized user input at agent ingress."""
+    """Normalize regenerated turns and cap oversized user input at ingress."""
 
     def before_agent(
         self, state: AgentState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """Truncate the latest user message when it exceeds the size cap."""
+        """Remove stale replies and truncate the latest user message if oversized."""
         messages = state.get("messages", [])
-        for message in reversed(messages):
+        for index in range(len(messages) - 1, -1, -1):
+            message = messages[index]
             if getattr(message, "type", None) == "human":
+                # The messages reducer assigns IDs before middleware runs.
+                updates: list[Any] = [
+                    RemoveMessage(id=cast(str, trailing.id))
+                    for trailing in messages[index + 1 :]
+                ]
                 capped = self._truncate_content(message.content)
                 if capped is not message.content:
                     # Same id => the messages reducer overwrites in place.
                     message.content = capped
-                    return {"messages": [message]}
-                break
+                    updates.append(message)
+                return {"messages": updates} if updates else None
         return None
 
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
         if isinstance(content, str):
-            return content[:MAX_MESSAGE_CHARS] if len(content) > MAX_MESSAGE_CHARS else content
+            return (
+                content[:MAX_MESSAGE_CHARS]
+                if len(content) > MAX_MESSAGE_CHARS
+                else content
+            )
 
         if not isinstance(content, list):
             return content
