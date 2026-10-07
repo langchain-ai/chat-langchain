@@ -246,7 +246,7 @@ export function ChatInterface({
     activeRunRef.current.runId = runId
 
     if (activeRunRef.current.cancelRequested && client) {
-      void client.runs.cancel(threadId, runId).catch((error) => {
+      void client.runs.cancel(threadId, runId, false, "rollback").catch((error) => {
         console.warn("Unable to cancel LangGraph run:", error)
       })
     }
@@ -772,7 +772,7 @@ export function ChatInterface({
 
     if (client && activeRun.runId) {
       try {
-        await client.runs.cancel(threadId, activeRun.runId)
+        await client.runs.cancel(threadId, activeRun.runId, false, "rollback")
       } catch (error) {
         console.warn("Unable to cancel LangGraph run:", error)
       }

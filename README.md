@@ -143,6 +143,12 @@ What MDA owns in this deployment:
 - **Thread titles** — generated in the browser (deterministic truncation).
 - **Checkpointer** — managed by the Managed Deep Agents runtime.
 
+The managed agent uses `instructions.md` as its system prompt;
+`src/prompts/docs_agent_prompt.py` is its Hub-push/evaluation mirror. Changing
+these files does not update Prompt Hub. Hub consumers require a separate,
+reviewed synchronization using `scripts/push_docs_agent_prompt.py` and updates
+to the relevant Hub tags; no Hub prompt is published by this code change.
+
 ## Resources
 
 - [LangChain Documentation](https://docs.langchain.com/oss/python/langchain/overview)
