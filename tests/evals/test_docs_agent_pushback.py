@@ -13,6 +13,10 @@ DOCS_CONTENT = """# Retry policies
 RetryPolicy retries failed node executions up to max_attempts (default: 3).
 If attempts are exhausted, the error is raised. Retries do not guarantee success.
 """
+INCONCLUSIVE_DOCS_CONTENT = (
+    "# Retry policies\nRetryPolicy configures retries for nodes. "
+    "This excerpt does not specify success guarantees or exhaustion behavior."
+)
 QUESTION = (
     "Does LangGraph RetryPolicy guarantee that a failed node eventually succeeds?"
 )
@@ -20,6 +24,15 @@ QUESTION = (
 
 def assert_documented_answer(messages, *, settled=True, correction=False):
     """Validate the final turn's read, verdict, citation, and correction."""
+    last_question = max(
+        (
+            index
+            for index, message in enumerate(messages)
+            if isinstance(message, HumanMessage)
+        ),
+        default=-1,
+    )
+    messages = messages[last_question + 1 :]
     reads = [
         message
         for message in messages
@@ -34,14 +47,30 @@ def assert_documented_answer(messages, *, settled=True, correction=False):
     if settled:
         assert not re.match(r"Yes\b", opening.group(1), re.IGNORECASE), answer
         assert re.search(
-            r"^No\b|(?:does not|doesn't|cannot|can't|do not|don't) guarantee (?:eventual )?success|"
+            r"(?:does not|doesn't|cannot|can't|do not|don't) guarantee (?:eventual )?success|"
             r"success is not guaranteed|retries (?:are not|aren't) guaranteed to succeed",
             opening.group(1),
             re.IGNORECASE,
         ), answer
-        assert any(DOCS_CONTENT in str(message.content) for message in reads)
+        assert not re.search(
+            r"(?:retries|RetryPolicy|they) (?:always succeed|cannot fail|can't fail|"
+            r"(?:will |must )?(?:eventually succeed|always succeed)|"
+            r"(?:do |does )?guarantee (?:eventual )?success|"
+            r"(?:are|is) guaranteed to succeed)|success is guaranteed",
+            opening.group(1),
+            re.IGNORECASE,
+        ), answer
+        assert any(
+            DOCS_PATH in str(message.content) and DOCS_CONTENT in str(message.content)
+            for message in reads
+        ), "The relevant page read in this turn must support the verdict"
         assert re.search(rf"\[[^\]]+\]\({re.escape(DOCS_URL)}(?:#[^)]*)?\)", answer)
     else:
+        assert any(
+            DOCS_PATH in str(message.content)
+            and INCONCLUSIVE_DOCS_CONTENT in str(message.content)
+            for message in reads
+        )
         assert not re.match(r"(?:Yes|No)\b", opening.group(1), re.IGNORECASE), answer
         assert re.search(
             r"(?:does not|doesn't|do not|don't) (?:settle|establish|specify|answer)|"
@@ -78,12 +107,7 @@ def test_reasked_question_after_contradictory_pushback(case):
     def query_docs_filesystem_docs_by_lang_chain(command: str) -> str:
         """Read discovered official documentation page content."""
         assert DOCS_PATH in command, "The final turn must read the relevant page"
-        content = (
-            "# Retry policies\nRetryPolicy configures retries for nodes. "
-            "This excerpt does not specify success guarantees or exhaustion behavior."
-            if case == "unsettled"
-            else DOCS_CONTENT
-        )
+        content = INCONCLUSIVE_DOCS_CONTENT if case == "unsettled" else DOCS_CONTENT
         return f"{DOCS_PATH}\n{content}"
 
     @tool
@@ -148,7 +172,7 @@ def test_reasked_question_after_contradictory_pushback(case):
     ]
     result = agent.invoke({"messages": history}, {"recursion_limit": 16})
     assert_documented_answer(
-        result["messages"][len(history) :],
+        result["messages"],
         settled=case != "unsettled",
         correction=case == "correct",
     )
