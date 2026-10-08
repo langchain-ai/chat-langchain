@@ -19,6 +19,6 @@ def agent(config):
         connectors=_connectors,
         identity=_identity,
     )
-    return with_recursion_boundary(
-        compiled_agent.with_config({"recursion_limit": DOCS_AGENT_RECURSION_LIMIT})
+    return with_recursion_boundary(compiled_agent).with_config(
+        {"recursion_limit": DOCS_AGENT_RECURSION_LIMIT}
     )
