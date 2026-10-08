@@ -51,7 +51,7 @@ List important docs paths/URLs, support article IDs/titles, pricing/link-check f
 List completed implementation/debugging steps, changed files, and verification results if relevant.
 
 ## Positions Already Asserted To The User
-List the technical claims and recommendations you have already given the user in this conversation, each with the docs page or support article that backed it, so later turns do not silently contradict them.
+List the technical claims and recommendations you have already given the user in this conversation, each with the docs page or support article that backed it, so later turns do not silently contradict them. Mark claims without a supporting source as unverified.
 
 ## Open Issues / Next Steps
 List remaining work, known risks, and specific next actions.
