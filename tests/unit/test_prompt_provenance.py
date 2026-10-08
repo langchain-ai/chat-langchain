@@ -111,5 +111,8 @@ def test_guardrails_prompt_import_renders_without_invoke(monkeypatch):
     module = importlib.import_module("src.middleware.guardrails_middleware")
     importlib.reload(module)
 
-    assert module._GUARDRAILS_SYSTEM_PROMPT == "guardrails system prompt"
+    assert module._GUARDRAILS_SYSTEM_PROMPT.startswith(
+        module.internal_disclosure_classifier_rule
+    )
+    assert module._GUARDRAILS_SYSTEM_PROMPT.endswith("guardrails system prompt")
     assert module.guardrails_prompt_commit == "guardrails-commit"

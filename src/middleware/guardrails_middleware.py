@@ -21,6 +21,10 @@ from src.prompts.guardrails_prompts import (
     guardrails_system_prompt as _LOCAL_GUARDRAILS_SYSTEM_PROMPT,
 )
 from src.prompts.guardrails_prompts import (
+    internal_disclosure_classifier_rule,
+    internal_disclosure_refusal,
+)
+from src.prompts.guardrails_prompts import (
     rejection_system_prompt as _REJECTION_SYSTEM_PROMPT,
 )
 
@@ -55,6 +59,7 @@ class GuardrailsDecision(TypedDict):
 
     decision: Literal["ALLOWED", "BLOCKED"]
     explanation: str
+    blocked_reason: Literal["internal_disclosure", "other"]
 
 
 class GuardrailTurn(TypedDict):
@@ -103,6 +108,12 @@ else:
         _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
         guardrails_prompt_commit = None
         guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
+
+
+if not _GUARDRAILS_SYSTEM_PROMPT.startswith(internal_disclosure_classifier_rule):
+    _GUARDRAILS_SYSTEM_PROMPT = (
+        internal_disclosure_classifier_rule + "\n\n" + _GUARDRAILS_SYSTEM_PROMPT
+    )
 
 
 class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
@@ -177,9 +188,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -230,6 +239,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 return {"off_topic_query": False, "guardrail_history": []}
             return {"off_topic_query": False}
 
+        internal_disclosure = (
+            guardrails_decision.get("blocked_reason") == "internal_disclosure"
+        )
+        if internal_disclosure:
+            guardrails_decision["decision"] = "BLOCKED"
         decision = guardrails_decision["decision"]
         explanation = guardrails_decision["explanation"]
         guardrail_history = self._append_guardrail_turn(
@@ -249,6 +263,14 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                     query_preview,
                 )
             )
+
+        if internal_disclosure:
+            return {
+                "messages": [AIMessage(content=internal_disclosure_refusal)],
+                "off_topic_query": True,
+                "guardrail_history": guardrail_history,
+                "jump_to": "end",
+            }
 
         # Handle allowed queries
         if decision == "ALLOWED":
@@ -411,14 +433,20 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+                "blocked_reason": "other",
+            }
 
         # Build context from prior classified turns for follow-up detection.
         context_section = ""

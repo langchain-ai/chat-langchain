@@ -2,6 +2,9 @@ from agent import docs_agent_middleware
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
+from src.middleware.internal_disclosure_guard_middleware import (
+    InternalDisclosureGuardMiddleware,
+)
 
 
 def test_regenerating_answer_guards_are_not_wired():
@@ -13,3 +16,10 @@ def test_regenerating_answer_guards_are_not_wired():
         DocsResearchGuardMiddleware,
     )
     assert not any(isinstance(m, regenerating) for m in docs_agent_middleware)
+
+
+def test_internal_disclosure_guard_wraps_retry_and_fallback():
+    names = [type(m).__name__ for m in docs_agent_middleware]
+    index = names.index(InternalDisclosureGuardMiddleware.__name__)
+    assert index < names.index("ModelRetryMiddleware")
+    assert index < names.index("ModelFallbackMiddleware")
