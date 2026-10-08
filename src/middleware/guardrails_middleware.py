@@ -4,10 +4,16 @@ import asyncio
 import logging
 import os
 import random
-from typing import Any, Literal
+from collections.abc import Awaitable, Callable
+from typing import Any, Literal, cast
 
 import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
+from langchain.agents.middleware.types import (
+    ModelCallResult,
+    ModelRequest,
+    ModelResponse,
+)
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
@@ -75,6 +81,7 @@ class GuardrailsState(AgentState):
 
     off_topic_query: NotRequired[bool]
     guardrail_history: NotRequired[list[GuardrailTurn]]
+    guardrails_decision: NotRequired[GuardrailsDecision | None]
 
 
 if _USE_LOCAL_PROMPTS:
@@ -177,9 +184,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -226,9 +231,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
             logger.error("Guardrails check failed after retries; allowing query.")
+            update: dict[str, Any] = {
+                "off_topic_query": False,
+                "guardrails_decision": None,
+            }
             if state.get("guardrail_history"):
-                return {"off_topic_query": False, "guardrail_history": []}
-            return {"off_topic_query": False}
+                update["guardrail_history"] = []
+            return update
 
         decision = guardrails_decision["decision"]
         explanation = guardrails_decision["explanation"]
@@ -253,7 +262,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return {"guardrail_history": guardrail_history}
+            return {
+                "off_topic_query": False,
+                "guardrails_decision": guardrails_decision,
+                "guardrail_history": guardrail_history,
+            }
 
         # Handle blocked queries
         logger.warning(
@@ -266,16 +279,48 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             logger.info(
                 "Off-topic query detected but block_off_topic=False, allowing..."
             )
-            return {"guardrail_history": guardrail_history}
+            return {
+                "off_topic_query": False,
+                "guardrails_decision": guardrails_decision,
+                "guardrail_history": guardrail_history,
+            }
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
+            "guardrails_decision": guardrails_decision,
             "guardrail_history": guardrail_history,
             "jump_to": "end",
         }
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelCallResult:
+        """Surface the current classifier verdict without changing conversation history."""
+        decision = cast(
+            GuardrailsDecision | None, request.state.get("guardrails_decision")
+        )
+        if decision is None:
+            return await handler(request)
+
+        verdict = f"Current-turn guardrails verdict: {decision['decision']}."
+        if request.system_message is None:
+            system_message = SystemMessage(content=verdict)
+        else:
+            content = request.system_message.content
+            blocks = (
+                [{"type": "text", "text": content}]
+                if isinstance(content, str)
+                else content
+            )
+            system_message = request.system_message.model_copy(
+                update={"content": [*blocks, {"type": "text", "text": verdict}]}
+            )
+        return await handler(request.override(system_message=system_message))
 
     def _append_guardrail_turn(
         self, history: list[GuardrailTurn], query: str, decision: str
@@ -411,14 +456,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from prior classified turns for follow-up detection.
         context_section = ""
