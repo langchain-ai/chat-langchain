@@ -154,6 +154,68 @@ def test_public_tool_api_answers_and_word_boundaries_pass_unchanged(content):
     assert result is response
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        "My internal tools include read_file, write_file, execute, and task.",
+        "MY TOOLS INCLUDE READ_FILE, WRITE_FILE, EXECUTE, AND TASK.",
+        "我的内部工具包括read_file、write_file、execute和task。",
+        "I can use Deep Agents tools: read_file, write_file, execute, and task.",
+        "Deep Agents provides read_file. My tools also include write_file and task.",
+    ],
+)
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_registered_public_api_self_inventory_is_replaced(content, asynchronous):
+    request = _request(
+        [{"name": name} for name in ["read_file", "write_file", "execute", "task"]]
+    )
+    response = ModelResponse(result=[AIMessage(content=content)])
+    middleware = InternalDisclosureGuardMiddleware()
+
+    async def handler(request):
+        return response
+
+    result = (
+        asyncio.run(middleware.awrap_model_call(request, handler))
+        if asynchronous
+        else middleware.wrap_model_call(request, lambda request: response)
+    )
+    assert result.result[0].content == internal_disclosure_refusal
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "tool",
+        "bind_tools",
+        "ls",
+        "glob",
+        "grep",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "execute",
+        "write_todos",
+        "task",
+    ],
+)
+def test_public_api_exemption_requires_documentation_context(name):
+    request = _request([{"name": name}])
+    middleware = InternalDisclosureGuardMiddleware()
+    inventory = ModelResponse(result=[AIMessage(content=f"Available tools: {name}.")])
+    result = middleware.wrap_model_call(request, lambda request: inventory)
+    assert result.result[0].content == internal_disclosure_refusal
+
+    for content in [
+        f"LangChain uses @tool and bind_tools; Deep Agents provides {name}.",
+        f"Deep Agents 的公共 API 包括 {name}，可用于构建代理。",
+        f"I can explain the public Deep Agents API {name}.",
+    ]:
+        documentation = ModelResponse(result=[AIMessage(content=content)])
+        result = middleware.wrap_model_call(request, lambda request: documentation)
+        assert result is documentation
+
+
 def test_pending_tool_calls_are_unchanged():
     response = ModelResponse(
         result=[
@@ -200,10 +262,14 @@ class StreamingModel(BaseChatModel):
 
 
 @pytest.mark.parametrize("query", ["What tools do you have?", "你有哪些内部工具？"])
-def test_message_stream_never_exposes_unvalidated_tokens(query):
+@pytest.mark.parametrize("name", ["runtime_mcp_lookup", "read_file"])
+def test_message_stream_never_exposes_unvalidated_tokens(query, name):
     graph = create_agent(
-        StreamingModel(),
-        tools=[private_local_lookup, runtime_mcp_lookup],
+        StreamingModel(answer=f"My internal tools include {name}."),
+        tools=[
+            private_local_lookup,
+            runtime_mcp_lookup.model_copy(update={"name": name}),
+        ],
         middleware=[InternalDisclosureGuardMiddleware()],
     )
 
@@ -220,10 +286,11 @@ def test_message_stream_never_exposes_unvalidated_tokens(query):
     assert "".join(message.text for message in messages) == internal_disclosure_refusal
 
 
-def test_event_stream_never_exposes_unvalidated_model_output():
+@pytest.mark.parametrize("name", ["runtime_mcp_lookup", "read_file"])
+def test_event_stream_never_exposes_unvalidated_model_output(name):
     graph = create_agent(
-        StreamingModel(),
-        tools=[runtime_mcp_lookup],
+        StreamingModel(answer=f"My internal tools include {name}."),
+        tools=[runtime_mcp_lookup.model_copy(update={"name": name})],
         middleware=[InternalDisclosureGuardMiddleware()],
     )
 
@@ -240,7 +307,7 @@ def test_event_stream_never_exposes_unvalidated_model_output():
     assert not any(event["event"].startswith("on_chat_model") for event in events)
     for event in events:
         if "output" in event["data"]:
-            assert runtime_mcp_lookup.name not in str(event["data"]["output"])
+            assert name not in str(event["data"]["output"])
 
 
 def test_safe_public_api_answer_streams_unmodified():

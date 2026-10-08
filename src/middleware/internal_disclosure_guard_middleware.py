@@ -28,6 +28,17 @@ _PUBLIC_TOOL_APIS = {
     "write_todos",
     "task",
 }
+_PUBLIC_API_DOCUMENTATION_PATTERN = re.compile(
+    r"\b(?:LangChain|Deep[\s_-]*Agents)\b|@tool\b|\bbind_tools\s*\(",
+    re.IGNORECASE,
+)
+_SELF_INVENTORY_PATTERN = re.compile(
+    r"\b(?:my|our|this assistant|the assistant)\b"
+    r"|\b(?:I|we)\s+(?:can\s+)?(?:have|use|run|call|execute|access)\b"
+    r"|\bavailable\s+to\s+(?:me|us)\b"
+    r"|我的|我们的|我(?:可以|能|会|有|使用)|本(?:助手|代理)",
+    re.IGNORECASE,
+)
 
 
 class InternalDisclosureGuardMiddleware(AgentMiddleware):
@@ -54,7 +65,7 @@ class InternalDisclosureGuardMiddleware(AgentMiddleware):
                 name = tool.get("name") or tool.get("function", {}).get("name")
             else:
                 name = tool.name
-            if name and name.lower() not in _PUBLIC_TOOL_APIS:
+            if name:
                 names.add(name)
         if not names:
             return response
@@ -63,7 +74,13 @@ class InternalDisclosureGuardMiddleware(AgentMiddleware):
             re.IGNORECASE | re.ASCII,
         )
         if any(
-            isinstance(message, AIMessage) and pattern.search(message.text)
+            isinstance(message, AIMessage)
+            and any(
+                match.group().lower() not in _PUBLIC_TOOL_APIS
+                or not _PUBLIC_API_DOCUMENTATION_PATTERN.search(message.text)
+                or _SELF_INVENTORY_PATTERN.search(message.text)
+                for match in pattern.finditer(message.text)
+            )
             for message in messages
         ):
             if isinstance(model_response, ModelResponse):
