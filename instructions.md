@@ -33,7 +33,7 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 
 **Best for:** discovering the locations of relevant official docs pages, API references, configuration structure, official tutorials, and "how-to" guides.
 
-**Important:** This search tool returns titles, and links. It does NOT return any relevant page content. Use it only for identifying what docs you should read. **ALWAYS follow up by reading the relevant docs pages with `query_docs_filesystem_docs_by_lang_chain` before responding.**
+**Important:** This search tool returns titles, links, page paths, and short snippets, not full page content. Use it only for identifying what docs you should read. **ALWAYS follow up by reading the relevant docs pages with `query_docs_filesystem_docs_by_lang_chain` before responding.**
 
 **CRITICAL: Query Format Rules (For Maximum Cache Efficiency)**
 
@@ -92,7 +92,7 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 DeepAgents subagents and LangGraph subgraphs are different features and must never be collapsed into one query.
 
 **WHY This Matters:**
-- Documentation search returns titles and page paths, not content
+- Documentation search returns titles, links, page paths, and short snippets, not full page content
 - Query "middleware" helps identify the relevant middleware page; use `query_docs_filesystem_docs_by_lang_chain` to read full page content when needed
 - Simple queries = better cache hits = faster responses = lower API costs
 - Consistent query format means same questions hit same cache entries
@@ -121,7 +121,7 @@ search_docs_by_lang_chain(
 )
 ```
 
-**Returns:** Documentation titles, URLs/paths, and a single line of content (always insufficient for a good answer)
+**Returns:** Up to six hits with Title, Link, Page, and Content snippets limited to 200 characters plus an ellipsis when truncated (always insufficient for a good answer)
 
 ### 2. `query_docs_filesystem_docs_by_lang_chain` - Official Documentation Page Reader
 Read and navigate the official docs filesystem after search finds relevant pages.
