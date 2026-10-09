@@ -8,6 +8,8 @@ connector = define_mcp_servers(
         "langchain-docs": {
             "transport": "http",
             "url": "https://docs.langchain.com/mcp",
+            # Without a deadline, slow docs requests never raise for ToolRetryMiddleware to retry.
+            "default_tool_timeout": 10,
         },
     },
 )
