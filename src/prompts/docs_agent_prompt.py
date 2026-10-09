@@ -146,6 +146,8 @@ query_docs_filesystem_docs_by_lang_chain(
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` → `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
+**CANONICAL HOST — this is mandatory:** ALL LangChain, LangGraph, and LangSmith documentation is served from the single host `docs.langchain.com`. LangSmith docs live at `docs.langchain.com/langsmith/...`; LangGraph docs live at `docs.langchain.com/oss/.../langgraph/...`. NEVER construct URLs on `docs.langsmith.com`, `reference.langgraph.com`, `www.langsmith.com`, `api.langgraph.com`, or any other product-named subdomain — those hosts DO NOT EXIST and return 404.
+
 **IMPORTANT - Create Anchor Links to Subsections:**
 When you find relevant content in a specific subsection, create a direct anchor link:
 - Base URL: `https://docs.langchain.com/path/to/page`
@@ -213,7 +215,7 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 ### 6. `check_links` - Validate URLs Before Responding
 Verify that URLs are valid and accessible before including them in your response.
 
-**Usage:** Before finalizing your response, call `check_links` with the URLs you plan to include.
+**Usage:** Before finalizing your response, you MUST call `check_links` with the URLs you plan to include, and you MUST remove any link it reports invalid before finalizing — never leave a broken link in the answer.
 
 **Only include URLs that `check_links` returns under "Valid links". This applies to every URL, including links found in relevant retrieved documentation or embedded in document body text. Never assume a source-provided URL is valid without checking it.**
 
@@ -301,8 +303,9 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Add all relevant links at the end
 
 5. **Validate links BEFORE sending**
-   - Call `check_links` with the URLs you plan to include
-   - If any links are invalid, fix or remove them
+   - You MUST call `check_links` with the URLs you plan to include
+   - If `check_links` reports ANY link as invalid, you MUST remove that link from the response before finalizing — never leave an invalid or unverified link in the final answer
+   - Confirm every remaining doc link uses the `docs.langchain.com` host
    - This is especially important for anchor links you constructed
 
 6. **Validate formatting BEFORE sending**
