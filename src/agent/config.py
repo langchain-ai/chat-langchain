@@ -3,11 +3,16 @@
 import logging
 import os
 from dataclasses import dataclass
+from threading import Lock
+from typing import Awaitable, Callable
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
+from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable, RunnableLambda
+from langsmith import run_helpers
 
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
@@ -18,12 +23,91 @@ from src.middleware.retry_middleware import (
     MalformedResponseError,
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
+    is_provider_auth_error,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
 dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
+_auth_failure_logged = False
+_auth_failure_log_lock = Lock()
+
+
+def _record_primary_auth_fallback(request: ModelRequest) -> None:
+    global _auth_failure_logged
+    model_id = getattr(request.model, "model", None) or getattr(
+        request.model, "model_name", type(request.model).__name__
+    )
+    provider = next(
+        (
+            model.provider
+            for model in MODELS.values()
+            if model.id.split(":", 1)[-1] == model_id
+        ),
+        getattr(request.model, "_llm_type", type(request.model).__name__),
+    )
+    with _auth_failure_log_lock:
+        if not _auth_failure_logged:
+            logger.error(
+                "Primary model authentication failed (provider=%s, model=%s); "
+                "serving fallback. Correct the provider credentials.",
+                provider,
+                model_id,
+            )
+            _auth_failure_logged = True
+    run_tree = run_helpers.get_current_run_tree()
+    if run_tree is not None:
+        while run_tree.parent_run is not None:
+            run_tree = run_tree.parent_run
+        run_tree.add_metadata({"primary_model_auth_failed": True})
+
+
+class _AuthAwareModelFallbackMiddleware(ModelFallbackMiddleware):
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse | AIMessage:
+        """Record auth-triggered synchronous fallback without changing the chain."""
+        primary_auth_failed = False
+
+        def tracked_handler(model_request: ModelRequest) -> ModelResponse:
+            nonlocal primary_auth_failed
+            try:
+                return handler(model_request)
+            except Exception as exc:
+                if model_request.model is request.model and is_provider_auth_error(exc):
+                    primary_auth_failed = True
+                raise
+
+        result = super().wrap_model_call(request, tracked_handler)
+        if primary_auth_failed:
+            _record_primary_auth_fallback(request)
+        return result
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelResponse | AIMessage:
+        """Record auth-triggered asynchronous fallback without changing the chain."""
+        primary_auth_failed = False
+
+        async def tracked_handler(model_request: ModelRequest) -> ModelResponse:
+            nonlocal primary_auth_failed
+            try:
+                return await handler(model_request)
+            except Exception as exc:
+                if model_request.model is request.model and is_provider_auth_error(exc):
+                    primary_auth_failed = True
+                raise
+
+        result = await super().awrap_model_call(request, tracked_handler)
+        if primary_auth_failed:
+            _record_primary_auth_fallback(request)
+        return result
+
 
 # =============================================================================
 # Model Registry
@@ -145,7 +229,9 @@ docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = _AuthAwareModelFallbackMiddleware(
+    *[m.id for m in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================

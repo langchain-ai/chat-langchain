@@ -57,6 +57,7 @@ cp .env.example .env
 
 | Variable            | Description                                                                             |
 | ------------------- | --------------------------------------------------------------------------------------- |
+| `GOOGLE_API_KEY`    | Valid Google API key required for the default Gemini model, including dev deployments   |
 | `ANTHROPIC_API_KEY` | Anthropic API key (or use another provider)                                             |
 | `PYLON_API_KEY`     | Pylon API key for support KB                                                            |
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
@@ -130,6 +131,12 @@ The agent uses a docs-first research strategy:
 ```bash
 mda deploy .
 ```
+
+Dev and production deployments require a valid `GOOGLE_API_KEY`, not just a
+non-empty value. Deployment secret-presence checks do not validate credentials.
+Primary-provider authentication failures are not retried; when the model
+middleware serves a fallback, it logs an error once per process and marks the
+current LangSmith root run with `primary_model_auth_failed=True` when available.
 
 What MDA owns in this deployment:
 
