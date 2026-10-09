@@ -23,6 +23,11 @@ def build_docs_agent_trace_metadata(
         "source_type": "Chat-LangChain",
         **get_prompt_provenance(graph_id),
     }
+    environment = os.environ.get("APP_ENV") or os.environ.get("LANGSMITH_ENVIRONMENT")
+    if not environment:
+        host_project_name = os.environ.get("LANGSMITH_HOST_PROJECT_NAME", "")
+        environment = "dev" if host_project_name.endswith("-dev") else "production"
+    metadata["environment"] = environment
     revision = os.environ.get("LANGCHAIN_REVISION_ID") or os.environ.get(
         "LANGSMITH_HOST_REVISION_ID"
     )
