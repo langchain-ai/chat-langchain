@@ -62,6 +62,17 @@ cp .env.example .env
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
 
+#### Trace Environment
+
+Set `APP_ENV` to `production` or `dev` on each deployment to distinguish root
+LangSmith traces, even when deployments share a tracing project.
+`LANGSMITH_ENVIRONMENT` supports the same values and is used when `APP_ENV` is
+unset or empty. If neither variable has a non-empty value, the root trace's
+`environment` metadata is `dev` when `LANGSMITH_HOST_PROJECT_NAME` ends with
+`-dev`, and `production` otherwise (including when the host project name is
+unset). Explicit environment values take precedence over the deployment-name
+fallback; source type, prompt provenance, and agent version metadata are unchanged.
+
 ### Running Locally
 
 #### Backend
