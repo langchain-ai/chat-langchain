@@ -4,6 +4,8 @@ import asyncio
 import logging
 from typing import Awaitable, Callable
 
+from anthropic import AuthenticationError as AnthropicAuthenticationError
+from anthropic import PermissionDeniedError as AnthropicPermissionDeniedError
 from langchain.agents.middleware.types import (
     AgentMiddleware,
     ModelCallResult,
@@ -11,6 +13,8 @@ from langchain.agents.middleware.types import (
     ModelResponse,
 )
 from langchain_core.runnables.retry import RunnableRetry
+from openai import AuthenticationError as OpenAIAuthenticationError
+from openai import PermissionDeniedError as OpenAIPermissionDeniedError
 from tenacity import retry_if_exception
 
 logger = logging.getLogger(__name__)
@@ -27,12 +31,52 @@ class MalformedResponseError(Exception):
     pass
 
 
+def is_provider_auth_error(exc: BaseException) -> bool:
+    """Identify permanent provider authentication failures, including wrapped errors."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(
+            current,
+            (
+                AnthropicAuthenticationError,
+                AnthropicPermissionDeniedError,
+                OpenAIAuthenticationError,
+                OpenAIPermissionDeniedError,
+            ),
+        ):
+            return True
+        response = getattr(current, "response", None)
+        if any(
+            status in (401, 403)
+            for status in (
+                getattr(current, "status_code", None),
+                getattr(current, "code", None),
+                getattr(response, "status_code", None),
+            )
+        ):
+            return True
+        message = str(current).upper()
+        if "API_KEY_INVALID" in message or (
+            "INVALID_ARGUMENT" in message and "API KEY NOT VALID" in message
+        ):
+            return True
+        current = current.__cause__ or (
+            current.__context__ if not current.__suppress_context__ else None
+        )
+    return False
+
+
 class _ProviderValidationAwareRunnableRetry(RunnableRetry):
     @property
     def _kwargs_retrying(self) -> dict[str, object]:
         kwargs = super()._kwargs_retrying
         kwargs["retry"] = retry_if_exception(
-            lambda exception: not isinstance(exception, ValueError)
+            lambda exception: (
+                not isinstance(exception, ValueError)
+                and not is_provider_auth_error(exception)
+            )
         )
         return kwargs
 
@@ -86,7 +130,7 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
-                if isinstance(e, ValueError):
+                if isinstance(e, ValueError) or is_provider_auth_error(e):
                     raise
                 last_exception = e
                 if attempt < self.max_retries:
