@@ -26,6 +26,13 @@ SOFT_404_DOMAINS = {
 
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
+# URLs already validated within the current run/conversation; repeat checks are short-circuited
+_validated_this_run: set[str] = set()
+
+
+def reset_validated_urls() -> None:
+    """Clear the per-run set of already-validated URLs so tracking does not leak across runs."""
+    _validated_this_run.clear()
 
 
 @dataclass
@@ -198,5 +205,17 @@ async def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
     seen = set()
     unique_urls = [u for u in urls if not (u in seen or seen.add(u))]
 
-    results = await _check_urls_async(unique_urls, timeout)
-    return _format_results(results)
+    already_validated = [u for u in unique_urls if u in _validated_this_run]
+    to_check = [u for u in unique_urls if u not in _validated_this_run]
+
+    if not to_check:
+        return "All URLs already verified this session (valid). Skipping re-check."
+
+    results = await _check_urls_async(to_check, timeout)
+    _validated_this_run.update(r.url for r in results if r.valid)
+
+    output = _format_results(results)
+    if already_validated:
+        skipped = "\n".join(f"  - {u}" for u in already_validated)
+        output += f"\n\nAlready verified this session (skipped):\n{skipped}"
+    return output
