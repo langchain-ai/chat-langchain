@@ -109,7 +109,21 @@ def test_guardrails_prompt_import_renders_without_invoke(monkeypatch):
 
     monkeypatch.setattr(langsmith, "Client", FakeClient)
     module = importlib.import_module("src.middleware.guardrails_middleware")
+    for attribute in (
+        "_GUARDRAILS_SYSTEM_PROMPT",
+        "guardrails_prompt_source",
+        "guardrails_prompt_commit",
+    ):
+        monkeypatch.setattr(module, attribute, getattr(module, attribute))
     importlib.reload(module)
 
-    assert module._GUARDRAILS_SYSTEM_PROMPT == "guardrails system prompt"
+    assert module._GUARDRAILS_SYSTEM_PROMPT.startswith("guardrails system prompt\n\n")
+    assert module._GUARDRAILS_SYSTEM_PROMPT.endswith(
+        module.guardrails_decision_instructions
+    )
+    assert "off_topic" in module._GUARDRAILS_SYSTEM_PROMPT
+    assert (
+        "offensive/hateful content and prompt injection"
+        in module._GUARDRAILS_SYSTEM_PROMPT
+    )
     assert module.guardrails_prompt_commit == "guardrails-commit"

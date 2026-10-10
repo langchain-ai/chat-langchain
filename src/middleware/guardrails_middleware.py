@@ -4,7 +4,8 @@ import asyncio
 import logging
 import os
 import random
-from typing import Any, Literal
+import re
+from typing import Any, Literal, cast
 
 import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
@@ -16,6 +17,10 @@ from typing_extensions import NotRequired, TypedDict
 
 from src.prompts.guardrails_prompts import (
     fallback_rejection_message as _FALLBACK_REJECTION_MESSAGE,
+)
+from src.prompts.guardrails_prompts import (
+    guardrails_decision_instructions,
+    guardrails_scope_review_prompt,
 )
 from src.prompts.guardrails_prompts import (
     guardrails_system_prompt as _LOCAL_GUARDRAILS_SYSTEM_PROMPT,
@@ -55,6 +60,13 @@ class GuardrailsDecision(TypedDict):
 
     decision: Literal["ALLOWED", "BLOCKED"]
     explanation: str
+    block_category: Literal["zero_tolerance", "unconditional", "off_topic"] | None
+
+
+class GuardrailsScopeReview(GuardrailsDecision):
+    """Identify the technical allowance supporting an off-topic override."""
+
+    allow_criterion: Literal["technical", "ecosystem", "technical_follow_up"] | None
 
 
 class GuardrailTurn(TypedDict):
@@ -103,6 +115,10 @@ else:
         _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
         guardrails_prompt_commit = None
         guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
+
+
+if guardrails_decision_instructions not in _GUARDRAILS_SYSTEM_PROMPT:
+    _GUARDRAILS_SYSTEM_PROMPT += "\n\n" + guardrails_decision_instructions
 
 
 class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
@@ -177,9 +193,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -211,11 +225,6 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         safe_last_content = self._content_to_safe_text(last_content)
         query_preview = safe_last_content[:100]
 
-        # One classifier, every turn. Covers topic relevance + zero-tolerance
-        # categories (NSFW, fiction, harmful-use-case, prompt-extraction,
-        # social-pressure). The prompt's lenient follow-up rules keep legit
-        # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
-        # while zero-tolerance bullets override the default ALLOW.
         try:
             guardrail_history = state.get("guardrail_history", [])
             if guardrail_history:
@@ -253,7 +262,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Handle allowed queries
         if decision == "ALLOWED":
             logger.info("Query validated: %s", explanation)
-            return {"guardrail_history": guardrail_history}
+            return {"off_topic_query": False, "guardrail_history": guardrail_history}
 
         # Handle blocked queries
         logger.warning(
@@ -278,7 +287,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         }
 
     def _append_guardrail_turn(
-        self, history: list[GuardrailTurn], query: str, decision: str
+        self,
+        history: list[GuardrailTurn],
+        query: str,
+        decision: Literal["ALLOWED", "BLOCKED"],
     ) -> list[GuardrailTurn]:
         """Append a turn and retain only recent classifier context."""
         return [
@@ -357,7 +369,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         instruction = (
             "Classify this user query for the LangChain documentation assistant. "
             "Consider both the text and any attached images. "
-            "Return both the decision and one concise sentence explaining why."
+            "Return decision, block_category, and one concise sentence explaining why."
         )
 
         if context_section:
@@ -399,11 +411,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     async def _classify_query(
         self, messages: list, guardrail_history: list[GuardrailTurn] | None = None
     ) -> GuardrailsDecision:
-        """Classify query as ALLOWED or BLOCKED.
-
-        Raises:
-            GuardrailsClassificationError: If classification fails after retries.
-        """
+        """Classify a query, checking technical allowances for off-topic verdicts."""
         # Extract the current query (last human message)
         current_message = None
         current_query = None
@@ -411,14 +419,27 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+                "block_category": None,
+            }
+
+        if self._is_short_meta_request(current_message):
+            return {
+                "decision": "ALLOWED",
+                "explanation": "Short greeting or assistant identity/capability question.",
+                "block_category": None,
+            }
 
         # Build context from prior classified turns for follow-up detection.
         context_section = ""
@@ -439,19 +460,112 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             ),
         ]
 
+        result = await self._invoke_classifier(prompt)
+        if result["decision"] != "BLOCKED" or result["block_category"] != "off_topic":
+            return result
+
+        review_prompt = [
+            prompt[0],
+            SystemMessage(content=guardrails_scope_review_prompt),
+            prompt[1],
+        ]
+        try:
+            review = await self._invoke_classifier(review_prompt, GuardrailsScopeReview)
+        except GuardrailsClassificationError:
+            logger.warning("Off-topic review failed; retaining the original block.")
+            return result
+        return {
+            "decision": review["decision"],
+            "explanation": review["explanation"],
+            "block_category": review["block_category"],
+        }
+
+    def _is_short_meta_request(self, message: HumanMessage) -> bool:
+        """Match an entire short greeting or identity question without attachments."""
+        content = message.content
+        if isinstance(content, list) and not all(
+            isinstance(block, str)
+            or (
+                isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            )
+            for block in content
+        ):
+            return False
+        query = self._extract_message_text(message)
+        if not query or len(query) > 80:
+            return False
+        normalized_query = " ".join(query.casefold().split())
+        return (
+            re.fullmatch(
+                r"(?:hi|hello|hey|good morning|good afternoon|good evening|"
+                r"who are you|what are you|what model are you|what can you do|"
+                r"what are your capabilities|how can you help|"
+                r"你好|您好|嗨|你是谁|你是什么|你是什么模型|你能做什么)"
+                r"[.!?。！？]*",
+                normalized_query,
+            )
+            is not None
+        )
+
+    async def _invoke_classifier(
+        self, prompt: list, schema: type[GuardrailsDecision] = GuardrailsDecision
+    ) -> GuardrailsDecision:
+        """Invoke the structured classifier with the existing retry and fallback chain."""
         last_exception: Exception | None = None
 
         for model_index, (model_name, llm) in enumerate(self.classifier_llms):
-            structured_llm = llm.with_structured_output(GuardrailsDecision)
+            structured_llm = llm.with_structured_output(schema)
 
             for attempt in range(GUARDRAILS_MAX_RETRIES + 1):
                 try:
-                    result: GuardrailsDecision = await asyncio.wait_for(
-                        structured_llm.ainvoke(
-                            prompt, config={"callbacks": [], "tags": ["guardrails"]}
+                    result = cast(
+                        GuardrailsDecision,
+                        await asyncio.wait_for(
+                            structured_llm.ainvoke(
+                                prompt, config={"callbacks": [], "tags": ["guardrails"]}
+                            ),
+                            timeout=GUARDRAILS_TIMEOUT_SECONDS,
                         ),
-                        timeout=GUARDRAILS_TIMEOUT_SECONDS,
                     )
+                    if (
+                        (
+                            result["decision"] == "ALLOWED"
+                            and result["block_category"] is not None
+                        )
+                        or (
+                            result["decision"] == "BLOCKED"
+                            and result["block_category"]
+                            not in {"zero_tolerance", "unconditional", "off_topic"}
+                        )
+                        or result["decision"] not in {"ALLOWED", "BLOCKED"}
+                    ):
+                        raise ValueError(
+                            "Invalid guardrails decision or block category"
+                        )
+                    if schema is GuardrailsScopeReview:
+                        review = cast(GuardrailsScopeReview, result)
+                        if (
+                            review["allow_criterion"]
+                            not in {
+                                None,
+                                "technical",
+                                "ecosystem",
+                                "technical_follow_up",
+                            }
+                            or (
+                                review["decision"] == "ALLOWED"
+                                and not review["allow_criterion"]
+                            )
+                            or (
+                                review["decision"] == "BLOCKED"
+                                and review["allow_criterion"] is not None
+                            )
+                        ):
+                            raise ValueError(
+                                "Invalid technical allowance for off-topic review"
+                            )
                     if model_index > 0:
                         logger.info(
                             "Guardrails classification succeeded with fallback model: %s",
@@ -498,6 +612,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if run_tree:
                 run_tree.metadata["guardrails_result"] = decision["decision"]
                 run_tree.metadata["guardrails_explanation"] = decision["explanation"]
+                run_tree.metadata["guardrails_block_category"] = decision[
+                    "block_category"
+                ]
         except Exception:
             pass  # Silently ignore if run tree is not available
 

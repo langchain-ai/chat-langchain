@@ -1,20 +1,92 @@
-"""Tests for guardrails scope restrictions.
+"""Tests for guardrail scope policy and technical follow-up regressions."""
 
-These tests verify that the guardrails system prompt explicitly handles pure
-data science library questions (pandas, numpy, sklearn, pyspark, etc.) without
-LangChain context by blocking/redirecting them.
-
-"""
-
+import asyncio
 import os
 import sys
 from pathlib import Path
 
+import pytest
+from langchain_core.messages import HumanMessage
+
 # Ensure src is on the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
+from src.middleware.guardrails_middleware import (
+    _GUARDRAILS_SYSTEM_PROMPT,
+    GuardrailsMiddleware,
+)
 from src.prompts.guardrails_prompts import rejection_system_prompt
+from tests.unit.test_guardrails_fallback import (
+    FakeStructuredModel,
+    _middleware_with_models,
+)
+
+SCOPE_REGRESSIONS = [
+    ("你是什么模型", []),
+    (
+        "帮我出一个开发及部署攻略？",
+        [
+            {
+                "query": "How do I integrate LangChain and LangGraph with Spring Boot?",
+                "decision": "ALLOWED",
+            },
+        ],
+    ),
+    (
+        'print(agent.run("What is 12*8?"))',
+        [
+            {
+                "query": "from langchain.agents import initialize_agent\nfrom langchain_openai import ChatOpenAI\nagent = initialize_agent(tools, ChatOpenAI())",
+                "decision": "ALLOWED",
+            },
+        ],
+    ),
+]
+
+
+@pytest.mark.parametrize("query,history", SCOPE_REGRESSIONS)
+def test_always_allow_scope_regressions(query, history):
+    model = FakeStructuredModel(
+        [
+            {
+                "decision": "BLOCKED",
+                "explanation": "Not LangChain-specific.",
+                "block_category": "off_topic",
+            },
+            {
+                "decision": "ALLOWED",
+                "explanation": "Technical follow-up.",
+                "block_category": None,
+                "allow_criterion": "technical_follow_up",
+            },
+        ]
+    )
+    middleware = _middleware_with_models(("primary", model))
+    result = asyncio.run(
+        middleware._classify_query([HumanMessage(content=query)], history)
+    )
+    assert result["decision"] == "ALLOWED"
+    assert result["block_category"] is None
+    if history:
+        assert model.calls == 2
+        assert history[-1]["query"] in model.prompts[1][-1].content
+    else:
+        assert model.calls == 0
+
+
+@pytest.mark.skipif(
+    not os.getenv("OPENAI_API_KEY"), reason="Requires classifier API credentials"
+)
+@pytest.mark.parametrize("query,history", SCOPE_REGRESSIONS)
+def test_always_allow_scope_regressions_with_classifier(query, history):
+    middleware = GuardrailsMiddleware(
+        model="openai:gpt-5.4-nano", fallback_model="openai:gpt-5.4-nano"
+    )
+    result = asyncio.run(
+        middleware._classify_query([HumanMessage(content=query)], history)
+    )
+    assert result["decision"] == "ALLOWED"
+
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -157,7 +229,10 @@ def test_guardrails_prompt_allows_langchain_resource_questions():
 def test_guardrails_prompt_allows_bare_technical_follow_ups():
     """Layman-terms follow-ups after LangGraph questions must be allowed."""
     assert "in layman terms" in PROMPT_LOWER
-    assert "technical follow-up questions about prior langchain / langgraph" in PROMPT_LOWER
+    assert (
+        "technical follow-up questions about prior langchain / langgraph"
+        in PROMPT_LOWER
+    )
     assert "in-scope technical questions" in PROMPT_LOWER
 
 
