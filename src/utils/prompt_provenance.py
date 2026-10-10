@@ -16,7 +16,7 @@ _PROMPT_WORKSPACE_ENV = "LANGSMITH_PROMPT_WORKSPACE_ID"
 #: read prompts in ``LANGSMITH_PROMPT_WORKSPACE_ID``. Set this to a key that can.
 _PROMPT_API_KEY_ENV = "LANGSMITH_PROMPT_API_KEY"
 
-_USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
+_USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "true").lower() in {
     "1",
     "true",
     "yes",

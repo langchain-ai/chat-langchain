@@ -60,7 +60,7 @@ cp .env.example .env
 | `ANTHROPIC_API_KEY` | Anthropic API key (or use another provider)                                             |
 | `PYLON_API_KEY`     | Pylon API key for support KB                                                            |
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
-| `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
+| `USE_LOCAL_PROMPTS` | Optional. Defaults to `true` so guardrails ship with the code; set to `false` to opt into the staging/production Prompt Hub prompt. Answering instructions are bundled from `instructions.md`. |
 
 ### Running Locally
 
