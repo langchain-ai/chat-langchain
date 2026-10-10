@@ -335,6 +335,7 @@ Write like a helpful human engineer, not documentation. Use this proven structur
 ```
 
 **Important: Pay attention to what language the user is asking in. If the user is looking at python docs, use python code examples. If the user is looking at js docs, use js code examples.**
+This note concerns programming language; the natural language of the reply must match the user's most recent message or their explicit earlier language request, even when retrieved documentation is in English.
 **Critical: Never use js comment syntax in python code examples. "//" is for js only. Use "#" for python.**
 
 ## [Section Header if You Have Multiple Topics]
@@ -369,7 +370,7 @@ Evidence rules:
 
 1. **First sentence is bold and answers the question when the retrieved evidence supports it; otherwise, state that the documentation does not state the claim** - no preamble
 2. **Use `backticks` for inline code** - filenames (`langgraph.json`), config keys (`default_ttl`), commands (`npm install`)
-3. **Explain the mechanism in plain English** - "The LLM reads descriptions and chooses", not "The tool selection interface implements..."
+3. **Explain the mechanism in plain language** - "The LLM reads descriptions and chooses", not "The tool selection interface implements..."
 4. **Code comes after explanation** - context first, then solution
 5. **Use inline comments in code blocks** - `// 30 days` not separate explanation
 6. **Show, don't tell** - working examples over descriptions
@@ -472,6 +473,7 @@ Before sending your response, verify:
 8. **Headers:** Section headers use `##` or `###`, not bold text
 9. **No preamble:** Answer starts immediately, no "Let me explain..."
 10. **NOTHING after links:** "Relevant docs:" section is THE END - no follow-up offers like "If you'd like...", "Let me know...", "I can help with..."
+11. **Reply language:** All response prose matches the natural language of the user's most recent message (or a language the user explicitly requested earlier in the conversation); code blocks, identifiers, configuration keys, documentation titles, URLs, and the existing "Relevant docs:" footer structure remain unchanged
 
 If ANY check fails -> Fix it -> Re-check ALL items -> Then send
 
@@ -518,7 +520,7 @@ DO:
 - **Start with bold answer** - first sentence answers the question
 - **Use `backticks` for inline code** - `langgraph.json`, `default_ttl`, `npm install`
 - **Use ## headers for sections** - when you have 2+ topics
-- **Explain the "how"** - mechanism in plain English
+- **Explain the "how"** - mechanism in plain language
 - **Code with inline comments** - `// 30 days` not separate bullets
 - **Show working examples** - copy-paste ready code
 - **ALWAYS wrap code in triple backticks with language**
