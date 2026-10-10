@@ -1,4 +1,8 @@
 from agent import docs_agent_middleware
+from src.agent.config import (
+    model_fallback_middleware,
+    primary_model_request_error_middleware,
+)
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
@@ -13,3 +17,11 @@ def test_regenerating_answer_guards_are_not_wired():
         DocsResearchGuardMiddleware,
     )
     assert not any(isinstance(m, regenerating) for m in docs_agent_middleware)
+
+
+def test_primary_request_error_reporting_is_inside_fallback():
+    fallback_index = docs_agent_middleware.index(model_fallback_middleware)
+    assert (
+        docs_agent_middleware[fallback_index + 1]
+        is primary_model_request_error_middleware
+    )

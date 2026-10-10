@@ -13,6 +13,9 @@ from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddl
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
+from src.middleware.primary_model_request_error_middleware import (
+    PrimaryModelRequestErrorMiddleware,
+)
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -146,6 +149,9 @@ citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
 model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+primary_model_request_error_middleware = PrimaryModelRequestErrorMiddleware(
+    DEFAULT_MODEL.id
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -171,6 +177,7 @@ __all__ = [
     "citation_guard_middleware",
     "answer_sanity_guard_middleware",
     "model_fallback_middleware",
+    "primary_model_request_error_middleware",
     # Config
     "MAX_RETRIES",
     "logger",
