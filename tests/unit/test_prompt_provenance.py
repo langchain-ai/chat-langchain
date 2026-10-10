@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import importlib
+import os
+import subprocess
+import sys
 
 from langchain_core.messages import SystemMessage
 
@@ -88,8 +91,6 @@ def test_resolve_hub_provenance_without_overrides_uses_default_client(monkeypatc
 
 
 def test_guardrails_prompt_import_renders_without_invoke(monkeypatch):
-    monkeypatch.delenv("USE_LOCAL_PROMPTS", raising=False)
-
     class FakeTemplate:
         metadata = {"lc_hub_commit_hash": "guardrails-commit"}
 
@@ -107,9 +108,40 @@ def test_guardrails_prompt_import_renders_without_invoke(monkeypatch):
 
     import langsmith
 
-    monkeypatch.setattr(langsmith, "Client", FakeClient)
-    module = importlib.import_module("src.middleware.guardrails_middleware")
+    with monkeypatch.context() as context:
+        context.setenv("USE_LOCAL_PROMPTS", "false")
+        context.setattr(langsmith, "Client", FakeClient)
+        module = importlib.import_module("src.middleware.guardrails_middleware")
+        importlib.reload(module)
+
+        assert module._GUARDRAILS_SYSTEM_PROMPT == "guardrails system prompt"
+        assert module.guardrails_prompt_commit == "guardrails-commit"
+
     importlib.reload(module)
 
-    assert module._GUARDRAILS_SYSTEM_PROMPT == "guardrails system prompt"
-    assert module.guardrails_prompt_commit == "guardrails-commit"
+
+def test_default_guardrails_use_shipped_prompt_and_matching_provenance():
+    environment = dict(os.environ)
+    environment.pop("USE_LOCAL_PROMPTS", None)
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import langsmith
+from unittest.mock import patch
+
+with patch.object(langsmith, "Client", side_effect=AssertionError("Unexpected Hub pull")):
+    from src.middleware import guardrails_middleware as middleware
+    from src.prompts.guardrails_prompts import guardrails_system_prompt
+    from src.utils.prompt_provenance import get_prompt_provenance
+
+    assert middleware._GUARDRAILS_SYSTEM_PROMPT == guardrails_system_prompt
+    assert "Defensive security for the user's own" in middleware._GUARDRAILS_SYSTEM_PROMPT
+    assert middleware.guardrails_prompt_commit is None
+    assert get_prompt_provenance("docs_agent")["guardrails_prompt_source"] == middleware.guardrails_prompt_source
+""",
+        ],
+        env=environment,
+        check=True,
+    )
