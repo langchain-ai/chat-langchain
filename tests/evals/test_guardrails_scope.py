@@ -6,14 +6,22 @@ LangChain context by blocking/redirecting them.
 
 """
 
+import asyncio
 import os
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+from langchain_core.messages import HumanMessage
 
 # Ensure src is on the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
+from src.middleware.guardrails_middleware import (
+    _GUARDRAILS_SYSTEM_PROMPT,
+    GuardrailsMiddleware,
+)
 from src.prompts.guardrails_prompts import rejection_system_prompt
 
 # ---------------------------------------------------------------------------
@@ -22,6 +30,74 @@ from src.prompts.guardrails_prompts import rejection_system_prompt
 
 PROMPT_LOWER = _GUARDRAILS_SYSTEM_PROMPT.lower()
 REJECTION_PROMPT_LOWER = rejection_system_prompt.lower()
+
+
+@pytest.mark.parametrize(
+    "query,history,expected",
+    [
+        ("你是什么模型", [], "ALLOWED"),
+        (
+            'print(agent.run("What is 12*8?"))',
+            [
+                {
+                    "query": "from langchain.agents import Tool, initialize_agent, AgentType",
+                    "decision": "ALLOWED",
+                }
+            ],
+            "ALLOWED",
+        ),
+        (
+            "帮我出一个开发及部署攻略？",
+            [
+                {
+                    "query": "你可以帮我详细介绍下langChain呵LangGraph吗",
+                    "decision": "ALLOWED",
+                },
+                {"query": "springboot2.x版本 如何进行集成？", "decision": "ALLOWED"},
+            ],
+            "ALLOWED",
+        ),
+        ("what's 5x5", [], "BLOCKED"),
+        ("write a birthday poem", [], "BLOCKED"),
+    ],
+)
+def test_scope_decision_paths(query, history, expected):
+    """Check scope recovery and off-topic blocking without live model calls."""
+    primary = Mock()
+    primary.with_structured_output.return_value = primary
+    primary.ainvoke = AsyncMock(
+        return_value={
+            "decision": "BLOCKED",
+            "explanation": "Outside scope.",
+            "block_category": "scope",
+        }
+    )
+    fallback = Mock()
+    fallback.with_structured_output.return_value = fallback
+    fallback.ainvoke = AsyncMock(
+        return_value={
+            "decision": "ALLOWED",
+            "explanation": "Technical follow-up.",
+            "block_category": "none",
+        }
+    )
+    middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    middleware.classifier_llms = [("primary", primary), ("fallback", fallback)]
+
+    result = asyncio.run(
+        middleware._classify_query([HumanMessage(content=query)], history)
+    )
+
+    assert result["decision"] == expected
+    if query == "你是什么模型":
+        primary.ainvoke.assert_not_awaited()
+        fallback.ainvoke.assert_not_awaited()
+    elif expected == "ALLOWED":
+        fallback.ainvoke.assert_awaited_once()
+        assert primary.ainvoke.call_args == fallback.ainvoke.call_args
+    else:
+        fallback.ainvoke.assert_not_awaited()
+
 
 # Data science libraries that should be restricted when used without LangChain context
 PURE_DS_LIBRARIES = [
@@ -157,8 +233,20 @@ def test_guardrails_prompt_allows_langchain_resource_questions():
 def test_guardrails_prompt_allows_bare_technical_follow_ups():
     """Layman-terms follow-ups after LangGraph questions must be allowed."""
     assert "in layman terms" in PROMPT_LOWER
-    assert "technical follow-up questions about prior langchain / langgraph" in PROMPT_LOWER
+    assert (
+        "technical follow-up questions about prior langchain / langgraph"
+        in PROMPT_LOWER
+    )
     assert "in-scope technical questions" in PROMPT_LOWER
+
+
+def test_guardrails_prompt_has_context_and_identity_examples():
+    """Keep multilingual and code examples subordinate to unconditional blocks."""
+    assert "你是什么模型" in PROMPT_LOWER
+    assert "print(agent.run(" in PROMPT_LOWER
+    assert "开发及部署攻略" in PROMPT_LOWER
+    assert "unconditional blocks take precedence" in PROMPT_LOWER
+    assert "blocked (zero_tolerance): harmful use case" in PROMPT_LOWER
 
 
 # ---------------------------------------------------------------------------

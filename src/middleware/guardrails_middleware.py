@@ -4,6 +4,8 @@ import asyncio
 import logging
 import os
 import random
+import re
+import unicodedata
 from typing import Any, Literal
 
 import langsmith as ls
@@ -31,6 +33,21 @@ GUARDRAILS_DATASET_NAME = "Chat-LangChain-Guardrails-Samples"
 ALLOWED_SAMPLE_RATE = 0.01  # 1% of allowed queries go to dataset
 GUARDRAILS_MAX_RETRIES = 2
 GUARDRAILS_TIMEOUT_SECONDS = 10
+_SHORT_META_QUERY = re.compile(
+    r"(?:hi|hello|hey|good morning|who are you|what are you|what model are you|"
+    r"what can you do|what are your capabilities|how can you help|"
+    r"你好|您好|你是谁|你是什么(?:大)?模型|你能做什么|"
+    r"hola|quién eres|qué puedes hacer|bonjour|qui es-tu|こんにちは)"
+)
+_TECHNICAL_QUERY = re.compile(
+    r"```|\b(?:langchain\w*|langgraph\w*|langsmith\w*|langserve\w*|"
+    r"deepagents|deep agents|fleet|StateGraph|MessageGraph|LCEL|"
+    r"initialize_agent|AgentType|AgentExecutor|ChatOpenAI|Runnable\w*|ToolNode)\b|"
+    r"\b(?:from\s+\w+[.\w]*\s+import|import\s+\w+|"
+    r"(?:async\s+)?def\s+\w+\s*\(|(?:const|let|var)\s+\w+\s*=|"
+    r"function\s*\w*\s*\(|\w+(?:\.\w+)*\s*\(|\w+\s*=(?!=))|=>",
+    re.IGNORECASE,
+)
 _USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
     "1",
     "true",
@@ -55,6 +72,7 @@ class GuardrailsDecision(TypedDict):
 
     decision: Literal["ALLOWED", "BLOCKED"]
     explanation: str
+    block_category: Literal["none", "scope", "zero_tolerance", "unconditional"]
 
 
 class GuardrailTurn(TypedDict):
@@ -177,9 +195,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -211,11 +227,6 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         safe_last_content = self._content_to_safe_text(last_content)
         query_preview = safe_last_content[:100]
 
-        # One classifier, every turn. Covers topic relevance + zero-tolerance
-        # categories (NSFW, fiction, harmful-use-case, prompt-extraction,
-        # social-pressure). The prompt's lenient follow-up rules keep legit
-        # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
-        # while zero-tolerance bullets override the default ALLOW.
         try:
             guardrail_history = state.get("guardrail_history", [])
             if guardrail_history:
@@ -357,7 +368,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         instruction = (
             "Classify this user query for the LangChain documentation assistant. "
             "Consider both the text and any attached images. "
-            "Return both the decision and one concise sentence explaining why."
+            "Return the decision, one concise sentence explaining why, and "
+            "block_category: none for ALLOWED, scope for topic restrictions, "
+            "zero_tolerance for ALWAYS BLOCK - Zero Tolerance, or unconditional "
+            "for ALWAYS BLOCK - Regardless of technical context or conversation "
+            "history. Unconditional categories take precedence over scope."
         )
 
         if context_section:
@@ -399,11 +414,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     async def _classify_query(
         self, messages: list, guardrail_history: list[GuardrailTurn] | None = None
     ) -> GuardrailsDecision:
-        """Classify query as ALLOWED or BLOCKED.
-
-        Raises:
-            GuardrailsClassificationError: If classification fails after retries.
-        """
+        """Classify the query, checking eligible scope refusals with the fallback."""
         # Extract the current query (last human message)
         current_message = None
         current_query = None
@@ -411,14 +422,28 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+                "block_category": "none",
+            }
+
+        current_content = getattr(current_message, "content", current_query or "")
+        if self._is_short_meta_query(current_content, current_query):
+            return {
+                "decision": "ALLOWED",
+                "explanation": "Short text-only greeting, identity or capability question.",
+                "block_category": "none",
+            }
 
         # Build context from prior classified turns for follow-up detection.
         context_section = ""
@@ -431,7 +456,6 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 )
             )
 
-        current_content = getattr(current_message, "content", current_query or "")
         prompt = [
             SystemMessage(content=_GUARDRAILS_SYSTEM_PROMPT),
             HumanMessage(
@@ -440,6 +464,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ]
 
         last_exception: Exception | None = None
+        scope_refusal: GuardrailsDecision | None = None
+        retry_eligible = bool(_TECHNICAL_QUERY.search(current_query or "")) or any(
+            turn["decision"] == "ALLOWED" for turn in (guardrail_history or [])[-3:]
+        )
 
         for model_index, (model_name, llm) in enumerate(self.classifier_llms):
             structured_llm = llm.with_structured_output(GuardrailsDecision)
@@ -457,6 +485,26 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                             "Guardrails classification succeeded with fallback model: %s",
                             model_name,
                         )
+                    if (
+                        result["decision"] == "BLOCKED"
+                        and result.get("block_category") == "scope"
+                        and not re.search(
+                            r"zero[ -]tolerance|regardless of technical context",
+                            result["explanation"],
+                            re.IGNORECASE,
+                        )
+                        and retry_eligible
+                        and model_index < len(self.classifier_llms) - 1
+                    ):
+                        scope_refusal = result
+                        break
+                    if scope_refusal and result["decision"] == "ALLOWED":
+                        logger.info(
+                            "Guardrails scope refusal overridden by second opinion from %s: %s",
+                            model_name,
+                            scope_refusal["explanation"],
+                        )
+                        self._track_scope_override(model_name, scope_refusal)
                     return result
                 except Exception as e:
                     last_exception = e
@@ -487,9 +535,47 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                             e,
                         )
 
+        if scope_refusal:
+            return scope_refusal
+
         raise GuardrailsClassificationError(
             f"Guardrails classification failed after retries: {last_exception}"
         )
+
+    def _is_short_meta_query(self, content: Any, query: str | None) -> bool:
+        """Match only complete short text-only greetings or assistant questions."""
+        if not query or len(query.strip()) > 40:
+            return False
+        if not isinstance(content, str) and not (
+            isinstance(content, list)
+            and all(
+                isinstance(block, str)
+                or (isinstance(block, dict) and block.get("type") == "text")
+                for block in content
+            )
+        ):
+            return False
+        normalized = unicodedata.normalize("NFKC", query).casefold()
+        normalized = re.sub(
+            r"^[?!.,，。！？¿¡\s]+|[?!.,，。！？¿¡\s]+$", "", normalized
+        )
+        normalized = " ".join(normalized.split())
+        return _SHORT_META_QUERY.fullmatch(normalized) is not None
+
+    def _track_scope_override(
+        self, model_name: str, refusal: GuardrailsDecision
+    ) -> None:
+        """Record the original scope refusal and the overriding classifier."""
+        try:
+            run_tree = ls.get_current_run_tree()
+            if run_tree:
+                run_tree.metadata["guardrails_scope_override"] = True
+                run_tree.metadata["guardrails_override_model"] = model_name
+                run_tree.metadata["guardrails_original_explanation"] = refusal[
+                    "explanation"
+                ]
+        except Exception:
+            pass
 
     def _track_decision_metadata(self, decision: GuardrailsDecision) -> None:
         """Add guardrails decision to LangSmith run metadata."""

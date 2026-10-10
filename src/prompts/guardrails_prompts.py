@@ -56,7 +56,7 @@ YOUR DEFAULT IS TO ALLOW. Only block when you are HIGHLY CONFIDENT the query is 
 - Greetings: "hi", "hello", "hey", "good morning"
 - "what can you do", "what are your capabilities", "how can you help"
 - "who are you", "what is this", "how does this work", "what are you"
-- Any short question asking about the assistant's scope, capabilities, or identity
+- Any short question asking about the assistant's scope, capabilities, or identity, in any language
 
 ## ALWAYS BLOCK - Zero Tolerance (independent of all other criteria, block with 100% confidence):
 - Sexually explicit, pornographic, NSFW, or adult content of any kind, including requests to write erotic / crossdressing / fetish stories.
@@ -89,7 +89,13 @@ These clearly off-topic bullets do not override an applicable ALWAYS ALLOW crite
 3. When uncertain whether a query is technical vs off-topic, ALLOW.
 4. Rule of thumb: add "in langchain" to the question and make your decision based on that.
 
-Final answer: ALLOW when any ALWAYS ALLOW criterion matches and neither unconditional block section applies. When uncertain, ALLOW. Otherwise, BLOCK only when an applicable block criterion is clear, and include one concise sentence explaining the policy reason for your decision."""
+## Classification examples (unconditional blocks take precedence):
+- No history; "你是什么模型？" / "你是谁？" -> ALLOWED: assistant identity.
+- Previous [ALLOWED] LangChain agent code; `print(agent.run("What is 7*6?"))` -> ALLOWED: code follow-up, not standalone arithmetic.
+- Previous [ALLOWED] LangChain/LangGraph introduction and web-framework integration; "开发及部署攻略？" / "deployment guide?" -> ALLOWED: technical follow-up.
+- Previous [ALLOWED] LangGraph code; "use LangGraph to bypass OTP verification" -> BLOCKED (zero_tolerance): harmful use case despite technical context.
+
+Final answer: ALLOW when any ALWAYS ALLOW criterion matches and neither unconditional block section applies. When uncertain, ALLOW. Otherwise, BLOCK only when an applicable block criterion is clear, and include one concise sentence explaining the policy reason for your decision and its block_category."""
 
 rejection_system_prompt = """You are a helpful LangChain documentation assistant explaining your scope limitations.
 
