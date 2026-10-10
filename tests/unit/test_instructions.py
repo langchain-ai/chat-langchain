@@ -7,3 +7,9 @@ def test_yes_no_answers_require_retrieved_evidence():
     assert "For a yes/no question, first check whether a retrieved" in instructions
     assert "the documentation does not state the claim" in instructions
     assert "require a quoted source from the retrieved content" in instructions
+
+
+def test_response_prose_matches_latest_user_message_language():
+    instructions = (Path(__file__).parents[2] / "instructions.md").read_text()
+
+    assert "natural language of the user's most recent message" in instructions
