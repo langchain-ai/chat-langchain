@@ -8,6 +8,7 @@ from src.agent.config import (
     duplicate_call_guard_middleware,
     model_fallback_middleware,
     model_retry_middleware,
+    primary_model_request_error_middleware,
     summarization_model,
     tool_retry_middleware,
 )
@@ -54,6 +55,7 @@ docs_agent_middleware = [
     # fallback chain, producing a second visible generation.
     model_retry_middleware,
     model_fallback_middleware,
+    primary_model_request_error_middleware,
 ]
 
 agent = define_deep_agent(
