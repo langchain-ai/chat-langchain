@@ -60,7 +60,7 @@ cp .env.example .env
 | `ANTHROPIC_API_KEY` | Anthropic API key (or use another provider)                                             |
 | `PYLON_API_KEY`     | Pylon API key for support KB                                                            |
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
-| `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
+| `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use the local guardrails prompt instead of its Prompt Hub prompt; docs instructions always come from deployed `instructions.md` |
 
 ### Running Locally
 
@@ -127,9 +127,24 @@ The agent uses a docs-first research strategy:
 
 ### Managed Deep Agents
 
+The docs agent uses the `instructions.md` bundled with the deployed checkout
+(`_mda_entry.py` passes it as `system_prompt`), not a docs Prompt Hub `production`
+tag. Merging instructions or running `scripts/push_docs_agent_prompt.py` does not
+update the running agent; deploy the revised checkout.
+
+Run the **Deploy Production Agent** workflow (`.github/workflows/deploy-production.yml`)
+with the revised branch selected and the existing production deployment name.
+The workflow uses repository secrets and runs the equivalent of:
+
 ```bash
-mda deploy .
+mda deploy . --name <existing-production-deployment-name> --deployment-type prod
 ```
+
+After deployment succeeds, inspect a new docs-agent trace's model input and
+confirm its system prompt contains the Evidence rules requiring exact-term
+research before denials and query rule 7 preserving model, API, and package
+identifiers. Confirm both `gpt-6 decision api` and `langchain_typesafe` query
+examples are present; a local file or a Hub prompt is not deployment verification.
 
 What MDA owns in this deployment:
 
