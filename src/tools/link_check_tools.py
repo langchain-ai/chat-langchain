@@ -24,6 +24,31 @@ SOFT_404_DOMAINS = {
     "support.langchain.com",
 }
 
+# Only these hosts may appear in a cited link. Any other host is invalid even if
+# it resolves, so a typo'd or substituted hostname (docs.linkchain.com,
+# docs.langsmith.com) can never pass validation on reachability alone.
+ALLOWED_DOC_HOSTS: frozenset[str] = frozenset({
+    "docs.langchain.com",
+    "reference.langchain.com",
+    "smith.langchain.com",
+    "python.langchain.com",
+    "js.langchain.com",
+    "blog.langchain.com",
+    "support.langchain.com",
+    "langchain.com",
+    "www.langchain.com",
+    "api.smith.langchain.com",
+    "github.com",
+    "pypi.org",
+    "npmjs.com",
+    "ai.google.dev",
+    "platform.openai.com",
+    "docs.anthropic.com",
+    "docs.python.org",
+})
+
+UNAPPROVED_HOST_ERROR = "host not an approved documentation domain"
+
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
 
@@ -43,6 +68,14 @@ def _is_valid_url(url: str) -> bool:
     try:
         result = urlparse(url)
         return all([result.scheme in ("http", "https"), result.netloc])
+    except Exception:
+        return False
+
+
+def _is_allowed_host(url: str) -> bool:
+    """Check if a URL's host is an approved documentation domain."""
+    try:
+        return urlparse(url).netloc.lower() in ALLOWED_DOC_HOSTS
     except Exception:
         return False
 
@@ -81,6 +114,11 @@ async def _check_single_url(
 
     if not _is_valid_url(url):
         result = LinkCheckResult(url=url, valid=False, error="Invalid URL format")
+        _cache[url] = result
+        return result
+
+    if not _is_allowed_host(url):
+        result = LinkCheckResult(url=url, valid=False, error=UNAPPROVED_HOST_ERROR)
         _cache[url] = result
         return result
 
