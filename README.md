@@ -60,7 +60,7 @@ cp .env.example .env
 | `ANTHROPIC_API_KEY` | Anthropic API key (or use another provider)                                             |
 | `PYLON_API_KEY`     | Pylon API key for support KB                                                            |
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
-| `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
+| `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use the local guardrails prompt instead of Prompt Hub; the docs agent always loads `instructions.md` |
 
 ### Running Locally
 
@@ -130,6 +130,40 @@ The agent uses a docs-first research strategy:
 ```bash
 mda deploy .
 ```
+
+### Releasing the Docs Agent Prompt to Production
+
+The docs agent's system prompt comes from `instructions.md`, loaded by
+`_mda_entry.py` and passed to `compile_managed_agent`. Updating
+`public-chat-langchain-test:production` with `scripts/push_docs_agent_prompt.py`
+does not update this Managed Deep Agent runtime. Guardrails still use their
+separate Hub prompt unless `USE_LOCAL_PROMPTS` is enabled.
+
+1. Run `uv run pytest tests/unit/test_instructions.py` on the revision to release.
+   These tests cover evidence-gated yes/no verdicts, the conditional bold opening,
+   and forwarding the local instructions through the deployed entrypoint.
+2. Run the existing **Deploy Production Agent** workflow
+   (`.github/workflows/deploy-production.yml`) on that revision's branch or tag.
+   Set `deployment_name` to the actual production deployment identified by host
+   metadata, not the tracing project's display name or the workflow default.
+   The workflow uses repository secrets and runs `uv run mda deploy . --name <deployment_name>
+   --deployment-type prod`. A repository push alone does not deploy the prompt.
+3. Wait for the workflow and production revision to become ready. Inspect a new
+   production docs-agent LLM run's system message, not a Hub pull or a dev replay:
+
+   ```bash
+   langsmith --format json run list \
+     --project-id 80c69da8-d7e3-4e99-bed4-4e7e64c9e718 \
+     --run-type llm --include-io --include-metadata --limit 20
+   ```
+
+   Confirm the run's deployment metadata identifies the intended production host
+   and released revision; exclude `langsmith_engine_validation` runs and
+   `engine-chat-langchain-dev`, which can trace into this same project. The system
+   message must contain the released `instructions.md`, including `Evidence
+   rules:` and the writing rule beginning `First sentence is bold and answers the
+   question when the retrieved evidence supports it`. If no matching production
+   run is available, prompt promotion is not yet verified.
 
 What MDA owns in this deployment:
 
