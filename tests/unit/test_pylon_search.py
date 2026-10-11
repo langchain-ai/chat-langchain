@@ -3,6 +3,8 @@
 import json
 from unittest.mock import patch
 
+import pytest
+
 from src.tools.pylon_tools import search_support_articles
 
 COLLECTIONS = {
@@ -100,18 +102,31 @@ def test_collection_filter_combines_with_query():
     assert result["articles"][0]["collection"] == "Troubleshooting"
 
 
-def test_search_caps_results_at_ten():
+@pytest.mark.parametrize(
+    ("query", "total_matched", "returned"),
+    [("deployment", 225, 10), ("nonexistent-keyword", 0, 0), ("", 0, 0)],
+)
+def test_search_caps_results_and_serialized_size(query, total_matched, returned):
     articles = [
-        _article(str(index), f"Deployment article {index}", "Deployment details.")
-        for index in range(12)
+        _article(
+            str(index),
+            f"Deployment article {index}",
+            "<p>Deployment details.</p>" * 1_000,
+        )
+        for index in range(225)
     ]
 
-    result = _search(articles, "deployment")
+    result = _search(articles, query, collections="all")
 
-    assert result["total_matched"] == 12
-    assert result["returned"] == 10
-    assert len(result["articles"]) == 10
+    assert result["total_matched"] == total_matched
+    assert result["returned"] == returned
+    assert len(result["articles"]) == returned
+    assert len(json.dumps(result)) < 10_000
     assert all(
         set(article) == {"id", "article_id", "title", "url", "collection", "snippet"}
+        for article in result["articles"]
+    )
+    assert all(
+        len(article["snippet"]) <= 300 and "<p>" not in article["snippet"]
         for article in result["articles"]
     )
