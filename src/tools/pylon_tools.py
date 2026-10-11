@@ -227,6 +227,13 @@ def search_support_articles(collections: str = "all") -> str:
                             collection_ids.append(collection_map[key])
                             matched = True
                             break
+                    # Try prefix/substring match (e.g., "OSS" matches "OSS (LangChain and LangGraph)")
+                    if not matched:
+                        for key in collection_map.keys():
+                            if key.lower().startswith(coll_name.lower()):
+                                collection_ids.append(collection_map[key])
+                                matched = True
+                                break
                     if not matched:
                         return json.dumps(
                             {
