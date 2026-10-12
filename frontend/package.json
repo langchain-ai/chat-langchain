@@ -86,6 +86,7 @@
     "typescript": "^5"
   },
   "overrides": {
-    "sharp": "^0.35.4"
+    "sharp": "^0.35.5",
+    "source-map-js": "^1.2.2"
   }
 }
