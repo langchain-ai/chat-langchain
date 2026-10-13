@@ -62,6 +62,12 @@ cp .env.example .env
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
 
+Guardrails also fall back to the local policy if the Hub prompt differs from the
+repository. After `python -m scripts.push_guardrails_prompt`, move the Hub
+`production` tag to the newly pushed commit and restart deployed workers to reload
+it. Run `python -m scripts.check_guardrails_prompt` in CI with a LangSmith key that
+can read the public production prompt; matching SHA-256 hashes pass, drift fails.
+
 ### Running Locally
 
 #### Backend
@@ -117,7 +123,7 @@ operations go through the managed identity and connector surface.
 
 The agent uses a docs-first research strategy:
 
-1. **Guardrails Check** - Validates the query is LangChain-related
+1. **Guardrails Check** - Filters out-of-scope and unsafe requests
 2. **Documentation Search** - Searches official docs via the managed MCP connector
 3. **Knowledge Base** - Searches Pylon for known issues/solutions
 4. **Link Validation** - Verifies any URLs before including them

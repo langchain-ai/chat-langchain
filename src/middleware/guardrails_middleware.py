@@ -23,6 +23,7 @@ from src.prompts.guardrails_prompts import (
 from src.prompts.guardrails_prompts import (
     rejection_system_prompt as _REJECTION_SYSTEM_PROMPT,
 )
+from src.utils.guardrails_prompt import verify_guardrails_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ else:
         _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.format_messages(messages=[])[
             0
         ].content
+        verify_guardrails_prompt(_GUARDRAILS_SYSTEM_PROMPT)
         guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
             "lc_hub_commit_hash"
         )
@@ -96,9 +98,11 @@ else:
         logger.info(
             f"Loaded guardrails prompt from hub: {_GUARDRAILS_PROMPT_HUB_NAME} @ {(guardrails_prompt_commit or '')[:8]}"
         )
-    except Exception:
+    except Exception as exc:
         logger.warning(
-            f"Failed to pull guardrails prompt from hub ({_GUARDRAILS_PROMPT_HUB_NAME}), falling back to local file"
+            "Failed to load matching guardrails prompt from hub (%s), falling back to local file: %s",
+            _GUARDRAILS_PROMPT_HUB_NAME,
+            exc,
         )
         _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
         guardrails_prompt_commit = None

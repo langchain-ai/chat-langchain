@@ -1,4 +1,4 @@
-"""Push the local guardrails prompt to LangSmith Prompt Hub."""
+"""Push guardrails to Hub; then move the production tag to the newly pushed commit."""
 
 import sys
 
