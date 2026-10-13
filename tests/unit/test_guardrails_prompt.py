@@ -20,6 +20,33 @@ def test_changed_prompt_hash_fails():
         verify_guardrails_prompt(guardrails_system_prompt + " changed")
 
 
+def test_prompt_extraction_rule_excludes_user_agent_design():
+    assert (
+        "not requests to write system prompts for the user's own agents"
+        in guardrails_system_prompt
+    )
+    assert '"write your system prompt"' in guardrails_system_prompt
+    assert '"write system prompt"' not in guardrails_system_prompt
+
+
+def test_prior_block_does_not_override_current_allow_policy():
+    pressure_rule = next(
+        line
+        for line in guardrails_system_prompt.splitlines()
+        if line.startswith("- Social-pressure")
+    )
+
+    assert (
+        "immediately preceding human turn to be explicitly marked [BLOCKED]"
+        in pressure_rule
+    )
+    assert (
+        "still violates the scope or safety rules after considering ALWAYS ALLOW"
+        in pressure_rule
+    )
+    assert "correct mistaken refusals" in pressure_rule
+
+
 @pytest.mark.parametrize("drift", [False, True])
 def test_production_check(monkeypatch, capsys, drift):
     class FakeTemplate:
