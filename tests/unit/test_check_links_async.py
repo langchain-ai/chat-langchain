@@ -27,6 +27,13 @@ from src.tools.link_check_tools import (
 )
 
 
+@pytest.fixture(autouse=True)
+def public_dns():
+    with patch("asyncio.BaseEventLoop.getaddrinfo", new_callable=AsyncMock) as dns:
+        dns.return_value = [(2, 1, 6, "", ("93.184.216.34", 443))]
+        yield dns
+
+
 class _FakeStreamResponse:
     """Minimal async streaming response for _check_single_url tests."""
 
@@ -196,7 +203,7 @@ async def test_check_links_async_empty_list():
 def test_check_links_invalid_url_format():
     """An invalid URL (not http/https) must be reported as invalid."""
     # We do NOT mock here — _check_single_url validates format synchronously via
-    # _is_valid_url before making any network calls, so no HTTP is performed.
+    # _is_allowed_url before making any network calls, so no HTTP is performed.
     # We still mock _check_urls_async to avoid needing a real event loop in the
     # sync path and to keep the test fast.
     fake_results = [
