@@ -20,7 +20,7 @@ The repo also includes a Next.js frontend in `frontend/` for the public chat UI.
 
 - **Documentation Search** - Searches official LangChain docs via managed MCP
 - **Support KB** - Searches the Pylon knowledge base for known issues
-- **Link Validation** - Verifies URLs before including in responses
+- **Link Validation** - Verifies documentation citations on approved public hosts
 - **Guardrails** - Filters off-topic queries
 
 ## Quick Start
@@ -61,6 +61,7 @@ cp .env.example .env
 | `PYLON_API_KEY`     | Pylon API key for support KB                                                            |
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
+| `CHECK_LINKS_ALLOWED_HOSTS` | Optional comma-separated exact documentation hosts to allow in addition to `langchain.com` and its subdomains. Additional hosts do not include their subdomains. |
 
 ### Running Locally
 
@@ -120,7 +121,7 @@ The agent uses a docs-first research strategy:
 1. **Guardrails Check** - Validates the query is LangChain-related
 2. **Documentation Search** - Searches official docs via the managed MCP connector
 3. **Knowledge Base** - Searches Pylon for known issues/solutions
-4. **Link Validation** - Verifies any URLs before including them
+4. **Link Validation** - Verifies documentation citations on approved public hosts before including them
 5. **Response Generation** - Synthesizes a helpful answer
 
 ## Deployment
