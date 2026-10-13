@@ -1,15 +1,15 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
-import logging
+import ipaddress
+import posixpath
 import re
+import socket
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from urllib.parse import unquote, urljoin, urlparse
 
 import httpx
 from langchain.tools import tool
-
-logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 10.0
 MAX_REDIRECTS = 5
@@ -24,6 +24,16 @@ SOFT_404_DOMAINS = {
     "support.langchain.com",
 }
 
+ALLOWED_DOMAINS = SOFT_404_DOMAINS | {
+    "langchain-ai.github.io",
+    "github.com",
+    "smith.langchain.com",
+    "langchain.com",
+    "www.langchain.com",
+}
+DOMAIN_NOT_ALLOWED = "not checked (domain not allowed)"
+UNREACHABLE = "invalid/unreachable"
+
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
 
@@ -31,6 +41,7 @@ _cache: dict[str, "LinkCheckResult"] = {}
 @dataclass
 class LinkCheckResult:
     """Result of checking a single URL."""
+
     url: str
     valid: bool
     status_code: int | None = None
@@ -39,18 +50,69 @@ class LinkCheckResult:
 
 
 def _is_valid_url(url: str) -> bool:
-    """Check if a string is a valid URL format."""
+    """Check whether a URL is an allowed documentation destination."""
     try:
-        result = urlparse(url)
-        return all([result.scheme in ("http", "https"), result.netloc])
-    except Exception:
+        if "\\" in url or any(ord(character) <= 32 for character in url):
+            return False
+        result = httpx.URL(url)
+        if (
+            result.scheme not in ("http", "https")
+            or result.host not in ALLOWED_DOMAINS
+            or result.userinfo
+            or result.port not in (None, 80 if result.scheme == "http" else 443)
+        ):
+            return False
+        if result.host == "github.com":
+            path = posixpath.normpath(unquote(result.path))
+            return path == "/langchain-ai" or path.startswith("/langchain-ai/")
+        return True
+    except (ValueError, httpx.InvalidURL):
         return False
+
+
+class _SafeTransport(httpx.AsyncHTTPTransport):
+    """Connect only to validated public addresses, preserving TLS host verification."""
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        """Resolve and pin an allowed destination before opening a connection."""
+        if not _is_valid_url(str(request.url)):
+            raise ValueError(DOMAIN_NOT_ALLOWED)
+        host = request.url.host
+        port = request.url.port or (443 if request.url.scheme == "https" else 80)
+        addresses = await asyncio.wait_for(
+            asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM),
+            timeout=request.extensions.get("timeout", {}).get(
+                "connect", DEFAULT_TIMEOUT
+            ),
+        )
+        if not addresses:
+            raise ValueError(UNREACHABLE)
+        for address in addresses:
+            parsed_address = ipaddress.ip_address(address[4][0])
+            if (
+                parsed_address.is_private
+                or parsed_address.is_loopback
+                or parsed_address.is_link_local
+                or parsed_address.is_reserved
+                or parsed_address.is_multicast
+                or parsed_address.is_unspecified
+                or not parsed_address.is_global
+            ):
+                raise ValueError(UNREACHABLE)
+        pinned_request = httpx.Request(
+            request.method,
+            request.url.copy_with(host=addresses[0][4][0]),
+            headers=request.headers,
+            stream=request.stream,
+            extensions={**request.extensions, "sni_hostname": host},
+        )
+        return await super().handle_async_request(pinned_request)
 
 
 def _needs_soft_404_check(url: str) -> bool:
     """Check if URL is from a domain known to have soft 404s."""
     try:
-        domain = urlparse(url).netloc.lower()
+        domain = urlparse(url).hostname
         return domain in SOFT_404_DOMAINS
     except Exception:
         return False
@@ -61,10 +123,10 @@ def _is_soft_404(content: str) -> bool:
     if "Article Not Found" in content:
         return True
 
-    title_match = re.search(r'<title>(.*?)</title>', content, re.IGNORECASE)
+    title_match = re.search(r"<title>(.*?)</title>", content, re.IGNORECASE)
     if title_match:
         title = title_match.group(1).lower()
-        if any(phrase in title for phrase in ['not found', '404', 'page not found']):
+        if any(phrase in title for phrase in ["not found", "404", "page not found"]):
             return True
     return False
 
@@ -75,71 +137,54 @@ async def _check_single_url(
     timeout: float,
 ) -> LinkCheckResult:
     """Check a single URL for validity."""
-    # Check cache first
+    if not _is_valid_url(url):
+        return LinkCheckResult(url=url, valid=False, error=DOMAIN_NOT_ALLOWED)
+
     if url in _cache:
         return _cache[url]
 
-    if not _is_valid_url(url):
-        result = LinkCheckResult(url=url, valid=False, error="Invalid URL format")
-        _cache[url] = result
-        return result
-
     try:
-        needs_content_check = _needs_soft_404_check(url)
-
-        if needs_content_check:
-            # Stream response, only read first chunk for soft 404 detection
-            async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
-                final_url = str(response.url) if str(response.url) != url else None
-                is_valid = 200 <= response.status_code < 400
-
-                if is_valid and response.status_code == 200:
+        current_url = url
+        for redirect_count in range(MAX_REDIRECTS + 1):
+            if not _is_valid_url(current_url):
+                return LinkCheckResult(url=url, valid=False, error=DOMAIN_NOT_ALLOWED)
+            needs_content_check = _needs_soft_404_check(current_url)
+            method = "GET" if needs_content_check else "HEAD"
+            async with client.stream(
+                method, current_url, timeout=timeout, follow_redirects=False
+            ) as response:
+                if response.status_code == 405 and method == "HEAD":
+                    await response.aclose()
+                    response = await client.get(
+                        current_url, timeout=timeout, follow_redirects=False
+                    )
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get("location")
+                    if not location or redirect_count == MAX_REDIRECTS:
+                        break
+                    current_url = urljoin(current_url, location)
+                    continue
+                is_valid = 200 <= response.status_code < 300
+                if needs_content_check and is_valid and response.status_code == 200:
                     content = ""
                     async for chunk in response.aiter_text():
                         content += chunk
                         if len(content) >= CONTENT_CHECK_BYTES:
                             break
-
-                    if _is_soft_404(content):
-                        result = LinkCheckResult(
-                            url=url, valid=False, status_code=200, final_url=final_url,
-                            error="Soft 404: Page shows 'not found' content",
-                        )
-                        _cache[url] = result
-                        return result
-
+                    is_valid = not _is_soft_404(content)
                 result = LinkCheckResult(
-                    url=url, valid=is_valid, status_code=response.status_code,
-                    final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
+                    url=url,
+                    valid=is_valid,
+                    status_code=response.status_code,
+                    final_url=current_url if current_url != url else None,
+                    error=None if is_valid else UNREACHABLE,
                 )
-        else:
-            # Use HEAD for non-langchain domains (much faster)
-            response = await client.head(url, timeout=timeout, follow_redirects=True)
+                _cache[url] = result
+                return result
+    except Exception:
+        pass
 
-            # Some servers don't support HEAD, fall back to GET
-            if response.status_code == 405:
-                response = await client.get(url, timeout=timeout, follow_redirects=True)
-
-            final_url = str(response.url) if str(response.url) != url else None
-            is_valid = 200 <= response.status_code < 400
-
-            result = LinkCheckResult(
-                url=url, valid=is_valid, status_code=response.status_code,
-                final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
-            )
-
-        _cache[url] = result
-        return result
-
-    except httpx.TimeoutException:
-        result = LinkCheckResult(url=url, valid=False, error="Request timed out")
-    except httpx.TooManyRedirects:
-        result = LinkCheckResult(url=url, valid=False, error="Too many redirects")
-    except httpx.ConnectError as e:
-        result = LinkCheckResult(url=url, valid=False, error=f"Connection failed: {str(e)[:50]}")
-    except Exception as e:
-        logger.warning(f"Error checking URL {url}: {e}")
-        result = LinkCheckResult(url=url, valid=False, error=f"Error: {str(e)[:50]}")
+    result = LinkCheckResult(url=url, valid=False, error=UNREACHABLE)
 
     _cache[url] = result
     return result
@@ -149,8 +194,11 @@ async def _check_urls_async(urls: list[str], timeout: float) -> list[LinkCheckRe
     """Check multiple URLs concurrently."""
     async with httpx.AsyncClient(
         headers={"User-Agent": USER_AGENT},
-        follow_redirects=True,
-        max_redirects=MAX_REDIRECTS,
+        follow_redirects=False,
+        trust_env=False,
+        transport=_SafeTransport(
+            trust_env=False, limits=httpx.Limits(max_keepalive_connections=0)
+        ),
     ) as client:
         tasks = [_check_single_url(client, url, timeout) for url in urls]
         return list(await asyncio.gather(*tasks))
@@ -168,7 +216,10 @@ def _format_results(results: list[LinkCheckResult]) -> str:
 
     if invalid:
         lines.append("Invalid links:")
-        lines.extend(f"  - {r.url}: {r.error}" for r in invalid)
+        lines.extend(
+            f"  - {r.url}: {DOMAIN_NOT_ALLOWED if r.error == DOMAIN_NOT_ALLOWED else UNREACHABLE}"
+            for r in invalid
+        )
         lines.append("")
 
     if valid:
@@ -182,21 +233,12 @@ def _format_results(results: list[LinkCheckResult]) -> str:
 
 @tool
 async def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
-    """Check if URLs are valid and accessible before including them in a response.
-
-    Args:
-        urls: List of URLs to validate.
-        timeout: Timeout per request in seconds (default: 10).
-
-    Returns:
-        Formatted results showing which URLs are valid/invalid with details.
-    """
+    """Validate allowed URLs from documentation/support tools, never user-supplied URLs."""
     if not urls:
         return "No URLs provided to check."
 
     # Deduplicate while preserving order
-    seen = set()
-    unique_urls = [u for u in urls if not (u in seen or seen.add(u))]
+    unique_urls = list(dict.fromkeys(urls))
 
     results = await _check_urls_async(unique_urls, timeout)
     return _format_results(results)
