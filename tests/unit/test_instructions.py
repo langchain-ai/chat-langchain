@@ -21,5 +21,21 @@ def test_reply_language_follows_conversation_preference():
         "Keep code blocks, identifiers, configuration keys, documentation titles, "
         'URLs, and the "Relevant docs:" footer label unchanged.'
     ) in instructions
-    assert "Prose follows the Writing Rules reply-language rule" in instructions
+    assert (
+        "### Writing Rules:\n\n**Reply language:** Write response prose"
+    ) in instructions
+    assert (
+        "Determine that language from the user's natural-language request, "
+        "not embedded code or technical terms."
+    ) in instructions
+    assert (
+        "even when retrieved docs, tool results, prior assistant answers, "
+        "or the examples below are in English."
+    ) in instructions
+    assert (
+        "A follow-up in another language does not override an earlier explicit "
+        "preference unless it explicitly requests a change."
+    ) in instructions
+    assert "rewrite any language mismatches before sending" in instructions
+    assert "independently of the prose reply language" in instructions
     assert "plain English" not in instructions
