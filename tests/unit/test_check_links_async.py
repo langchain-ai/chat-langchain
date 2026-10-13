@@ -9,6 +9,7 @@ fast, deterministic, and require no real network access or LangSmith credentials
 """
 
 import asyncio
+import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -33,6 +34,7 @@ class _FakeStreamResponse:
     def __init__(self, url: str, status_code: int, content: str):
         self.url = url
         self.status_code = status_code
+        self.headers = {}
         self._content = content
 
     async def __aenter__(self):
@@ -233,11 +235,20 @@ async def test_check_links_async_invalid_url_format():
 @pytest.mark.asyncio
 async def test_support_article_not_found_is_invalid_soft_404():
     """Support articles can return HTTP 200 while rendering an article-not-found page."""
-    result = await _check_single_url(
-        _FakeStreamingClient("<html><body><div>Article Not Found</div></body></html>"),
-        "https://support.langchain.com/hc/en-us/articles/missing-article",
-        timeout=1.0,
-    )
+    with patch.object(
+        asyncio.get_running_loop(),
+        "getaddrinfo",
+        new=AsyncMock(
+            return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
+        ),
+    ):
+        result = await _check_single_url(
+            _FakeStreamingClient(
+                "<html><body><div>Article Not Found</div></body></html>"
+            ),
+            "https://support.langchain.com/hc/en-us/articles/missing-article",
+            timeout=1.0,
+        )
 
     assert not result.valid
     assert result.status_code == 200
@@ -247,11 +258,20 @@ async def test_support_article_not_found_is_invalid_soft_404():
 @pytest.mark.asyncio
 async def test_support_article_normal_content_is_valid():
     """Normal support article content should still be treated as valid."""
-    result = await _check_single_url(
-        _FakeStreamingClient("<html><body><div>Useful support article</div></body></html>"),
-        "https://support.langchain.com/hc/en-us/articles/existing-article",
-        timeout=1.0,
-    )
+    with patch.object(
+        asyncio.get_running_loop(),
+        "getaddrinfo",
+        new=AsyncMock(
+            return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
+        ),
+    ):
+        result = await _check_single_url(
+            _FakeStreamingClient(
+                "<html><body><div>Useful support article</div></body></html>"
+            ),
+            "https://support.langchain.com/hc/en-us/articles/existing-article",
+            timeout=1.0,
+        )
 
     assert result.valid
     assert result.status_code == 200
