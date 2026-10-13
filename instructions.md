@@ -210,9 +210,9 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 **Returns:** Full article content with title, URL, and HTML content
 
 ### 6. `check_links` - Validate URLs Before Responding
-Verify that URLs are valid and accessible before including in your response.
+Verify that URLs on allowlisted LangChain/GitHub documentation hosts are valid and publicly accessible before including them in your response.
 
-**Usage:** Before finalizing your response, call `check_links` with the URLs you plan to include.
+**Usage:** Before finalizing your response, call `check_links` with the LangChain/GitHub documentation URLs you plan to include; other hosts and non-public destinations are rejected.
 
 **Only include URLs that `check_links` returns under "Valid links". This applies to every URL, including links found in relevant retrieved documentation or embedded in document body text. Never assume a source-provided URL is valid without checking it.**
 
