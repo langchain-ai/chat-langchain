@@ -20,7 +20,7 @@ The repo also includes a Next.js frontend in `frontend/` for the public chat UI.
 
 - **Documentation Search** - Searches official LangChain docs via managed MCP
 - **Support KB** - Searches the Pylon knowledge base for known issues
-- **Link Validation** - Verifies URLs before including in responses
+- **Link Validation** - Verifies documentation-result citations on LangChain hosts and `github.com/langchain-ai/`
 - **Guardrails** - Filters off-topic queries
 
 ## Quick Start
@@ -120,7 +120,7 @@ The agent uses a docs-first research strategy:
 1. **Guardrails Check** - Validates the query is LangChain-related
 2. **Documentation Search** - Searches official docs via the managed MCP connector
 3. **Knowledge Base** - Searches Pylon for known issues/solutions
-4. **Link Validation** - Verifies any URLs before including them
+4. **Link Validation** - Checks up to 10 documentation-result citation URLs, never user-supplied URLs
 5. **Response Generation** - Synthesizes a helpful answer
 
 ## Deployment
