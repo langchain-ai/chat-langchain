@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from types import SimpleNamespace
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.message import add_messages
 
@@ -31,15 +32,49 @@ def test_before_agent_truncates_oversized_human_message():
     assert len(update["messages"][0].content) == MAX_MESSAGE_CHARS
 
 
-def test_before_agent_noop_when_under_cap():
+@pytest.mark.parametrize(
+    "content",
+    [
+        "Hello",
+        'aws_secret_access_key: "your_secret"',
+        "aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY']",
+        "postgres://user:<your password>@host/db",
+        "postgresql://user:settings.X@host/db",
+    ],
+)
+def test_before_agent_noop_when_under_cap(content):
     middleware = IngressGuardsMiddleware()
-    state = {"messages": [HumanMessage(content="Hello", id="h1")]}
+    state = {"messages": [HumanMessage(content=content, id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
 
-def test_before_agent_redacts_and_overwrites_message_with_existing_id():
-    human = HumanMessage(content="lsv2_pt_" + "a" * 32, id="h1")
+@pytest.mark.parametrize(
+    "content, expected",
+    [
+        ("lsv2_pt_" + "a" * 32, REDACTED_SECRET),
+        (
+            "aws_secret_access_key=synthetic-secret",
+            f"aws_secret_access_key={REDACTED_SECRET}",
+        ),
+        (
+            'aws_secret_access_key: "synthetic-secret"',
+            f'aws_secret_access_key: "{REDACTED_SECRET}"',
+        ),
+        (
+            "postgres://user:synthetic-password@host/db",
+            f"postgres://user:{REDACTED_SECRET}@host/db",
+        ),
+        (
+            "postgresql://user:synthetic-password@host/db",
+            f"postgresql://user:{REDACTED_SECRET}@host/db",
+        ),
+    ],
+)
+def test_before_agent_redacts_and_overwrites_message_with_existing_id(
+    content, expected
+):
+    human = HumanMessage(content=content, id="h1")
     messages = [AIMessage(content="hi", id="a1"), human]
     update = IngressGuardsMiddleware().before_agent(
         {"messages": messages}, runtime=SimpleNamespace()
@@ -49,11 +84,24 @@ def test_before_agent_redacts_and_overwrites_message_with_existing_id():
     merged = add_messages(messages, update["messages"])
     assert len(merged) == 2
     assert merged[-1].id == "h1"
-    assert merged[-1].content == REDACTED_SECRET
+    assert merged[-1].content == expected
 
 
-def test_before_agent_redacts_multimodal_text_and_preserves_media():
-    secret = "sk-proj-" + "a" * 32
+@pytest.mark.parametrize(
+    "secret, expected",
+    [
+        ("sk-proj-" + "a" * 32, REDACTED_SECRET),
+        (
+            'aws_secret_access_key: "synthetic-secret"',
+            f'aws_secret_access_key: "{REDACTED_SECRET}"',
+        ),
+        (
+            "postgres://user:synthetic-password@host/db",
+            f"postgres://user:{REDACTED_SECRET}@host/db",
+        ),
+    ],
+)
+def test_before_agent_redacts_multimodal_text_and_preserves_media(secret, expected):
     media = {"type": "image_url", "image_url": {"url": "data:image/png;base64,example"}}
     human = HumanMessage(
         content=[secret, {"type": "text", "text": secret, "extra": "kept"}, media],
@@ -66,8 +114,8 @@ def test_before_agent_redacts_multimodal_text_and_preserves_media():
     assert update is not None
     assert update["messages"][0].id == "h1"
     assert human.content == [
-        REDACTED_SECRET,
-        {"type": "text", "text": REDACTED_SECRET, "extra": "kept"},
+        expected,
+        {"type": "text", "text": expected, "extra": "kept"},
         media,
     ]
 

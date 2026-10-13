@@ -5,6 +5,7 @@ import json
 import os
 from unittest.mock import AsyncMock, Mock
 
+import pytest
 from langchain.agents import create_agent
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage, HumanMessage
@@ -48,12 +49,19 @@ def _dataset_client(monkeypatch):
     return client
 
 
-def test_classifier_redacts_raw_content_and_legacy_history():
-    secret = "lsv2_pt_" + "a" * 32
+@pytest.mark.parametrize(
+    "secret, credential",
+    [
+        ("lsv2_pt_" + "a" * 32, "lsv2_pt_" + "a" * 32),
+        ('aws_secret_access_key: "synthetic-secret"', "synthetic-secret"),
+        ("postgres://user:synthetic-password@host/db", "synthetic-password"),
+    ],
+)
+def test_classifier_redacts_raw_content_and_legacy_history(secret, credential):
     image = {"type": "image_url", "image_url": {"url": "https://example.invalid/image"}}
     classifier = RecordingClassifier()
     middleware = _middleware(classifier)
-    content = [secret, {"type": "text", "text": f"KEY={secret}"}, image]
+    content = [secret, {"type": "text", "text": f"Please debug {secret}"}, image]
     asyncio.run(
         middleware._classify_query(
             [HumanMessage(content=content)],
@@ -62,29 +70,57 @@ def test_classifier_redacts_raw_content_and_legacy_history():
     )
 
     serialized = json.dumps([message.content for message in classifier.prompts[0]])
-    assert secret not in serialized
+    assert credential not in serialized
     assert REDACTED_SECRET in serialized
     assert classifier.prompts[0][-1].content[-1] == image
     assert content[0] == secret
     rejection = middleware._build_rejection_content(content)
-    assert secret not in json.dumps(rejection)
+    assert credential not in json.dumps(rejection)
     assert rejection[-2] == image
 
 
-def test_dataset_redacts_query_and_explanation_independently(monkeypatch):
-    secret = "sk-proj-" + "b" * 32
+@pytest.mark.parametrize(
+    "secret, expected",
+    [
+        ("sk-proj-" + "b" * 32, REDACTED_SECRET),
+        (
+            'aws_secret_access_key: "synthetic-secret"',
+            f'aws_secret_access_key: "{REDACTED_SECRET}"',
+        ),
+        (
+            "postgres://user:synthetic-password@host/db",
+            f"postgres://user:{REDACTED_SECRET}@host/db",
+        ),
+    ],
+)
+def test_dataset_redacts_query_and_explanation_independently(
+    monkeypatch, secret, expected
+):
     client = _dataset_client(monkeypatch)
     middleware = _middleware(RecordingClassifier())
     asyncio.run(middleware._add_to_dataset(secret, "BLOCKED", secret, secret))
 
     sample = client.create_example.call_args.kwargs
-    assert sample["inputs"]["query"] == REDACTED_SECRET
-    assert sample["outputs"]["explanation"] == REDACTED_SECRET
+    assert sample["inputs"]["query"] == expected
+    assert sample["outputs"]["explanation"] == expected
     assert secret not in json.dumps(sample)
 
 
-def test_guardrail_sampling_redacts_without_ingress(monkeypatch):
-    secret = "lsv2_pt_" + "c" * 32
+@pytest.mark.parametrize(
+    "secret, expected",
+    [
+        ("lsv2_pt_" + "c" * 32, REDACTED_SECRET),
+        (
+            'aws_secret_access_key: "synthetic-secret"',
+            f'aws_secret_access_key: "{REDACTED_SECRET}"',
+        ),
+        (
+            "postgres://user:synthetic-password@host/db",
+            f"postgres://user:{REDACTED_SECRET}@host/db",
+        ),
+    ],
+)
+def test_guardrail_sampling_redacts_without_ingress(monkeypatch, secret, expected):
     client = _dataset_client(monkeypatch)
     classifier = RecordingClassifier("BLOCKED")
     middleware = _middleware(classifier)
@@ -97,13 +133,22 @@ def test_guardrail_sampling_redacts_without_ingress(monkeypatch):
         return update
 
     update = asyncio.run(run())
-    assert update["guardrail_history"][0]["query"] == REDACTED_SECRET
-    assert client.create_example.call_args.kwargs["inputs"]["query"] == REDACTED_SECRET
+    assert update["guardrail_history"][0]["query"] == expected
+    assert client.create_example.call_args.kwargs["inputs"]["query"] == expected
     assert secret not in str(classifier.prompts[0])
 
 
 def test_synthetic_request_redacts_model_classifier_dataset_and_trace(monkeypatch):
-    secret = "lsv2_pt_" + "d" * 32
+    secrets = [
+        "lsv2_pt_" + "d" * 32,
+        "synthetic/AwsSecret+value=",
+        "synthetic-password",
+    ]
+    content = (
+        f"LANGSMITH_API_KEY={secrets[0]}\n"
+        f'aws_secret_access_key: "{secrets[1]}"\n'
+        f"postgres://user:{secrets[2]}@host:5432/db"
+    )
     dataset = _dataset_client(monkeypatch)
     monkeypatch.setattr(guardrails_module, "ALLOWED_SAMPLE_RATE", 1)
     classifier = RecordingClassifier()
@@ -134,11 +179,7 @@ def test_synthetic_request_redacts_model_classifier_dataset_and_trace(monkeypatc
 
     async def run():
         result = await graph.ainvoke(
-            {
-                "messages": [
-                    HumanMessage(content=f"LANGSMITH_API_KEY={secret}", id="h1")
-                ]
-            },
+            {"messages": [HumanMessage(content=content, id="h1")]},
             config={"callbacks": [tracer]},
         )
         await asyncio.sleep(0)
@@ -148,19 +189,19 @@ def test_synthetic_request_redacts_model_classifier_dataset_and_trace(monkeypatc
     tracer.wait_for_futures()
 
     assert result["messages"][0].id == "h1"
-    assert secret not in str(result["messages"])
+    assert all(secret not in str(result["messages"]) for secret in secrets)
     assert model_inputs and REDACTED_SECRET in str(model_inputs)
-    assert secret not in str(model_inputs)
-    assert secret not in str(classifier.prompts)
+    assert all(secret not in str(model_inputs) for secret in secrets)
+    assert all(secret not in str(classifier.prompts) for secret in secrets)
     assert REDACTED_SECRET in str(classifier.prompts)
     sample = dataset.create_example.call_args.kwargs
-    assert secret not in json.dumps(sample)
+    assert all(secret not in json.dumps(sample) for secret in secrets)
     assert REDACTED_SECRET in json.dumps(sample)
     writes = [
         json.loads(request.kwargs["data"]) for request in session.request.call_args_list
     ]
     assert writes
-    assert secret not in json.dumps(writes)
+    assert all(secret not in json.dumps(writes) for secret in secrets)
     root_writes = [write for write in writes if write.get("name") == "LangGraph"]
     assert root_writes
     assert REDACTED_SECRET in json.dumps(root_writes)

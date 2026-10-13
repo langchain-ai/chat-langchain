@@ -12,8 +12,9 @@ REDACTED_SECRET = "[REDACTED_SECRET]"
 
 _VALUE = r"""(?:"[^"\n]*"|'[^'\n]*'|<[^>\n]*>|[^\s"'`,;]+)"""
 _SECRET_PATTERN = re.compile(
-    rf"(?P<assignment>(?i:\b[A-Z_][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)\s*=\s*|\b(?:KEY|TOKEN|SECRET|PASSWORD)\s*=\s*))(?P<assigned>{_VALUE})"
+    rf"(?P<assignment>(?i:\baws_secret_access_key\b[\"']?\s*[:=]\s*|\b[A-Z_][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)\s*=\s*|\b(?:KEY|TOKEN|SECRET|PASSWORD)\s*=\s*))(?P<assigned>{_VALUE})"
     rf"|(?P<bearer>(?i:\bBearer\s+))(?P<authorization>{_VALUE})"
+    r"|(?P<postgres>(?i:\bpostgres(?:ql)?://)[^\s/@:]*:)(?P<password><[^>\n]*>|[^\s@/?#]+)(?=@)"
     r"|(?<![A-Za-z0-9])(?P<token>"
     r"lsv2_(?:pt|sk)_[A-Za-z0-9_]+"
     r"|lcl_[A-Za-z0-9_]+"
@@ -49,13 +50,19 @@ def redact_secrets(text: str) -> tuple[str, int]:
         value = (
             match.group("assigned")
             or match.group("authorization")
+            or match.group("password")
             or match.group("token")
         )
         if _is_placeholder(value):
             return match.group(0)
         replacements += 1
-        prefix = match.group("assignment") or match.group("bearer") or ""
-        quote = value[0] if value[0] in "\"'" else ""
+        prefix = (
+            match.group("assignment")
+            or match.group("bearer")
+            or match.group("postgres")
+            or ""
+        )
+        quote = value[0] if not match.group("postgres") and value[0] in "\"'" else ""
         return f"{prefix}{quote}{REDACTED_SECRET}{quote}"
 
     return _SECRET_PATTERN.sub(replace, text), replacements

@@ -51,6 +51,52 @@ def test_secret_assignments(name, quote):
     )
 
 
+@pytest.mark.parametrize("field", ["aws_secret_access_key", "AWS_SECRET_ACCESS_KEY"])
+@pytest.mark.parametrize("separator", ["=", ":"])
+@pytest.mark.parametrize("field_quote", ["", "'", '"'])
+@pytest.mark.parametrize("quote", ["", "'", '"'])
+def test_aws_secret_access_key_configuration(field, separator, field_quote, quote):
+    prefix = f"{field_quote}{field}{field_quote} {separator} "
+    secret = "synthetic/AwsSecret+" + "a" * 20 + "="
+    assert redact_secrets(f"{prefix}{quote}{secret}{quote}") == (
+        f"{prefix}{quote}{REDACTED_SECRET}{quote}",
+        1,
+    )
+    assert redact_secrets(secret) == (secret, 0)
+
+
+@pytest.mark.parametrize("scheme", ["postgres", "postgresql"])
+@pytest.mark.parametrize("username", ["db_user", ""])
+@pytest.mark.parametrize(
+    "password", ["synthetic-password", "p%40ss%2Fword", "pass:word"]
+)
+def test_postgres_password_preserves_connection_details(scheme, username, password):
+    prefix = f"{scheme}://{username}:"
+    suffix = "@db.example:5432/database?sslmode=require"
+    text = f'DATABASE_URL="{prefix}{password}{suffix}"'
+    redacted = f'DATABASE_URL="{prefix}{REDACTED_SECRET}{suffix}"'
+    assert redact_secrets(text) == (redacted, 1)
+    assert redact_secrets(redacted) == (redacted, 0)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["your_secret", "<...>", "<your password>", "settings.X", 'os.environ["SECRET"]'],
+)
+@pytest.mark.parametrize(
+    "template",
+    [
+        "aws_secret_access_key={value}",
+        "\"aws_secret_access_key\": '{value}'",
+        "postgres://user:{value}@localhost:5432/db",
+        "postgresql://user:{value}@localhost:5432/db",
+    ],
+)
+def test_configuration_and_connection_placeholders_are_unchanged(value, template):
+    text = template.format(value=value)
+    assert redact_secrets(text) == (text, 0)
+
+
 def test_bearer_token_and_replacement_count():
     text = "Authorization: Bearer synthetic-token\nLANGSMITH_API_KEY=lsv2_pt_synthetic"
     assert redact_secrets(text) == (
@@ -88,11 +134,24 @@ def test_redaction_is_idempotent():
     assert redact_secrets(redacted) == (redacted, 0)
 
 
-def test_trace_anonymizer_handles_nested_inputs_outputs():
-    secret = "sk-proj-" + "a" * 32
+@pytest.mark.parametrize(
+    "text, secret",
+    [
+        ("sk-proj-" + "a" * 32, "sk-proj-" + "a" * 32),
+        (
+            'aws_secret_access_key: "synthetic/AwsSecret+value="',
+            "synthetic/AwsSecret+value=",
+        ),
+        (
+            "postgresql://user:synthetic-password@localhost:5432/db",
+            "synthetic-password",
+        ),
+    ],
+)
+def test_trace_anonymizer_handles_nested_inputs_outputs(text, secret):
     payload = {
-        "inputs": {"messages": [{"content": [{"type": "text", "text": secret}]}]},
-        "outputs": {"answer": secret, "tokens": 12},
+        "inputs": {"messages": [{"content": [{"type": "text", "text": text}]}]},
+        "outputs": {"answer": text, "tokens": 12},
     }
     anonymized = create_secret_anonymizer()(payload)
     assert secret not in json.dumps(anonymized)
@@ -100,8 +159,18 @@ def test_trace_anonymizer_handles_nested_inputs_outputs():
     assert anonymized["outputs"]["tokens"] == 12
 
 
-def test_langsmith_client_redacts_create_and_update_payloads():
-    secret = "lsv2_pt_" + "a" * 32
+@pytest.mark.parametrize(
+    "text, secret",
+    [
+        ("lsv2_pt_" + "a" * 32, "lsv2_pt_" + "a" * 32),
+        (
+            'aws_secret_access_key: "synthetic/AwsSecret+value="',
+            "synthetic/AwsSecret+value=",
+        ),
+        ("postgres://user:synthetic-password@localhost:5432/db", "synthetic-password"),
+    ],
+)
+def test_langsmith_client_redacts_create_and_update_payloads(text, secret):
     session = Mock()
     session.request.return_value.status_code = 200
     client = Client(
@@ -113,8 +182,8 @@ def test_langsmith_client_redacts_create_and_update_payloads():
         anonymizer=create_secret_anonymizer(),
     )
     run_id = uuid4()
-    client.create_run("synthetic request", {"query": secret}, "chain", id=run_id)
-    client.update_run(run_id, outputs={"answer": secret})
+    client.create_run("synthetic request", {"query": text}, "chain", id=run_id)
+    client.update_run(run_id, outputs={"answer": text})
 
     assert session.request.call_count == 2
     for request in session.request.call_args_list:

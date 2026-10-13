@@ -149,6 +149,10 @@ processing; guardrails also redact their prompts and dataset writes independentl
 Text and multimodal text blocks use `[REDACTED_SECRET]`, preserving variable
 references and obvious placeholders. Non-text media is unchanged; this is not
 image/OCR redaction. The output instruction remains defense in depth.
+AWS secret access keys are identified by their `aws_secret_access_key` field
+with `=` or `:` separators, including quoted fields and values; arbitrary
+AWS-secret-shaped strings are not matched. PostgreSQL connection strings redact
+only the password component, preserving the username, host, port, and database.
 
 **Managed tracing requires host configuration.** MDA owns the root-run tracing
 client, and `define_deep_agent` does not expose a tracing-client option. Root
