@@ -30,7 +30,7 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
-    # Cap oversized user input (was auth.py). Trace metadata is applied via
+    # Cap oversized input and redact credentials. Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
     GuardrailsMiddleware(

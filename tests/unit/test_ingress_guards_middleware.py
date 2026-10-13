@@ -6,6 +6,7 @@ import os
 from types import SimpleNamespace
 
 from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.graph.message import add_messages
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
 
@@ -13,6 +14,7 @@ from src.middleware.ingress_guards_middleware import (
     MAX_MESSAGE_CHARS,
     IngressGuardsMiddleware,
 )
+from src.utils.secret_redaction import REDACTED_SECRET
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
 
@@ -34,6 +36,66 @@ def test_before_agent_noop_when_under_cap():
     state = {"messages": [HumanMessage(content="Hello", id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
+
+
+def test_before_agent_redacts_and_overwrites_message_with_existing_id():
+    human = HumanMessage(content="lsv2_pt_" + "a" * 32, id="h1")
+    messages = [AIMessage(content="hi", id="a1"), human]
+    update = IngressGuardsMiddleware().before_agent(
+        {"messages": messages}, runtime=SimpleNamespace()
+    )
+
+    assert update is not None
+    merged = add_messages(messages, update["messages"])
+    assert len(merged) == 2
+    assert merged[-1].id == "h1"
+    assert merged[-1].content == REDACTED_SECRET
+
+
+def test_before_agent_redacts_multimodal_text_and_preserves_media():
+    secret = "sk-proj-" + "a" * 32
+    media = {"type": "image_url", "image_url": {"url": "data:image/png;base64,example"}}
+    human = HumanMessage(
+        content=[secret, {"type": "text", "text": secret, "extra": "kept"}, media],
+        id="h1",
+    )
+    update = IngressGuardsMiddleware().before_agent(
+        {"messages": [human]}, runtime=SimpleNamespace()
+    )
+
+    assert update is not None
+    assert update["messages"][0].id == "h1"
+    assert human.content == [
+        REDACTED_SECRET,
+        {"type": "text", "text": REDACTED_SECRET, "extra": "kept"},
+        media,
+    ]
+
+
+def test_before_agent_combines_truncation_and_redaction():
+    secret = "lsv2_pt_" + "a" * 32
+    for content in (
+        secret + " " + "z" * MAX_MESSAGE_CHARS,
+        [secret, {"type": "text", "text": "z" * MAX_MESSAGE_CHARS}],
+    ):
+        human = HumanMessage(content=content, id="h1")
+        update = IngressGuardsMiddleware().before_agent(
+            {"messages": [human]}, runtime=SimpleNamespace()
+        )
+        assert update is not None
+        assert human.id == "h1"
+        assert secret not in str(human.content)
+        assert REDACTED_SECRET in str(human.content)
+        if isinstance(human.content, str):
+            assert len(human.content) <= MAX_MESSAGE_CHARS
+        else:
+            assert (
+                sum(
+                    len(block if isinstance(block, str) else block["text"])
+                    for block in human.content
+                )
+                <= MAX_MESSAGE_CHARS
+            )
 
 
 def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeypatch):

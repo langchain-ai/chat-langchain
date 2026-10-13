@@ -1,8 +1,8 @@
-"""Ingress guards: input caps for Chat LangChain on Managed Deep Agents.
+"""Ingress guards: input caps and credential redaction for Managed Deep Agents.
 
-These were previously enforced in ``src/api/auth.py`` (``validate_inputs``).
+Input caps were previously enforced in ``src/api/auth.py`` (``validate_inputs``).
 Under MDA, identity/thread scoping is declared in ``identity.py``; this
-middleware only caps oversized user input.
+middleware caps oversized user input and redacts credentials before model calls.
 
 Trace metadata (prompt provenance, ``LANGSMITH_AGENT_VERSION``, ``source_type``)
 is applied at agent compile time via ``define_deep_agent(metadata=...)`` in
@@ -19,21 +19,23 @@ from typing import Any
 from langchain.agents.middleware import AgentMiddleware, AgentState
 from langgraph.runtime import Runtime
 
+from src.utils.secret_redaction import redact_message_content
+
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
 MAX_MESSAGE_CHARS = 50_000
 
 
 class IngressGuardsMiddleware(AgentMiddleware):
-    """Cap oversized user input at agent ingress."""
+    """Cap oversized user input and redact credentials at agent ingress."""
 
     def before_agent(
         self, state: AgentState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """Truncate the latest user message when it exceeds the size cap."""
+        """Truncate and redact the latest user message while preserving its ID."""
         messages = state.get("messages", [])
         for message in reversed(messages):
             if getattr(message, "type", None) == "human":
-                capped = self._truncate_content(message.content)
+                capped = redact_message_content(self._truncate_content(message.content))
                 if capped is not message.content:
                     # Same id => the messages reducer overwrites in place.
                     message.content = capped
@@ -44,7 +46,11 @@ class IngressGuardsMiddleware(AgentMiddleware):
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
         if isinstance(content, str):
-            return content[:MAX_MESSAGE_CHARS] if len(content) > MAX_MESSAGE_CHARS else content
+            return (
+                content[:MAX_MESSAGE_CHARS]
+                if len(content) > MAX_MESSAGE_CHARS
+                else content
+            )
 
         if not isinstance(content, list):
             return content
