@@ -17,8 +17,31 @@ hand-rolled ``src/api/auth.py`` handler:
 from __future__ import annotations
 
 import os
+from typing import cast
 
-from managed_deepagents import define_identity, providers
+from langgraph_sdk import Auth
+from managed_deepagents import _identity_auth, define_identity, providers
+
+
+class _ChatAuth(Auth):
+    """Reject cron access while retaining managed identity and thread scoping."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.on.crons(self._deny_crons)
+
+    async def _deny_crons(self, ctx, value) -> None:
+        raise self.exceptions.HTTPException(403, "Cron access is disabled")
+
+
+def _load_chat_auth() -> _identity_auth.AuthClass:
+    """Supply the restricted auth class to the generated MDA auth module."""
+    return cast("_identity_auth.AuthClass", _ChatAuth)
+
+
+# MDA 0.3.0 has no authorization hook; its generated shim loads this factory
+# after importing identity.py. Keep this seam covered by compiled-bundle tests.
+_identity_auth._load_auth = _load_chat_auth
 
 # Region label (sent by the frontend as ``x-supabase-region``) -> the env vars
 # that carry that region's Supabase project URL and anon key. Matches the
@@ -56,7 +79,9 @@ def _providers() -> list[dict]:
         for e in entries
         if e.get("discovery_url") or e.get("issuer")
     ]
-    print(f"[chat-langchain identity] supabase discovery bases: {configured}", flush=True)
+    print(
+        f"[chat-langchain identity] supabase discovery bases: {configured}", flush=True
+    )
     return entries
 
 

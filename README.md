@@ -135,13 +135,20 @@ mda deploy .
 What MDA owns in this deployment:
 
 - **Identity** — `identity.py` verifies Supabase access tokens (multi-region) and
-  issues/verifies guest tokens via `POST /identity/guest`.
+  issues/verifies guest tokens via `POST /identity/guest`. Cron access is denied
+  for all callers; this app has no scheduled workloads. Delete existing crons
+  before rolling out the restriction: denying API access does not unschedule them.
 - **HTTP surface** — managed ingress; no custom FastAPI app.
 - **LangSmith browser ops** — `connectors/langsmith.py` proxies feedback and
   trace read/share so `LANGSMITH_API_KEY` never reaches the browser.
 - **Docs MCP** — `connectors/mcp.py` attaches the LangChain docs MCP tools.
 - **Thread titles** — generated in the browser (deterministic truncation).
 - **Checkpointer** — managed by the Managed Deep Agents runtime.
+
+The agent enforces a server-side limit of 100 model calls per invocation even
+when API callers omit or raise `recursion_limit`. This is independent of the
+frontend's `recursion_limit: 100`, which counts graph steps rather than model
+calls, and does not accumulate across separate runs on the same thread.
 
 ## Resources
 

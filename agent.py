@@ -1,5 +1,6 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+from langchain.agents.middleware import ModelCallLimitMiddleware
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -32,6 +33,7 @@ docs_agent_middleware = [
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
+    ModelCallLimitMiddleware(run_limit=100, exit_behavior="error"),
     GuardrailsMiddleware(
         model=GUARDRAILS_MODEL.id,
         fallback_model=DEFAULT_MODEL.id,
