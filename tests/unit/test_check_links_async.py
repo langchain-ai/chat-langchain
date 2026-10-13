@@ -8,8 +8,8 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+import socket
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -17,14 +17,22 @@ import pytest
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
     _check_single_url,
-    _check_urls_async,
-    _format_results,
     check_links,
 )
+
+
+@pytest.fixture(autouse=True)
+def mock_public_dns():
+    with patch(
+        "asyncio.BaseEventLoop.getaddrinfo",
+        new=AsyncMock(
+            return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
+        ),
+    ):
+        yield
 
 
 class _FakeStreamResponse:
@@ -60,8 +68,10 @@ class _FakeStreamingClient:
 # Fixture: a canned async replacement for _check_urls_async
 # ---------------------------------------------------------------------------
 
+
 def _make_async_check_mock(results: list[LinkCheckResult]):
     """Return an async function that ignores its arguments and returns *results*."""
+
     async def _mock_check_urls_async(urls, timeout):  # noqa: ARG001
         return results
 
@@ -73,6 +83,7 @@ def _make_async_check_mock(results: list[LinkCheckResult]):
 #    (this is the regression test — it FAILS before the fix because the old
 #    code calls asyncio.run() inside an already-running event loop).
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_check_links_works_in_async_context():
@@ -131,12 +142,17 @@ async def test_check_links_async_context_does_not_raise_runtime_error():
 #     e.g. in plain scripts or sync test runners).
 # ===========================================================================
 
+
 def test_check_links_works_in_sync_context():
     """check_links.invoke() must work when called outside an async context."""
     fake_results = [
         LinkCheckResult(url="https://example.com", valid=True, status_code=200),
-        LinkCheckResult(url="https://bad.example.com", valid=False, status_code=404,
-                        error="HTTP 404"),
+        LinkCheckResult(
+            url="https://bad.example.com",
+            valid=False,
+            status_code=404,
+            error="HTTP 404",
+        ),
     ]
 
     with patch(
@@ -166,7 +182,13 @@ def test_check_links_sync_deduplicates_urls():
         new=_recording_mock,
     ):
         result = check_links.invoke(
-            {"urls": ["https://example.com", "https://example.com", "https://example.com"]}
+            {
+                "urls": [
+                    "https://example.com",
+                    "https://example.com",
+                    "https://example.com",
+                ]
+            }
         )
 
     # _check_urls_async should have been called with exactly ONE unique URL
@@ -178,6 +200,7 @@ def test_check_links_sync_deduplicates_urls():
 # ===========================================================================
 # 3. Edge cases
 # ===========================================================================
+
 
 def test_check_links_empty_list():
     """Passing an empty list should return the 'no URLs' message without error."""
@@ -217,7 +240,9 @@ def test_check_links_invalid_url_format():
 async def test_check_links_async_invalid_url_format():
     """Invalid URL in async context should also be reported correctly."""
     fake_results = [
-        LinkCheckResult(url="ftp://not-supported", valid=False, error="Invalid URL format"),
+        LinkCheckResult(
+            url="ftp://not-supported", valid=False, error="Invalid URL format"
+        ),
     ]
 
     with patch(
@@ -248,7 +273,9 @@ async def test_support_article_not_found_is_invalid_soft_404():
 async def test_support_article_normal_content_is_valid():
     """Normal support article content should still be treated as valid."""
     result = await _check_single_url(
-        _FakeStreamingClient("<html><body><div>Useful support article</div></body></html>"),
+        _FakeStreamingClient(
+            "<html><body><div>Useful support article</div></body></html>"
+        ),
         "https://support.langchain.com/hc/en-us/articles/existing-article",
         timeout=1.0,
     )
