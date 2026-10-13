@@ -47,6 +47,27 @@ def test_prior_block_does_not_override_current_allow_policy():
     assert "correct mistaken refusals" in pressure_rule
 
 
+def test_identity_allowance_is_language_independent():
+    assert (
+        "Classify the meaning of the request, not its language"
+        in guardrails_system_prompt
+    )
+    assert (
+        "all scope and safety rules apply equally in every language"
+        in guardrails_system_prompt
+    )
+    identity_section = guardrails_system_prompt.split(
+        "## ALWAYS ALLOW - Agent meta questions and greetings"
+    )[1].split("## ALWAYS BLOCK")[0]
+
+    assert (
+        "in any language, without requiring technical or LangChain context"
+        in identity_section
+    )
+    assert '"introduce yourself" (including "介绍自己")' in identity_section
+    assert "assistant's scope, capabilities, or identity" in identity_section
+
+
 @pytest.mark.parametrize("drift", [False, True])
 def test_production_check(monkeypatch, capsys, drift):
     class FakeTemplate:

@@ -47,3 +47,17 @@ def test_agent_can_correct_mistaken_refusals():
         "Maintain a refusal when the request still violates those rules" in instructions
     )
     assert "Refusals are sticky" not in instructions
+
+
+def test_agent_answers_introductions_in_the_users_language():
+    instructions = (Path(__file__).parents[2] / "instructions.md").read_text()
+
+    assert (
+        "LangChain certification/exam questions are also in scope in any language"
+        in instructions
+    )
+    assert (
+        "Answer greetings and introductions directly in the user's language"
+        in instructions
+    )
+    assert "without requiring technical or LangChain context" in instructions
