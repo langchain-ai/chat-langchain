@@ -17,8 +17,37 @@ hand-rolled ``src/api/auth.py`` handler:
 from __future__ import annotations
 
 import os
+from typing import cast
 
-from managed_deepagents import define_identity, providers
+from langgraph_sdk import Auth
+from langgraph_sdk.auth import is_studio_user
+from managed_deepagents import _identity_auth, define_identity, providers
+
+
+async def _require_studio(ctx: Auth.types.AuthContext, value: dict) -> None:
+    if not is_studio_user(ctx.user):
+        raise Auth.exceptions.HTTPException(403, "Operator access required")
+
+
+async def _authorize_assistants(ctx: Auth.types.AuthContext, value: dict) -> None:
+    if ctx.action not in {"read", "search"}:
+        await _require_studio(ctx, value)
+
+
+class _ChatAuth(Auth):
+    def __init__(self) -> None:
+        super().__init__()
+        self.on(_require_studio)
+        self.on.crons(_require_studio)
+        self.on.assistants(_authorize_assistants)
+
+
+def _load_chat_auth() -> _identity_auth.AuthClass:
+    return cast("_identity_auth.AuthClass", _ChatAuth)
+
+
+# MDA 0.3.0 has no policy hook; its generated shim resolves this loader at runtime.
+_identity_auth._load_auth = _load_chat_auth
 
 # Region label (sent by the frontend as ``x-supabase-region``) -> the env vars
 # that carry that region's Supabase project URL and anon key. Matches the
@@ -56,7 +85,9 @@ def _providers() -> list[dict]:
         for e in entries
         if e.get("discovery_url") or e.get("issuer")
     ]
-    print(f"[chat-langchain identity] supabase discovery bases: {configured}", flush=True)
+    print(
+        f"[chat-langchain identity] supabase discovery bases: {configured}", flush=True
+    )
     return entries
 
 

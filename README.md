@@ -135,7 +135,11 @@ mda deploy .
 What MDA owns in this deployment:
 
 - **Identity** — `identity.py` verifies Supabase access tokens (multi-region) and
-  issues/verifies guest tokens via `POST /identity/guest`.
+  issues/verifies guest tokens via `POST /identity/guest`. Guest and Supabase
+  users have actor-scoped threads and read-only assistant access; cron management
+  and assistant mutations require a platform-authenticated Studio identity.
+  The pinned MDA 0.3.0 runtime has no policy hook, so `identity.py` extends its
+  auth-class loader to enforce this policy in the generated deployment auth.
 - **HTTP surface** — managed ingress; no custom FastAPI app.
 - **LangSmith browser ops** — `connectors/langsmith.py` proxies feedback and
   trace read/share so `LANGSMITH_API_KEY` never reaches the browser.

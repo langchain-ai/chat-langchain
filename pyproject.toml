@@ -14,6 +14,7 @@ dependencies = [
     "langchain-anthropic>=0.1.23",
     "langgraph>=1.0.0a4",
     "langgraph-prebuilt>=0.7.0a2",
+    "langgraph-sdk>=0.2.0",
     "langchain-openai>=0.3.0",
     "langchain-google-genai>=4.0.0",
     "langchain-baseten>=0.2.0,<0.3.0",
