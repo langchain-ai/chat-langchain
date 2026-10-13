@@ -9,6 +9,7 @@ fast, deterministic, and require no real network access or LangSmith credentials
 """
 
 import asyncio
+import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,6 +26,15 @@ from src.tools.link_check_tools import (
     _format_results,
     check_links,
 )
+
+
+@pytest.fixture(autouse=True)
+def public_dns():
+    with patch(
+        "src.tools.link_check_tools.socket.getaddrinfo",
+        return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))],
+    ):
+        yield
 
 
 class _FakeStreamResponse:
@@ -195,8 +205,7 @@ async def test_check_links_async_empty_list():
 
 def test_check_links_invalid_url_format():
     """An invalid URL (not http/https) must be reported as invalid."""
-    # We do NOT mock here — _check_single_url validates format synchronously via
-    # _is_valid_url before making any network calls, so no HTTP is performed.
+    # _check_single_url rejects disallowed URLs before making any HTTP requests.
     # We still mock _check_urls_async to avoid needing a real event loop in the
     # sync path and to keep the test fast.
     fake_results = [
