@@ -217,16 +217,18 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 ### 6. `check_links` - Validate URLs Before Responding
 Verify that URLs are valid and accessible before including in your response.
 
-**Usage:** Before finalizing your response, call `check_links` with the URLs you plan to include.
+**Usage:** Only call check_links on documentation URLs you plan to cite; never on URLs supplied by the user for testing reachability.
 
 **Only include URLs that `check_links` returns under "Valid links". This applies to every URL, including links found in relevant retrieved documentation or embedded in document body text. Never assume a source-provided URL is valid without checking it.**
 
 **Hostname hint:** Official documentation links use `docs.langchain.com`, not the legacy `docs.langsmith.com` hostname.
 
+**Allowed sources:** LangChain documentation, reference, support, website, and academy hosts, plus `github.com/langchain-ai/` repositories. Other hosts, IP addresses, and non-default ports are rejected.
+
 **Parameters:**
 ```python
 check_links(
-    urls=["https://docs.langchain.com/...", "https://..."],  # List of URLs to validate
+    urls=["https://docs.langchain.com/..."],  # List of URLs to validate
     timeout=10.0  # Optional: seconds per request (default: 10)
 )
 ```
@@ -236,7 +238,7 @@ check_links(
 Link Check Results: 2/3 valid
 
 Invalid links:
-  - https://bad-link.com: Connection failed: ...
+  - https://bad-link.com: Host not allowed
 
 Valid links:
   - https://docs.langchain.com
