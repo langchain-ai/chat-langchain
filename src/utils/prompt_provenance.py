@@ -1,8 +1,10 @@
-# Prompt provenance lookup for LangSmith trace metadata.
+"""Prompt provenance lookup for LangSmith trace metadata."""
 
 import logging
 import os
 from functools import lru_cache
+
+from src.utils.guardrails_prompt import verify_guardrails_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -64,14 +66,11 @@ def _resolve_hub_provenance(
     workspace_id: str | None,
     api_key_set: bool,
 ) -> tuple[str, str | None]:
-    """Pull the hub prompt to get its current commit hash. Cached per process.
-
-    ``api_key_set`` is part of the cache key so enabling ``LANGSMITH_PROMPT_API_KEY``
-    invalidates prior failed lookups. The key value itself is read at call time.
-    """
+    """Cache provenance for matching Hub prompts, falling back to local policy."""
     try:
         client = _hub_client(workspace_id, _prompt_api_key() if api_key_set else None)
         template = client.pull_prompt(hub_name)
+        verify_guardrails_prompt(template.format_messages(messages=[])[0].content)
         commit = (template.metadata or {}).get("lc_hub_commit_hash")
         if not commit:
             logger.warning(
@@ -88,7 +87,7 @@ def _resolve_hub_provenance(
             "set" if api_key_set else "unset",
             exc,
         )
-        return f"hub:{hub_name}", None
+        return "local:src/prompts/guardrails_prompts.py", None
 
 
 def get_prompt_provenance(graph_id: str) -> dict[str, str]:

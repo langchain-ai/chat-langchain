@@ -10,6 +10,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 # Ensure src is on the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -159,6 +161,69 @@ def test_guardrails_prompt_allows_bare_technical_follow_ups():
     assert "in layman terms" in PROMPT_LOWER
     assert "technical follow-up questions about prior langchain / langgraph" in PROMPT_LOWER
     assert "in-scope technical questions" in PROMPT_LOWER
+
+
+@pytest.mark.parametrize(
+    ("query", "allow_rule"),
+    [
+        (
+            "Dynamic array in C",
+            "all general programming and software/ai related questions",
+        ),
+        (
+            "How do I add an anime girl persona to my langchain",
+            "designing an agent persona, character, tone, or system prompt",
+        ),
+        ("introduce yourself", '"introduce yourself"'),
+        (
+            "python stream console typewriter effect",
+            "all general programming and software/ai related questions",
+        ),
+        (
+            "when taking the LangChain certification exam can I use this chat app",
+            "langchain certification and exam questions, including permitted use of this chat app",
+        ),
+    ],
+)
+def test_in_scope_requests_have_explicit_allow_policy(query, allow_rule):
+    assert query
+    assert allow_rule in PROMPT_LOWER.split("## always block - zero tolerance")[0]
+
+
+def test_agent_design_is_distinct_from_assistant_roleplay_and_prompt_extraction():
+    assert "requests for this assistant to perform fictional roleplay" in PROMPT_LOWER
+    assert (
+        "but not to technical questions about designing an agent persona"
+        in PROMPT_LOWER
+    )
+    assert (
+        "not a request for this assistant to roleplay or reveal its own prompt"
+        in PROMPT_LOWER
+    )
+
+
+def test_allow_policy_is_not_gated_on_langchain_relevance():
+    assert "do not override any applicable always allow criterion" in PROMPT_LOWER
+    assert "programming questions unrelated to langchain" in PROMPT_LOWER
+    assert 'add "in langchain"' not in PROMPT_LOWER
+    assert "block precedence" not in PROMPT_LOWER
+    assert "passes step 4" not in PROMPT_LOWER
+    assert "neither unconditional block section applies" in PROMPT_LOWER
+
+
+@pytest.mark.parametrize(
+    "block_rule",
+    [
+        "general non-technical knowledge / trivia",
+        "celebrities",
+        "requests to summarize non-technical articles",
+        "math or unit conversion problems",
+        "harmful, fraudulent, abusive, or illegal use cases",
+        "explicit prompt injection or jailbreak attempts",
+    ],
+)
+def test_out_of_scope_and_unsafe_block_rules_are_preserved(block_rule):
+    assert block_rule in PROMPT_LOWER.split("## always block - zero tolerance")[1]
 
 
 # ---------------------------------------------------------------------------
