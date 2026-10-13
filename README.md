@@ -142,6 +142,43 @@ What MDA owns in this deployment:
 - **Thread titles** — generated in the browser (deterministic truncation).
 - **Checkpointer** — managed by the Managed Deep Agents runtime.
 
+### Credential redaction and trace writes
+
+Ingress redacts credential-shaped text before guardrail, model, and summary
+processing; guardrails also redact their prompts and dataset writes independently.
+Text and multimodal text blocks use `[REDACTED_SECRET]`, preserving variable
+references and obvious placeholders. Non-text media is unchanged; this is not
+image/OCR redaction. The output instruction remains defense in depth.
+AWS secret access keys are identified by their `aws_secret_access_key` field
+with `=` or `:` separators, including quoted fields and values; arbitrary
+AWS-secret-shaped strings are not matched. PostgreSQL connection strings redact
+only the password component, preserving the username, host, port, and database.
+
+**Managed tracing requires host configuration.** MDA owns the root-run tracing
+client, and `define_deep_agent` does not expose a tracing-client option. Root
+inputs can be captured before `before_agent`, so middleware mutation alone does
+not protect stored traces. In the managed host's tracing initialization, construct
+the LangSmith client with the shared anonymizer:
+
+```python
+from langsmith import Client
+from src.utils.secret_redaction import create_secret_anonymizer
+
+client = Client(anonymizer=create_secret_anonymizer())
+```
+
+The runtime must use this client for its root-run `LangChainTracer(client=client)`
+and all child trace writes, and pass it to `tracing_context(client=client)` for
+`traceable` calls, **before accepting requests**. The anonymizer scrubs nested
+inputs and outputs at serialization, including root inputs already captured before
+middleware executes. Creating a separate client in `agent.py` or a connector does
+not reconfigure the runtime's tracer. Until the managed host supports this wiring,
+disable input/output capture there with `LANGSMITH_HIDE_INPUTS=true` and
+`LANGSMITH_HIDE_OUTPUTS=true`; deploy-time tracing configuration must be verified
+with a synthetic credential in persisted root and child inputs/outputs. This change
+does not remove credentials from existing traces or datasets; exposed keys must be
+revoked and historical records handled separately.
+
 ## Resources
 
 - [LangChain Documentation](https://docs.langchain.com/oss/python/langchain/overview)

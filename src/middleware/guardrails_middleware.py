@@ -23,6 +23,7 @@ from src.prompts.guardrails_prompts import (
 from src.prompts.guardrails_prompts import (
     rejection_system_prompt as _REJECTION_SYSTEM_PROMPT,
 )
+from src.utils.secret_redaction import redact_message_content, redact_secrets
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     ) -> None:
         """Add query to dataset asynchronously using AsyncClient."""
         global _dataset_id_cache
+        query, _ = redact_secrets(query)
+        explanation, _ = redact_secrets(explanation)
+        preview, _ = redact_secrets(preview)
         try:
             async with ls.AsyncClient() as client:
                 # Get or create dataset (cache the ID)
@@ -177,9 +181,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -208,7 +210,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if hasattr(last_message, "content")
             else str(last_message)
         )
-        safe_last_content = self._content_to_safe_text(last_content)
+        safe_last_content, _ = redact_secrets(self._content_to_safe_text(last_content))
         query_preview = safe_last_content[:100]
 
         # One classifier, every turn. Covers topic relevance + zero-tolerance
@@ -315,6 +317,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
     def _build_rejection_content(self, content) -> str | list:
         """Build rejection prompt while preserving images for vision-capable models."""
+        content = redact_message_content(content)
         instruction = (
             "The user asked the following request. Consider both the text and any "
             "attached images, then generate a brief, friendly response explaining "
@@ -354,6 +357,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
     def _build_guardrails_content(self, content, context_section: str) -> str | list:
         """Build classifier input while preserving image blocks for vision models."""
+        content = redact_message_content(content)
+        context_section, _ = redact_secrets(context_section)
         instruction = (
             "Classify this user query for the LangChain documentation assistant. "
             "Consider both the text and any attached images. "
@@ -411,14 +416,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from prior classified turns for follow-up detection.
         context_section = ""
