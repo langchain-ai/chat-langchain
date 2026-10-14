@@ -13,7 +13,7 @@ export {
 } from "./message-helpers"
 
 // Content helpers
-export { extractTextFromContent } from "./content-helpers"
+export { extractTextFromContent, extractAcceptedAnswer } from "./content-helpers"
 
 // Validation
 export {
@@ -21,4 +21,3 @@ export {
   createImageAttachment,
   validateImageFile,
 } from "./validation"
-

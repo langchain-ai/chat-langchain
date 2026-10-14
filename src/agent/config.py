@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.chat_models import init_chat_model
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
@@ -14,10 +16,10 @@ from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
 from src.middleware.duplicate_call_guard_middleware import DuplicateCallGuardMiddleware
 from src.middleware.retry_middleware import (
-    RETRYABLE_FINISH_REASONS,
-    MalformedResponseError,
+    ModelRecoveryMiddleware,
     ModelRetryMiddleware,
     _ProviderValidationAwareRunnableRetry,
+    validate_model_response,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -100,24 +102,35 @@ for key in API_KEYS:
 # =============================================================================
 
 # Retry configuration
-MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "1"))
+MAX_OUTPUT_TOKENS = int(os.getenv("MODEL_MAX_OUTPUT_TOKENS", "8192"))
+REQUEST_TIMEOUT = float(os.getenv("MODEL_REQUEST_TIMEOUT", "60"))
+
+
+def _init_bounded_model(model: str) -> BaseChatModel:
+    """Initialize provider-supported generation limits without hidden SDK retries."""
+    return init_chat_model(
+        model=model,
+        max_tokens=MAX_OUTPUT_TOKENS,
+        timeout=REQUEST_TIMEOUT,
+        max_retries=0,
+        disable_streaming=True,
+    )
+
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = _init_bounded_model(DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
-def _raise_for_retryable_finish_reason(response: object) -> object:
-    metadata = getattr(response, "response_metadata", None) or {}
-    finish_reason = metadata.get("finish_reason", "")
-    if finish_reason in RETRYABLE_FINISH_REASONS:
-        raise MalformedResponseError(f"Model returned {finish_reason}")
+def _raise_for_retryable_finish_reason(response: AIMessage) -> AIMessage:
+    validate_model_response(response)
     return response
 
 
 def _init_retrying_model(model: str) -> Runnable:
     return _ProviderValidationAwareRunnableRetry(
-        bound=init_chat_model(model=model)
+        bound=_init_bounded_model(model)
         | RunnableLambda(_raise_for_retryable_finish_reason),
         max_attempt_number=MAX_RETRIES + 1,
     )
@@ -139,13 +152,16 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 # =============================================================================
 
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
+model_recovery_middleware = ModelRecoveryMiddleware(default_model)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 duplicate_call_guard_middleware = DuplicateCallGuardMiddleware()
 docs_research_guard_middleware = DocsResearchGuardMiddleware()
 citation_guard_middleware = CitationGuardMiddleware()
 answer_sanity_guard_middleware = AnswerSanityGuardMiddleware()
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ModelFallbackMiddleware(
+    *[_init_bounded_model(model.id) for model in FALLBACK_MODELS]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -165,6 +181,7 @@ __all__ = [
     "summarization_model",
     # Middleware
     "model_retry_middleware",
+    "model_recovery_middleware",
     "tool_retry_middleware",
     "duplicate_call_guard_middleware",
     "docs_research_guard_middleware",

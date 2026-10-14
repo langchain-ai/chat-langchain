@@ -62,6 +62,12 @@ cp .env.example .env
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
 
+Answer and summarization models default to an 8,192-token output limit, a
+60-second request timeout, and one retry per model before fallback. Override
+these with `MODEL_MAX_OUTPUT_TOKENS`, `MODEL_REQUEST_TIMEOUT` (seconds), and
+`MODEL_MAX_RETRIES`. Truncated or long repetitive responses are rejected; the
+chat UI displays only validated graph-state answers rather than attempt tokens.
+
 ### Running Locally
 
 #### Backend

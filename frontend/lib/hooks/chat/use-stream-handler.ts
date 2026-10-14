@@ -5,7 +5,7 @@
  * message updates, tool calls, thinking steps, subgraph outputs, and metadata fetching.
  *
  * Key Features:
- * - Real-time streaming of agent responses with progressive token display
+ * - Validated graph-state answers with live tool progress
  * - Tool call tracking and output capture (both regular tools and subagents)
  * - Thinking step visualization showing agent's reasoning process
  * - Subagent execution tracking with parallel execution support
@@ -15,7 +15,7 @@
  * - SSR-safe implementation
  *
  * Architecture:
- * - Processes multiple stream modes: values, updates, messages, messages/partial
+ * - Processes graph-state stream modes: values and updates
  * - Filters subgraph events to show only main agent responses
  * - Tracks execution state across streaming events
  * - Implements retry logic for LangSmith API calls (run data may not be immediately available)
@@ -31,7 +31,7 @@ import type {
   ImageAttachment,
 } from "../../types"
 import {
-  extractTextFromContent,
+  extractAcceptedAnswer,
   ensureMessageExists,
   updateMessageInList,
 } from "../../utils/chat"
@@ -312,7 +312,7 @@ export function useStreamHandler({
    *
    * Main function that handles:
    * - Initiating the stream with LangGraph SDK
-   * - Processing various stream event types (values, updates, messages, messages/partial)
+   * - Processing validated graph state and tool updates (values, updates)
    * - Tracking tool calls, thinking steps, and subagent outputs
    * - Updating message state in real-time
    * - Handling stream interruption
@@ -413,7 +413,6 @@ export function useStreamHandler({
       let assistantContent = ""
       let assistantToolCalls: ToolCall[] = []
       let runId: string | undefined = undefined
-      let hasSeenNewResponse = false
 
       const agentType = "docs_agent"
 
@@ -433,7 +432,7 @@ export function useStreamHandler({
           tags: ["Chat-LangChain", agentType],
           metadata: traceMetadata,
         } as any,
-        streamMode: ["values", "updates", "messages"],
+        streamMode: ["values", "updates"],
         streamSubgraphs: true,
         ifNotExists: "create",
         onRunCreated: (metadata: { run_id?: string }) => {
@@ -702,98 +701,27 @@ export function useStreamHandler({
         return prev
       })
 
-      // Handle "values" mode - final state with complete output
-      // IMPORTANT: Skip subgraph events to avoid showing subagent content in main chat
-      if (eventType === "values" && !isSubgraphEvent && data?.messages && Array.isArray(data.messages)) {
-        // Find the last assistant message
-        const finalAIMessage = [...data.messages].reverse().find((msg: any) =>
-          msg.type === "ai" || msg.role === "assistant"
-        )
+      const finalContent = extractAcceptedAnswer(eventType, data)
+      if (finalContent) {
+        assistantContent = finalContent
 
-        const finalContent = finalAIMessage?.content ? extractTextFromContent(finalAIMessage.content) : ""
-        const hasFinalMessage = !finalAIMessage?.tool_calls || finalAIMessage.tool_calls.length === 0
+        setMessages((prev) => {
+          const baseMessage: Message = {
+            id: assistantMessageId,
+            role: "assistant",
+            content: assistantContent,
+            timestamp: new Date(),
+            isThinking: true,
+            subgraphOutputs: [...subgraphOutputs],
+          }
 
-        // IMPORTANT: Skip subagent responses (they typically start with JSON like '{"answer":')
-        const looksLikeSubagentResponse = finalContent.trim().startsWith('{') || finalContent.trim().startsWith('{"answer')
-
-        // Only set content if:
-        // 1. We have final content
-        // 2. No pending tool calls
-        // 3. Haven't set content yet
-        // 4. Not a subagent response
-        // 5. We've seen NEW streaming content for this request (prevents using old thread history)
-        if (finalContent && hasFinalMessage && !looksLikeSubagentResponse && hasSeenNewResponse && !assistantContent) {
-          assistantContent = finalContent
-
-          setMessages((prev) => {
-            const baseMessage: Message = {
-              id: assistantMessageId,
-              role: "assistant",
-              content: assistantContent,
-              timestamp: new Date(),
-              isThinking: true,
-              subgraphOutputs: [...subgraphOutputs],
-            }
-
-            const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
-            return updateMessageInList(withMessage, assistantMessageId, {
-              content: assistantContent,
-              isThinking: true,
-              subgraphOutputs: [...subgraphOutputs],
-            })
+          const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
+          return updateMessageInList(withMessage, assistantMessageId, {
+            content: assistantContent,
+            isThinking: true,
+            subgraphOutputs: [...subgraphOutputs],
           })
-        }
-      }
-
-      // Handle streaming messages - show progressive tokens
-      // Try both "messages/partial" and "messages" event types
-      // IMPORTANT: Skip subgraph events (they have "|" in the event type)
-      if ((eventType === "messages/partial" || eventType === "messages") && !isSubgraphEvent && data) {
-        // Handle both array and tuple formats
-        let aiChunk: any
-        if (Array.isArray(data)) {
-          aiChunk = data.find((msg: any) => msg.type === "ai" || msg.role === "assistant")
-        } else if (data && typeof data === 'object') {
-          // Sometimes data is a tuple [message, metadata]
-          if (data[0]) aiChunk = data[0]
-          else aiChunk = data
-        }
-
-        if (aiChunk?.content) {
-          const streamedContent = extractTextFromContent(aiChunk.content)
-
-          // IMPORTANT: Skip subagent responses (they typically start with JSON like '{"answer":')
-          const looksLikeSubagentResponse = streamedContent.trim().startsWith('{') || streamedContent.trim().startsWith('{"answer')
-          if (looksLikeSubagentResponse) {
-            continue
-          }
-
-          // Only update if we have content and no pending tool calls (check array length)
-          const hasPendingToolCalls = aiChunk.tool_calls && Array.isArray(aiChunk.tool_calls) && aiChunk.tool_calls.length > 0
-          if (streamedContent && !hasPendingToolCalls) {
-            // Accumulate the streamed content
-            assistantContent = streamedContent
-            hasSeenNewResponse = true // Mark that we've seen new content
-
-            setMessages((prev) => {
-              const baseMessage: Message = {
-                id: assistantMessageId,
-                role: "assistant",
-                content: streamedContent,
-                timestamp: new Date(),
-                isThinking: true,
-                subgraphOutputs: [...subgraphOutputs],
-              }
-
-              const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
-              return updateMessageInList(withMessage, assistantMessageId, {
-                content: streamedContent,
-                isThinking: true,
-                subgraphOutputs: [...subgraphOutputs],
-              })
-            })
-          }
-        }
+        })
       }
 
       // Capture tool calls (NOT content - content comes from "values" event)

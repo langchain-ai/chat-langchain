@@ -24,3 +24,23 @@ export const extractTextFromContent = (content: any): string => {
   return ""
 }
 
+export const extractAcceptedAnswer = (
+  event: string,
+  data: { messages?: { type?: string; role?: string; content?: unknown; tool_calls?: unknown[] }[] } | undefined
+): string | null => {
+  if (event !== "values" || !Array.isArray(data?.messages)) return null
+
+  const messages = data.messages
+  const humanIndex = messages.findLastIndex(message =>
+    message.type === "human" || message.role === "user"
+  )
+  const assistantIndex = messages.findLastIndex(message =>
+    message.type === "ai" || message.role === "assistant"
+  )
+  if (humanIndex < 0 || assistantIndex <= humanIndex) return null
+
+  const message = messages[assistantIndex]
+  if (message.tool_calls?.length) return null
+  const content = extractTextFromContent(message.content)
+  return content && !content.trim().startsWith("{") ? content : null
+}
