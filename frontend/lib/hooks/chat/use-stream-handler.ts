@@ -412,8 +412,9 @@ export function useStreamHandler({
           : messageContent.slice(0, 100)
       })
 
+      const userMessageId = `${assistantMessageId}-input`
       const input = {
-        messages: [{ role: "user", content: messageContent }],
+        messages: [{ role: "user", content: messageContent, id: userMessageId }],
       }
 
       const recursionLimit = 100
@@ -421,7 +422,7 @@ export function useStreamHandler({
       let assistantContent = ""
       let assistantToolCalls: ToolCall[] = []
       let runId: string | undefined = undefined
-      let hasSeenNewResponse = false
+      let finalAssistantContent: string | undefined
 
       const agentType = "docs_agent"
 
@@ -718,10 +719,13 @@ export function useStreamHandler({
       // Handle "values" mode - final state with complete output
       // IMPORTANT: Skip subgraph events to avoid showing subagent content in main chat
       if (eventType === "values" && !isSubgraphEvent && data?.messages && Array.isArray(data.messages)) {
-        // Find the last assistant message
-        const finalAIMessage = [...data.messages].reverse().find((msg: any) =>
-          msg.type === "ai" || msg.role === "assistant"
+        const lastHumanMessage = [...data.messages].reverse().find((msg: any) =>
+          msg.type === "human" || msg.role === "user"
         )
+        const lastMessage = data.messages[data.messages.length - 1]
+        const finalAIMessage = lastMessage?.type === "ai" || lastMessage?.role === "assistant"
+          ? lastMessage
+          : undefined
 
         const finalContent = finalAIMessage?.content ? extractTextFromContent(finalAIMessage.content) : ""
         const hasFinalMessage = !finalAIMessage?.tool_calls || finalAIMessage.tool_calls.length === 0
@@ -729,14 +733,9 @@ export function useStreamHandler({
         // IMPORTANT: Skip subagent responses (they typically start with JSON like '{"answer":')
         const looksLikeSubagentResponse = finalContent.trim().startsWith('{') || finalContent.trim().startsWith('{"answer')
 
-        // Only set content if:
-        // 1. We have final content
-        // 2. No pending tool calls
-        // 3. Haven't set content yet
-        // 4. Not a subagent response
-        // 5. We've seen NEW streaming content for this request (prevents using old thread history)
-        if (finalContent && hasFinalMessage && !looksLikeSubagentResponse && hasSeenNewResponse && !assistantContent) {
+        if (finalAIMessage && hasFinalMessage && !looksLikeSubagentResponse && lastHumanMessage?.id === userMessageId) {
           assistantContent = finalContent
+          finalAssistantContent = finalContent
 
           setMessages((prev) => {
             const baseMessage: Message = {
@@ -786,7 +785,6 @@ export function useStreamHandler({
           if (streamedContent && !hasPendingToolCalls) {
             // Accumulate the streamed content
             assistantContent = streamedContent
-            hasSeenNewResponse = true // Mark that we've seen new content
 
             setMessages((prev) => {
               const baseMessage: Message = {
@@ -844,6 +842,9 @@ export function useStreamHandler({
 
     // Check if stream was interrupted
     const wasInterrupted = shouldInterruptRef?.current || false
+    if (!wasInterrupted && finalAssistantContent !== undefined) {
+      assistantContent = finalAssistantContent
+    }
 
     // Mark as complete after stream ends
     setMessages((prev) => {

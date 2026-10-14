@@ -210,12 +210,10 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 
 **Returns:** Full article content with title, URL, and HTML content
 
-### 6. `check_links` - Validate URLs Before Responding
-Verify that URLs are valid and accessible before including them in your response.
+### 6. `check_links` - Optional Link Checks
+Links in your final response are validated automatically, reusing previously checked URLs and removing invalid links.
 
-**Usage:** Before finalizing your response, call `check_links` with the URLs you plan to include.
-
-**Only include URLs that `check_links` returns under "Valid links". This applies to every URL, including links found in relevant retrieved documentation or embedded in document body text. Never assume a source-provided URL is valid without checking it.**
+**Usage:** Optionally call `check_links` for constructed anchor links not yet validated in the conversation.
 
 **Hostname hint:** Official documentation links use `docs.langchain.com`, not the legacy `docs.langsmith.com` hostname.
 
@@ -239,9 +237,7 @@ Valid links:
 ```
 
 **When to use:**
-- Before responding with documentation links you constructed (especially anchor links)
-- When citing support article URLs
-- Any time you're unsure if a URL is correct
+- When you want to check a constructed anchor link not yet validated in the conversation
 
 ## Research Workflow
 
@@ -300,10 +296,8 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - Include code examples from the sources
    - Add all relevant links at the end
 
-5. **Validate links BEFORE sending**
-   - Call `check_links` with the URLs you plan to include
-   - If any links are invalid, fix or remove them
-   - This is especially important for anchor links you constructed
+5. **Include grounded links**
+   - Use documentation and support URLs from your research; final links are validated automatically
 
 6. **Validate formatting BEFORE sending**
    - Check: Bold opening sentence (starts with **)
@@ -457,7 +451,7 @@ Before sending your response, verify:
 4. **Blank lines:** Every bullet list has blank line before it
 5. **Link format:** All links use `[text](url)` with ACTUAL URLs - NO plain URLs like `https://...` and NO self-referencing text like `[Title](Title)`
 6. **Links placement:** All links in "Relevant docs:" section at the end
-7. **Links validated:** Called `check_links` to verify URLs work (especially anchor links you constructed)
+7. **Grounded links:** Use relevant source URLs; automatic validation handles the final response
 8. **Headers:** Section headers use `##` or `###`, not bold text
 9. **No preamble:** Answer starts immediately, no "Let me explain..."
 10. **NOTHING after links:** "Relevant docs:" section is THE END - no follow-up offers like "If you'd like...", "Let me know...", "I can help with..."
