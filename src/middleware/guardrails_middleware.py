@@ -492,12 +492,37 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         )
 
     def _track_decision_metadata(self, decision: GuardrailsDecision) -> None:
-        """Add guardrails decision to LangSmith run metadata."""
+        """Add guardrails decision to child and root LangSmith run metadata."""
         try:
             run_tree = ls.get_current_run_tree()
-            if run_tree:
-                run_tree.metadata["guardrails_result"] = decision["decision"]
-                run_tree.metadata["guardrails_explanation"] = decision["explanation"]
+            if run_tree is None:
+                return
+
+            metadata = {
+                "guardrails_result": decision["decision"],
+                "guardrails_explanation": decision["explanation"],
+            }
+            run_tree.metadata.update(metadata)
+            root_metadata = dict(metadata)
+            rule = decision.get("rule")
+            if (
+                decision["decision"] == "BLOCKED"
+                and isinstance(rule, str)
+                and rule.strip()
+            ):
+                root_metadata["guardrails_rule"] = rule.strip()[:200]
+
+            try:
+                root_run = run_tree
+                while root_run.parent_run is not None:
+                    root_run = root_run.parent_run
+                if root_run.id == run_tree.trace_id:
+                    root_run.metadata.update(root_metadata)
+                    return
+            except Exception:
+                pass
+
+            Client().update_run(run_tree.trace_id, extra={"metadata": root_metadata})
         except Exception:
             pass  # Silently ignore if run tree is not available
 
