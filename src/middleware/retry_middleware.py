@@ -1,6 +1,9 @@
-# Retry middleware for model calls with exponential backoff
+"""Retry malformed, truncated, or degenerate model responses with backoff."""
+
 import asyncio
 import logging
+import time
+import zlib
 from typing import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
@@ -9,13 +12,38 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.messages import AIMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 logger = logging.getLogger(__name__)
 
 # Finish reasons that indicate a retryable failure (not an exception)
 RETRYABLE_FINISH_REASONS = {
     "MALFORMED_FUNCTION_CALL",  # Gemini: invalid tool call syntax
+    "MAX_TOKENS",
+    "length",
 }
+
+
+def _is_degenerate_output(text: str) -> bool:
+    if len(text) <= 4_000:
+        return False
+    raw = text.encode("utf-8")
+    return len(zlib.compress(raw)) < len(raw) * 0.05
+
+
+def get_retryable_response_reason(response: object) -> str | None:
+    """Identify retryable finish reasons or highly repetitive response text."""
+    messages = response.result if isinstance(response, ModelResponse) else [response]
+    for message in messages:
+        if not isinstance(message, AIMessage):
+            continue
+        finish_reason = message.response_metadata.get("finish_reason", "")
+        if finish_reason in RETRYABLE_FINISH_REASONS:
+            return finish_reason
+        if _is_degenerate_output(message.text):
+            return "degenerate output"
+    return None
 
 
 class MalformedResponseError(Exception):
@@ -25,46 +53,70 @@ class MalformedResponseError(Exception):
 
 
 class ModelRetryMiddleware(AgentMiddleware):
+    """Bound model output and retry unusable responses before falling back."""
+
     def __init__(
         self,
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
+        max_output_tokens: int = 8192,
     ):
+        """Configure the retry budget, backoff, and output limit."""
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self.max_output_tokens = max_output_tokens
 
-    def _get_finish_reason(self, response: ModelResponse) -> str:
-        """Extract finish_reason from response metadata."""
-        metadata = getattr(response, "response_metadata", None) or {}
-        return metadata.get("finish_reason", "")
+    def _bounded_request(self, request: ModelRequest) -> ModelRequest:
+        setting = (
+            "max_output_tokens"
+            if isinstance(request.model, ChatGoogleGenerativeAI)
+            else "max_tokens"
+        )
+        return request.override(
+            model_settings={
+                **request.model_settings,
+                setting: self.max_output_tokens,
+            }
+        )
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelCallResult:
+        """Bound and retry synchronous model calls."""
+        request = self._bounded_request(request)
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = handler(request)
+                reason = get_retryable_response_reason(response)
+                if reason:
+                    raise MalformedResponseError(f"Model returned {reason}")
+                return response
+            except Exception:
+                if attempt == self.max_retries:
+                    raise
+                time.sleep(self.initial_delay * (self.backoff_factor**attempt))
+        raise RuntimeError("Unexpected state in retry middleware")
 
     async def awrap_model_call(
         self,
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelCallResult:
+        """Bound and retry asynchronous model calls."""
+        request = self._bounded_request(request)
         last_exception: Exception | None = None
-        last_retryable_reason: str | None = None
 
         for attempt in range(self.max_retries + 1):
             try:
                 response = await handler(request)
-                finish_reason = self._get_finish_reason(response)
-
-                if finish_reason in RETRYABLE_FINISH_REASONS:
-                    if attempt < self.max_retries:
-                        delay = self.initial_delay * (self.backoff_factor**attempt)
-                        logger.warning(
-                            f"Retryable response ({finish_reason}) "
-                            f"attempt {attempt + 1}/{self.max_retries + 1}, "
-                            f"retrying in {delay:.2f}s"
-                        )
-                        last_retryable_reason = finish_reason
-                        await asyncio.sleep(delay)
-                        continue
+                reason = get_retryable_response_reason(response)
+                if reason:
+                    raise MalformedResponseError(f"Model returned {reason}")
 
                 return response
 
@@ -85,11 +137,6 @@ class ModelRetryMiddleware(AgentMiddleware):
         # Exhausted retries - raise for fallback middleware
         if last_exception:
             raise last_exception
-
-        if last_retryable_reason:
-            raise MalformedResponseError(
-                f"Model returned {last_retryable_reason} after {self.max_retries + 1} attempts"
-            )
 
         raise RuntimeError("Unexpected state in retry middleware")
 

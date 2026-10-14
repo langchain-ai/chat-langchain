@@ -46,8 +46,8 @@ docs_agent_middleware = [
         trim_tokens_to_summarize=None,
     ),
     tool_retry_middleware,
-    model_retry_middleware,
     model_fallback_middleware,
+    model_retry_middleware,
 ]
 
 agent = define_deep_agent(

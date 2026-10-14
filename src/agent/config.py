@@ -10,9 +10,9 @@ from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.retry_middleware import (
-    RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
     ModelRetryMiddleware,
+    get_retryable_response_reason,
 )
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
 
@@ -96,23 +96,23 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MAX_OUTPUT_TOKENS = int(os.getenv("MODEL_MAX_OUTPUT_TOKENS", "8192"))
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(model=DEFAULT_MODEL.id, max_tokens=MAX_OUTPUT_TOKENS)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
 def _raise_for_retryable_finish_reason(response: object) -> object:
-    metadata = getattr(response, "response_metadata", None) or {}
-    finish_reason = metadata.get("finish_reason", "")
-    if finish_reason in RETRYABLE_FINISH_REASONS:
-        raise MalformedResponseError(f"Model returned {finish_reason}")
+    reason = get_retryable_response_reason(response)
+    if reason:
+        raise MalformedResponseError(f"Model returned {reason}")
     return response
 
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_chat_model(model=model, max_tokens=MAX_OUTPUT_TOKENS)
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -132,10 +132,17 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 # Middleware
 # =============================================================================
 
-model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
+model_retry_middleware = ModelRetryMiddleware(
+    max_retries=MAX_RETRIES, max_output_tokens=MAX_OUTPUT_TOKENS
+)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = ModelFallbackMiddleware(
+    *[
+        init_chat_model(model=m.id, max_tokens=MAX_OUTPUT_TOKENS)
+        for m in FALLBACK_MODELS
+    ]
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
@@ -159,5 +166,6 @@ __all__ = [
     "model_fallback_middleware",
     # Config
     "MAX_RETRIES",
+    "MAX_OUTPUT_TOKENS",
     "logger",
 ]
