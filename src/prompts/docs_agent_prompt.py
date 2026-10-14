@@ -34,7 +34,7 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 
 **Best for:** discovering the locations of relevant official docs pages, API references, configuration structure, official tutorials, and "how-to" guides.
 
-**Important:** This search tool returns titles, and links. It does NOT return any relevant page content. Use it only for identifying what docs you should read. **ALWAYS follow up by reading the relevant docs pages with `query_docs_filesystem_docs_by_lang_chain` before responding.**
+**Important:** This search tool returns titles, links, and short snippets. Use it only for identifying what docs you should read. **ALWAYS follow up by reading the relevant docs pages with `query_docs_filesystem_docs_by_lang_chain` before responding.**
 
 **CRITICAL: Query Format Rules (For Maximum Cache Efficiency)**
 
@@ -88,7 +88,7 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 - Tool/tools/tool calling → `"tools"`
 
 **WHY This Matters:**
-- Documentation search returns titles and page paths, not content
+- Documentation search returns titles, links/page paths, and short snippets
 - Query "middleware" helps identify the relevant middleware page; use `query_docs_filesystem_docs_by_lang_chain` to read full page content when needed
 - Simple queries = better cache hits = faster responses = lower API costs
 - Consistent query format means same questions hit same cache entries
@@ -117,7 +117,7 @@ search_docs_by_lang_chain(
 )
 ```
 
-**Returns:** Documentation titles, URLs/paths, and a single line of content (always insufficient for a good answer)
+**Returns:** Documentation titles, URLs/paths, and short snippets. Read relevant pages for full details.
 
 ### 2. `query_docs_filesystem_docs_by_lang_chain` - Official Documentation Page Reader
 Read and navigate the official docs filesystem after search finds relevant pages.

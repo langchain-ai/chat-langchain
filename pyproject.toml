@@ -69,6 +69,7 @@ convention = "google"
 [dependency-groups]
 dev = [
     "anyio>=4.7.0",
+    "deepagents>=0.3.0",
     "langgraph-api>=0.5.33",
     "langgraph-cli[inmem]>=0.4.7",
     "mypy>=1.13.0",
