@@ -1,5 +1,9 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+from datetime import UTC, datetime
+
+from langchain.agents.middleware import ModelRequest, dynamic_prompt
+from langchain_core.messages import SystemMessage
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -19,6 +23,22 @@ from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_support_article_content, search_support_articles
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
+
+@dynamic_prompt
+def current_date_prompt(request: ModelRequest) -> SystemMessage:
+    """Append the current UTC date while preserving the managed system prompt."""
+    system_message = request.system_message or SystemMessage(content="")
+    current_date = datetime.now(UTC).date().isoformat()
+    return system_message.model_copy(
+        update={
+            "content": [
+                *system_message.content_blocks,
+                {"type": "text", "text": f"Current UTC date: {current_date}"},
+            ]
+        }
+    )
+
+
 # The MCP docs tools are declared in connectors/mcp.py so the managed runtime
 # owns client lifecycle and appends those tools during compilation.
 docs_agent_tools = [
@@ -29,6 +49,7 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
+    current_date_prompt,
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
