@@ -215,7 +215,7 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 **Returns:** Full article content with title, URL, and HTML content
 
 ### 6. `check_links` - Validate URLs Before Responding
-Verify that URLs are valid and accessible before including in your response.
+Verify that public HTTP(S) URLs on `langchain.com`, `langchain.dev`, their subdomains, or `github.com/langchain-ai/` paths are valid and accessible before including in your response.
 
 **Usage:** Before finalizing your response, call `check_links` with the URLs you plan to include.
 
@@ -236,7 +236,7 @@ check_links(
 Link Check Results: 2/3 valid
 
 Invalid links:
-  - https://bad-link.com: Connection failed: ...
+  - https://bad-link.com: Host not allowed for link checking
 
 Valid links:
   - https://docs.langchain.com
