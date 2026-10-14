@@ -27,6 +27,18 @@ from src.tools.link_check_tools import (
 )
 
 
+@pytest.fixture
+def public_dns(monkeypatch):
+    def install():
+        monkeypatch.setattr(
+            asyncio.get_running_loop(),
+            "getaddrinfo",
+            AsyncMock(return_value=[(2, 1, 6, "", ("93.184.216.34", 443))]),
+        )
+
+    return install
+
+
 class _FakeStreamResponse:
     """Minimal async streaming response for _check_single_url tests."""
 
@@ -231,8 +243,9 @@ async def test_check_links_async_invalid_url_format():
 
 
 @pytest.mark.asyncio
-async def test_support_article_not_found_is_invalid_soft_404():
+async def test_support_article_not_found_is_invalid_soft_404(public_dns):
     """Support articles can return HTTP 200 while rendering an article-not-found page."""
+    public_dns()
     result = await _check_single_url(
         _FakeStreamingClient("<html><body><div>Article Not Found</div></body></html>"),
         "https://support.langchain.com/hc/en-us/articles/missing-article",
@@ -245,8 +258,9 @@ async def test_support_article_not_found_is_invalid_soft_404():
 
 
 @pytest.mark.asyncio
-async def test_support_article_normal_content_is_valid():
+async def test_support_article_normal_content_is_valid(public_dns):
     """Normal support article content should still be treated as valid."""
+    public_dns()
     result = await _check_single_url(
         _FakeStreamingClient("<html><body><div>Useful support article</div></body></html>"),
         "https://support.langchain.com/hc/en-us/articles/existing-article",
