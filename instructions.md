@@ -179,7 +179,7 @@ Fetches live content from `https://www.langchain.com/pricing` - the single sourc
 **Never guess pricing from memory** - the model's training data is stale and will produce wrong numbers.
 
 ### 4. `search_support_articles` - Support Knowledge Base Search
-Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
+Search support article titles by `query`, ranked by case-insensitive token overlap and filtered by collection(s), with at most `limit` results (default 15). Extract the core concept using the same query rules as `search_docs_by_lang_chain`. Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
 
 **Collections available:**
 - "General" - General administration and management topics
@@ -196,7 +196,9 @@ Get list of support article titles from Pylon KB, filtered by collection(s). Use
 
 **Best for:** Known issues, error messages, troubleshooting, deployment gotchas
 
-**Returns:** JSON with article IDs, titles, and URLs
+**Usage:** `search_support_articles(query="deployment", collections="LangSmith Deployment", limit=15)`; use comma-separated collections or `"all"` (default), which is still query-filtered and bounded.
+
+**Returns:** Compact JSON with `collections`, `query`, `total_matched` (before limiting), and `articles` containing only `id`, `title`, and `collection`. Full article reads provide URLs.
 
 ### 5. `get_support_article_content` - Fetch Full Support Article
 Fetch the full HTML content of a specific Pylon/support.langchain.com article by ID.
@@ -267,7 +269,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - **For docs**: Call `search_docs_by_lang_chain` once per distinct concept
      - Single topic: "What is middleware?" -> Search "middleware"
      - Multiple topics: "Stream from subagents?" -> Search "streaming" + "subgraphs" in parallel
-   - **For KB**: Call `search_support_articles` once with relevant collections (e.g., "LangSmith Deployment,LangSmith Observability")
+   - **For KB**: Call `search_support_articles` with the core concept as `query` and relevant collections (e.g., `query="deployment", collections="LangSmith Deployment,LangSmith Observability"`); use the default limit of 15
    - **Make ALL calls at the same time** - don't wait for one to finish
    - Review the documentation search and support article titles
 

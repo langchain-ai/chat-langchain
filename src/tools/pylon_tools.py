@@ -5,6 +5,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -128,31 +129,10 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+def search_support_articles(
+    query: str, collections: str = "all", limit: int = 15
+) -> str:
+    """Search public titles by case-insensitive query token overlap in comma-separated collections (or all), returning at most limit matches as compact JSON."""
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -180,18 +160,10 @@ def search_support_articles(collections: str = "all") -> str:
                 and article.get("identifier")
                 and article.get("slug")
             ):
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier")
-                slug = article.get("slug")
-                support_url = (
-                    f"https://support.langchain.com/articles/{identifier}-{slug}"
-                )
-
                 published_articles.append(
                     {
                         "id": article.get("id"),
                         "title": article.get("title", ""),
-                        "url": support_url,
                         "collection_id": article.get(
                             "collection_id"
                         ),  # Keep for filtering, will be set later
@@ -261,19 +233,24 @@ def search_support_articles(collections: str = "all") -> str:
                 indent=2,
             )
 
-        # Clean up collection_id from output (internal field)
+        query_tokens = set(re.findall(r"\w+", query.lower()))
+        matched_articles = []
         for article in published_articles:
+            title_tokens = set(re.findall(r"\w+", article["title"].lower()))
+            score = len(query_tokens & title_tokens)
+            if score:
+                matched_articles.append((score, article))
             article.pop("collection_id", None)
 
-        # Return structured JSON format
+        matched_articles.sort(key=lambda match: match[0], reverse=True)
         result = {
             "collections": collections,
-            "total": len(published_articles),
-            "articles": published_articles,
-            "note": "All articles listed are public and have content. Use IDs to fetch full content.",
+            "query": query,
+            "total_matched": len(matched_articles),
+            "articles": [article for _, article in matched_articles[: max(0, limit)]],
         }
 
-        return json.dumps(result, indent=2)
+        return json.dumps(result, separators=(",", ":"))
 
     except ValueError as e:
         # API key not configured
