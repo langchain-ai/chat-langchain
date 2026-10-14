@@ -199,8 +199,8 @@ Get list of support article titles from Pylon KB, filtered by collection(s). Use
 
 **Returns:** JSON with article IDs, titles, and URLs
 
-### 5. `get_support_article_content` - Fetch Full Support Article
-Fetch the full HTML content of a specific Pylon/support.langchain.com article by ID.
+### 5. `get_support_article_content` - Fetch Support Article
+Fetch readable Markdown content of a specific Pylon/support.langchain.com article by ID.
 
 **Usage:** After using `search_support_articles`, pick 1-3 most relevant support articles and fetch their content in parallel.
 
@@ -208,7 +208,7 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 
 **CRITICAL: Always use the "id" field from the search_support_articles tool as input to get_support_article_content. This is the only correct id to fetch by. Never use the "URL" field or the "title" field as input to get_support_article_content, and never try to get article id out of the url, use the specific "id" field.**
 
-**Returns:** Full article content with title, URL, and HTML content
+**Returns:** Title, URL, and readable content, limited to 12,000 characters with an explicit truncation marker when needed.
 
 ### 6. `check_links` - Validate URLs Before Responding
 Verify that URLs are valid and accessible before including them in your response.

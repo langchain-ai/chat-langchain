@@ -5,6 +5,8 @@
 import json
 import logging
 import os
+import re
+from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -17,6 +19,149 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+ARTICLE_CONTENT_MAX_CHARS = 12000
+
+
+class _ArticleHTMLParser(HTMLParser):
+    """Render article HTML as readable text with intact links and code fences."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: List[tuple[str, str]] = []
+        self.capture_tag = ""
+        self.buffer: List[str] = []
+        self.href = ""
+        self.hidden_tag = ""
+
+    def handle_starttag(self, tag: str, attrs: List[tuple[str, str | None]]) -> None:
+        """Capture links and code, separating block elements from surrounding text."""
+        if self.hidden_tag:
+            return
+        if tag in {"script", "style"}:
+            self.hidden_tag = tag
+        elif not self.capture_tag:
+            if tag in {"a", "pre", "code"}:
+                self.capture_tag = tag
+                self.href = dict(attrs).get("href") or ""
+            elif tag == "br":
+                self.parts.append(("\n", ""))
+            elif tag in {
+                "p",
+                "div",
+                "li",
+                "ul",
+                "ol",
+                "blockquote",
+                "tr",
+                "h1",
+                "h2",
+                "h3",
+                "h4",
+                "h5",
+                "h6",
+            }:
+                self._break()
+        elif tag == "br":
+            self.buffer.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        """Finish captured elements and separate adjacent blocks."""
+        if self.hidden_tag:
+            if tag == self.hidden_tag:
+                self.hidden_tag = ""
+            return
+        if self.capture_tag:
+            if tag == self.capture_tag:
+                self.finish_capture()
+        elif tag in {
+            "p",
+            "div",
+            "li",
+            "ul",
+            "ol",
+            "blockquote",
+            "tr",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+        }:
+            self._break()
+
+    def handle_data(self, data: str) -> None:
+        """Unescape text via HTMLParser while preserving code whitespace."""
+        if self.hidden_tag:
+            return
+        if self.capture_tag in {"pre", "code"}:
+            self.buffer.append(data)
+        else:
+            text = re.sub(r"\s+", " ", data)
+            if self.capture_tag:
+                self.buffer.append(text)
+            elif text.strip() or (self.parts and not self.parts[-1][0].endswith("\n")):
+                self.parts.append((text, ""))
+
+    def _break(self) -> None:
+        """Separate blocks without accumulating blank lines."""
+        if self.parts and not self.parts[-1][0].endswith("\n\n"):
+            self.parts.append(("\n\n", ""))
+
+    def finish_capture(self) -> None:
+        """Render a captured link or code block as one protected segment."""
+        if not self.capture_tag:
+            return
+        text = "".join(self.buffer)
+        if self.capture_tag == "a" and self.href:
+            label = (
+                text.strip()
+                .replace("\\", "\\\\")
+                .replace("[", "\\[")
+                .replace("]", "\\]")
+            )
+            target = self.href.replace("(", "%28").replace(")", "%29")
+            self.parts.append((f"[{label}]({target})", "link"))
+        elif self.capture_tag in {"pre", "code"}:
+            longest_run = max((len(run) for run in re.findall(r"`+", text)), default=0)
+            fence = "`" * max(3, longest_run + 1)
+            code = text.strip("\n")
+            self.parts.append((f"\n\n{fence}\n{code}\n{fence}\n\n", fence))
+        else:
+            self.parts.append((text, ""))
+        self.capture_tag = ""
+        self.buffer = []
+
+
+def _format_article_content(html: str) -> str:
+    """Convert full HTML before limiting content and marking any truncation."""
+    parser = _ArticleHTMLParser()
+    parser.feed(html)
+    parser.close()
+    parser.finish_capture()
+    rendered = "".join(text for text, _ in parser.parts)
+    content = rendered.strip()
+    total = len(content)
+    cap = ARTICLE_CONTENT_MAX_CHARS
+    if total <= cap:
+        return content
+
+    shown = content[:cap]
+    offset = -(len(rendered) - len(rendered.lstrip()))
+    for text, kind in parser.parts:
+        end = offset + len(text)
+        if kind and offset < cap < end:
+            if kind == "link":
+                shown = content[: max(0, offset)].rstrip()
+            elif cap < end - 2:
+                closing = f"\n{kind}"
+                if cap - offset >= 2 * len(kind) + 4:
+                    shown = content[: cap - len(closing)] + closing
+                else:
+                    shown = content[: max(0, offset)].rstrip()
+            break
+        offset = end
+    return f"{shown}\n\n[Article truncated: showing {len(shown)} of {total} characters]"
 
 
 def _get_kb_id() -> str:
@@ -288,18 +433,7 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
-
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
+    """Fetch readable Pylon support content by search_support_articles ID, with marked truncation."""
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
@@ -342,7 +476,7 @@ URL: {support_url}
 Collection: {collection}
 
 Content:
-{article.get("current_published_content_html", "No content available")[:5000]}"""
+{_format_article_content(article.get("current_published_content_html", "No content available"))}"""
 
         return f"Article ID {article_id} not found in knowledge base."
 
