@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 import random
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
@@ -49,12 +49,35 @@ _GUARDRAILS_PROMPT_HUB_NAME = (
 # Cache for dataset ID to avoid repeated lookups
 _dataset_id_cache: str | None = None
 
+GuardrailsRule = Literal[
+    "zero_tolerance_sexual",
+    "violence",
+    "roleplay",
+    "self_harm",
+    "harmful_use",
+    "prompt_extraction",
+    "social_pressure",
+    "creative_writing",
+    "trivia",
+    "science",
+    "math",
+    "language_help",
+    "business_coaching",
+    "article_summary",
+    "personal_advice",
+    "offensive",
+    "injection",
+    "none",
+]
+_BLOCKING_RULES = frozenset(get_args(GuardrailsRule)) - {"none"}
+
 
 class GuardrailsDecision(TypedDict):
     """Structured output for guardrails decision."""
 
     decision: Literal["ALLOWED", "BLOCKED"]
     explanation: str
+    matched_rule: GuardrailsRule
 
 
 class GuardrailTurn(TypedDict):
@@ -177,9 +200,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -196,7 +217,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     async def abefore_agent(
         self, state: GuardrailsState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """Check if query is LangChain-related before processing."""
+        """Check safety and scope rules before processing."""
         messages = state.get("messages", [])
         if not messages:
             return None
@@ -211,11 +232,6 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         safe_last_content = self._content_to_safe_text(last_content)
         query_preview = safe_last_content[:100]
 
-        # One classifier, every turn. Covers topic relevance + zero-tolerance
-        # categories (NSFW, fiction, harmful-use-case, prompt-extraction,
-        # social-pressure). The prompt's lenient follow-up rules keep legit
-        # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
-        # while zero-tolerance bullets override the default ALLOW.
         try:
             guardrail_history = state.get("guardrail_history", [])
             if guardrail_history:
@@ -357,7 +373,8 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         instruction = (
             "Classify this user query for the LangChain documentation assistant. "
             "Consider both the text and any attached images. "
-            "Return both the decision and one concise sentence explaining why."
+            "Return decision, matched_rule (an applicable ALWAYS BLOCK rule or none), "
+            "and one concise sentence explaining why."
         )
 
         if context_section:
@@ -396,14 +413,44 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
+    def _is_benign_message(self, content) -> bool:
+        """Match only complete, text-only greetings and assistant identity questions."""
+        if isinstance(content, list):
+            if not all(
+                isinstance(block, str)
+                or (
+                    isinstance(block, dict)
+                    and block.get("type") == "text"
+                    and isinstance(block.get("text"), str)
+                )
+                for block in content
+            ):
+                return False
+            content = " ".join(
+                block if isinstance(block, str) else block["text"] for block in content
+            )
+        if not isinstance(content, str):
+            return False
+        return content.strip().casefold().rstrip(".!?,。！？").strip() in {
+            "hi",
+            "hello",
+            "hey",
+            "good morning",
+            "good afternoon",
+            "good evening",
+            "你好",
+            "您好",
+            "who are you",
+            "what are you",
+            "introduce yourself",
+            "介绍自己",
+            "你是谁",
+        }
+
     async def _classify_query(
         self, messages: list, guardrail_history: list[GuardrailTurn] | None = None
     ) -> GuardrailsDecision:
-        """Classify query as ALLOWED or BLOCKED.
-
-        Raises:
-            GuardrailsClassificationError: If classification fails after retries.
-        """
+        """Classify the query, requiring an applicable rule for blocking."""
         # Extract the current query (last human message)
         current_message = None
         current_query = None
@@ -411,14 +458,28 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+                "matched_rule": "none",
+            }
+
+        current_content = getattr(current_message, "content", current_query or "")
+        if self._is_benign_message(current_content):
+            return {
+                "decision": "ALLOWED",
+                "explanation": "Standalone benign greeting or assistant identity question.",
+                "matched_rule": "none",
+            }
 
         # Build context from prior classified turns for follow-up detection.
         context_section = ""
@@ -431,7 +492,6 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 )
             )
 
-        current_content = getattr(current_message, "content", current_query or "")
         prompt = [
             SystemMessage(content=_GUARDRAILS_SYSTEM_PROMPT),
             HumanMessage(
@@ -457,6 +517,16 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                             "Guardrails classification succeeded with fallback model: %s",
                             model_name,
                         )
+                    matched_rule = result.get("matched_rule")
+                    if result["decision"] == "BLOCKED" and (
+                        not isinstance(matched_rule, str)
+                        or matched_rule not in _BLOCKING_RULES
+                    ):
+                        return {
+                            "decision": "ALLOWED",
+                            "explanation": "Classifier identified no valid ALWAYS BLOCK rule.",
+                            "matched_rule": "none",
+                        }
                     return result
                 except Exception as e:
                     last_exception = e
