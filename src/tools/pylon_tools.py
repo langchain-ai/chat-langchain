@@ -5,7 +5,9 @@
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 
 import requests
 from dotenv import load_dotenv
@@ -288,18 +290,7 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
-
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
+    """Fetch cached support article HTML by UUID (preferred: search_support_articles' "id"), numeric identifier, identifier-slug, or full support.langchain.com/articles/... URL."""
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
@@ -315,28 +306,46 @@ def get_support_article_content(article_id: str) -> str:
         except Exception:
             collection_id_to_name = {}
 
-        # Find the article by ID
-        for article in articles:
-            if article.get("id") == article_id:
-                title = article.get("title", "Untitled")
-                # Look up collection name by collection_id; fall back to default
-                coll_id = article.get("collection_id")
-                collection = collection_id_to_name.get(
-                    coll_id, "Customer Support Knowledge Base"
+        normalized_id = article_id.strip()
+        article_url = urlsplit(normalized_id)
+        if (
+            article_url.hostname == "support.langchain.com"
+            and article_url.path.startswith("/articles/")
+        ):
+            normalized_id = article_url.path.split("/")[2]
+
+        matching_articles = [
+            article for article in articles if article.get("id") == normalized_id
+        ]
+        if not matching_articles:
+            identifier_match = re.fullmatch(r"(\d+)(-.*)?", normalized_id)
+            if identifier_match:
+                matching_articles = [
+                    article
+                    for article in articles
+                    if str(article.get("identifier")) == identifier_match.group(1)
+                ]
+
+        for article in matching_articles:
+            title = article.get("title", "Untitled")
+            # Look up collection name by collection_id; fall back to default
+            coll_id = article.get("collection_id")
+            collection = collection_id_to_name.get(
+                coll_id, "Customer Support Knowledge Base"
+            )
+
+            # Construct support.langchain.com URL
+            identifier = article.get("identifier", "")
+            slug = article.get("slug", "")
+            if identifier and slug:
+                support_url = (
+                    f"https://support.langchain.com/articles/{identifier}-{slug}"
                 )
+            else:
+                support_url = "URL not available"
 
-                # Construct support.langchain.com URL
-                identifier = article.get("identifier", "")
-                slug = article.get("slug", "")
-                if identifier and slug:
-                    support_url = (
-                        f"https://support.langchain.com/articles/{identifier}-{slug}"
-                    )
-                else:
-                    support_url = "URL not available"
-
-                # Only return id, title, url, collection, content
-                return f"""ID: {article.get("id")}
+            # Only return id, title, url, collection, content
+            return f"""ID: {article.get("id")}
 Title: {title}
 URL: {support_url}
 Collection: {collection}
@@ -344,7 +353,7 @@ Collection: {collection}
 Content:
 {article.get("current_published_content_html", "No content available")[:5000]}"""
 
-        return f"Article ID {article_id} not found in knowledge base."
+        return f'Article ID {article_id} not found. Pass the "id" (UUID) field from search_support_articles.'
 
     except ValueError as e:
         # API key not configured
