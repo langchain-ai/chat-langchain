@@ -7,6 +7,7 @@ from agent import docs_agent_middleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.legal_handoff_middleware import (
     LEGAL_HANDOFF_MESSAGE,
+    SUPPORT_TICKET_ARTICLE_URL,
     LegalHandoffMiddleware,
     is_legal_question,
 )
@@ -87,3 +88,11 @@ def test_handoff_ignores_technical_questions():
 def test_handoff_runs_before_guardrails():
     types = [type(m) for m in docs_agent_middleware]
     assert types.index(LegalHandoffMiddleware) < types.index(GuardrailsMiddleware)
+
+
+def test_handoff_points_to_ticket_path_without_promising_follow_up():
+    # Portal chats are unmonitored, so a follow-up only happens once the user
+    # opens a ticket themselves.
+    assert "Contact support" in LEGAL_HANDOFF_MESSAGE
+    assert SUPPORT_TICKET_ARTICLE_URL in LEGAL_HANDOFF_MESSAGE
+    assert "follow up" not in LEGAL_HANDOFF_MESSAGE.lower()

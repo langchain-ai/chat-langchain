@@ -53,14 +53,25 @@ _LEGAL_PATTERNS = [
 
 _LEGAL_RE = re.compile("|".join(_LEGAL_PATTERNS), re.IGNORECASE)
 
+# Portal chats are not monitored; support only sees a conversation once the
+# customer opens a ticket. Never promise a follow-up here, point to the ticket
+# path instead: the Contact support button on the portal, or the KB article on
+# surfaces without that button (e.g. docs).
+SUPPORT_TICKET_ARTICLE_URL = (
+    "https://support.langchain.com/articles/"
+    "3788815465-how-to-open-support-tickets-via-portal#how-to-submit-a-support-ticket"
+)
+
 LEGAL_HANDOFF_MESSAGE = (
-    "**I can't answer questions about legal or contract terms, so a person from "
-    "our team needs to handle this.**\n\n"
+    "**I can't answer questions about legal or contract terms, so please open a "
+    "support ticket and a person from our team will handle it.**\n\n"
     "That includes DPAs, SCCs, BAAs, HIPAA and health-data coverage, and contract "
     "amendments or redlines. I can't confirm what these documents cover or whether "
     "proposed changes are acceptable, and nothing I've said in this conversation "
-    "should be read as legal confirmation. A member of the LangChain team will "
-    "follow up with you on this."
+    "should be read as legal confirmation.\n\n"
+    "If you're on the support portal, click **Contact support** below this reply. "
+    "Otherwise, follow the steps in "
+    f"[How to Submit a Support Ticket]({SUPPORT_TICKET_ARTICLE_URL})."
 )
 
 
@@ -131,4 +142,9 @@ class LegalHandoffMiddleware(AgentMiddleware[LegalHandoffState]):
             pass
 
 
-__all__ = ["LEGAL_HANDOFF_MESSAGE", "LegalHandoffMiddleware", "is_legal_question"]
+__all__ = [
+    "LEGAL_HANDOFF_MESSAGE",
+    "SUPPORT_TICKET_ARTICLE_URL",
+    "LegalHandoffMiddleware",
+    "is_legal_question",
+]
