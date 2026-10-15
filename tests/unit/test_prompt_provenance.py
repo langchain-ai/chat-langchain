@@ -1,8 +1,44 @@
-"""Tests for Hub prompt provenance resolution."""
+"""Tests for Hub prompt publication and provenance resolution."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from scripts import push_docs_agent_prompt
 from src.utils import prompt_provenance as provenance
+
+
+def test_published_docs_prompt_public_facts_match_managed_instructions(monkeypatch):
+    published = {}
+
+    class FakeClient:
+        def push_prompt(self, identifier, *, object):
+            published[identifier] = object
+            return "https://smith.langchain.com/prompts/test"
+
+    monkeypatch.setattr(push_docs_agent_prompt, "Client", FakeClient)
+    monkeypatch.setattr(
+        push_docs_agent_prompt, "load_dotenv", lambda *args, **kwargs: None
+    )
+
+    push_docs_agent_prompt.main()
+
+    template = published["langchain-ai/public-chat-langchain-test"]
+    messages = template.invoke({}).messages
+    instructions = Path(__file__).resolve().parents[2] / "instructions.md"
+    assert len(messages) == 1
+    assert messages[0].type == "system"
+    section = "## About Chat LangChain (public facts you may share)"
+    published_facts = (
+        messages[0].content.split(section)[1].split("## Available Tools")[0]
+    )
+    managed_facts = (
+        instructions.read_text().split(section)[1].split("## Available Tools")[0]
+    )
+    assert published_facts == managed_facts
+    assert "https://github.com/langchain-ai/chat-langchain" in messages[0].content
+    assert "PYLON_KB_ID" in messages[0].content
+    assert "managed-deepagents" in messages[0].content
 
 
 class _FakeTemplate:
