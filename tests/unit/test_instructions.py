@@ -45,3 +45,15 @@ def test_docs_prompt_publisher_uses_current_instructions(monkeypatch):
     assert len(messages) == 1
     assert messages[0].type == "system"
     assert messages[0].content == instructions
+
+
+def test_support_search_instructions_match_tool_schema():
+    from src.tools.pylon_tools import search_support_articles
+
+    instructions = (Path(__file__).parents[2] / "instructions.md").read_text()
+    schema = search_support_articles.tool_call_schema.model_json_schema()
+
+    assert "query" in schema["properties"]
+    assert not schema.get("required")
+    assert "`query`" in instructions
+    assert "Call `search_support_articles` once with a keyword `query`" in instructions

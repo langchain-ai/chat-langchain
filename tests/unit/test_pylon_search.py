@@ -115,3 +115,21 @@ def test_search_caps_results_at_ten():
         set(article) == {"id", "article_id", "title", "url", "collection", "snippet"}
         for article in result["articles"]
     )
+
+
+def test_missing_query_lists_collection_articles_instead_of_failing():
+    articles = [
+        _article("general", "General guide", "Body."),
+        _article("trouble", "Fix 502s", "Body.", "collection-troubleshooting"),
+    ]
+    with patch("src.tools.pylon_tools._fetch_all_articles", return_value=articles):
+        with patch(
+            "src.tools.pylon_tools._fetch_collections", return_value=COLLECTIONS
+        ):
+            result = json.loads(
+                search_support_articles.invoke({"collections": "Troubleshooting"})
+            )
+
+    assert [article["id"] for article in result["articles"]] == ["trouble"]
+    assert result["articles"][0]["collection"] == "Troubleshooting"
+    assert result["total_matched"] == result["returned"] == 1
