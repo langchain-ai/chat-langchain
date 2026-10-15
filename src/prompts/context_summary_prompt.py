@@ -14,7 +14,7 @@ Prioritize information that is still unresolved or likely needed later:
 - Tool failures, contradictions, or gotchas that would be expensive or confusing to rediscover
 
 Do not preserve every raw tool output. Many tool results can be re-fetched:
-- Documentation search results are cached by normalized query/page size/language, but only include snippets/titles/links.
+- Documentation search returns content chunks, titles, links, and page paths that may mix Python and JavaScript; preserve the target language and verified code sources.
 - Support article data is cached in-process and article content can be re-read by article ID.
 - Pricing data is cached briefly but should be re-fetched live before final pricing answers.
 - Link checks are cached by URL.
