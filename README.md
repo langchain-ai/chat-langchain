@@ -121,8 +121,8 @@ The agent uses a docs-first research strategy:
 1. **Guardrails Check** - Validates the query is LangChain-related
 2. **Documentation Search** - Searches official docs via the managed MCP connector
 3. **Knowledge Base** - Searches Pylon for known issues/solutions
-4. **Link Validation** - Verifies any URLs before including them
-5. **Response Generation** - Synthesizes a helpful answer
+4. **Response Generation** - Synthesizes a helpful answer
+5. **Link Validation** - Automatically validates final-response URLs using cached results and removes invalid or unverified links
 
 ## Deployment
 
