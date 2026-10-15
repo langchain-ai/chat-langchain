@@ -34,6 +34,7 @@ class _FakeStreamResponse:
         self.url = url
         self.status_code = status_code
         self._content = content
+        self.has_redirect_location = False
 
     async def __aenter__(self):
         return self
@@ -231,8 +232,13 @@ async def test_check_links_async_invalid_url_format():
 
 
 @pytest.mark.asyncio
-async def test_support_article_not_found_is_invalid_soft_404():
-    """Support articles can return HTTP 200 while rendering an article-not-found page."""
+async def test_support_article_not_found_is_invalid_soft_404(monkeypatch):
+    """Reject support articles that render an article-not-found page with HTTP 200."""
+    monkeypatch.setattr(
+        asyncio.get_running_loop(),
+        "getaddrinfo",
+        AsyncMock(return_value=[(2, 1, 6, "", ("93.184.216.34", 443))]),
+    )
     result = await _check_single_url(
         _FakeStreamingClient("<html><body><div>Article Not Found</div></body></html>"),
         "https://support.langchain.com/hc/en-us/articles/missing-article",
@@ -245,10 +251,17 @@ async def test_support_article_not_found_is_invalid_soft_404():
 
 
 @pytest.mark.asyncio
-async def test_support_article_normal_content_is_valid():
-    """Normal support article content should still be treated as valid."""
+async def test_support_article_normal_content_is_valid(monkeypatch):
+    """Accept normal support article content."""
+    monkeypatch.setattr(
+        asyncio.get_running_loop(),
+        "getaddrinfo",
+        AsyncMock(return_value=[(2, 1, 6, "", ("93.184.216.34", 443))]),
+    )
     result = await _check_single_url(
-        _FakeStreamingClient("<html><body><div>Useful support article</div></body></html>"),
+        _FakeStreamingClient(
+            "<html><body><div>Useful support article</div></body></html>"
+        ),
         "https://support.langchain.com/hc/en-us/articles/existing-article",
         timeout=1.0,
     )
