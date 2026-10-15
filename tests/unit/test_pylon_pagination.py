@@ -53,6 +53,7 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
         # Ensure a clean module state so _articles_cache starts as None
         import src.tools.pylon_tools as pylon_module
         pylon_module._articles_cache = None
+        pylon_module._articles_backoff_until = 0.0
         self.module = pylon_module
 
     # ------------------------------------------------------------------
@@ -61,7 +62,7 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
     @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
     @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
-    @patch("src.tools.pylon_tools.requests.get")
+    @patch("src.tools.pylon_tools._session_get")
     def test_single_page_no_next(self, mock_get, mock_kb_id, mock_api_key):
         """When no 'next' cursor is present, exactly one HTTP request is made."""
         mock_get.return_value = _make_response(ARTICLE_PAGE_1, next_cursor=None)
@@ -77,7 +78,7 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
     @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
     @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
-    @patch("src.tools.pylon_tools.requests.get")
+    @patch("src.tools.pylon_tools._session_get")
     def test_two_pages_collected(self, mock_get, mock_kb_id, mock_api_key):
         """Articles from both pages are combined into a single list."""
         mock_get.side_effect = [
@@ -100,7 +101,7 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
     @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
     @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
-    @patch("src.tools.pylon_tools.requests.get")
+    @patch("src.tools.pylon_tools._session_get")
     def test_three_pages_collected(self, mock_get, mock_kb_id, mock_api_key):
         """Articles from all three pages are combined."""
         mock_get.side_effect = [
@@ -120,7 +121,7 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
     @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
     @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
-    @patch("src.tools.pylon_tools.requests.get")
+    @patch("src.tools.pylon_tools._session_get")
     def test_meta_next_pagination(self, mock_get, mock_kb_id, mock_api_key):
         """Handles responses that use meta.next instead of top-level next."""
         mock_get.side_effect = [
@@ -139,7 +140,7 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
     @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
     @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
-    @patch("src.tools.pylon_tools.requests.get")
+    @patch("src.tools.pylon_tools._session_get")
     def test_safety_limit_stops_at_max_pages(self, mock_get, mock_kb_id, mock_api_key):
         """The loop stops after 10 pages even if the API keeps returning next cursors."""
         # Every page claims there is another page after it
@@ -160,7 +161,7 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
     @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
     @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
-    @patch("src.tools.pylon_tools.requests.get")
+    @patch("src.tools.pylon_tools._session_get")
     def test_cache_prevents_duplicate_requests(self, mock_get, mock_kb_id, mock_api_key):
         """Calling _fetch_all_articles() twice only hits the network once."""
         mock_get.return_value = _make_response(ARTICLE_PAGE_1, next_cursor=None)
@@ -177,7 +178,7 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
 
     @patch("src.tools.pylon_tools._get_api_key", return_value="fake-key")
     @patch("src.tools.pylon_tools._get_kb_id", return_value="kb-123")
-    @patch("src.tools.pylon_tools.requests.get")
+    @patch("src.tools.pylon_tools._session_get")
     def test_empty_data_returns_empty_list(self, mock_get, mock_kb_id, mock_api_key):
         """An API response with no articles returns an empty list."""
         mock_get.return_value = _make_response([], next_cursor=None)
