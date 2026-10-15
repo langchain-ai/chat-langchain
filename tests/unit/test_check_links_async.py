@@ -8,21 +8,22 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
+import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
+    MAX_REDIRECTS,
     LinkCheckResult,
+    _cache,
     _check_single_url,
     _check_urls_async,
-    _format_results,
     check_links,
 )
 
@@ -34,6 +35,7 @@ class _FakeStreamResponse:
         self.url = url
         self.status_code = status_code
         self._content = content
+        self.has_redirect_location = False
 
     async def __aenter__(self):
         return self
@@ -56,12 +58,29 @@ class _FakeStreamingClient:
         return _FakeStreamResponse(url, self.status_code, self.content)
 
 
+@pytest.fixture(autouse=True)
+def public_dns():
+    _cache.clear()
+    with patch(
+        "asyncio.BaseEventLoop.getaddrinfo",
+        new=AsyncMock(
+            return_value=[
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+            ]
+        ),
+    ) as resolver:
+        yield resolver
+    _cache.clear()
+
+
 # ---------------------------------------------------------------------------
 # Fixture: a canned async replacement for _check_urls_async
 # ---------------------------------------------------------------------------
 
+
 def _make_async_check_mock(results: list[LinkCheckResult]):
     """Return an async function that ignores its arguments and returns *results*."""
+
     async def _mock_check_urls_async(urls, timeout):  # noqa: ARG001
         return results
 
@@ -73,6 +92,7 @@ def _make_async_check_mock(results: list[LinkCheckResult]):
 #    (this is the regression test — it FAILS before the fix because the old
 #    code calls asyncio.run() inside an already-running event loop).
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_check_links_works_in_async_context():
@@ -131,12 +151,17 @@ async def test_check_links_async_context_does_not_raise_runtime_error():
 #     e.g. in plain scripts or sync test runners).
 # ===========================================================================
 
+
 def test_check_links_works_in_sync_context():
     """check_links.invoke() must work when called outside an async context."""
     fake_results = [
         LinkCheckResult(url="https://example.com", valid=True, status_code=200),
-        LinkCheckResult(url="https://bad.example.com", valid=False, status_code=404,
-                        error="HTTP 404"),
+        LinkCheckResult(
+            url="https://bad.example.com",
+            valid=False,
+            status_code=404,
+            error="HTTP 404",
+        ),
     ]
 
     with patch(
@@ -166,7 +191,13 @@ def test_check_links_sync_deduplicates_urls():
         new=_recording_mock,
     ):
         result = check_links.invoke(
-            {"urls": ["https://example.com", "https://example.com", "https://example.com"]}
+            {
+                "urls": [
+                    "https://example.com",
+                    "https://example.com",
+                    "https://example.com",
+                ]
+            }
         )
 
     # _check_urls_async should have been called with exactly ONE unique URL
@@ -178,6 +209,7 @@ def test_check_links_sync_deduplicates_urls():
 # ===========================================================================
 # 3. Edge cases
 # ===========================================================================
+
 
 def test_check_links_empty_list():
     """Passing an empty list should return the 'no URLs' message without error."""
@@ -200,7 +232,7 @@ def test_check_links_invalid_url_format():
     # We still mock _check_urls_async to avoid needing a real event loop in the
     # sync path and to keep the test fast.
     fake_results = [
-        LinkCheckResult(url="not-a-url", valid=False, error="Invalid URL format"),
+        LinkCheckResult(url="not-a-url", valid=False, error="URL not allowed"),
     ]
 
     with patch(
@@ -210,14 +242,16 @@ def test_check_links_invalid_url_format():
         result = check_links.invoke({"urls": ["not-a-url"]})
 
     assert "0/1 valid" in result
-    assert "Invalid URL format" in result
+    assert "URL not allowed" in result
 
 
 @pytest.mark.asyncio
 async def test_check_links_async_invalid_url_format():
     """Invalid URL in async context should also be reported correctly."""
     fake_results = [
-        LinkCheckResult(url="ftp://not-supported", valid=False, error="Invalid URL format"),
+        LinkCheckResult(
+            url="ftp://not-supported", valid=False, error="URL not allowed"
+        ),
     ]
 
     with patch(
@@ -227,7 +261,7 @@ async def test_check_links_async_invalid_url_format():
         result = await check_links.acall({"urls": ["ftp://not-supported"]})
 
     assert "0/1 valid" in result
-    assert "Invalid URL format" in result
+    assert "URL not allowed" in result
 
 
 @pytest.mark.asyncio
@@ -248,7 +282,9 @@ async def test_support_article_not_found_is_invalid_soft_404():
 async def test_support_article_normal_content_is_valid():
     """Normal support article content should still be treated as valid."""
     result = await _check_single_url(
-        _FakeStreamingClient("<html><body><div>Useful support article</div></body></html>"),
+        _FakeStreamingClient(
+            "<html><body><div>Useful support article</div></body></html>"
+        ),
         "https://support.langchain.com/hc/en-us/articles/existing-article",
         timeout=1.0,
     )
@@ -256,3 +292,320 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://localhost:8000/private",
+        "http://localhost./",
+        "http://api.localhost/",
+        "http://127.0.0.1/",
+        "http://127.1/",
+        "http://2130706433/",
+        "http://[::1]/",
+        "http://[::ffff:127.0.0.1]/",
+        "http://0.0.0.0/",
+        "http://[::]/",
+        "http://10.0.0.1/",
+        "http://192.168.1.1/",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://metadata.google.internal/",
+        "http://metadata/",
+        "http://kubernetes.default.svc/",
+        "http://api.cluster.local/",
+        "http://service.internal/",
+        "http://redis:6379/",
+        "http://[fd00::1]/",
+        "http://[fe80::1]/",
+        "http://224.0.0.1/",
+        "http://240.0.0.1/",
+        "http://100.100.100.200/",
+        "https://user:secret@example.com/",
+        "https://example.com@localhost/",
+        "ftp://example.com/",
+        "not-a-url",
+        "https://example.com:bad/",
+        "https://example.com:0/",
+        "https://example.com:/",
+        "https://[::1",
+        "https://example.com\\@example.org/",
+        "https://exam ple.com/",
+        "https://example.com/\npath",
+        "http://[fe80::1%25eth0]/",
+    ],
+)
+async def test_blocked_destinations_make_no_http_requests(url, public_dns):
+    if url in {"http://127.1/", "http://2130706433/"}:
+        public_dns.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 80))
+        ]
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(200)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        result = await _check_single_url(client, url, 1.0)
+
+    assert result == LinkCheckResult(url=url, valid=False, error="URL not allowed")
+    assert requests == []
+    assert url not in _cache
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "addresses",
+    [
+        [],
+        ["127.0.0.1"],
+        ["::1"],
+        ["::ffff:10.0.0.1"],
+        ["169.254.169.254"],
+        ["93.184.216.34", "10.0.0.1"],
+        ["93.184.216.34", "ff02::1"],
+        ["192.0.2.1"],
+        ["100.64.0.1"],
+    ],
+)
+async def test_non_public_dns_answers_are_blocked(addresses, public_dns):
+    public_dns.return_value = [
+        (
+            socket.AF_INET6 if ":" in address else socket.AF_INET,
+            socket.SOCK_STREAM,
+            6,
+            "",
+            (address, 443),
+        )
+        for address in addresses
+    ]
+    handler = MagicMock(return_value=httpx.Response(200))
+    url = "https://docs.langchain.com/"
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await _check_single_url(client, url, 1.0)
+    assert result == LinkCheckResult(url=url, valid=False, error="URL not allowed")
+    handler.assert_not_called()
+    assert url not in _cache
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure", [socket.gaierror("private DNS failure"), TimeoutError()]
+)
+async def test_dns_failure_is_generic(failure, public_dns):
+    public_dns.side_effect = failure
+    handler = MagicMock(return_value=httpx.Response(200))
+    url = "https://docs.langchain.com/"
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await _check_single_url(client, url, 1.0)
+    assert result == LinkCheckResult(url=url, valid=False, error="URL not allowed")
+    handler.assert_not_called()
+    assert url not in _cache
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url,head_status",
+    [
+        ("https://docs.langchain.com/start", 200),
+        ("https://example.com/start", 200),
+        ("https://example.com/start", 405),
+    ],
+)
+async def test_redirect_to_localhost_never_contacts_target(url, head_status):
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if request.method == "HEAD" and head_status == 405:
+            return httpx.Response(405)
+        return httpx.Response(302, headers={"Location": "http://localhost:8080/admin"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        result = await _check_single_url(client, url, 1.0)
+    assert result == LinkCheckResult(url=url, valid=False, error="URL not allowed")
+    assert requests
+    assert all(request.url.host == "93.184.216.34" for request in requests)
+    assert url not in _cache
+
+
+@pytest.mark.asyncio
+async def test_public_documentation_relative_redirect_and_soft_404():
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"Location": "/missing"})
+        return httpx.Response(200, text="<title>Page not found</title>")
+
+    url = "https://docs.langchain.com/start"
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        result = await _check_single_url(client, url, 1.0)
+    assert result == LinkCheckResult(
+        url=url,
+        valid=False,
+        status_code=200,
+        final_url="https://docs.langchain.com/missing",
+        error="Soft 404: Page shows 'not found' content",
+    )
+    assert [request.url.path for request in requests] == ["/start", "/missing"]
+    assert all(request.method == "GET" for request in requests)
+
+
+@pytest.mark.asyncio
+async def test_public_head_falls_back_to_get():
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(405 if request.method == "HEAD" else 200)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        result = await _check_single_url(client, "https://example.com/", 1.0)
+    assert result.valid
+    assert result.status_code == 200
+    assert [request.method for request in requests] == ["HEAD", "GET"]
+
+
+@pytest.mark.asyncio
+async def test_redirect_limit():
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(302, headers={"Location": "/again"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        result = await _check_single_url(client, "https://example.com/", 1.0)
+    assert not result.valid
+    assert result.error == "Too many redirects"
+    assert len(requests) == MAX_REDIRECTS + 1
+
+
+@pytest.mark.asyncio
+async def test_cache_does_not_bypass_dns_policy(public_dns):
+    handler = MagicMock(return_value=httpx.Response(200))
+    url = "https://docs.langchain.com/"
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        first = await _check_single_url(client, url, 1.0)
+        public_dns.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))
+        ]
+        second = await _check_single_url(client, url, 1.0)
+    assert first.valid
+    assert second == LinkCheckResult(url=url, valid=False, error="URL not allowed")
+    assert handler.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_policy_rejection_is_not_cached(public_dns):
+    url = "https://docs.langchain.com/"
+    handler = MagicMock(return_value=httpx.Response(200, text="Useful documentation"))
+    public_dns.side_effect = [
+        socket.gaierror("unknown hostname"),
+        [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+    ]
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        first = await _check_single_url(client, url, 1.0)
+        second = await _check_single_url(client, url, 1.0)
+    assert first == LinkCheckResult(url=url, valid=False, error="URL not allowed")
+    assert second == LinkCheckResult(url=url, valid=True, status_code=200)
+    assert handler.call_count == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://docs.langchain.com/",
+        "https://example.com/",
+        "http://93.184.216.34/",
+        "http://[::ffff:93.184.216.34]/",
+        "http://[2606:4700:4700::1111]/",
+    ],
+)
+async def test_public_urls_remain_accessible(url):
+    handler = MagicMock(return_value=httpx.Response(200, text="Useful documentation"))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await _check_single_url(client, url, 1.0)
+    assert result == LinkCheckResult(url=url, valid=True, status_code=200)
+    assert handler.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_redirect_destinations_are_revalidated(public_dns):
+    url = "https://docs.langchain.com/start"
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"Location": "https://example.com/end"})
+        return httpx.Response(200)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        first = await _check_single_url(client, url, 1.0)
+        public_dns.side_effect = [
+            [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+            [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))],
+        ]
+        second = await _check_single_url(client, url, 1.0)
+    assert first.valid
+    assert first.final_url == "https://example.com/end"
+    assert second == LinkCheckResult(url=url, valid=False, error="URL not allowed")
+    assert [request.url.path for request in requests] == ["/start", "/end", "/start"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("address", ["93.184.216.34", "2606:4700:4700::1111"])
+async def test_connections_are_pinned_with_original_host_and_tls_name(
+    address, public_dns, monkeypatch
+):
+    public_dns.return_value = [
+        (
+            socket.AF_INET6 if ":" in address else socket.AF_INET,
+            socket.SOCK_STREAM,
+            6,
+            "",
+            (address, 443),
+        )
+    ]
+    connections = []
+    tls_names = []
+    writes = []
+
+    class Stream:
+        async def read(self, max_bytes, timeout=None):
+            return b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+
+        async def write(self, buffer, timeout=None):
+            writes.append(buffer)
+
+        async def aclose(self):
+            pass
+
+        async def start_tls(self, ssl_context, server_hostname=None, timeout=None):
+            assert ssl_context.check_hostname
+            tls_names.append(server_hostname)
+            return self
+
+        def get_extra_info(self, info):
+            return None
+
+    async def connect_tcp(self, host, port, **kwargs):
+        connections.append((host, port))
+        return Stream()
+
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9999")
+    with patch("httpcore.AnyIOBackend.connect_tcp", new=connect_tcp):
+        results = await _check_urls_async(["https://docs.langchain.com:8443/"], 1.0)
+        results += await _check_urls_async(["https://example.com:8443/"], 1.0)
+
+    assert all(result.valid for result in results)
+    assert connections == [(address, 8443), (address, 8443)]
+    assert tls_names == ["docs.langchain.com", "example.com"]
+    assert b"Host: docs.langchain.com:8443\r\n" in b"".join(writes)
+    assert b"Host: example.com:8443\r\n" in b"".join(writes)
