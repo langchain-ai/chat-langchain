@@ -231,7 +231,7 @@ check_links(
 Link Check Results: 2/3 valid
 
 Invalid links:
-  - https://bad-link.com: Connection failed: ...
+  - https://bad-link.com: Connection failed
 
 Valid links:
   - https://docs.langchain.com
