@@ -209,8 +209,10 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 
 @tool
-def search_support_articles(query: str, collections: str = "all") -> str:
+def search_support_articles(query: str = "", collections: str = "all") -> str:
     """Search published LangChain support articles using keyword text from the user's question and optional collection filters."""
+    # `query` defaults to empty so a call with only `collections` lists the
+    # collection's articles instead of failing argument validation.
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -335,6 +337,28 @@ def search_support_articles(query: str, collections: str = "all") -> str:
         for article in published_articles:
             coll_id = article.get("collection_id")
             article["collection"] = collection_id_to_name.get(coll_id, "Unknown")
+
+        if not query.strip():
+            listed_articles = [
+                {
+                    "id": article["id"],
+                    "article_id": article["id"],
+                    "title": article["title"],
+                    "url": article["url"],
+                    "collection": article["collection"],
+                }
+                for article in published_articles
+            ]
+            result = {
+                "query": query,
+                "collections": collections,
+                "total_matched": len(listed_articles),
+                "returned": len(listed_articles),
+                "articles": listed_articles,
+            }
+            if collections.lower() != "all":
+                result["unmatched_collections"] = unmatched_collections
+            return json.dumps(result)
 
         query_keywords = set(re.findall(r"\b[\w'-]+\b", query.casefold()))
         ranked_articles = []
