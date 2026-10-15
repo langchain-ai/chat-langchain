@@ -2,12 +2,54 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from langchain_core.messages import SystemMessage
+
+from scripts import push_docs_agent_prompt
+from src.prompts.docs_agent_prompt import docs_agent_prompt
 from src.utils import prompt_provenance as provenance
 
 
 class _FakeTemplate:
     def __init__(self, commit: str | None):
         self.metadata = {"lc_hub_commit_hash": commit} if commit else {}
+
+
+def test_docs_prompt_publication_preserves_runtime_public_facts(monkeypatch):
+    published = {}
+
+    class FakeClient:
+        def push_prompt(self, name, *, object):
+            published["messages"] = object.format_messages()
+            return "https://smith.langchain.com/prompts/test"
+
+    monkeypatch.setattr(push_docs_agent_prompt, "Client", FakeClient)
+    monkeypatch.setattr(
+        push_docs_agent_prompt, "load_dotenv", lambda *args, **kwargs: None
+    )
+
+    push_docs_agent_prompt.main()
+
+    messages = published["messages"]
+    assert len(messages) == 1
+    assert isinstance(messages[0], SystemMessage)
+    assert messages[0].content == docs_agent_prompt
+
+    heading = "## About this assistant (public facts)"
+    runtime_prompt = (
+        Path(__file__).resolve().parents[2] / "instructions.md"
+    ).read_text()
+    assert heading in docs_agent_prompt
+    public_facts = (
+        messages[0].content.split(heading, 1)[1].split("## Your Mission", 1)[0]
+    )
+    assert (
+        public_facts
+        == runtime_prompt.split(heading, 1)[1].split("## Your Mission", 1)[0]
+    )
+    assert "https://github.com/langchain-ai/chat-langchain" in public_facts
+    assert "Managed Deep Agent" in public_facts
 
 
 def test_get_prompt_provenance_local_mode(monkeypatch):
