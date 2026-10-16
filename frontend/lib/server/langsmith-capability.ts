@@ -37,7 +37,6 @@ export interface LangSmithCapabilityDependencies {
   client: LangSmithCapabilityClient
   fetch: typeof fetch
   langgraphUrl: string
-  langgraphAuthKey?: string
 }
 
 class CapabilityError extends Error {
@@ -148,9 +147,6 @@ async function verifyThreadAccess(
     Authorization: authorization,
     "X-Supabase-Region": region,
   })
-  if (dependencies.langgraphAuthKey) {
-    headers.set("X-Auth-Key", dependencies.langgraphAuthKey)
-  }
 
   let response: Response
   try {
@@ -247,6 +243,11 @@ export function shapeRun(run: JsonRecord): JsonRecord {
   )
 }
 
+function feedbackKey(feedback: unknown): string | null {
+  if (!isRecord(feedback) || typeof feedback.key !== "string") return null
+  return feedback.key
+}
+
 function feedbackActorId(feedback: unknown): string | null {
   if (!isRecord(feedback) || !isRecord(feedback.feedback_source)) return null
   const metadata = feedback.feedback_source.metadata
@@ -259,6 +260,15 @@ function feedbackActorId(feedback: unknown): string | null {
 function feedbackRunId(feedback: unknown): string {
   if (!isRecord(feedback)) throw new CapabilityError(404, "Feedback not found")
   return requiredString(feedback.run_id, "feedback", 128)
+}
+
+function assertOwnedThumbFeedback(feedback: unknown, owner: string): void {
+  if (
+    feedbackKey(feedback) !== FEEDBACK_KEY ||
+    feedbackActorId(feedback) !== owner
+  ) {
+    throw new CapabilityError(403, "Feedback is not accessible")
+  }
 }
 
 async function handleTraceCapability(
@@ -313,6 +323,7 @@ async function handleFeedbackCapability(
   const feedbackId = requiredString(body.feedback_id, "feedback", 128)
   const feedback = await client.readFeedback(feedbackId)
   await scopedRun(client, feedbackRunId(feedback), threadId)
+  assertOwnedThumbFeedback(feedback, owner)
   if (action === "delete") {
     await client.deleteFeedback(feedbackId)
     return {}

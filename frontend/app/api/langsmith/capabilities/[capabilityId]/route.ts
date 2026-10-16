@@ -37,8 +37,5 @@ export async function POST(
     client,
     fetch,
     langgraphUrl: LANGGRAPH_API_URL,
-    langgraphAuthKey:
-      process.env.LANGGRAPH_AUTH_SECRET ||
-      process.env.NEXT_PUBLIC_LANGGRAPH_AUTH_KEY,
   })
 }

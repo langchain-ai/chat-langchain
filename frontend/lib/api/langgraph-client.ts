@@ -36,7 +36,7 @@ export function createLangGraphClient(
     Authorization: `Bearer ${authToken}`,
   }
 
-  // Optional public app key for deployments that set LANGGRAPH_AUTH_SECRET.
+  // Optional gateway key. Sent only when a proxy in front of the deployment expects it.
   const authKey = process.env.NEXT_PUBLIC_LANGGRAPH_AUTH_KEY
   if (authKey) {
     headers["X-Auth-Key"] = authKey

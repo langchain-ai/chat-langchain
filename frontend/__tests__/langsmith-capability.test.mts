@@ -25,6 +25,17 @@ function request(body: Record<string, unknown>, authenticated = true): Request {
   })
 }
 
+function thumbFeedback(
+  actorId = OWNER_ID,
+  key = "ux.thumb_vote"
+): Record<string, unknown> {
+  return {
+    run_id: RUN_ID,
+    key,
+    feedback_source: { metadata: { mda_actor_id: actorId } },
+  }
+}
+
 function fakeClient(overrides: Partial<LangSmithCapabilityClient> = {}) {
   const client: LangSmithCapabilityClient = {
     async readRun(runId) {
@@ -45,7 +56,7 @@ function fakeClient(overrides: Partial<LangSmithCapabilityClient> = {}) {
     },
     async updateFeedback() {},
     async readFeedback() {
-      return { run_id: RUN_ID }
+      return thumbFeedback()
     },
     async deleteFeedback() {},
     async *listFeedback() {},
@@ -187,6 +198,31 @@ test("stamps new feedback with the verified thread owner", async () => {
   assert.equal(payload.data.id, "feedback-id")
 })
 
+test("does not send an auth key when verifying thread access", async () => {
+  let authorization: string | null = null
+  let sentAuthKey = false
+  const response = await handleLangSmithCapability(
+    request({ action: "read", run_id: RUN_ID, thread_id: THREAD_ID }),
+    "langsmith:trace-viewer",
+    {
+      client: fakeClient(),
+      fetch: (async (_input, init) => {
+        const headers = new Headers(init?.headers)
+        authorization = headers.get("Authorization")
+        sentAuthKey = headers.has("X-Auth-Key")
+        return new Response(JSON.stringify({ metadata: { owner: OWNER_ID } }), {
+          status: 200,
+        })
+      }) as typeof fetch,
+      langgraphUrl: "https://example.langgraph.app",
+    }
+  )
+
+  assert.equal(response.status, 200)
+  assert.equal(authorization, "Bearer test-token")
+  assert.equal(sentAuthKey, false)
+})
+
 test("does not update feedback attached to another thread", async () => {
   let updated = false
   const client = fakeClient({
@@ -215,4 +251,107 @@ test("does not update feedback attached to another thread", async () => {
 
   assert.equal(response.status, 403)
   assert.equal(updated, false)
+})
+
+test("does not update feedback owned by someone else", async () => {
+  let updated = false
+  const client = fakeClient({
+    async readFeedback() {
+      return thumbFeedback("someone-else")
+    },
+    async updateFeedback() {
+      updated = true
+    },
+  })
+
+  const response = await handleLangSmithCapability(
+    request({
+      action: "update",
+      feedback_id: "feedback-id",
+      thread_id: THREAD_ID,
+      score: 1,
+      value: "positive",
+    }),
+    "langsmith:chat-feedback",
+    dependencies(client)
+  )
+
+  assert.equal(response.status, 403)
+  assert.equal(updated, false)
+})
+
+test("does not update feedback under another key", async () => {
+  let updated = false
+  const client = fakeClient({
+    async readFeedback() {
+      return thumbFeedback(OWNER_ID, "correctness")
+    },
+    async updateFeedback() {
+      updated = true
+    },
+  })
+
+  const response = await handleLangSmithCapability(
+    request({
+      action: "update",
+      feedback_id: "feedback-id",
+      thread_id: THREAD_ID,
+      score: 1,
+      value: "positive",
+    }),
+    "langsmith:chat-feedback",
+    dependencies(client)
+  )
+
+  assert.equal(response.status, 403)
+  assert.equal(updated, false)
+})
+
+test("updates thumb feedback from the verified owner", async () => {
+  let updated = false
+  const client = fakeClient({
+    async updateFeedback() {
+      updated = true
+    },
+  })
+
+  const response = await handleLangSmithCapability(
+    request({
+      action: "update",
+      feedback_id: "feedback-id",
+      thread_id: THREAD_ID,
+      score: 1,
+      value: "positive",
+    }),
+    "langsmith:chat-feedback",
+    dependencies(client)
+  )
+
+  assert.equal(response.status, 200)
+  assert.equal(updated, true)
+})
+
+test("does not delete feedback owned by someone else or under another key", async () => {
+  let deleted = false
+  const client = fakeClient({
+    async readFeedback() {
+      return thumbFeedback("someone-else", "correctness")
+    },
+    async deleteFeedback() {
+      deleted = true
+    },
+  })
+
+  const response = await handleLangSmithCapability(
+    request({
+      action: "delete",
+      feedback_id: "feedback-id",
+      thread_id: THREAD_ID,
+    }),
+    "langsmith:chat-feedback",
+    dependencies(client)
+  )
+
+  assert.equal(response.status, 403)
+  assert.equal(deleted, false)
 })
