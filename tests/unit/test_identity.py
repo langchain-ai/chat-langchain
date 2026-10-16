@@ -12,7 +12,7 @@ def test_identity_uses_multi_region_supabase_ids():
     guest = http["providers"][1]
     assert guest["issuer"] == "mda:guest"
     assert guest["claims"] == {"user": "sub"}
-    assert guest["introspect"]["url"] == "${GUEST_INTROSPECT_URL}"
+    assert guest["introspect"]["url"] == "${MDA_PUBLIC_API_URL}/identity/guest/introspect"
 
     assert provider["claims"] == {"user": "id", "email": "email"}
     assert provider["introspect"]["region_header"] == "x-supabase-region"

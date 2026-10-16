@@ -11,7 +11,6 @@
 #   GUEST_AUTH_SECRET
 #
 # Optional repository secrets:
-#   GUEST_INTROSPECT_URL
 #   LANGSMITH_TENANT_ID
 #   ANTHROPIC_API_KEY
 #   BASETEN_API_KEY
@@ -74,7 +73,6 @@ jobs:
           PYLON_KB_ID: ${{ secrets.PYLON_KB_ID }}
           MDA_GUEST_SIGNING_KEY: ${{ secrets.MDA_GUEST_SIGNING_KEY }}
           GUEST_AUTH_SECRET: ${{ secrets.GUEST_AUTH_SECRET }}
-          GUEST_INTROSPECT_URL: ${{ secrets.GUEST_INTROSPECT_URL }}
           LANGGRAPH_AUTH_SECRET: ${{ secrets.LANGGRAPH_AUTH_SECRET }}
           ALLOW_LEGACY_USER_ID_AUTH: ${{ secrets.ALLOW_LEGACY_USER_ID_AUTH }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -124,7 +122,6 @@ jobs:
           write_env PYLON_KB_ID "$PYLON_KB_ID"
           write_env MDA_GUEST_SIGNING_KEY "$MDA_GUEST_SIGNING_KEY"
           write_env GUEST_AUTH_SECRET "$GUEST_AUTH_SECRET"
-          write_env GUEST_INTROSPECT_URL "$GUEST_INTROSPECT_URL"
           write_env LANGGRAPH_AUTH_SECRET "$LANGGRAPH_AUTH_SECRET"
           write_env ALLOW_LEGACY_USER_ID_AUTH "$ALLOW_LEGACY_USER_ID_AUTH"
           write_env SUPABASE_URL "$SUPABASE_URL"

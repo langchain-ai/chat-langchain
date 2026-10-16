@@ -1,8 +1,8 @@
 """Managed Deep Agent identity contract for Chat LangChain.
 
-Signed-in callers present a Supabase access token. Guests present a token
-issued by the website (`iss` `mda:guest`); MDA checks it by calling
-`${GUEST_INTROSPECT_URL}`.
+Signed-in callers present a Supabase access token. Guests present a pass
+from ``POST /identity/guest`` (``iss`` ``mda:guest``). The agent checks that
+pass with ``GUEST_AUTH_SECRET``.
 """
 
 from __future__ import annotations
@@ -10,6 +10,8 @@ from __future__ import annotations
 import os
 
 from managed_deepagents import auth, define_identity
+
+from guest_auth import install_guest_auth
 
 # Region label (sent by the frontend as ``x-supabase-region``) -> the env vars
 # that carry that region's Supabase project URL and anon key. Matches the
@@ -55,10 +57,13 @@ def _guest_auth() -> dict:
         "id": "guest",
         "issuer": "mda:guest",
         "claims": {"user": "sub"},
-        "introspect": {"url": "${GUEST_INTROSPECT_URL}"},
+        # MDA requires an introspect URL. The auth path checks the signature
+        # locally; this route is the same check over HTTP.
+        "introspect": {"url": "${MDA_PUBLIC_API_URL}/identity/guest/introspect"},
     }
 
 
 identity = define_identity(
     auth=[_supabase_auth(), _guest_auth()],
 )
+install_guest_auth()
