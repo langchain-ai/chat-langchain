@@ -1,8 +1,8 @@
 """Managed Deep Agent identity contract for Chat LangChain.
 
-The browser calls the deployment with a Supabase access token. MDA validates
-the token against the selected region and scopes threads to the verified
-Supabase user ID. This works for both account users and anonymous users.
+Signed-in callers present a Supabase access token. Guests present a token
+issued by the website (`iss` `mda:guest`); MDA checks it by calling
+`${GUEST_INTROSPECT_URL}`.
 """
 
 from __future__ import annotations
@@ -50,6 +50,15 @@ def _supabase_auth() -> dict:
     return provider
 
 
+def _guest_auth() -> dict:
+    return {
+        "id": "guest",
+        "issuer": "mda:guest",
+        "claims": {"user": "sub"},
+        "introspect": {"url": "${GUEST_INTROSPECT_URL}"},
+    }
+
+
 identity = define_identity(
-    auth=_supabase_auth(),
+    auth=[_supabase_auth(), _guest_auth()],
 )

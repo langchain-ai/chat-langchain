@@ -6,9 +6,14 @@ from identity import _supabase_auth, identity
 def test_identity_uses_multi_region_supabase_ids():
     http = identity.config["ingress"]["http"]
     assert http["mode"] == "validated_token"
-    assert len(http["providers"]) == 1
+    assert len(http["providers"]) == 2
 
     provider = http["providers"][0]
+    guest = http["providers"][1]
+    assert guest["issuer"] == "mda:guest"
+    assert guest["claims"] == {"user": "sub"}
+    assert guest["introspect"]["url"] == "${GUEST_INTROSPECT_URL}"
+
     assert provider["claims"] == {"user": "id", "email": "email"}
     assert provider["introspect"]["region_header"] == "x-supabase-region"
     assert provider["introspect"]["regions"] == {
