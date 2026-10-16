@@ -1,9 +1,10 @@
 """Tool for fetching live pricing information from langchain.com/pricing."""
 
 import logging
-import re
 import threading
 import time
+from html import unescape
+from html.parser import HTMLParser
 
 import httpx
 from langchain.tools import tool
@@ -24,21 +25,67 @@ _cached_text: str | None = None
 _cached_at: float = 0.0
 
 
+class _PricingHTMLParser(HTMLParser):
+    """Extract visible text with pipe-delimited table rows."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.parts: list[str] = []
+        self.hidden_tag: str | None = None
+        self.row: list[str] | None = None
+        self.cell: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self.hidden_tag:
+            return
+        if tag in {"script", "style"}:
+            self.hidden_tag = tag
+        elif tag == "tr":
+            self.parts.append("\n")
+            self.row = []
+        elif tag in {"td", "th"}:
+            self.cell = []
+        else:
+            self.handle_data("\n" if tag in {"p", "div", "br", "li"} else " ")
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.hidden_tag:
+            if tag == self.hidden_tag:
+                self.hidden_tag = None
+        elif tag in {"td", "th"} and self.cell is not None:
+            if self.row is not None:
+                self.row.append(" ".join("".join(self.cell).split()))
+            self.cell = None
+        elif tag == "tr" and self.row is not None:
+            self.parts.append(" | ".join(self.row) + "\n")
+            self.row = None
+        else:
+            self.handle_data("\n" if tag in {"table", "p", "div", "li"} else " ")
+
+    def handle_data(self, data: str) -> None:
+        if not self.hidden_tag:
+            if self.cell is not None:
+                self.cell.append(data)
+            elif self.row is None:
+                self.parts.append(data)
+
+    def handle_entityref(self, name: str) -> None:
+        self.handle_data(unescape(f"&{name};"))
+
+    def handle_charref(self, name: str) -> None:
+        self.handle_data(unescape(f"&#{name};"))
+
+
 def _extract_text(html: str) -> str:
-    """Strip HTML tags and collapse whitespace."""
-    text = re.sub(
-        r"<script\b[^>]*>[\s\S]*?</script\b[^>]*>",
-        "",
-        html,
-        flags=re.DOTALL | re.IGNORECASE,
+    """Decode visible HTML text while preserving table headers and columns."""
+    parser = _PricingHTMLParser()
+    parser.feed(html)
+    parser.close()
+    return "\n".join(
+        " ".join(line.split())
+        for line in "".join(parser.parts).splitlines()
+        if line.strip()
     )
-    text = re.sub(
-        r"<style\b[^>]*>[\s\S]*?</style\b[^>]*>", "", text, flags=re.DOTALL | re.IGNORECASE
-    )
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
 
 
 async def _fetch_pricing_uncached() -> str:
