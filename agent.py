@@ -61,8 +61,5 @@ agent = define_deep_agent(
     model="google_genai:gemini-3.5-flash-lite",
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
-    # The current public app does not have cross-thread user memory. Keep MDA
-    # managed memory off until identity scoping is ready.
-    disable_memory=True,
     metadata=build_docs_agent_trace_metadata(),
 )
