@@ -8,7 +8,7 @@
   },
   "env": ".env",
   "auth": {
-    "path": "./_mda_auth.py:auth",
+    "path": "./auth.py:auth",
     "disable_studio_auth": false
   },
   "http": {
