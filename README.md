@@ -67,11 +67,14 @@ cp .env.example .env
 #### Backend
 
 ```bash
-# Build the Managed Deep Agent bundle
-uv run mda dev .
+# Build the Managed Deep Agent bundle with the public chat auth policy
+uv run python scripts/manage.py build
+uv run langgraph dev --config .mda/build/langgraph.json
 
 # Or with pip
-mda dev .
+pip install 'langgraph-cli[inmem]>=0.4.7'
+python scripts/manage.py build
+langgraph dev --config .mda/build/langgraph.json
 ```
 
 #### Frontend
@@ -128,8 +131,25 @@ The agent uses a docs-first research strategy:
 ### Managed Deep Agents
 
 ```bash
-mda deploy .
+uv run python scripts/manage.py deploy --name chat-langchain-external --deployment-type prod
 ```
+
+Use `scripts/manage.py build` instead of bare `mda build`, and
+`scripts/manage.py deploy` instead of `mda deploy`. MDA 0.3.0 regenerates its auth
+module and configuration without an authorization extension hook. The wrapper
+runs `mda build`, points the compiled configuration at maintained `auth.py`, and
+deploys that bundle with the LangGraph CLI so it is not regenerated again.
+Managed authentication and thread/store scoping remain intact; all cron actions
+return HTTP 403 for guests and signed-in end users, while Studio retains access.
+
+Production workflow integration (requires a maintainer with workflow write
+permission): replace `uv run mda deploy .` in
+`.github/workflows/deploy-production.yml` with
+`uv run python scripts/manage.py deploy`, retaining the existing `--name` and
+`--deployment-type` arguments. The existing workflow is **not protected** until
+this command is changed. Bare `mda build`, `mda dev`, and `mda deploy` bypass the
+public chat cron restriction. This policy does not cancel existing cron jobs;
+an operator must remove unauthorized schedules separately.
 
 What MDA owns in this deployment:
 
