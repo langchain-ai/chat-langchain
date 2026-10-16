@@ -78,11 +78,11 @@ function getBackoffDelay(attempt: number): number {
 }
 
 function describeToolStep(name: string, args: Record<string, any> = {}): string {
-  if (args.query && name === "search_docs_by_lang_chain") {
+  if (args.query && name === "langchainDocs_search_docs_by_lang_chain") {
     const query = args.query.length > 40 ? args.query.substring(0, 40) + "..." : args.query
     return `Searching documentation for "${query}"`
   }
-  if (name === "query_docs_filesystem_docs_by_lang_chain") {
+  if (name === "langchainDocs_query_docs_filesystem_docs_by_lang_chain") {
     return "Reading documentation"
   }
   if (args.collections && name === "search_support_articles") {
