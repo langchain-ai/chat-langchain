@@ -1,0 +1,24 @@
+{
+  "python_version": "3.11",
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "docs_agent": "./_mda_entry.py:agent"
+  },
+  "env": ".env",
+  "auth": {
+    "path": "./_mda_auth.py:auth",
+    "disable_studio_auth": false
+  },
+  "http": {
+    "configurable_headers": {
+      "includes": [
+        "x-mda-actor-id",
+        "x-mda-tenant-id"
+      ]
+    },
+    "middleware_order": "middleware_first",
+    "app": "./_mda_http.py:app"
+  }
+}

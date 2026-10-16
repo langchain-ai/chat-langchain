@@ -103,7 +103,6 @@ operations go through the managed identity and connector surface.
 │   │   ├── pricing_tools.py    # Pricing fetch
 │   │   └── link_check_tools.py # URL validation
 │   ├── prompts/
-│   │   ├── docs_agent_prompt.py # Hub push / eval mirror of instructions.md
 │   │   ├── guardrails_prompts.py
 │   │   └── context_summary_prompt.py
 │   └── middleware/
@@ -118,7 +117,7 @@ operations go through the managed identity and connector surface.
 
 The agent uses a docs-first research strategy:
 
-1. **Guardrails Check** - Validates the query is LangChain-related
+1. **Guardrails Check** - Requires a matched blocking rule; standalone text-only greetings and identity questions skip classification
 2. **Documentation Search** - Searches official docs via the managed MCP connector
 3. **Knowledge Base** - Searches Pylon for known issues/solutions
 4. **Link Validation** - Verifies any URLs before including them
