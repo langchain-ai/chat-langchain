@@ -1,105 +1,156 @@
+import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
+import {
+  decodeGuestSession,
+  encodeGuestSession,
+  guestSessionCookieName,
+  parseGuestAuthRegion,
+  type GuestAuthRegion,
+} from "@/lib/auth/guest-session"
 
-const COOKIE_NAME = "chat_langchain_guest"
+const GUEST_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 
-// Public docs-agent deployment. Guest issuance is a managed, public route
-// (POST /identity/guest) served by the MDA deployment.
-const DEPLOYMENT_URL =
-  process.env.NEXT_PUBLIC_LANGGRAPH_API_URL ||
-  process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL ||
-  (process.env.NODE_ENV === "development" ? "http://127.0.0.1:2024" : undefined)
+const supabaseConfigs: Record<
+  GuestAuthRegion,
+  { url?: string; anonKey?: string }
+> = {
+  us: {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  },
+  eu: {
+    url: process.env.NEXT_PUBLIC_SUPABASE_EU_URL,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_EU_ANON_KEY,
+  },
+  apac: {
+    url: process.env.NEXT_PUBLIC_SUPABASE_APAC_URL,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_APAC_ANON_KEY,
+  },
+  aws: {
+    url: process.env.NEXT_PUBLIC_SUPABASE_AWS_URL,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_AWS_ANON_KEY,
+  },
+}
 
 export const runtime = "nodejs"
 
-interface GuestClaims {
-  sub?: string
-  exp?: number
-}
-
-function decodeJwtClaims(token: string): GuestClaims | null {
-  const parts = token.split(".")
-  if (parts.length !== 3 || !parts[1]) return null
-  try {
-    const normalized = parts[1].replaceAll("-", "+").replaceAll("_", "/")
-    const padding = "=".repeat((4 - (normalized.length % 4)) % 4)
-    const json = Buffer.from(`${normalized}${padding}`, "base64").toString("utf8")
-    return JSON.parse(json) as GuestClaims
-  } catch {
-    return null
+class GuestIssuanceError extends Error {
+  constructor(readonly status: number) {
+    super("Guest authentication failed")
   }
 }
 
-function isFresh(claims: GuestClaims | null): claims is GuestClaims & { sub: string } {
-  if (!claims || typeof claims.sub !== "string") return false
-  if (typeof claims.exp !== "number") return true
-  // Refresh a minute early so callers never receive a token that expires mid-use.
-  return claims.exp - 60 > Date.now() / 1000
-}
+function guestClient(region: GuestAuthRegion): SupabaseClient | null {
+  const { url, anonKey } = supabaseConfigs[region]
+  if (!url || !anonKey) return null
 
-async function issueManagedGuestToken(): Promise<string> {
-  if (!DEPLOYMENT_URL) {
-    throw new Error("NEXT_PUBLIC_LANGGRAPH_API_URL is not configured")
-  }
-
-  const headers: Record<string, string> = { "Content-Type": "application/json" }
-  const authKey = process.env.NEXT_PUBLIC_LANGGRAPH_AUTH_KEY
-  if (authKey) headers["X-Auth-Key"] = authKey
-
-  const response = await fetch(
-    `${DEPLOYMENT_URL.replace(/\/$/, "")}/identity/guest`,
-    { method: "POST", headers }
-  )
-  if (!response.ok) {
-    throw new Error(`Guest issuance failed with status ${response.status}`)
-  }
-
-  const data = (await response.json()) as { token?: string }
-  if (!data.token) {
-    throw new Error("Guest issuance response was missing a token")
-  }
-  return data.token
-}
-
-export async function POST() {
-  const cookieStore = await cookies()
-
-  // Reuse the cached managed token while it is still valid so a guest keeps the
-  // same identity (and thread history) across reloads within the token's TTL.
-  const cached = cookieStore.get(COOKIE_NAME)?.value
-  const cachedClaims = cached ? decodeJwtClaims(cached) : null
-  if (cached && isFresh(cachedClaims)) {
-    return NextResponse.json({ guestId: cachedClaims.sub, token: cached })
-  }
-
-  let token: string
-  try {
-    token = await issueManagedGuestToken()
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Guest issuance failed" },
-      { status: 502 }
-    )
-  }
-
-  const claims = decodeJwtClaims(token)
-  if (!claims?.sub) {
-    return NextResponse.json(
-      { error: "Guest token was missing a subject claim" },
-      { status: 502 }
-    )
-  }
-
-  const maxAge = claims.exp
-    ? Math.max(0, Math.floor(claims.exp - Date.now() / 1000))
-    : undefined
-  const response = NextResponse.json({ guestId: claims.sub, token })
-  response.cookies.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    ...(maxAge !== undefined ? { maxAge } : {}),
+  return createClient(url, anonKey, {
+    auth: {
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      persistSession: false,
+    },
   })
+}
+
+async function verifiedAnonymousSession(
+  client: SupabaseClient,
+  session: Session
+): Promise<{ guestId: string; session: Session } | null> {
+  const { data, error } = await client.auth.getUser(session.access_token)
+  if (error || !data.user?.is_anonymous) return null
+  return { guestId: data.user.id, session }
+}
+
+async function restoreGuestSession(
+  client: SupabaseClient,
+  cookieValue: string | undefined
+): Promise<{ guestId: string; session: Session } | null> {
+  if (!cookieValue) return null
+  const stored = decodeGuestSession(cookieValue)
+  if (!stored) return null
+
+  const { data, error } = await client.auth.setSession({
+    access_token: stored.accessToken,
+    refresh_token: stored.refreshToken,
+  })
+  if (error || !data.session) return null
+  return verifiedAnonymousSession(client, data.session)
+}
+
+async function issueGuestSession(
+  client: SupabaseClient
+): Promise<{ guestId: string; session: Session }> {
+  const { data, error } = await client.auth.signInAnonymously()
+  if (error) {
+    throw new GuestIssuanceError(error.status === 429 ? 429 : 502)
+  }
+  if (!data.session || !data.user?.is_anonymous) {
+    throw new GuestIssuanceError(502)
+  }
+  return { guestId: data.user.id, session: data.session }
+}
+
+export async function POST(request: Request) {
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+  }
+
+  const region = parseGuestAuthRegion(
+    body && typeof body === "object" ? (body as { region?: unknown }).region : null
+  )
+  if (!region) {
+    return NextResponse.json({ error: "Invalid auth region" }, { status: 400 })
+  }
+
+  const client = guestClient(region)
+  if (!client) {
+    return NextResponse.json(
+      { error: "Guest authentication is unavailable" },
+      { status: 503 }
+    )
+  }
+
+  const cookieStore = await cookies()
+  const cookieName = guestSessionCookieName(region)
+  let guest = await restoreGuestSession(
+    client,
+    cookieStore.get(cookieName)?.value
+  )
+
+  if (!guest) {
+    try {
+      guest = await issueGuestSession(client)
+    } catch (error) {
+      const status = error instanceof GuestIssuanceError ? error.status : 502
+      return NextResponse.json(
+        { error: "Guest authentication failed" },
+        { status }
+      )
+    }
+  }
+
+  const response = NextResponse.json({
+    guestId: guest.guestId,
+    token: guest.session.access_token,
+  })
+  response.cookies.set(
+    cookieName,
+    encodeGuestSession({
+      accessToken: guest.session.access_token,
+      refreshToken: guest.session.refresh_token,
+    }),
+    {
+      httpOnly: true,
+      maxAge: GUEST_SESSION_MAX_AGE_SECONDS,
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    }
+  )
   return response
 }

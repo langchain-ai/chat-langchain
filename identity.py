@@ -1,24 +1,15 @@
 """Managed Deep Agent identity contract for Chat LangChain.
 
-Auto-discovered by the compiler (never imported by ``agent.py``). Replaces the
-hand-rolled ``src/api/auth.py`` handler:
-
-- ``validated_token`` ingress: the browser calls the deployment directly with its
-  own Supabase access token (or an MDA-issued guest token); MDA verifies it.
-- Multi-region Supabase: one provider per ``SUPABASE_*_URL`` via
-  ``providers.supabase(url=..., introspect=True)``. Custom auth domains set
-  ``discovery_url`` so MDA resolves the real JWT ``iss`` for routing; verification
-  uses ``/auth/v1/user`` introspection (required while some regions still mint
-  legacy HS256 tokens with an empty JWKS).
-- ``threads: "actor"`` replaces the ``@auth.on.threads`` owner tagging (owner =
-  the user's email, or the guest actor id).
+The browser calls the deployment with a Supabase access token. MDA validates
+the token against the selected region and scopes threads to the verified
+Supabase user ID. This works for both account users and anonymous users.
 """
 
 from __future__ import annotations
 
 import os
 
-from managed_deepagents import define_identity, providers
+from managed_deepagents import auth, define_identity
 
 # Region label (sent by the frontend as ``x-supabase-region``) -> the env vars
 # that carry that region's Supabase project URL and anon key. Matches the
@@ -31,37 +22,34 @@ _REGION_ENV: dict[str, tuple[str, str]] = {
 }
 
 
-def _providers() -> list[dict]:
-    entries: list[dict] = []
-    for region, (url_env, key_env) in _REGION_ENV.items():
-        base = os.environ.get(url_env)
-        if not base:
-            continue
-        # Introspect: US/EU JWKS are empty (legacy HS256). discovery_url still
-        # resolves the real *.supabase.co iss for multi-provider routing.
-        provider = providers.supabase(url=base.rstrip("/"), introspect=True)
-        provider["id"] = f"supabase-{region}"
-        provider["introspect"]["headers"] = {"apikey": "${" + key_env + "}"}
-        entries.append(provider)
-    # Anonymous visitors: MDA issues + verifies signed guest tokens itself
-    # (POST /identity/guest), replacing the frontend guest-token route.
-    # Guest history is addressable only while the actor id in the guest token
-    # stays put: threads are actor-scoped, so a re-issued token with a new
-    # subject orphans every thread that guest created. A 24h ttl rotated that
-    # identity (and so the visible history) roughly daily. 720h == 30d, spelled
-    # in hours because "24h" is the only unit spelling known to be accepted.
-    entries.append(providers.guest(ttl="720h", actor_prefix="guest:"))
-    configured = [
-        e.get("discovery_url") or e.get("issuer")
-        for e in entries
-        if e.get("discovery_url") or e.get("issuer")
-    ]
-    print(f"[chat-langchain identity] supabase discovery bases: {configured}", flush=True)
-    return entries
+def _supabase_user_url(url: str) -> str:
+    base = url.rstrip("/")
+    if base.endswith("/auth/v1/user"):
+        return base
+    if base.endswith("/auth/v1"):
+        return f"{base}/user"
+    return f"{base}/auth/v1/user"
+
+
+def _supabase_auth() -> dict:
+    regions = {
+        region: {
+            "url": _supabase_user_url(os.environ.get(url_env) or f"${{{url_env}}}"),
+            "anon_key": f"${{{key_env}}}",
+        }
+        for region, (url_env, key_env) in _REGION_ENV.items()
+    }
+    provider = auth.supabase(
+        introspect=True,
+        regions=regions,
+        region_header="x-supabase-region",
+    )
+    # Supabase anonymous users have no email. The stable `id` returned by
+    # `/auth/v1/user` identifies both anonymous and signed-in callers.
+    provider["claims"] = {"user": "id", "email": "email"}
+    return provider
 
 
 identity = define_identity(
-    ingress={"http": {"mode": "validated_token", "providers": _providers()}},
-    tenancy="single",
-    scoping={"threads": "actor", "memory": "none", "credentials": "agent"},
+    auth=_supabase_auth(),
 )

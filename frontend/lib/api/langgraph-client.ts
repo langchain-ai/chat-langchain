@@ -12,7 +12,7 @@ import type { AuthRegion } from "@/lib/auth"
 /**
  * Create a LangGraph client instance with authentication.
  *
- * @param authToken - Supabase access token, guest token, or legacy user ID.
+ * @param authToken - Signed-in or anonymous Supabase access token.
  * @param authRegion - Supabase region used for signed-in token verification.
  * @throws Error if authToken is not provided
  *

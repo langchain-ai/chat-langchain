@@ -83,14 +83,14 @@ npm run dev:local
 ```
 
 Point the frontend at the local MDA deployment via `NEXT_PUBLIC_LANGGRAPH_API_URL`
-(see `frontend/.env.local.example`). Auth, guest issuance, and LangSmith
-operations go through the managed identity and connector surface.
+(see `frontend/.env.local.example`). Signed-in and anonymous users authenticate
+with Supabase; MDA validates those tokens and owns the connector surface.
 
 ## Project Structure
 
 ```txt
 ├── agent.py                    # Managed Deep Agent entrypoint
-├── identity.py                 # MDA identity contract (Supabase + guest)
+├── identity.py                 # MDA multi-region Supabase identity contract
 ├── instructions.md             # Managed Deep Agent system prompt
 ├── connectors/
 │   ├── langsmith.py            # LangSmith feedback + trace connector
@@ -134,8 +134,8 @@ mda deploy .
 
 What MDA owns in this deployment:
 
-- **Identity** — `identity.py` verifies Supabase access tokens (multi-region) and
-  issues/verifies guest tokens via `POST /identity/guest`.
+- **Identity** — `identity.py` verifies signed-in and anonymous Supabase access
+  tokens across the configured regions.
 - **HTTP surface** — managed ingress; no custom FastAPI app.
 - **LangSmith browser ops** — `connectors/langsmith.py` proxies feedback and
   trace read/share so `LANGSMITH_API_KEY` never reaches the browser.

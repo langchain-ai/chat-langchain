@@ -3,8 +3,8 @@
  *
  * Calls the MDA LangSmith connector, which performs the LangSmith operation
  * server-side with the workspace key and returns an allowlisted response. The
- * browser sends only its own identity token (Supabase access token or MDA guest
- * token) and never sees LANGSMITH_API_KEY.
+ * browser sends only its own Supabase identity token and never sees
+ * LANGSMITH_API_KEY.
  *
  * Route: POST {LANGGRAPH_API_URL}/connectors/langsmith/capabilities/{id}
  *
