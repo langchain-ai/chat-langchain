@@ -2,19 +2,13 @@
  * User ID Management Hook
  *
  * Public Chat LangChain uses an authenticated email when available and falls
- * back to an anonymous browser UUID persisted in localStorage.
+ * back to a verified Supabase anonymous user.
  */
 
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useAuth, type AuthRegion } from '@/lib/auth'
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const USER_ID_KEY = 'langgraph-user-id'
 
 interface GuestAuthState {
   guestUserId: string | null
@@ -35,70 +29,7 @@ class GuestAuthRateLimitError extends Error {
   }
 }
 
-export function getOrCreateGuestUserId(): string | null {
-  if (typeof window === 'undefined') return null
-
-  let id = localStorage.getItem(USER_ID_KEY)
-
-  if (!id) {
-    id = `user-${crypto.randomUUID()}`
-    localStorage.setItem(USER_ID_KEY, id)
-    console.info('Generated new browser user ID:', id)
-  } else {
-    console.info('Loaded existing browser user ID:', id)
-  }
-
-  return id
-}
-
-// ============================================================================
-// Hook Implementation
-// ============================================================================
-
-/**
- * Get user ID for thread management.
- *
- * Returns the authenticated user's email or a browser UUID used to filter
- * threads on the LangGraph backend.
- *
- * @returns The user's unique ID, or null while loading
- *
- * @example
- * const userId = useUserId()
- * if (!userId) return <div>Loading...</div>
- * return <ChatInterface userId={userId} />
- */
-export function useUserId(): string | null {
-  const [userId, setUserId] = useState<string | null>(null)
-  const { user, loading } = useAuth()
-
-  useEffect(() => {
-    // Skip during SSR
-    if (typeof window === 'undefined') return
-    if (loading) return
-
-    if (user?.email) {
-      setUserId(user.email)
-      return
-    }
-
-    setUserId(getOrCreateGuestUserId())
-  }, [loading, user?.email])
-
-  return userId
-}
-
-export function useGuestUserId(): string | null {
-  const [guestUserId, setGuestUserId] = useState<string | null>(null)
-
-  useEffect(() => {
-    setGuestUserId(getOrCreateGuestUserId())
-  }, [])
-
-  return guestUserId
-}
-
-export function useGuestAuth(): GuestAuthState {
+export function useGuestAuth(authRegion: AuthRegion): GuestAuthState {
   const [guestAuth, setGuestAuth] = useState<GuestAuthState>({
     guestUserId: null,
     guestToken: null,
@@ -109,10 +40,17 @@ export function useGuestAuth(): GuestAuthState {
     let cancelled = false
 
     const loadGuestAuth = async () => {
+      setGuestAuth({
+        guestUserId: null,
+        guestToken: null,
+        loading: true,
+      })
       try {
         const response = await fetch('/api/auth/guest', {
           method: 'POST',
           credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ region: authRegion }),
         })
         if (response.status === 429) {
           throw new GuestAuthRateLimitError()
@@ -149,15 +87,11 @@ export function useGuestAuth(): GuestAuthState {
           return
         }
 
-        console.warn(
-          '[Auth] Falling back to legacy guest user ID auth:',
-          error
-        )
-        const legacyGuestUserId = getOrCreateGuestUserId()
+        console.warn('[Auth] Guest authentication unavailable:', error)
         if (!cancelled) {
           setGuestAuth({
-            guestUserId: legacyGuestUserId,
-            guestToken: legacyGuestUserId,
+            guestUserId: null,
+            guestToken: null,
             loading: false,
           })
         }
@@ -169,14 +103,15 @@ export function useGuestAuth(): GuestAuthState {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [authRegion])
 
   return guestAuth
 }
 
 export function useLangGraphAuth(): LangGraphAuthState {
   const { user, session, loading: authLoading, authRegion } = useAuth()
-  const { guestUserId, guestToken, loading: guestLoading } = useGuestAuth()
+  const { guestUserId, guestToken, loading: guestLoading } =
+    useGuestAuth(authRegion)
   const signedInUserId = user?.email ?? null
   const signedInToken = session?.access_token ?? null
 

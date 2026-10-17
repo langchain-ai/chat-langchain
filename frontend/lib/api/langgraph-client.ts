@@ -12,7 +12,7 @@ import type { AuthRegion } from "@/lib/auth"
 /**
  * Create a LangGraph client instance with authentication.
  *
- * @param authToken - Supabase access token, guest token, or legacy user ID.
+ * @param authToken - Signed-in or anonymous Supabase access token.
  * @param authRegion - Supabase region used for signed-in token verification.
  * @throws Error if authToken is not provided
  *
@@ -36,7 +36,7 @@ export function createLangGraphClient(
     Authorization: `Bearer ${authToken}`,
   }
 
-  // Optional public app key for deployments that set LANGGRAPH_AUTH_SECRET.
+  // Optional gateway key. Sent only when a proxy in front of the deployment expects it.
   const authKey = process.env.NEXT_PUBLIC_LANGGRAPH_AUTH_KEY
   if (authKey) {
     headers["X-Auth-Key"] = authKey

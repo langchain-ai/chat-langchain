@@ -83,18 +83,17 @@ npm run dev:local
 ```
 
 Point the frontend at the local MDA deployment via `NEXT_PUBLIC_LANGGRAPH_API_URL`
-(see `frontend/.env.local.example`). Auth, guest issuance, and LangSmith
-operations go through the managed identity and connector surface.
+(see `frontend/.env.local.example`). Signed-in and anonymous users authenticate
+with Supabase; MDA validates those tokens and scopes their threads.
 
 ## Project Structure
 
 ```txt
 ├── agent.py                    # Managed Deep Agent entrypoint
-├── identity.py                 # MDA identity contract (Supabase + guest)
+├── identity.py                 # MDA multi-region Supabase identity contract
 ├── instructions.md             # Managed Deep Agent system prompt
-├── connectors/
-│   ├── langsmith.py            # LangSmith feedback + trace connector
-│   └── mcp.py                  # Managed MCP docs connector
+├── tools/
+│   └── mcp.py                  # Managed MCP docs declaration
 ├── src/
 │   ├── agent/
 │   │   └── config.py           # Model configuration
@@ -134,12 +133,12 @@ mda deploy .
 
 What MDA owns in this deployment:
 
-- **Identity** — `identity.py` verifies Supabase access tokens (multi-region) and
-  issues/verifies guest tokens via `POST /identity/guest`.
-- **HTTP surface** — managed ingress; no custom FastAPI app.
-- **LangSmith browser ops** — `connectors/langsmith.py` proxies feedback and
-  trace read/share so `LANGSMITH_API_KEY` never reaches the browser.
-- **Docs MCP** — `connectors/mcp.py` attaches the LangChain docs MCP tools.
+- **Identity** — `identity.py` verifies signed-in and anonymous Supabase access
+  tokens across the configured regions.
+- **HTTP surface** — managed agent ingress plus same-origin frontend routes.
+- **LangSmith browser ops** — the frontend server verifies MDA thread access,
+  then proxies feedback and trace read/share without exposing `LANGSMITH_API_KEY`.
+- **Docs MCP** — `tools/mcp.py` attaches the LangChain docs MCP tools.
 - **Thread titles** — generated in the browser (deterministic truncation).
 - **Checkpointer** — managed by the Managed Deep Agents runtime.
 

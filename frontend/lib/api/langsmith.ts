@@ -1,22 +1,17 @@
 /**
  * Client-side LangSmith wrapper.
  *
- * Calls the MDA LangSmith connector, which performs the LangSmith operation
- * server-side with the workspace key and returns an allowlisted response. The
- * browser sends only its own identity token (Supabase access token or MDA guest
- * token) and never sees LANGSMITH_API_KEY.
+ * Calls the same-origin Next.js server route, which verifies thread access and
+ * performs the LangSmith operation with the server-side workspace key. The
+ * browser sends only its own Supabase identity token and never sees the key.
  *
- * Route: POST {LANGGRAPH_API_URL}/connectors/langsmith/capabilities/{id}
- *
- * Thread/run-scoped capabilities require `thread_id` in the body so MDA can
- * bind connector-HTTP identity (which has no LangGraph configurable.thread_id).
+ * Thread/run-scoped capabilities require `thread_id` so the server can prove
+ * ownership through the configured MDA deployment before accessing LangSmith.
  */
 
-import { LANGGRAPH_API_URL } from "../constants/api"
 import { FEEDBACK_KEY } from "../constants/features"
 import { logger } from "../utils/logger"
 
-/** Capability ids declared in `connectors/langsmith.py`. */
 const CAPABILITY_FEEDBACK = "langsmith:chat-feedback"
 const CAPABILITY_TRACE_VIEWER = "langsmith:trace-viewer"
 
@@ -37,8 +32,7 @@ interface ApiError {
 }
 
 function capabilityUrl(capabilityId: string): string {
-  const baseUrl = LANGGRAPH_API_URL.replace(/\/$/, "")
-  return `${baseUrl}/connectors/langsmith/capabilities/${capabilityId}`
+  return `/api/langsmith/capabilities/${encodeURIComponent(capabilityId)}`
 }
 
 function authHeaders(auth: LangSmithAuth): Record<string, string> {
@@ -53,10 +47,6 @@ function authHeaders(auth: LangSmithAuth): Record<string, string> {
   }
   if (auth.region) {
     headers["X-Supabase-Region"] = auth.region
-  }
-  const authKey = process.env.NEXT_PUBLIC_LANGGRAPH_AUTH_KEY
-  if (authKey) {
-    headers["X-Auth-Key"] = authKey
   }
   return headers
 }

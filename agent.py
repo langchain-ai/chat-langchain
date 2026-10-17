@@ -20,7 +20,7 @@ from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_support_article_content, search_support_articles
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
-# The MCP docs tools are declared in connectors/mcp.py so the managed runtime
+# The MCP docs tools are declared in tools/mcp.py so the managed runtime
 # owns client lifecycle and appends those tools during compilation.
 docs_agent_tools = [
     search_support_articles,
@@ -61,8 +61,5 @@ agent = define_deep_agent(
     model="google_genai:gemini-3.5-flash-lite",
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
-    # The current public app does not have cross-thread user memory. Keep MDA
-    # managed memory off until identity scoping is ready.
-    disable_memory=True,
     metadata=build_docs_agent_trace_metadata(),
 )

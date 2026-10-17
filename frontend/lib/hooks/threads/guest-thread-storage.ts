@@ -10,7 +10,7 @@ const GUEST_THREAD_IDS_KEY = "chat-langchain-guest-thread-ids"
 const LEGACY_OWNER_ID = "__legacy__"
 
 /**
- * Guest identities rotate (a new MDA guest token can carry a new `sub`), and a
+ * Guest identities can rotate (a new anonymous session carries a new `sub`), and a
  * stale bucket's threads are unreachable forever. Keep a bounded number of them
  * so localStorage cannot grow without limit across rotations.
  */
