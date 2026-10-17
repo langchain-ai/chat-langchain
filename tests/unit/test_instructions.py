@@ -45,6 +45,26 @@ def test_docs_prompt_publisher_uses_current_instructions(monkeypatch):
     assert len(messages) == 1
     assert messages[0].type == "system"
     assert messages[0].content == instructions
+    assert (
+        "**Language: Always answer in the same natural language as the user's latest message"
+        in messages[0].content
+    )
+    assert (
+        "regardless of the language of documentation, tool results, prompt examples, or earlier assistant answers"
+        in messages[0].content
+    )
+    assert (
+        "Keep code, API names, file paths, and URLs unchanged." in messages[0].content
+    )
+    assert (
+        "Translate English examples and prescribed response wording"
+        in messages[0].content
+    )
+    assert (
+        "Before sending your response, verify that all prose is in the latest user message's natural language"
+        in messages[0].content
+    )
+    assert "plain English" not in messages[0].content
 
 
 def test_support_search_instructions_match_tool_schema():
