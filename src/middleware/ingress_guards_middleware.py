@@ -7,9 +7,11 @@ middleware only caps oversized user input.
 Trace metadata (prompt provenance, ``LANGSMITH_AGENT_VERSION``, ``source_type``)
 is applied at agent compile time via ``define_deep_agent(metadata=...)`` in
 ``agent.py`` — nested ``before_agent`` spans cannot reliably update the
-LangSmith root run. Git-linked host fields (``LANGSMITH_LANGGRAPH_GIT_*``) are
-not synthesized; archive deploys use ``LANGSMITH_HOST_REVISION_ID`` /
-``LANGSMITH_AGENT_VERSION`` instead.
+LangSmith root run. ``LANGSMITH_REVISION_ID`` takes precedence over
+``LANGCHAIN_REVISION_ID`` for ``revision_id`` and ``LANGSMITH_AGENT_VERSION``.
+``LANGSMITH_HOST_REVISION_ID`` is retained separately as ``host_revision_id``
+and supplies the agent version only when neither git revision is available.
+Git-linked host fields (``LANGSMITH_LANGGRAPH_GIT_*``) are not synthesized.
 """
 
 from __future__ import annotations
@@ -44,7 +46,11 @@ class IngressGuardsMiddleware(AgentMiddleware):
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
         if isinstance(content, str):
-            return content[:MAX_MESSAGE_CHARS] if len(content) > MAX_MESSAGE_CHARS else content
+            return (
+                content[:MAX_MESSAGE_CHARS]
+                if len(content) > MAX_MESSAGE_CHARS
+                else content
+            )
 
         if not isinstance(content, list):
             return content

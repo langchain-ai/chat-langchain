@@ -23,11 +23,17 @@ def build_docs_agent_trace_metadata(
         "source_type": "Chat-LangChain",
         **get_prompt_provenance(graph_id),
     }
-    revision = os.environ.get("LANGCHAIN_REVISION_ID") or os.environ.get(
-        "LANGSMITH_HOST_REVISION_ID"
+    revision = os.environ.get("LANGSMITH_REVISION_ID") or os.environ.get(
+        "LANGCHAIN_REVISION_ID"
     )
+    host_revision = os.environ.get("LANGSMITH_HOST_REVISION_ID")
+    if host_revision:
+        metadata["host_revision_id"] = host_revision
     if revision:
+        metadata["revision_id"] = revision
         metadata["LANGSMITH_AGENT_VERSION"] = revision
+    elif host_revision:
+        metadata["LANGSMITH_AGENT_VERSION"] = host_revision
     return metadata
 
 
