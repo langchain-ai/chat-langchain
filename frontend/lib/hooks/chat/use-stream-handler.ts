@@ -423,7 +423,7 @@ export function useStreamHandler({
       let runId: string | undefined = undefined
       let hasSeenNewResponse = false
 
-      const agentType = "docs-agent"
+      const agentType = "docs_agent"
 
       // Trace metadata for LangSmith observability.
       // Read the Segment anonymous ID live, right before the run is created,
