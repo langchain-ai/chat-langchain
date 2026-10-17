@@ -376,11 +376,14 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Extract the current query (last human message)
         current_message = None
         current_query = None
-        for msg in reversed(messages):
+        current_message_index = None
+        for message_index in range(len(messages) - 1, -1, -1):
+            msg = messages[message_index]
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
                 if current_query or self._content_has_media(getattr(msg, "content", None)):
+                    current_message_index = message_index
                     break
 
         if current_message is None or (
@@ -389,23 +392,34 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ):
             return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
 
-        # Build context from previous human messages (for follow-up detection)
-        prior_queries = []
-        for msg in reversed(messages[:-1]):  # Exclude current message
-            if isinstance(msg, HumanMessage):
-                text = self._extract_message_text(msg)
-                if text:
-                    prior_queries.append(text[:200])  # Truncate for brevity
-                    if len(prior_queries) == 3:
-                        break
+        # Build context from recent messages for follow-up detection.
+        prior_messages = []
+        for msg in reversed(messages[:current_message_index]):
+            if not isinstance(msg, (HumanMessage, AIMessage)):
+                continue
+
+            text = self._extract_message_text(msg)
+            if not text:
+                continue
+
+            if text.startswith("Here is a summary of the conversation to date"):
+                goal_marker = "## Current User Goal"
+                if goal_marker in text:
+                    text = text.split(goal_marker, 1)[1].split("\n## ", 1)[0].strip()
+
+            prior_messages.append(
+                ("user" if isinstance(msg, HumanMessage) else "assistant", text[:600])
+            )
+            if len(prior_messages) == 4:
+                break
 
         # Build the classification prompt
         context_section = ""
-        if prior_queries:
-            recent = list(reversed(prior_queries))  # Restore chronological order.
+        if prior_messages:
+            recent = list(reversed(prior_messages))  # Restore chronological order.
             context_section = (
-                "\n\nPrevious questions in this conversation:\n"
-                + "\n".join(f"- {q}" for q in recent)
+                "\n\nRecent conversation (most recent last):\n"
+                + "\n".join(f"- {role}: {text}" for role, text in recent)
             )
 
         current_content = getattr(current_message, "content", current_query or "")
