@@ -1,54 +1,72 @@
 """Tests for the deployed MDA identity contract."""
 
-from identity import _supabase_auth, identity
+import base64
+import json
+
+from managed_deepagents import _validated_token
+
+from identity import _guest_auth, _supabase_auths, identity
 
 
-def test_identity_uses_multi_region_supabase_ids():
+def _token_with_unverified_issuer(issuer: str) -> str:
+    def encode(value: dict) -> str:
+        raw = json.dumps(value, separators=(",", ":")).encode()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+    signature = base64.urlsafe_b64encode(b"test-signature").rstrip(b"=").decode()
+    return f"{encode({'alg': 'HS256', 'typ': 'JWT'})}.{encode({'iss': issuer})}.{signature}"
+
+
+def test_identity_uses_discoverable_supabase_providers_per_region():
     http = identity.config["ingress"]["http"]
     assert http["mode"] == "validated_token"
-    assert len(http["providers"]) == 2
+    assert len(http["providers"]) == 5
 
-    provider = http["providers"][0]
-    guest = http["providers"][1]
+    for provider in http["providers"][:4]:
+        assert provider["id"] == "supabase"
+        assert provider["discovery_url"].endswith("/auth/v1")
+        assert "issuer" not in provider
+        assert provider["claims"] == {"user": "id", "email": "email"}
+
+    guest = http["providers"][4]
     assert guest["issuer"] == "mda:guest"
     assert guest["claims"] == {"user": "sub"}
-    assert guest["introspect"]["url"] == "${MDA_PUBLIC_API_URL}/identity/guest/introspect"
-
-    assert provider["claims"] == {"user": "id", "email": "email"}
-    assert provider["introspect"]["region_header"] == "x-supabase-region"
-    assert provider["introspect"]["regions"] == {
-        "us": {
-            "url": "${SUPABASE_URL}/auth/v1/user",
-            "headers": {"apikey": "${SUPABASE_ANON_KEY}"},
-        },
-        "eu": {
-            "url": "${SUPABASE_EU_URL}/auth/v1/user",
-            "headers": {"apikey": "${SUPABASE_EU_ANON_KEY}"},
-        },
-        "apac": {
-            "url": "${SUPABASE_APAC_URL}/auth/v1/user",
-            "headers": {"apikey": "${SUPABASE_APAC_ANON_KEY}"},
-        },
-        "aws": {
-            "url": "${SUPABASE_AWS_URL}/auth/v1/user",
-            "headers": {"apikey": "${SUPABASE_AWS_ANON_KEY}"},
-        },
-    }
-
-
-def test_identity_resolves_runtime_urls_for_principal_issuers(monkeypatch):
-    monkeypatch.setenv("SUPABASE_URL", "https://us.example.com/")
-    monkeypatch.setenv("SUPABASE_EU_URL", "https://eu.example.com/auth/v1")
-
-    provider = _supabase_auth()
-
-    assert provider["introspect"]["regions"]["us"]["url"] == (
-        "https://us.example.com/auth/v1/user"
+    assert (
+        guest["introspect"]["url"] == "${MDA_PUBLIC_API_URL}/identity/guest/introspect"
     )
-    assert provider["introspect"]["regions"]["eu"]["url"] == (
-        "https://eu.example.com/auth/v1/user"
+
+
+def test_custom_domain_discovers_real_token_issuer(monkeypatch):
+    custom_domain = "https://auth.example.com"
+    token_issuer = "https://project-ref.supabase.co/auth/v1"
+    monkeypatch.setenv("SUPABASE_URL", custom_domain)
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "test-anon-key")
+
+    provider = _supabase_auths()[0]
+    assert provider["discovery_url"] == f"{custom_domain}/auth/v1"
+
+    def get_json(url: str, headers: dict) -> dict:
+        if url.endswith("/.well-known/openid-configuration"):
+            return {
+                "issuer": token_issuer,
+                "jwks_uri": f"{token_issuer}/.well-known/jwks.json",
+            }
+        assert url == f"{custom_domain}/auth/v1/user"
+        assert headers["apikey"] == "test-anon-key"
+        return {
+            "id": "user-123",
+            "email": "person@example.com",
+            "iss": token_issuer,
+        }
+
+    monkeypatch.setattr(_validated_token, "_http_get_json", get_json)
+    user = _validated_token.resolve_validated_token_user(
+        {},
+        {"mode": "validated_token", "providers": [provider, _guest_auth()]},
+        {},
+        f"Bearer {_token_with_unverified_issuer(token_issuer)}",
     )
-    assert provider["issuers"][:2] == [
-        "https://us.example.com/auth/v1",
-        "https://eu.example.com/auth/v1",
-    ]
+
+    assert user["identity"] == "user-123"
+    assert user["mda_identity_provider"] == "supabase"
+    assert user["mda_identity_issuer"] == token_issuer
