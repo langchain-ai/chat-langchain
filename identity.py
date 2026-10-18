@@ -24,32 +24,20 @@ _REGION_ENV: dict[str, tuple[str, str]] = {
 }
 
 
-def _supabase_user_url(url: str) -> str:
-    base = url.rstrip("/")
-    if base.endswith("/auth/v1/user"):
-        return base
-    if base.endswith("/auth/v1"):
-        return f"{base}/user"
-    return f"{base}/auth/v1/user"
-
-
-def _supabase_auth() -> dict:
-    regions = {
-        region: {
-            "url": _supabase_user_url(os.environ.get(url_env) or f"${{{url_env}}}"),
-            "anon_key": f"${{{key_env}}}",
-        }
-        for region, (url_env, key_env) in _REGION_ENV.items()
-    }
-    provider = auth.supabase(
-        introspect=True,
-        regions=regions,
-        region_header="x-supabase-region",
-    )
-    # Supabase anonymous users have no email. The stable `id` returned by
-    # `/auth/v1/user` identifies both anonymous and signed-in callers.
-    provider["claims"] = {"user": "id", "email": "email"}
-    return provider
+def _supabase_auths() -> list[dict]:
+    providers: list[dict] = []
+    for url_env, key_env in _REGION_ENV.values():
+        base = os.environ.get(url_env)
+        if not base:
+            continue
+        provider = auth.supabase(url=base, introspect=True)
+        provider["id"] = "supabase"
+        provider["introspect"]["headers"] = {"apikey": f"${{{key_env}}}"}
+        # Supabase anonymous users have no email. The stable `id` returned by
+        # `/auth/v1/user` identifies both anonymous and signed-in callers.
+        provider["claims"] = {"user": "id", "email": "email"}
+        providers.append(provider)
+    return providers
 
 
 def _guest_auth() -> dict:
@@ -64,6 +52,6 @@ def _guest_auth() -> dict:
 
 
 identity = define_identity(
-    auth=[_supabase_auth(), _guest_auth()],
+    auth=[*_supabase_auths(), _guest_auth()],
 )
 install_guest_auth()
