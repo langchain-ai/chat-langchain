@@ -58,17 +58,18 @@ let resolvedAgentType: AgentType | undefined
 async function resolveAgentType(client: Client): Promise<AgentType> {
   if (resolvedAgentType) return resolvedAgentType
 
-  const assistants = await client.assistants.search()
-  const agentType = AGENT_TYPES.find((candidate) =>
-    assistants.some((assistant) => assistant.graph_id === candidate)
-  )
-
-  if (!agentType) {
-    throw new Error("No supported documentation assistant is available.")
+  for (const candidate of AGENT_TYPES) {
+    const assistants = await client.assistants.search({
+      graphId: candidate,
+      limit: 1,
+    })
+    if (assistants.some((assistant) => assistant.graph_id === candidate)) {
+      resolvedAgentType = candidate
+      return candidate
+    }
   }
 
-  resolvedAgentType = agentType
-  return agentType
+  throw new Error("No supported documentation assistant is available.")
 }
 
 /** Error patterns that indicate a retryable failure */
