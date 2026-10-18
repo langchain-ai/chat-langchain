@@ -26,11 +26,11 @@ _REGION_ENV: dict[str, tuple[str, str]] = {
 
 def _supabase_auths() -> list[dict]:
     providers: list[dict] = []
-    for region, (url_env, key_env) in _REGION_ENV.items():
-        base = (os.environ.get(url_env) or f"${{{url_env}}}").rstrip("/")
+    for url_env, key_env in _REGION_ENV.values():
+        base = os.environ.get(url_env)
+        if not base:
+            continue
         provider = auth.supabase(url=base, introspect=True)
-        # Agent Auth includes this ID in its principal key. Keep it stable while
-        # the discovered issuer distinguishes the regional providers.
         provider["id"] = "supabase"
         provider["introspect"]["headers"] = {"apikey": f"${{{key_env}}}"}
         # Supabase anonymous users have no email. The stable `id` returned by
