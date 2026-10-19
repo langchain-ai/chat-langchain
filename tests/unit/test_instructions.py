@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from langchain_core.load import dumps, loads
+
 from scripts import push_docs_agent_prompt
 
 
@@ -41,10 +43,34 @@ def test_docs_prompt_publisher_uses_current_instructions(monkeypatch):
         "langchain-ai/public-chat-langchain-test",
     )
     prompt = client.push_prompt.call_args.kwargs["object"]
-    messages = prompt.format_messages()
+    published_prompt = loads(dumps(prompt), allowed_objects="core")
+    assert published_prompt.input_variables == []
+    messages = published_prompt.format_messages()
     assert len(messages) == 1
     assert messages[0].type == "system"
     assert messages[0].content == instructions
+    for requirement in (
+        "include the target programming language in every docs query",
+        "default to Python when unspecified",
+        "read same-language documentation",
+        "verify the actual snippet language",
+        "Never translate API names by naming convention alone",
+        "prose and comments match the displayed code",
+        "Annotated[..., operator.add]",
+        "configure a checkpointer at compile time",
+        "configurable.thread_id",
+    ):
+        assert requirement in messages[0].content
+    for api in (
+        "add_node",
+        "add_edge",
+        "add_conditional_edges",
+        "bind_tools",
+        "with_structured_output",
+        "update_state",
+        "get_state",
+    ):
+        assert f"`{api}`" in messages[0].content
 
 
 def test_support_search_instructions_match_tool_schema():
