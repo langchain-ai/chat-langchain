@@ -112,6 +112,7 @@ def test_direct_deployment_uses_maintained_auth():
 
 
 def test_deploy_uses_secured_build_without_regenerating(monkeypatch):
+    monkeypatch.setattr(manage, "preflight", lambda: None)
     config_path = manage.ROOT / ".mda" / "test-build" / "langgraph.json"
     original_build = manage.build
     monkeypatch.setattr(manage, "build", lambda: original_build(config_path.parent))

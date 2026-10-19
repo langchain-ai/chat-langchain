@@ -139,6 +139,10 @@ Use `scripts/manage.py build` instead of bare `mda build`, and
 module and configuration without an authorization extension hook. The wrapper
 runs `mda build`, points the compiled configuration at maintained `auth.py`, and
 deploys that bundle with the LangGraph CLI so it is not regenerated again.
+Before building a deployment, the wrapper checks the Pylon articles endpoint
+using `PYLON_API_KEY` and `PYLON_KB_ID` from the project `.env`. Missing settings,
+rejected credentials, or an unavailable endpoint abort deployment; for HTTP
+401/403, rotate `PYLON_API_KEY` and verify `PYLON_KB_ID` before retrying.
 Managed authentication and thread/store scoping remain intact; all cron actions
 return HTTP 403 for guests and signed-in end users, while Studio retains access.
 
