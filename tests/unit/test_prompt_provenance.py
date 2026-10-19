@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import importlib
+from unittest.mock import Mock
 
+import langsmith
 from langchain_core.messages import SystemMessage
+from langsmith import traceable, tracing_context
 
 from src.utils import prompt_provenance as provenance
 
@@ -89,6 +92,8 @@ def test_resolve_hub_provenance_without_overrides_uses_default_client(monkeypatc
 
 def test_guardrails_prompt_import_renders_without_invoke(monkeypatch):
     monkeypatch.delenv("USE_LOCAL_PROMPTS", raising=False)
+    monkeypatch.delenv("LANGSMITH_ENV", raising=False)
+    monkeypatch.delenv("LANGSMITH_HOST_PROJECT_NAME", raising=False)
 
     class FakeTemplate:
         metadata = {"lc_hub_commit_hash": "guardrails-commit"}
@@ -101,15 +106,40 @@ def test_guardrails_prompt_import_renders_without_invoke(monkeypatch):
             raise AssertionError("guardrails prompt rendering should not invoke")
 
     class FakeClient:
+        @traceable(name="ChatPromptTemplate")
         def pull_prompt(self, hub_name: str):
             assert hub_name == "public-chat-langchain-guardrails-test:production"
             return FakeTemplate()
 
     import langsmith
 
+    trace_client = Mock(spec=langsmith.Client)
     monkeypatch.setattr(langsmith, "Client", FakeClient)
-    module = importlib.import_module("src.middleware.guardrails_middleware")
-    importlib.reload(module)
+    with tracing_context(enabled=True, client=trace_client):
+        spec = importlib.util.spec_from_file_location(
+            "guardrails_prompt_load_test",
+            importlib.util.find_spec("src.middleware.guardrails_middleware").origin,
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    trace_client.create_run.assert_not_called()
 
     assert module._GUARDRAILS_SYSTEM_PROMPT == "guardrails system prompt"
     assert module.guardrails_prompt_commit == "guardrails-commit"
+
+
+def test_provenance_load_does_not_emit_orphan_root(monkeypatch):
+    provenance._resolve_hub_provenance.cache_clear()
+
+    class FakeClient:
+        @traceable(name="ChatPromptTemplate")
+        def pull_prompt(self, hub_name):
+            return _FakeTemplate("loaded-commit")
+
+    monkeypatch.setattr(provenance, "_hub_client", lambda *args: FakeClient())
+    trace_client = Mock(spec=langsmith.Client)
+    with tracing_context(enabled=True, client=trace_client):
+        result = provenance._resolve_hub_provenance("test:production", None, False)
+    assert result == ("hub:test:production", "loaded-commit")
+    trace_client.create_run.assert_not_called()
+    provenance._resolve_hub_provenance.cache_clear()

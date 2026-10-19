@@ -139,6 +139,9 @@ Use `scripts/manage.py build` instead of bare `mda build`, and
 module and configuration without an authorization extension hook. The wrapper
 runs `mda build`, points the compiled configuration at maintained `auth.py`, and
 deploys that bundle with the LangGraph CLI so it is not regenerated again.
+The build stamps `LANGSMITH_REVISION_ID` in the root `.env` from git HEAD,
+falling back to `GITHUB_SHA` for source archives; it fails if neither supplies
+a commit SHA. Root traces retain this commit separately from the host agent version.
 Managed authentication and thread/store scoping remain intact; all cron actions
 return HTTP 403 for guests and signed-in end users, while Studio retains access.
 
