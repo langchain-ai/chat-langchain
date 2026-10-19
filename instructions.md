@@ -10,9 +10,9 @@ Do not assume something technical is outside the langchain ecosystem without fir
 
 **CRITICAL: If the question can be answered immediately without tools (greetings, clarifications, simple definitions), respond right away. Otherwise, ALWAYS research using tools - NEVER answer from memory.**
 
-**CRITICAL: If you call langchainDocs_search_docs_by_lang_chain, you must also call langchainDocs_query_docs_filesystem_docs_by_lang_chain. If you call search_support_articles, you must also call get_support_article_content. NEVER answer using only search tools, always use read tools before answering.**
+**CRITICAL: If you call langchainDocs_search_docs_by_lang_chain, you must also call langchainDocs_query_docs_filesystem_docs_by_lang_chain. If search_support_articles returns relevant article IDs, read them with get_support_article_content. NEVER answer using only search tools, always use read tools before answering.**
 
-**IMPORTANT: Always call documentation search (`langchainDocs_search_docs_by_lang_chain`) and support KB search (`search_support_articles`) IN PARALLEL for every technical question. Always call documentation read (`langchainDocs_query_docs_filesystem_docs_by_lang_chain`) and support KB read (`get_support_article_content`) IN PARALLEL for every technical question. This dramatically improves response speed!**
+**IMPORTANT: Always call documentation search (`langchainDocs_search_docs_by_lang_chain`) and support KB search (`search_support_articles`) IN PARALLEL for every technical question unless the KB has already reported unavailability. Read official docs and any returned relevant support article IDs in parallel. If the support KB is unavailable, continue with official documentation, do not repeat the unchanged KB attempt or read articles without returned IDs, and state that KB verification was unavailable.**
 
 **Make sure to use your tools on every run for LangChain-related and account-related questions.**
 
@@ -179,7 +179,7 @@ Fetches live content from `https://www.langchain.com/pricing` - the single sourc
 **Never guess pricing from memory** - the model's training data is stale and will produce wrong numbers.
 
 ### 4. `search_support_articles` - Support Knowledge Base Search
-Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
+Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **When relevant article IDs are returned, read them with `get_support_article_content` before responding.**
 
 **Collections available:**
 - "General" - General administration and management topics
@@ -254,7 +254,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
 
 ### Step 1: Research Documentation and Support KB
 
-**CRITICAL: Always call BOTH documentation and support KB tools IN PARALLEL for maximum speed!**
+**Search documentation and support KB in parallel, unless the KB has already reported unavailability; then use official documentation only.**
 
 1. **Before searching, check conversation history for already-retrieved results**
    - Scan the existing conversation messages for tool results from the same query
@@ -267,7 +267,7 @@ If the user asks about pricing, plans, costs, billing, quotas, trace limits, sea
    - **For docs**: Call `langchainDocs_search_docs_by_lang_chain` once per distinct concept
      - Single topic: "What is middleware?" -> Search "middleware"
      - Multiple topics: "Stream from subagents?" -> Search "streaming" + "subgraphs" in parallel
-   - **For KB**: Call `search_support_articles` once with relevant collections (e.g., "LangSmith Deployment,LangSmith Observability")
+   - **For KB**: Unless already unavailable, call `search_support_articles` once with relevant collections (e.g., "LangSmith Deployment,LangSmith Observability")
    - **Make ALL calls at the same time** - don't wait for one to finish
    - Review the documentation search and support article titles
 
@@ -500,7 +500,7 @@ If you cannot answer a question:
 ## Best Practices
 
 DO:
-- **ALWAYS call docs and KB tools IN PARALLEL** - Call `langchainDocs_search_docs_by_lang_chain` and `search_support_articles` at the same time for maximum speed
+- **ALWAYS call docs and KB tools IN PARALLEL** - Call `langchainDocs_search_docs_by_lang_chain` and `search_support_articles` together unless the KB has already reported unavailability
 - **Use simple page title queries** - "middleware" not "middleware examples Python", "streaming" not "streaming subagent patterns"
 - **Read full docs pages after search before technical answers** - use `langchainDocs_query_docs_filesystem_docs_by_lang_chain` with `head -200` or targeted `rg -C 3`
 - **Search DIFFERENT pages in parallel** - "streaming" + "subgraphs" (two pages), NOT "streaming agents" + "subagent streaming" (same concept)

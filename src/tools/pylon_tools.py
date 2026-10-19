@@ -1,3 +1,5 @@
+"""Retrieve public support articles from the Pylon knowledge base."""
+
 # Pylon Knowledge Base Tools
 # Tools:
 #   - search_support_articles
@@ -48,12 +50,41 @@ def _get_headers() -> Dict[str, str]:
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
 
 
-def _fetch_collections() -> Dict[str, str]:
-    """Fetch collections from Pylon API and cache them.
+class SupportKBError(requests.exceptions.RequestException):
+    """Report sanitized support KB failures while retaining HTTP status."""
 
-    Returns:
-        Mapping of collection names to collection IDs
-    """
+    def __init__(self, status_code: int | None = None):
+        """Build an error without request or response secrets."""
+        self.status_code = status_code
+        message = "Support KB unavailable"
+        if status_code is not None:
+            message += f" (HTTP {status_code})"
+        if status_code in {401, 403}:
+            message += (
+                ". Validate deployment PYLON_API_KEY authorization and access to "
+                "PYLON_KB_ID. Use official documentation; do not repeat the KB "
+                "attempt or claim KB verification."
+            )
+        super().__init__(message)
+
+
+def _get_response(url: str, **kwargs: Any) -> requests.Response:
+    """Fetch a Pylon response without exposing request details in failures."""
+    try:
+        response = requests.get(url, **kwargs)
+        response.raise_for_status()
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        raise requests.exceptions.ConnectionError(
+            "Support KB unavailable: connection error or timeout"
+        ) from None
+    except requests.exceptions.RequestException as error:
+        status_code = getattr(error.response, "status_code", None)
+        raise SupportKBError(status_code) from None
+    return response
+
+
+def _fetch_collections() -> Dict[str, str]:
+    """Fetch and cache public Pylon collection names and IDs."""
     global _collections_cache
 
     if _collections_cache is not None:
@@ -61,8 +92,7 @@ def _fetch_collections() -> Dict[str, str]:
 
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
-    response = requests.get(url, headers=_get_headers())
-    response.raise_for_status()
+    response = _get_response(url, headers=_get_headers())
 
     collections_data = response.json().get("data", [])
 
@@ -77,11 +107,7 @@ def _fetch_collections() -> Dict[str, str]:
 
 
 def _fetch_all_articles() -> List[Dict[str, Any]]:
-    """Fetch all articles from Pylon API and cache them.
-
-    Follows pagination cursors until all pages are retrieved, with a safety
-    cap of 10 pages (~1000 articles) to prevent infinite loops.
-    """
+    """Fetch and cache Pylon articles across up to ten cursor pages."""
     global _articles_cache
 
     if _articles_cache is not None:
@@ -97,8 +123,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     params: Dict[str, Any] = {}
 
     while pages_fetched < max_pages:
-        response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
+        response = _get_response(url, headers=headers, params=params)
         body = response.json()
 
         page_data = body.get("data", [])
@@ -129,30 +154,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
 @tool
 def search_support_articles(collections: str = "all") -> str:
-    """Get LangChain support article titles from Pylon KB, filtered by collection(s).
-
-    Returns article titles in structured JSON format so the LLM can decide which ones to fetch.
-
-    Args:
-        collections: Comma-separated list of collection names to filter by.
-                    Available collections:
-                    - "General" - General administration and management topics
-                    - "OSS (LangChain and LangGraph)" - Open source libraries for LangChain and LangGraph
-                    - "LangSmith Observability" - Tracing, stats, and observability of agents
-                    - "LangSmith Evaluation" - Datasets, evaluations, and prompts
-                    - "LangSmith Deployment" - Graph runtime and deployments (formerly LangGraph Platform)
-                    - "SDKs and APIs" - All things across SDKs and APIs
-                    - "LangSmith Studio" - Visualizing and debugging agents (formerly LangGraph Studio)
-                    - "Self Hosted" - Self-hosted LangSmith including deployments
-                    - "Troubleshooting" - Broad domain issue triage and resolution
-                    - "Security" - Code scans, key management, and security topics
-
-                    Use "all" to search all collections (default)
-                    Example: "LangSmith Deployment,LangSmith Observability" to get articles about both
-
-    Returns:
-        JSON string with structure: {"collections": "...", "total": N, "articles": [...]}
-    """
+    """List public support article IDs, titles, and URLs; filter by comma-separated collection names or all."""
     try:
         # Fetch and cache all articles (includes content)
         articles = _fetch_all_articles()
@@ -204,6 +206,8 @@ def search_support_articles(collections: str = "all") -> str:
         # Fetch collection map for naming
         try:
             collection_map = _fetch_collections()
+        except requests.exceptions.RequestException:
+            raise
         except Exception as e:
             return json.dumps(
                 {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
@@ -278,9 +282,8 @@ def search_support_articles(collections: str = "all") -> str:
     except ValueError as e:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
-    except requests.exceptions.RequestException as e:
-        # Network/API error
-        return json.dumps({"error": str(e)}, indent=2)
+    except requests.exceptions.RequestException:
+        raise
     except Exception as e:
         # Catch-all for unexpected errors
         return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
@@ -288,18 +291,7 @@ def search_support_articles(collections: str = "all") -> str:
 
 @tool
 def get_support_article_content(article_id: str) -> str:
-    """Fetch the full HTML content of a specific Pylon support article.
-
-    Uses cached articles from search_support_articles to avoid redundant API calls.
-    This only accepts article IDs returned by search_support_articles; do not pass
-    docs.langchain.com URLs or paths.
-
-    Args:
-        article_id: The article ID from search_support_articles
-
-    Returns:
-        Article content with only: id, title, url, collection, content
-    """
+    """Read cached Pylon support article HTML using an article ID returned by search_support_articles, never a docs URL or path."""
     try:
         # Use cached articles (already fetched by search_support_articles)
         articles = _fetch_all_articles()
@@ -312,6 +304,8 @@ def get_support_article_content(article_id: str) -> str:
         try:
             collection_map = _fetch_collections()
             collection_id_to_name = {v: k for k, v in collection_map.items()}
+        except requests.exceptions.RequestException:
+            raise
         except Exception:
             collection_id_to_name = {}
 
@@ -349,9 +343,8 @@ Content:
     except ValueError as e:
         # API key not configured
         return f"Error: {str(e)}"
-    except requests.exceptions.RequestException as e:
-        # Network/API error
-        return f"Error fetching article: {str(e)}"
+    except requests.exceptions.RequestException:
+        raise
     except Exception as e:
         # Catch-all for unexpected errors
         return f"Unexpected error: {str(e)}"
