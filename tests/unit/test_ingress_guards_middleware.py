@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from types import SimpleNamespace
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -47,7 +48,7 @@ def test_build_docs_agent_trace_metadata_includes_provenance_and_version(monkeyp
     metadata = build_docs_agent_trace_metadata()
 
     assert metadata["source_type"] == "Chat-LangChain"
-    assert metadata["prompt_source"] == "local:instructions.md"
+    assert metadata["prompt_source"] == "context_hub:/instructions.md"
     assert (
         metadata["guardrails_prompt_source"]
         == "local:src/prompts/guardrails_prompts.py"
@@ -61,3 +62,35 @@ def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch
 
     metadata = build_docs_agent_trace_metadata()
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
+
+
+@pytest.mark.parametrize(
+    "values,expected",
+    [
+        (("smith", "chain", "git"), "smith"),
+        (("", "chain", "git"), "chain"),
+        (("  ", "", " git "), "git"),
+        ((None, None, None), None),
+        (("", "  ", ""), None),
+    ],
+)
+def test_root_revision_precedence(monkeypatch, values, expected):
+    for key, value in zip(
+        (
+            "LANGSMITH_REVISION_ID",
+            "LANGCHAIN_REVISION_ID",
+            "LANGSMITH_LANGGRAPH_GIT_REF_SHA",
+        ),
+        values,
+    ):
+        if value is None:
+            monkeypatch.delenv(key, raising=False)
+        else:
+            monkeypatch.setenv(key, value)
+    monkeypatch.setenv("LANGSMITH_HOST_REVISION_ID", "host-uuid")
+    monkeypatch.setattr("src.utils.prompt_provenance._USE_LOCAL_PROMPTS", True)
+
+    metadata = build_docs_agent_trace_metadata()
+
+    assert metadata.get("revision_id") == expected
+    assert metadata["LANGSMITH_AGENT_VERSION"] == (values[1] or "host-uuid")
