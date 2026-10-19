@@ -62,6 +62,8 @@ cp .env.example .env
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
 
+A support KB HTTP 401/403 requires deployment-side validation of `PYLON_API_KEY` authorization and its access to `PYLON_KB_ID`; the response alone does not identify which setting is incorrect. Tools report sanitized failures and the agent can continue with official documentation without claiming KB verification.
+
 ### Running Locally
 
 #### Backend
