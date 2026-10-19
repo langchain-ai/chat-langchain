@@ -50,28 +50,6 @@ const RETRY_CONFIG = {
   initialDelay: 1000, // Wait before first attempt to let server settle
 }
 
-const AGENT_TYPES = ["docs_agent", "docs-agent"] as const
-type AgentType = (typeof AGENT_TYPES)[number]
-
-let resolvedAgentType: AgentType | undefined
-
-async function resolveAgentType(client: Client): Promise<AgentType> {
-  if (resolvedAgentType) return resolvedAgentType
-
-  for (const candidate of AGENT_TYPES) {
-    const assistants = await client.assistants.search({
-      graphId: candidate,
-      limit: 1,
-    })
-    if (assistants.some((assistant) => assistant.graph_id === candidate)) {
-      resolvedAgentType = candidate
-      return candidate
-    }
-  }
-
-  throw new Error("No supported documentation assistant is available.")
-}
-
 /** Error patterns that indicate a retryable failure */
 const RETRYABLE_ERROR_PATTERNS = [
   "404",
@@ -445,7 +423,7 @@ export function useStreamHandler({
       let runId: string | undefined = undefined
       let hasSeenNewResponse = false
 
-      const agentType = await resolveAgentType(client)
+      const agentType = "docs-agent"
 
       // Trace metadata for LangSmith observability.
       // Read the Segment anonymous ID live, right before the run is created,
