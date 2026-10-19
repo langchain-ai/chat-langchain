@@ -19,6 +19,21 @@ logger = logging.getLogger(__name__)
 PYLON_API_BASE_URL = "https://api.usepylon.com"
 
 
+class PylonUnavailableError(RuntimeError):
+    """Indicate that Pylon rejected the support knowledge base credential."""
+
+
+def _raise_for_status(response: requests.Response) -> None:
+    """Raise an actionable error for Pylon authorization failures."""
+    if response.status_code in (401, 403):
+        raise PylonUnavailableError(
+            "Pylon support knowledge base authorization failed "
+            f"(HTTP {response.status_code}). Check or rotate PYLON_API_KEY "
+            "in the deployment environment."
+        )
+    response.raise_for_status()
+
+
 def _get_kb_id() -> str:
     """Get knowledge base ID from environment."""
     kb_id = os.getenv("PYLON_KB_ID")
@@ -62,7 +77,7 @@ def _fetch_collections() -> Dict[str, str]:
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
     response = requests.get(url, headers=_get_headers())
-    response.raise_for_status()
+    _raise_for_status(response)
 
     collections_data = response.json().get("data", [])
 
@@ -98,7 +113,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
     while pages_fetched < max_pages:
         response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()
+        _raise_for_status(response)
         body = response.json()
 
         page_data = body.get("data", [])
@@ -204,6 +219,8 @@ def search_support_articles(collections: str = "all") -> str:
         # Fetch collection map for naming
         try:
             collection_map = _fetch_collections()
+        except PylonUnavailableError:
+            raise
         except Exception as e:
             return json.dumps(
                 {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
@@ -275,6 +292,8 @@ def search_support_articles(collections: str = "all") -> str:
 
         return json.dumps(result, indent=2)
 
+    except PylonUnavailableError:
+        raise
     except ValueError as e:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
@@ -312,6 +331,8 @@ def get_support_article_content(article_id: str) -> str:
         try:
             collection_map = _fetch_collections()
             collection_id_to_name = {v: k for k, v in collection_map.items()}
+        except PylonUnavailableError:
+            raise
         except Exception:
             collection_id_to_name = {}
 
@@ -346,6 +367,8 @@ Content:
 
         return f"Article ID {article_id} not found in knowledge base."
 
+    except PylonUnavailableError:
+        raise
     except ValueError as e:
         # API key not configured
         return f"Error: {str(e)}"

@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -9,6 +10,8 @@ from langchain.agents.middleware import AgentMiddleware, AgentState
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
+
+from src.tools.pylon_tools import PylonUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +127,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
+        """Retry transient failures and surface unavailable tools to the model."""
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_attempts + 1):
@@ -133,6 +137,14 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                 last_error = error
                 tool_name = self._tool_name(request)
 
+                if isinstance(error, PylonUnavailableError):
+                    logger.error("Tool %s unavailable: %s", tool_name, error)
+                    return self._tool_message(
+                        request,
+                        "Support knowledge base unavailable. Use official documentation "
+                        "and tell the user support articles are currently unavailable.",
+                    )
+
                 if self._is_no_results(error):
                     logger.info(
                         "Tool %s returned no results; normalizing as tool output",
@@ -141,9 +153,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -169,7 +179,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]
