@@ -137,6 +137,6 @@ jobs:
 
       - name: Deploy Managed Deep Agent
         run: >
-          uv run mda deploy .
+          uv run python scripts/manage.py deploy
           --name "${{ inputs.deployment_name }}"
           --deployment-type prod
