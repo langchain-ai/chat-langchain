@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import os
 import random
 from typing import Any, Literal
 
@@ -11,7 +10,6 @@ from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
-from langsmith import Client
 from typing_extensions import NotRequired, TypedDict
 
 from src.prompts.guardrails_prompts import (
@@ -31,21 +29,6 @@ GUARDRAILS_DATASET_NAME = "Chat-LangChain-Guardrails-Samples"
 ALLOWED_SAMPLE_RATE = 0.01  # 1% of allowed queries go to dataset
 GUARDRAILS_MAX_RETRIES = 2
 GUARDRAILS_TIMEOUT_SECONDS = 10
-_USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
-    "1",
-    "true",
-    "yes",
-}
-_USE_STAGING = (
-    os.getenv("LANGSMITH_HOST_PROJECT_NAME") == "immanuel-chat-langchain-test"
-    or os.getenv("LANGSMITH_ENV") == "dev"
-)
-_GUARDRAILS_PROMPT_HUB_NAME = (
-    "public-chat-langchain-guardrails-test:staging"
-    if _USE_STAGING
-    else "public-chat-langchain-guardrails-test:production"
-)
-
 # Cache for dataset ID to avoid repeated lookups
 _dataset_id_cache: str | None = None
 
@@ -69,32 +52,7 @@ class GuardrailsState(AgentState):
     off_topic_query: NotRequired[bool]
 
 
-if _USE_LOCAL_PROMPTS:
-    _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
-    guardrails_prompt_commit = None
-    guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
-    logger.info("Using local guardrails prompt because USE_LOCAL_PROMPTS is enabled")
-else:
-    _langsmith_client = Client()
-    try:
-        _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
-        _GUARDRAILS_SYSTEM_PROMPT = (
-            _prompt_template.invoke({"messages": []}).messages[0].content
-        )
-        guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
-            "lc_hub_commit_hash"
-        )
-        guardrails_prompt_source = f"hub:{_GUARDRAILS_PROMPT_HUB_NAME}"
-        logger.info(
-            f"Loaded guardrails prompt from hub: {_GUARDRAILS_PROMPT_HUB_NAME} @ {(guardrails_prompt_commit or '')[:8]}"
-        )
-    except Exception:
-        logger.warning(
-            f"Failed to pull guardrails prompt from hub ({_GUARDRAILS_PROMPT_HUB_NAME}), falling back to local file"
-        )
-        _GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
-        guardrails_prompt_commit = None
-        guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
+_GUARDRAILS_SYSTEM_PROMPT = _LOCAL_GUARDRAILS_SYSTEM_PROMPT
 
 
 class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):

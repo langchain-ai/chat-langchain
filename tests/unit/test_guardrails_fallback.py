@@ -1,6 +1,7 @@
 """Tests for guardrails model fallback behavior."""
 
 import asyncio
+import importlib
 import os
 
 import pytest
@@ -161,3 +162,37 @@ def test_guardrails_omits_assistant_context_without_text(assistant_messages):
     content = model.prompts[0][1].content
     assert "Previous assistant answer:" not in content
     assert "Previous questions in this conversation:\n- LangGraph SDK" in content
+
+
+@pytest.mark.parametrize(
+    "local_prompts,environment", [("", ""), ("", "dev"), ("1", "")]
+)
+def test_guardrails_uses_bundled_policy_when_hub_has_stale_rules(
+    monkeypatch, local_prompts, environment
+):
+    from langchain_core.prompts import ChatPromptTemplate
+
+    from src.prompts.guardrails_prompts import guardrails_system_prompt
+
+    class StaleHubClient:
+        def pull_prompt(self, name):
+            return ChatPromptTemplate.from_messages(
+                [("system", "Block all safety evaluation and unknown product terms.")]
+            )
+
+    monkeypatch.setenv("USE_LOCAL_PROMPTS", local_prompts)
+    monkeypatch.setenv("LANGSMITH_ENV", environment)
+    monkeypatch.setattr("langsmith.Client", StaleHubClient)
+    importlib.reload(guardrails_module)
+    model = FakeStructuredModel(
+        [{"decision": "ALLOWED", "explanation": "Safety evaluation."}]
+    )
+    middleware = _middleware_with_models(("primary", model))
+
+    asyncio.run(
+        middleware._classify_query(
+            [HumanMessage(content="How do I evaluate whether my agent refuses fraud?")]
+        )
+    )
+
+    assert model.prompts[0][0].content == guardrails_system_prompt
