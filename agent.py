@@ -1,5 +1,7 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+import os
+
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -10,6 +12,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.agent.evaluation_model import get_evaluation_model
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
@@ -29,6 +32,8 @@ docs_agent_tools = [
     check_links,
 ]
 
+evaluation_model = get_evaluation_model()
+
 docs_agent_middleware = [
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
@@ -40,6 +45,10 @@ docs_agent_middleware = [
         model=GUARDRAILS_MODEL.id,
         fallback_model=DEFAULT_MODEL.id,
         block_off_topic=True,
+        collect_samples=(
+            os.getenv("CLC_DISABLE_GUARDRAIL_SAMPLE_COLLECTION", "").lower()
+            not in {"1", "true", "yes"}
+        ),
     ),
     CustomSummarizationMiddleware(
         model=DEFAULT_MODEL.id,
@@ -51,14 +60,17 @@ docs_agent_middleware = [
     ),
     tool_retry_middleware,
     model_retry_middleware,
-    model_fallback_middleware,
+    # Keep evaluation responses attributable to the requested model.
+    *([] if evaluation_model is not None else [model_fallback_middleware]),
 ]
 
 agent = define_deep_agent(
     name="docs_agent",
-    # Keep this literal so `mda deploy` can infer the provider package and
-    # preflight GOOGLE_API_KEY.
-    model="google_genai:gemini-3.5-flash-lite",
+    model=(
+        evaluation_model
+        if evaluation_model is not None
+        else "google_genai:gemini-3.5-flash-lite"
+    ),
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     metadata=build_docs_agent_trace_metadata(),
