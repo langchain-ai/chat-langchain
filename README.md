@@ -64,6 +64,30 @@ cp .env.example .env
 
 ### Running Locally
 
+For evaluation deployments that should not submit docs feedback or collect
+guardrail training samples, set both flags in the deployment's environment.
+For a local run:
+
+```bash
+export CLC_DISABLE_SUBMIT_FEEDBACK=true
+export CLC_DISABLE_GUARDRAIL_SAMPLE_COLLECTION=true
+```
+
+These flags default to disabled, preserving production behavior. The first removes
+`submit_feedback` from the managed docs MCP tool catalog. The second skips all
+guardrail sample dataset writes, including blocked queries; classification,
+rejections, and trace metadata remain active. These settings apply to the
+Chat LangChain deployment executing tasks, rather than the Garden generator.
+
+To evaluate Kimi K3 through Fireworks, also set `CLC_EVAL_MODEL=kimi-k3` and
+provide `FIREWORKS_API_KEY` to that deployment. The main agent uses
+`accounts/fireworks/models/kimi-k3` at
+`https://api.fireworks.ai/inference/v1`, with main-agent model fallback disabled.
+Guardrail classification and summarization keep their existing models and
+credentials. Keep `OPENAI_API_KEY` and `OPENAI_BASE_URL` configured for those
+existing clients; do not replace them with Fireworks credentials. Leaving
+`CLC_EVAL_MODEL` unset preserves the production main model and fallback chain.
+
 #### Backend
 
 ```bash
