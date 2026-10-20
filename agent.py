@@ -15,6 +15,7 @@ from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
+from src.middleware.tool_name_sanitizer_middleware import ToolNameSanitizerMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -56,6 +57,7 @@ docs_agent_middleware = [
     # intentionally not wired here: they re-invoke the model after the first
     # answer has already streamed, and those retries route through the
     # fallback chain, producing a second visible generation.
+    ToolNameSanitizerMiddleware(),
     model_retry_middleware,
     model_fallback_middleware,
 ]
