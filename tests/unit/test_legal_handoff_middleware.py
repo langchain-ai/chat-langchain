@@ -1,5 +1,6 @@
 """Tests for the legal and contract question handoff."""
 
+import langsmith as ls
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
@@ -18,13 +19,26 @@ from src.middleware.legal_handoff_middleware import (
     [
         # Pylon #32321 / #30996 shapes
         "Does your DPA cover health data for our patients?",
+        "Does your DPA cover health data?",
+        "Can you sign our SCCs?",
+        "can you sign our sccs?",
+        "Do you offer a data processing agreement?",
+        "Do you offer data processing terms?",
+        "Do you offer a business associate addendum?",
+        "What is protected health information?",
+        "Do you offer a master subscription agreement?",
+        "Do you offer a master services agreement?",
+        "What indemnification do you offer?",
+        "What are your liability caps?",
+        "Can our counsel review the order form?",
+        "Are our redlines covered?",
         "We sent an amendment to the DPA, does it align with your legal review process?",
         "Can you sign a BAA with us on the Plus plan?",
-        "Are SCCs included for EU transfers?",
+        "Are SCCs included for GDPR data transfers?",
         "Is LangSmith HIPAA compliant?",
         "Does the data processing addendum cover sub-processors?",
         "We need standard contractual clauses for our vendor review",
-        "Can we redline the MSA?",
+        "Can our lawyer redline the MSA?",
         "What is the limitation of liability in our order form?",
         "Will you accept our contract amendments?",
         "Can we negotiate the agreement terms?",
@@ -32,11 +46,23 @@ from src.middleware.legal_handoff_middleware import (
 )
 def test_legal_questions_are_detected(query):
     assert is_legal_question(query)
+    result = LegalHandoffMiddleware().before_agent(
+        {"messages": [HumanMessage(content=query)]}, runtime=None
+    )
+    assert result["jump_to"] == "end"
+    assert result["legal_handoff"] is True
+    assert result["messages"] == [AIMessage(content=LEGAL_HANDOFF_MESSAGE)]
 
 
 @pytest.mark.parametrize(
     "query",
     [
+        "How do I detect cycles in a graph using strongly connected components (SCCs)?",
+        "How do I collect customer order forms as JSON in LangGraph and pause with interrupt()?",
+        "How do I process health data in a LangGraph node?",
+        "How do I parse DPAs, BAAs, and MSAs in a document pipeline?",
+        "How do I display redlines in a text editor?",
+        "How do I parse SCCs in a legally_named field?",
         "How do I define an API contract for my LangGraph tool?",
         "What is a data contract in LangSmith datasets?",
         "How do I sign the webhook request payload?",
@@ -47,6 +73,13 @@ def test_legal_questions_are_detected(query):
 )
 def test_technical_questions_are_not_detected(query):
     assert not is_legal_question(query)
+    for content in [query, [{"type": "text", "text": query}]]:
+        assert (
+            LegalHandoffMiddleware().before_agent(
+                {"messages": [HumanMessage(content=content)]}, runtime=None
+            )
+            is None
+        )
 
 
 def test_handoff_ends_run_with_fixed_message():
@@ -66,8 +99,11 @@ def test_handoff_reads_text_blocks_in_multimodal_content():
         "messages": [
             HumanMessage(
                 content=[
-                    {"type": "text", "text": "Is this BAA acceptable?"},
-                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
+                    {"type": "text", "text": "Can you sign this BAA?"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:image/png;base64,AAAA"},
+                    },
                 ]
             )
         ]
@@ -96,3 +132,26 @@ def test_handoff_points_to_ticket_path_without_promising_follow_up():
     assert "Contact support" in LEGAL_HANDOFF_MESSAGE
     assert SUPPORT_TICKET_ARTICLE_URL in LEGAL_HANDOFF_MESSAGE
     assert "follow up" not in LEGAL_HANDOFF_MESSAGE.lower()
+
+
+@pytest.mark.parametrize(
+    "query, term", [("Can you sign our SCCs?", "SCCs"), ("HIPAA", "HIPAA")]
+)
+def test_handoff_records_triggering_term(query, term):
+    with ls.tracing_context(enabled="local"), ls.trace("legal-handoff-test") as run:
+        LegalHandoffMiddleware().before_agent(
+            {"messages": [HumanMessage(content=query)]}, runtime=None
+        )
+        assert run.metadata["legal_handoff"] is True
+        assert run.metadata["legal_handoff_term"] == term
+
+
+def test_handoff_only_uses_latest_human_message():
+    state = {
+        "messages": [
+            HumanMessage(content="Can you sign our SCCs?"),
+            AIMessage(content=LEGAL_HANDOFF_MESSAGE),
+            HumanMessage(content="How do I compute SCCs in a graph?"),
+        ]
+    }
+    assert LegalHandoffMiddleware().before_agent(state, runtime=None) is None
