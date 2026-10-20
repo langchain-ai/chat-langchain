@@ -78,9 +78,9 @@ else:
     _langsmith_client = Client()
     try:
         _prompt_template = _langsmith_client.pull_prompt(_GUARDRAILS_PROMPT_HUB_NAME)
-        _GUARDRAILS_SYSTEM_PROMPT = _prompt_template.invoke({"messages": []}).messages[
-            0
-        ].content
+        _GUARDRAILS_SYSTEM_PROMPT = (
+            _prompt_template.invoke({"messages": []}).messages[0].content
+        )
         guardrails_prompt_commit = (_prompt_template.metadata or {}).get(
             "lc_hub_commit_hash"
         )
@@ -169,9 +169,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
-            HumanMessage(
-                content=self._build_rejection_content(content)
-            ),
+            HumanMessage(content=self._build_rejection_content(content)),
         ]
 
         try:
@@ -368,11 +366,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         return None
 
     async def _classify_query(self, messages: list) -> GuardrailsDecision:
-        """Classify query as ALLOWED or BLOCKED.
-
-        Raises:
-            GuardrailsClassificationError: If classification fails after retries.
-        """
+        """Classify query as ALLOWED or BLOCKED, raising after exhausted retries."""
         # Extract the current query (last human message)
         current_message = None
         current_query = None
@@ -380,14 +374,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if isinstance(msg, HumanMessage):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
@@ -407,6 +406,13 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 "\n\nPrevious questions in this conversation:\n"
                 + "\n".join(f"- {q}" for q in recent)
             )
+
+        for msg in reversed(messages[:-1]):
+            if isinstance(msg, AIMessage):
+                text = self._extract_message_text(msg)
+                if text:
+                    context_section += "\n\nPrevious assistant answer:\n" + text[:300]
+                    break
 
         current_content = getattr(current_message, "content", current_query or "")
         prompt = [
