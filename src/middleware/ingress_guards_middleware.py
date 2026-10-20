@@ -19,6 +19,8 @@ from typing import Any
 from langchain.agents.middleware import AgentMiddleware, AgentState
 from langgraph.runtime import Runtime
 
+from src.tools.link_check_tools import reset_validated_urls
+
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
 MAX_MESSAGE_CHARS = 50_000
 
@@ -30,6 +32,9 @@ class IngressGuardsMiddleware(AgentMiddleware):
         self, state: AgentState, runtime: Runtime
     ) -> dict[str, Any] | None:
         """Truncate the latest user message when it exceeds the size cap."""
+        # Scope check_links' per-run dedup set to this invocation so validated
+        # URLs never leak across unrelated conversations in the same process.
+        reset_validated_urls()
         messages = state.get("messages", [])
         for message in reversed(messages):
             if getattr(message, "type", None) == "human":
