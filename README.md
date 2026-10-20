@@ -60,7 +60,7 @@ cp .env.example .env
 | `ANTHROPIC_API_KEY` | Anthropic API key (or use another provider)                                             |
 | `PYLON_API_KEY`     | Pylon API key for support KB                                                            |
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
-| `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
+| `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt provenance instead of resolving Hub versions |
 
 ### Running Locally
 
@@ -114,6 +114,8 @@ with Supabase; MDA validates those tokens and scopes their threads.
 ```
 
 ## How It Works
+
+The guardrail classifier uses the bundled `src/prompts/guardrails_prompts.py` policy so deployed code and classification rules stay in sync. The Hub prompt is a publishing mirror, not a runtime override.
 
 The agent uses a docs-first research strategy:
 
