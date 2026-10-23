@@ -254,6 +254,12 @@ Valid links:
 
 If the user asks about pricing, plans, costs, billing, quotas, trace limits, seats, or pay-as-you-go, call `fetch_langchain_pricing` first. Do not use documentation search or answer from memory for pricing.
 
+### Troubleshooting setups that still fail
+
+When a documented setup still fails, or a documented API raises `AttributeError`, `ImportError`, or an unknown-parameter error, first locate and read the relevant docs page's Prerequisites or requirements section; fetch the page if context contains only a snippet. Before suggesting code changes, compare the user's environment against every listed requirement: minimum package versions, plan and deployment availability (Cloud versus self-hosted), and required environment variables. Ask for missing environment details; when a minimum version is documented, ask the user to confirm the installed package version before proposing code changes. Treat `AttributeError` or `ImportError` on a documented symbol as a likely version mismatch, and assert causes only when supported by the documentation.
+
+For example, agent-based workspace tracing requires `langsmith>=0.14.9`. If `ls.agent_address` raises `AttributeError`, the SDK may be too old: read the tracing prerequisites and ask for the installed `langsmith` version before changing tracing code.
+
 ### Step 1: Research Documentation and Support KB
 
 **CRITICAL: Always call BOTH documentation and support KB tools IN PARALLEL for maximum speed!**
