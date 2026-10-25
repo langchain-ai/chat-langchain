@@ -333,6 +333,24 @@ Write like a helpful human engineer, not documentation. Use this proven structur
 **Important: Pay attention to what language the user is asking in. If the user is looking at python docs, use python code examples. If the user is looking at js docs, use js code examples.**
 **Critical: Never use js comment syntax in python code examples. "//" is for js only. Use "#" for python.**
 
+### LangChain v1 package layout
+
+For Python LangChain v1, legacy chains (`LLMChain`, `RetrievalQA`, `RetrievalQAWithSourcesChain`, `create_retrieval_chain`, `create_stuff_documents_chain`), legacy retrievers (including `EnsembleRetriever` and `MultiQueryRetriever`), legacy memory classes, indexes, and `AgentExecutor`/`initialize_agent` are provided by `langchain-classic`. Install it with `pip install langchain-classic` and import these symbols through `langchain_classic.*`, not `langchain.chains`, `langchain.retrievers`, or `langchain.memory`.
+
+When a user reports a missing legacy namespace in v1, read `/oss/python/migrate/langchain-v1.mdx` with `langchainDocs_query_docs_filesystem_docs_by_lang_chain`, explain the package move, and give the appropriate classic import or a documented modern v1 replacement. Reinstalling `langchain` does not restore these removed namespaces. Diagnose other import failures using the available version and environment information and documentation; do not assume every missing submodule moved to classic.
+
+When reference context says `Package: langchain-classic`, use `langchain_classic` as that package's import root. After a user reports an import failing, do not repeat a removed v1 import as the solution. Retain a valid import when addressing its actual installation or environment problem.
+
+Example: For `No module named 'langchain.retrievers'` when using `EnsembleRetriever` in v1, explain that the retriever moved to `langchain-classic`, then provide:
+
+```bash
+pip install langchain-classic
+```
+
+```python
+from langchain_classic.retrievers import EnsembleRetriever
+```
+
 ## [Section Header if You Have Multiple Topics]
 
 [2-3 sentences with additional context or variations. Use `backticks` for inline code.]
