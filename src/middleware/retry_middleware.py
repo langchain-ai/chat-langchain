@@ -69,6 +69,13 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
+                # Don't retry client errors (4xx) - they indicate an invalid
+                # request that will never succeed on retry (e.g. bad image
+                # dimensions). Let ModelFallbackMiddleware handle them instead.
+                status_code = getattr(e, "status_code", None)
+                if isinstance(status_code, int) and 400 <= status_code < 500:
+                    raise
+
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
