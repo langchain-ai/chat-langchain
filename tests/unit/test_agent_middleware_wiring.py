@@ -2,6 +2,17 @@ from agent import docs_agent_middleware
 from src.middleware.answer_sanity_guard_middleware import AnswerSanityGuardMiddleware
 from src.middleware.citation_guard_middleware import CitationGuardMiddleware
 from src.middleware.docs_research_guard_middleware import DocsResearchGuardMiddleware
+from src.middleware.retry_middleware import ModelRetryMiddleware
+from src.middleware.tool_call_name_guard_middleware import ToolCallNameGuardMiddleware
+
+
+def test_tool_call_name_guard_precedes_model_retry():
+    guard_index = next(
+        index
+        for index, middleware in enumerate(docs_agent_middleware)
+        if isinstance(middleware, ToolCallNameGuardMiddleware)
+    )
+    assert isinstance(docs_agent_middleware[guard_index + 1], ModelRetryMiddleware)
 
 
 def test_regenerating_answer_guards_are_not_wired():
