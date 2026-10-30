@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from urllib.parse import urlparse
 
 import httpx
+from langchain.agents.middleware import AgentMiddleware, AgentState
 from langchain.tools import tool
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.runtime import Runtime
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,7 @@ _cache: dict[str, "LinkCheckResult"] = {}
 @dataclass
 class LinkCheckResult:
     """Result of checking a single URL."""
+
     url: str
     valid: bool
     status_code: int | None = None
@@ -61,10 +65,10 @@ def _is_soft_404(content: str) -> bool:
     if "Article Not Found" in content:
         return True
 
-    title_match = re.search(r'<title>(.*?)</title>', content, re.IGNORECASE)
+    title_match = re.search(r"<title>(.*?)</title>", content, re.IGNORECASE)
     if title_match:
         title = title_match.group(1).lower()
-        if any(phrase in title for phrase in ['not found', '404', 'page not found']):
+        if any(phrase in title for phrase in ["not found", "404", "page not found"]):
             return True
     return False
 
@@ -89,7 +93,9 @@ async def _check_single_url(
 
         if needs_content_check:
             # Stream response, only read first chunk for soft 404 detection
-            async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
+            async with client.stream(
+                "GET", url, timeout=timeout, follow_redirects=True
+            ) as response:
                 final_url = str(response.url) if str(response.url) != url else None
                 is_valid = 200 <= response.status_code < 400
 
@@ -102,15 +108,21 @@ async def _check_single_url(
 
                     if _is_soft_404(content):
                         result = LinkCheckResult(
-                            url=url, valid=False, status_code=200, final_url=final_url,
+                            url=url,
+                            valid=False,
+                            status_code=200,
+                            final_url=final_url,
                             error="Soft 404: Page shows 'not found' content",
                         )
                         _cache[url] = result
                         return result
 
                 result = LinkCheckResult(
-                    url=url, valid=is_valid, status_code=response.status_code,
-                    final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
+                    url=url,
+                    valid=is_valid,
+                    status_code=response.status_code,
+                    final_url=final_url,
+                    error=None if is_valid else f"HTTP {response.status_code}",
                 )
         else:
             # Use HEAD for non-langchain domains (much faster)
@@ -124,8 +136,11 @@ async def _check_single_url(
             is_valid = 200 <= response.status_code < 400
 
             result = LinkCheckResult(
-                url=url, valid=is_valid, status_code=response.status_code,
-                final_url=final_url, error=None if is_valid else f"HTTP {response.status_code}",
+                url=url,
+                valid=is_valid,
+                status_code=response.status_code,
+                final_url=final_url,
+                error=None if is_valid else f"HTTP {response.status_code}",
             )
 
         _cache[url] = result
@@ -136,7 +151,9 @@ async def _check_single_url(
     except httpx.TooManyRedirects:
         result = LinkCheckResult(url=url, valid=False, error="Too many redirects")
     except httpx.ConnectError as e:
-        result = LinkCheckResult(url=url, valid=False, error=f"Connection failed: {str(e)[:50]}")
+        result = LinkCheckResult(
+            url=url, valid=False, error=f"Connection failed: {str(e)[:50]}"
+        )
     except Exception as e:
         logger.warning(f"Error checking URL {url}: {e}")
         result = LinkCheckResult(url=url, valid=False, error=f"Error: {str(e)[:50]}")
@@ -200,3 +217,114 @@ async def check_links(urls: list[str], timeout: float = DEFAULT_TIMEOUT) -> str:
 
     results = await _check_urls_async(unique_urls, timeout)
     return _format_results(results)
+
+
+_URL_RE = re.compile(r'https?://[^\s<>"\[\]`，。；！？]+')
+_MARKDOWN_LINK_RE = re.compile(
+    r'\[([^\]\n]+)\]\((https?://(?:[^()\s]|\([^()\s]*\))+)(?:\s+"[^"]*")?\)'
+)
+
+
+def _response_urls(text: str) -> list[str]:
+    """Extract HTTP URLs without surrounding prose punctuation."""
+    urls = []
+    for match in _URL_RE.finditer(text):
+        url = match.group().rstrip(".,;:!?")
+        while url.endswith(")") and url.count(")") > url.count("("):
+            url = url[:-1]
+        urls.append(url)
+    return urls
+
+
+def _rewrite_links(text: str, replacements: dict[str, str]) -> str:
+    """Replace invalid links while retaining their labels and surrounding text."""
+    text = _MARKDOWN_LINK_RE.sub(
+        lambda m: m.group(1) if replacements.get(m.group(2)) == "" else m.group(),
+        text,
+    )
+    text = re.sub(
+        r"<(https?://[^<>\s]+)>",
+        lambda m: "" if replacements.get(m.group(1)) == "" else m.group(),
+        text,
+    )
+
+    def replace_url(match: re.Match) -> str:
+        raw = match.group()
+        url = _response_urls(raw)[0]
+        return replacements.get(url, url) + raw[len(url) :]
+
+    text = _URL_RE.sub(replace_url, text)
+    return re.sub(r"^\s*(?:[-*+] |\d+[.)] )\s*$", "", text, flags=re.MULTILINE)
+
+
+class LinkValidationMiddleware(AgentMiddleware):
+    """Enforce link checks on final model responses."""
+
+    def after_model(self, state: AgentState, runtime: Runtime) -> dict | None:
+        """Validate final links for synchronous agent calls."""
+        return asyncio.run(self.aafter_model(state, runtime))
+
+    async def aafter_model(self, state: AgentState, runtime: Runtime) -> dict | None:
+        """Validate final links using only the current turn's tool results."""
+        messages = state.get("messages", [])
+        if not messages or not isinstance(messages[-1], AIMessage):
+            return None
+        response = messages[-1]
+        if response.tool_calls:
+            return None
+        urls = list(dict.fromkeys(_response_urls(response.text)))
+        if not urls:
+            return None
+
+        checked: dict[str, bool] = {}
+        for message in reversed(messages[:-1]):
+            if isinstance(message, HumanMessage):
+                break
+            if not isinstance(message, ToolMessage) or message.name != "check_links":
+                continue
+            valid = None
+            for line in message.text.splitlines():
+                if line == "Valid links:":
+                    valid = True
+                elif line == "Invalid links:":
+                    valid = False
+                elif valid is not None and line.startswith("  - "):
+                    url = (
+                        line[4:].split(" (→ ", 1)[0]
+                        if valid
+                        else line[4:].split(": ", 1)[0]
+                    )
+                    checked.setdefault(url, valid)
+
+        unchecked = [url for url in urls if url not in checked]
+        if unchecked:
+            results = await _check_urls_async(unchecked, DEFAULT_TIMEOUT)
+            checked.update((result.url, result.valid) for result in results)
+
+        replacements = {}
+        for url in urls:
+            if checked.get(url, False):
+                continue
+            parsed = urlparse(url)
+            replacement = parsed._replace(netloc="docs.langchain.com").geturl()
+            replacements[url] = (
+                replacement
+                if parsed.netloc == "docs.ai.com" and checked.get(replacement, False)
+                else ""
+            )
+        if not replacements:
+            return None
+
+        content = response.content
+        if isinstance(content, str):
+            content = _rewrite_links(content, replacements)
+        else:
+            content = [
+                _rewrite_links(block, replacements)
+                if isinstance(block, str)
+                else {**block, "text": _rewrite_links(block["text"], replacements)}
+                if block.get("type") == "text" and isinstance(block.get("text"), str)
+                else block
+                for block in content
+            ]
+        return {"messages": [response.model_copy(update={"content": content})]}
