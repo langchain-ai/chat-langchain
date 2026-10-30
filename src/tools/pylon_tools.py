@@ -43,6 +43,29 @@ _articles_cache: Optional[List[Dict[str, Any]]] = None
 _collections_cache: Optional[Dict[str, str]] = None
 
 
+def _is_authorization_error(error: Exception) -> bool:
+    """Identify rejected Pylon credentials without inspecting error text."""
+    return (
+        isinstance(error, requests.exceptions.HTTPError)
+        and error.response is not None
+        and error.response.status_code in (401, 403)
+    )
+
+
+def _authorization_unavailable(error: requests.exceptions.RequestException) -> str:
+    """Report KB authorization failure without exposing request credentials."""
+    logger.error(
+        "Support KB authorization failed: HTTP %s",
+        getattr(error.response, "status_code", None),
+    )
+    return (
+        "SUPPORT_KB_UNAVAILABLE: The support KB is unavailable. "
+        "Do not call support tools again this turn. Disclose this limitation when "
+        "answering support, billing, or account questions, and use only claims "
+        "supported by successfully retrieved evidence."
+    )
+
+
 def _get_headers() -> Dict[str, str]:
     """Get API headers with authentication."""
     return {"Authorization": f"Bearer {_get_api_key()}", "Accept": "application/json"}
@@ -205,6 +228,8 @@ def search_support_articles(collections: str = "all") -> str:
         try:
             collection_map = _fetch_collections()
         except Exception as e:
+            if _is_authorization_error(e):
+                raise
             return json.dumps(
                 {"error": f"Failed to fetch collections: {str(e)}"}, indent=2
             )
@@ -279,6 +304,8 @@ def search_support_articles(collections: str = "all") -> str:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
     except requests.exceptions.RequestException as e:
+        if _is_authorization_error(e):
+            return _authorization_unavailable(e)
         # Network/API error
         return json.dumps({"error": str(e)}, indent=2)
     except Exception as e:
@@ -312,7 +339,9 @@ def get_support_article_content(article_id: str) -> str:
         try:
             collection_map = _fetch_collections()
             collection_id_to_name = {v: k for k, v in collection_map.items()}
-        except Exception:
+        except Exception as e:
+            if _is_authorization_error(e):
+                raise
             collection_id_to_name = {}
 
         # Find the article by ID
@@ -350,6 +379,8 @@ Content:
         # API key not configured
         return f"Error: {str(e)}"
     except requests.exceptions.RequestException as e:
+        if _is_authorization_error(e):
+            return _authorization_unavailable(e)
         # Network/API error
         return f"Error fetching article: {str(e)}"
     except Exception as e:

@@ -131,6 +131,11 @@ The agent uses a docs-first research strategy:
 mda deploy .
 ```
 
+If Pylon returns HTTP 401/403, an operator must replace or correct the repository
+`PYLON_API_KEY` secret with a valid credential and redeploy to restore support KB
+access. Code changes alone cannot repair a rejected credential. The credential
+rotation history and whether deployment caused its rejection are not established.
+
 What MDA owns in this deployment:
 
 - **Identity** — `identity.py` verifies signed-in and anonymous Supabase access
