@@ -1,4 +1,4 @@
-# Prompt provenance lookup for LangSmith trace metadata.
+"""Look up prompt provenance for LangSmith trace metadata."""
 
 import logging
 import os
@@ -30,13 +30,6 @@ _HUB_PROMPTS: dict[str, str] = {
         "public-chat-langchain-test:staging"
         if _USE_STAGING
         else "public-chat-langchain-test:production"
-    ),
-}
-_GUARDRAILS_HUB_PROMPTS: dict[str, str] = {
-    "docs_agent": (
-        "public-chat-langchain-guardrails-test:staging"
-        if _USE_STAGING
-        else "public-chat-langchain-guardrails-test:production"
     ),
 }
 
@@ -112,17 +105,12 @@ def get_prompt_provenance(graph_id: str) -> dict[str, str]:
         source, commit = _resolve_hub_provenance(
             _HUB_PROMPTS[graph_id], workspace_id, api_key_set
         )
-        guardrails_source, guardrails_commit = _resolve_hub_provenance(
-            _GUARDRAILS_HUB_PROMPTS[graph_id], workspace_id, api_key_set
-        )
         provenance = {
             "prompt_source": source,
-            "guardrails_prompt_source": guardrails_source,
+            "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
         }
         if commit:
             provenance["prompt_commit"] = commit
-        if guardrails_commit:
-            provenance["guardrails_prompt_commit"] = guardrails_commit
 
         return provenance
 
