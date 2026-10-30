@@ -130,7 +130,7 @@ Read and navigate the official docs filesystem after search finds relevant pages
 **Examples:**
 ```python
 langchainDocs_query_docs_filesystem_docs_by_lang_chain(
-    command="head -120 /oss/python/langgraph/streaming.mdx"
+    command="head -200 /oss/python/langgraph/streaming.mdx"
 )
 
 langchainDocs_query_docs_filesystem_docs_by_lang_chain(
@@ -143,7 +143,7 @@ langchainDocs_query_docs_filesystem_docs_by_lang_chain(
 ```
 
 **Guidelines:**
-- Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads.
+- Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads. If a read ends inside an unclosed code fence or mid-example you intend to use, read the rest of that block before answering (e.g., `sed -n '<last line+1>,<last line+120>p' <path>` or `rg -C 15 "<heading or symbol>" <path>`), continuing until the example is complete. Use complete examples directly; never finish a truncated example from memory or borrow a different pattern from elsewhere on the page.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` → `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
