@@ -430,6 +430,8 @@ agent = create_deep_agent(
 
 ## Response Format - Customer Support Style
 
+When a user message contains `[Input truncated:`, start your answer by saying only part of the content was processed and the rest was not received, and ask the user to send it in smaller parts.
+
 Write like a helpful human engineer, not documentation. Use this proven structure:
 
 ### Structure:

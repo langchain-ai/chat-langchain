@@ -44,32 +44,58 @@ class IngressGuardsMiddleware(AgentMiddleware):
     def _truncate_content(self, content: Any) -> Any:
         """Trim user text to the cap while preserving non-text content blocks."""
         if isinstance(content, str):
-            return content[:MAX_MESSAGE_CHARS] if len(content) > MAX_MESSAGE_CHARS else content
-
-        if not isinstance(content, list):
+            original_length = len(content)
+        elif isinstance(content, list):
+            original_length = sum(
+                len(block) if isinstance(block, str) else len(block["text"])
+                for block in content
+                if isinstance(block, str)
+                or (
+                    isinstance(block, dict)
+                    and block.get("type") == "text"
+                    and isinstance(block.get("text"), str)
+                )
+            )
+        else:
             return content
 
-        remaining = MAX_MESSAGE_CHARS
-        changed = False
+        if original_length <= MAX_MESSAGE_CHARS:
+            return content
+
+        notice = (
+            f"\n\n[Input truncated: original text contained {original_length} characters. "
+            "Tell the user at the start of your answer that only part of the content "
+            "was processed, the rest was not received, and ask them to send it in "
+            "smaller parts.]"
+        )
+        remaining = MAX_MESSAGE_CHARS - len(notice)
+        if isinstance(content, str):
+            return content[:remaining] + notice
+
+        notice_added = False
         truncated: list[Any] = []
         for block in content:
             if isinstance(block, str):
-                text = block[:remaining]
-                changed = changed or len(text) != len(block)
-                truncated.append(text)
-                remaining -= len(text)
+                original_text = block
             elif (
                 isinstance(block, dict)
                 and block.get("type") == "text"
                 and isinstance(block.get("text"), str)
             ):
-                text = block["text"][:remaining]
-                changed = changed or len(text) != len(block["text"])
-                truncated.append({**block, "text": text})
-                remaining -= len(text)
+                original_text = block["text"]
             else:
                 truncated.append(block)
-        return truncated if changed else content
+                continue
+
+            text = original_text[:remaining]
+            remaining -= len(text)
+            if len(text) < len(original_text) and not notice_added:
+                text += notice
+                notice_added = True
+            truncated.append(
+                text if isinstance(block, str) else {**block, "text": text}
+            )
+        return truncated
 
 
 __all__ = ["IngressGuardsMiddleware", "MAX_MESSAGE_CHARS"]
