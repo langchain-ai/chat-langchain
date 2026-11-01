@@ -125,6 +125,9 @@ def _install_route_hook() -> None:
 
     def init(self: Any, *args: Any, **kwargs: Any) -> None:
         original(self, *args, **kwargs)
+        from src.middleware.ingress_guards_middleware import IngressInputMiddleware
+
+        self.add_middleware(IngressInputMiddleware)
         paths = {getattr(route, "path", None) for route in self.router.routes}
         if "/identity/guest" in paths:
             return
@@ -154,7 +157,7 @@ def _install_local_check() -> None:
 
 
 def install_guest_auth() -> None:
-    """Attach the public guest route and the local pass check once."""
+    """Attach guest authentication and HTTP input guards once."""
     global _INSTALLED
     if _INSTALLED:
         return

@@ -59,3 +59,12 @@ def test_guest_route_is_unavailable_without_a_secret(monkeypatch):
     app = build_managed_http_app(identity=identity, connectors=[])
     response = TestClient(app).post("/identity/guest")
     assert response.status_code == 503
+
+
+def test_managed_http_app_validates_messages_before_dispatch():
+    app = build_managed_http_app(identity=identity, connectors=[])
+    response = TestClient(app).post(
+        "/threads/test/runs/stream", json={"input": {"messages": 12345}}
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "messages must be a list"

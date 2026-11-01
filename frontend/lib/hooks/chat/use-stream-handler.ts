@@ -361,7 +361,11 @@ export function useStreamHandler({
           // Public CLC does not support HAR analysis; avoid sending large traces to the docs agent.
           if (file.name?.toLowerCase().endsWith(".har")) continue
 
-          const isImage = file.mimeType?.startsWith('image/')
+          const isImage = ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.mimeType || "")
+          if (file.mimeType?.startsWith("image/") && !isImage) {
+            contentBlocks.push({ type: "text", text: "[unsupported image removed]" })
+            continue
+          }
 
           if (isImage) {
             // Image files: send as base64 image_url
