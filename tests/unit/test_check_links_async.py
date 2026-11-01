@@ -8,20 +8,19 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
+import httpx
 import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
+    _cache,
     _check_single_url,
-    _check_urls_async,
     _format_results,
     check_links,
 )
@@ -256,3 +255,92 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://docs.langsmith.com/",
+        "https://docs.langsmith.com/evaluate-rag-tutorial",
+        "https://docs.langsmith.com/observability?tab=traces#overview",
+        "http://DOCS.LANGSMITH.COM:80/arbitrary/path",
+    ],
+)
+@pytest.mark.parametrize("cached", [False, True])
+async def test_legacy_docs_host_is_invalid(url, cached):
+    destination = "https://docs.langchain.com/langsmith/observability"
+
+    def handler(request):
+        if request.url.host == "docs.langsmith.com":
+            return httpx.Response(301, headers={"location": destination})
+        return httpx.Response(200)
+
+    with patch.dict(_cache, {}, clear=True):
+        if cached:
+            _cache[url] = LinkCheckResult(
+                url=url,
+                valid=True,
+                status_code=200,
+                final_url=destination,
+            )
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            result = await _check_single_url(client, url, timeout=1.0)
+
+    assert not result.valid
+    assert "https://docs.langchain.com/langsmith/" in result.error
+    assert "find and validate the intended page" in result.error
+    assert "do not assume replacing the hostname" in result.error
+    assert "0/1 valid" in _format_results([result])
+
+
+def test_invalid_redirect_displays_destination_guidance():
+    url = "https://docs.langsmith.com/evaluate-rag-tutorial"
+    destination = "https://docs.langchain.com/langsmith/observability"
+    result = LinkCheckResult(
+        url=url,
+        valid=False,
+        status_code=200,
+        error="Legacy documentation URL",
+        final_url=destination,
+    )
+
+    output = _format_results([result])
+
+    assert "0/1 valid" in output
+    assert f"{url}: Legacy documentation URL" in output
+    assert f"→ {destination}" in output
+    assert "cite only if this is the intended page" in output
+    assert "Valid links:" not in output
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("url", "destination"),
+    [
+        (
+            "https://reference.langchain.com/python/langchain_core/runnables/",
+            "https://reference.langchain.com/python/langchain-core/runnables/",
+        ),
+        ("https://example.com/success", None),
+    ],
+)
+async def test_other_hosts_preserve_successful_validation(url, destination):
+    def handler(request):
+        if destination and str(request.url) == url:
+            return httpx.Response(301, headers={"location": destination})
+        return httpx.Response(200)
+
+    with patch.dict(_cache, {}, clear=True):
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            result = await _check_single_url(client, url, timeout=1.0)
+
+    assert result.valid
+    assert result.status_code == 200
+    assert result.final_url == destination
+    assert result.error is None
+    output = _format_results([result])
+    assert "1/1 valid" in output
+    assert "Valid links:" in output
+    if destination:
+        assert f"→ {destination}" in output

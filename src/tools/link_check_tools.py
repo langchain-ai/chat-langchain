@@ -75,14 +75,26 @@ async def _check_single_url(
     timeout: float,
 ) -> LinkCheckResult:
     """Check a single URL for validity."""
-    # Check cache first
-    if url in _cache:
-        return _cache[url]
-
     if not _is_valid_url(url):
         result = LinkCheckResult(url=url, valid=False, error="Invalid URL format")
         _cache[url] = result
         return result
+
+    if urlparse(url).hostname == "docs.langsmith.com":
+        result = LinkCheckResult(
+            url=url,
+            valid=False,
+            error=(
+                "Legacy docs.langsmith.com URL: find and validate the intended page "
+                "under https://docs.langchain.com/langsmith/; "
+                "do not assume replacing the hostname identifies the correct page."
+            ),
+        )
+        _cache[url] = result
+        return result
+
+    if url in _cache:
+        return _cache[url]
 
     try:
         needs_content_check = _needs_soft_404_check(url)
@@ -168,7 +180,13 @@ def _format_results(results: list[LinkCheckResult]) -> str:
 
     if invalid:
         lines.append("Invalid links:")
-        lines.extend(f"  - {r.url}: {r.error}" for r in invalid)
+        for r in invalid:
+            suffix = (
+                f" (→ {r.final_url}; cite only if this is the intended page)"
+                if r.final_url
+                else ""
+            )
+            lines.append(f"  - {r.url}: {r.error}{suffix}")
         lines.append("")
 
     if valid:
