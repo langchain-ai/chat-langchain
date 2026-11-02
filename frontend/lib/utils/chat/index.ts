@@ -7,6 +7,7 @@
 // Message helpers
 export {
   generateMessageId,
+  isDisplayableMessage,
   createUserMessage,
   updateMessageInList,
   ensureMessageExists,

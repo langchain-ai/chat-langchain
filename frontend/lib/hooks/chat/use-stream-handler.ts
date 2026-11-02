@@ -32,6 +32,7 @@ import type {
 } from "../../types"
 import {
   extractTextFromContent,
+  isDisplayableMessage,
   ensureMessageExists,
   updateMessageInList,
 } from "../../utils/chat"
@@ -720,7 +721,7 @@ export function useStreamHandler({
       if (eventType === "values" && !isSubgraphEvent && data?.messages && Array.isArray(data.messages)) {
         // Find the last assistant message
         const finalAIMessage = [...data.messages].reverse().find((msg: any) =>
-          msg.type === "ai" || msg.role === "assistant"
+          isDisplayableMessage(msg) && (msg.type === "ai" || msg.role === "assistant")
         )
 
         const finalContent = finalAIMessage?.content ? extractTextFromContent(finalAIMessage.content) : ""
@@ -765,14 +766,14 @@ export function useStreamHandler({
         // Handle both array and tuple formats
         let aiChunk: any
         if (Array.isArray(data)) {
-          aiChunk = data.find((msg: any) => msg.type === "ai" || msg.role === "assistant")
+          aiChunk = data.find((msg: any) => isDisplayableMessage(msg) && (msg.type === "ai" || msg.role === "assistant"))
         } else if (data && typeof data === 'object') {
           // Sometimes data is a tuple [message, metadata]
           if (data[0]) aiChunk = data[0]
           else aiChunk = data
         }
 
-        if (aiChunk?.content) {
+        if (aiChunk?.content && isDisplayableMessage(aiChunk) && (aiChunk.type === "ai" || aiChunk.role === "assistant")) {
           const streamedContent = extractTextFromContent(aiChunk.content)
 
           // IMPORTANT: Skip subagent responses (they typically start with JSON like '{"answer":')

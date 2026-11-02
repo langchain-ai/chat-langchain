@@ -65,3 +65,13 @@ export const ensureMessageExists = (
   return existing ? messages : [...messages, baseMessage]
 }
 
+export const isDisplayableMessage = (message: {
+  type?: string
+  role?: string
+  additional_kwargs?: { lc_source?: unknown }
+}): boolean => {
+  return (
+    message.additional_kwargs?.lc_source !== "summarization"
+    && ["human", "user", "ai", "assistant"].includes(message.type || message.role || "")
+  )
+}

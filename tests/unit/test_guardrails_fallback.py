@@ -96,3 +96,49 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+def test_guardrails_excludes_summary_from_previous_questions():
+    class ContextModel:
+        def with_structured_output(self, schema):
+            return self
+
+        async def ainvoke(self, prompt, config=None):
+            content = prompt[-1].content
+            assert "Previous questions in this conversation:" in content
+            assert "How do agents work?" in content
+            assert "Current User Goal" not in content
+            return {"decision": "ALLOWED", "explanation": "Follow-up question."}
+
+    middleware = _middleware_with_models(("primary", ContextModel()))
+    result = asyncio.run(
+        middleware._classify_query(
+            [
+                HumanMessage(
+                    content="Current User Goal: learn about agents",
+                    additional_kwargs={"lc_source": "summarization"},
+                ),
+                HumanMessage(content="How do agents work?"),
+                HumanMessage(content="And how do I stream them?"),
+            ]
+        )
+    )
+
+    assert result["decision"] == "ALLOWED"
+
+
+def test_guardrails_does_not_classify_summary_as_current_query():
+    middleware = _middleware_with_models()
+
+    result = asyncio.run(
+        middleware._classify_query(
+            [
+                HumanMessage(
+                    content="Current User Goal: learn about agents",
+                    additional_kwargs={"lc_source": "summarization"},
+                )
+            ]
+        )
+    )
+
+    assert result["decision"] == "ALLOWED"
