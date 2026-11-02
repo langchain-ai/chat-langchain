@@ -107,6 +107,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         model: str | None = None,
         fallback_model: str | None = None,
         block_off_topic: bool = True,
+        collect_samples: bool = True,
     ):
         """Initialize guardrails with a primary classifier and fallback model."""
         super().__init__()
@@ -127,6 +128,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 (fallback_model, init_chat_model(model=fallback_model, temperature=0))
             )
         self.block_off_topic = block_off_topic
+        self.collect_samples = collect_samples
         logger.info(
             "GuardrailsMiddleware initialized with model chain: %s",
             " -> ".join(model_name for model_name, _ in self.classifier_llms),
@@ -136,6 +138,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         self, query: str, result: str, explanation: str, preview: str
     ) -> None:
         """Add query to dataset asynchronously using AsyncClient."""
+        if not self.collect_samples:
+            return
+
         global _dataset_id_cache
         try:
             async with ls.AsyncClient() as client:
@@ -220,8 +225,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Track in LangSmith metadata
         self._track_decision_metadata(guardrails_decision)
 
-        # Sample to dataset for evaluation (100% blocked, 10% allowed)
-        if decision == "BLOCKED" or random.random() < ALLOWED_SAMPLE_RATE:
+        # Sampling is optional; classification and decision metadata stay active.
+        if self.collect_samples and (
+            decision == "BLOCKED" or random.random() < ALLOWED_SAMPLE_RATE
+        ):
             asyncio.create_task(
                 self._add_to_dataset(
                     safe_last_content,
