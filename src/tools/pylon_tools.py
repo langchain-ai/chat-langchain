@@ -61,19 +61,23 @@ class _TTLCache:
     def get(self, loader: Callable[[], Any]) -> Any:
         if self._fresh():
             return self.value
-        with self.lock:
+        if not self.lock.acquire(blocking=self.value is None):
+            return self.value
+        try:
             if self._fresh():
                 return self.value
             try:
                 self.value = loader()
-                self.fetched_at = time.monotonic()
             except Exception:
                 if self.value is None:
                     raise
                 logger.warning(
                     "Pylon refresh failed, serving stale cache", exc_info=True
                 )
+            self.fetched_at = time.monotonic()
             return self.value
+        finally:
+            self.lock.release()
 
     def clear(self) -> None:
         self.value = None

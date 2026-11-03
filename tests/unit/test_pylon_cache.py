@@ -79,6 +79,37 @@ class TestPylonCacheTTL(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(mock_get.call_count, 2)
 
+    def test_failed_refresh_not_retried_until_next_ttl(self, mock_get, mock_time, *_):
+        mock_get.side_effect = [
+            _response([_article("a1")]),
+            requests.exceptions.ConnectionError("pylon down"),
+            _response([_article("a1"), _article("a2")]),
+        ]
+        mock_time.return_value = 1000.0
+        pylon._fetch_all_articles()
+        mock_time.return_value = 1000.0 + 901
+        with self.assertLogs("src.tools.pylon_tools", level="WARNING"):
+            pylon._fetch_all_articles()
+        mock_time.return_value = 1000.0 + 901 + 899
+        self.assertEqual(len(pylon._fetch_all_articles()), 1)
+        self.assertEqual(mock_get.call_count, 2)
+        mock_time.return_value = 1000.0 + 901 + 901
+        self.assertEqual(len(pylon._fetch_all_articles()), 2)
+        self.assertEqual(mock_get.call_count, 3)
+
+    def test_stale_served_without_waiting_while_refresh_runs(
+        self, mock_get, mock_time, *_
+    ):
+        mock_get.return_value = _response([_article("a1")])
+        mock_time.return_value = 1000.0
+        first = pylon._fetch_all_articles()
+        mock_time.return_value = 1000.0 + 901
+        with pylon._articles_cache.lock:
+            second = pylon._fetch_all_articles()
+
+        self.assertEqual(first, second)
+        mock_get.assert_called_once()
+
     def test_failure_without_cache_raises(self, mock_get, mock_time, *_):
         mock_get.side_effect = requests.exceptions.ConnectionError("pylon down")
         mock_time.return_value = 1000.0
