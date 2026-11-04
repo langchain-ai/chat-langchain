@@ -14,7 +14,7 @@ const scrollbarStyles = `
     scrollbar-color: transparent transparent;
   }
   .custom-scrollbar:hover {
-    scrollbar-color: var(--langchain-blue, #7FC8FF) transparent;
+    scrollbar-color: var(--chat-langchain-blue, #7FC8FF) transparent;
   }
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -27,10 +27,10 @@ const scrollbarStyles = `
     border-radius: 3px;
   }
   .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background: var(--langchain-blue, #7FC8FF);
+    background: var(--chat-langchain-blue, #7FC8FF);
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: var(--langchain-blue, #99D3FF);
+    background: var(--chat-langchain-blue, #99D3FF);
   }
 `
 
@@ -140,7 +140,7 @@ export const Sidebar = memo(function Sidebar({
 
     return (
       <div className="mt-4 px-3 first:mt-0">
-        <h3 className="px-3 text-xs font-semibold text-sidebar-accent-foreground uppercase tracking-wider mb-2 shadow-inset-light">{label}</h3>
+        <h3 className="px-3 text-chat-xs font-semibold text-chat-sidebar-accent-foreground uppercase tracking-wider mb-2 shadow-inset-light">{label}</h3>
         <div className="space-y-2">
           {groupThreads.map((thread) => {
             const threadDate = new Date(thread.updated_at || thread.created_at)
@@ -151,21 +151,21 @@ export const Sidebar = memo(function Sidebar({
                 key={thread.thread_id}
                 className={`group flex items-center gap-3 px-3 py-2.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer shadow-depth-xs ${
                   thread.thread_id === currentThreadId
-                    ? "bg-[#7FC8FF]/15 text-sidebar-foreground shadow-depth-sm border border-[#7FC8FF]/40"                    : "text-sidebar-foreground"
+                    ? "bg-[#7FC8FF]/15 text-chat-sidebar-foreground shadow-depth-sm border border-[#7FC8FF]/40"                    : "text-chat-sidebar-foreground"
                 }`}
                 onClick={() => handleSelectThread(thread.thread_id)}
               >
                 <div className="flex-1 min-w-0">
                   <div className="truncate font-medium">{title}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
+                  <div className="text-chat-xs text-chat-muted-foreground mt-0.5">
                     {getRelativeTime(threadDate)}
                   </div>
                 </div>
                 <button
                   onClick={(e) => handleDeleteThread(thread.thread_id, e)}
-                  className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1 rounded-md hover:bg-destructive/10"
+                  className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1 rounded-md hover:bg-chat-destructive/10"
                 >
-                  <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
+                  <Trash2 className="w-3.5 h-3.5 text-chat-muted-foreground hover:text-chat-destructive" />
                 </button>
               </div>
             )
@@ -178,9 +178,9 @@ export const Sidebar = memo(function Sidebar({
   // Early return for collapsed state (after all hooks)
   if (isCollapsed) {
     return (
-      <aside className="hidden md:flex w-16 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar border-r border-border/60 flex-col shadow-depth-sm">
-        <div className="px-3 py-4 border-b border-border/60 h-16 flex items-center justify-center">
-          <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
+      <aside className="hidden md:flex w-16 bg-gradient-to-b from-chat-sidebar via-sidebar-light to-chat-sidebar border-r border-chat-border/60 flex-col shadow-depth-sm">
+        <div className="px-3 py-4 border-b border-chat-border/60 h-16 flex items-center justify-center">
+          <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-chat-sidebar-primary/10 hover:text-chat-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
             <PanelLeft className="w-5 h-5" />
           </Button>
         </div>
@@ -191,36 +191,36 @@ export const Sidebar = memo(function Sidebar({
   return (
     <>
       <style>{scrollbarStyles}</style>
-      <aside className="hidden md:flex w-56 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter border-r border-border/60 flex-col shadow-depth-md">
-        <div className="px-3 pt-[13px] pb-[14px] border-b border-border/60 bg-gradient-to-r from-sidebar-accent/20 via-sidebar-accent/10 to-transparent">
+      <aside className="hidden md:flex w-56 bg-gradient-to-b from-chat-sidebar via-sidebar-light to-sidebar-lighter border-r border-chat-border/60 flex-col shadow-depth-md">
+        <div className="px-3 pt-[13px] pb-[14px] border-b border-chat-border/60 bg-gradient-to-r from-chat-sidebar-accent/20 via-chat-sidebar-accent/10 to-transparent">
           <div className="flex items-center justify-between">
-            <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
+            <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-chat-sidebar-primary/10 hover:text-chat-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
               <PanelLeftClose className="w-5 h-5" />
             </Button>
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <span className="text-chat-xs font-semibold text-chat-muted-foreground uppercase tracking-wider">
               Threads
             </span>
           </div>
         </div>
 
       {/* Search Bar */}
-      <div className="px-3 py-2 bg-gradient-to-r from-sidebar-accent/5 via-transparent to-transparent">
+      <div className="px-3 py-2 bg-gradient-to-r from-chat-sidebar-accent/5 via-transparent to-transparent">
         <div className="relative group">
           <div className="absolute left-3 top-1/2 transform -translate-y-1/2 z-10">
-            <Search className="w-4 h-4 text-muted-foreground/70 group-focus-within:text-primary transition-all duration-200" />
+            <Search className="w-4 h-4 text-chat-muted-foreground/70 group-focus-within:text-chat-primary transition-all duration-200" />
           </div>
           <Input
             type="text"
             placeholder="Search threads..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 pr-8 h-10 text-sm bg-background/80 backdrop-blur-sm border-border/40 focus:border-primary/60 focus:bg-background/90 focus:shadow-sm transition-all duration-200 shadow-sm hover:shadow-md hover:bg-background/90 rounded-lg"
+            className="pl-10 pr-8 h-10 text-sm bg-chat-background/80 backdrop-blur-sm border-chat-border/40 focus:border-chat-primary/60 focus:bg-chat-background/90 focus:shadow-sm transition-all duration-200 shadow-sm hover:shadow-md hover:bg-chat-background/90 rounded-lg"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={handleClearSearch}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 z-10 text-muted-foreground/60 hover:text-foreground transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 rounded-full p-0.5 hover:bg-muted/50"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 z-10 text-chat-muted-foreground/60 hover:text-chat-foreground transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-chat-primary/30 rounded-full p-0.5 hover:bg-chat-muted/50"
               aria-label="Clear search"
             >
               <X className="w-4 h-4" />
@@ -229,21 +229,21 @@ export const Sidebar = memo(function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-2 bg-gradient-to-b from-sidebar-accent/5 via-transparent to-sidebar-accent/10 custom-scrollbar">
+      <nav className="flex-1 overflow-y-auto py-2 bg-gradient-to-b from-chat-sidebar-accent/5 via-transparent to-chat-sidebar-accent/10 custom-scrollbar">
         {isLoading ? (
           <div className="px-6 py-8 text-center">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-xs text-muted-foreground">Loading conversations...</p>
+            <div className="w-6 h-6 border-2 border-chat-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-chat-xs text-chat-muted-foreground">Loading conversations...</p>
           </div>
         ) : searchQuery && filteredThreads.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-muted-foreground bg-gradient-to-br from-card/10 via-card/5 to-transparent rounded-lg mx-3 shadow-depth-xs">
+          <div className="px-6 py-8 text-center text-sm text-chat-muted-foreground bg-gradient-to-br from-chat-card/10 via-chat-card/5 to-transparent rounded-lg mx-3 shadow-depth-xs">
             <div className="font-medium mb-1">No results found</div>
-            <div className="text-xs">Try a different search term</div>
+            <div className="text-chat-xs">Try a different search term</div>
           </div>
         ) : filteredThreads.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-muted-foreground bg-gradient-to-br from-card/10 via-card/5 to-transparent rounded-lg mx-3 shadow-depth-xs">
+          <div className="px-6 py-8 text-center text-sm text-chat-muted-foreground bg-gradient-to-br from-chat-card/10 via-chat-card/5 to-transparent rounded-lg mx-3 shadow-depth-xs">
             <div className="font-medium mb-1">No conversations yet</div>
-            <div className="text-xs">Start chatting to see your threads here!</div>
+            <div className="text-chat-xs">Start chatting to see your threads here!</div>
           </div>
         ) : (
           <>
@@ -255,12 +255,12 @@ export const Sidebar = memo(function Sidebar({
         )}
       </nav>
 
-      <div className="bg-gradient-to-t from-sidebar-accent/10 via-sidebar-accent/5 to-transparent pt-2 pb-0 space-y-0">
+      <div className="bg-gradient-to-t from-chat-sidebar-accent/10 via-chat-sidebar-accent/5 to-transparent pt-2 pb-0 space-y-0">
         <a
           href="https://smith.langchain.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 text-sm text-sidebar-foreground transition-all duration-300 ease-out hover:bg-sidebar-accent/10 group"
+          className="flex items-center gap-2 px-4 py-2 text-sm text-chat-sidebar-foreground transition-all duration-300 ease-out hover:bg-chat-sidebar-accent/10 group"
         >
           <div className="h-6 w-6 flex items-center justify-center shrink-0">
             <Image
@@ -272,8 +272,8 @@ export const Sidebar = memo(function Sidebar({
             />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium leading-tight transition-colors duration-300 group-hover:text-sidebar-primary/90">LangSmith</div>
-            <div className="text-[10px] text-muted-foreground leading-tight transition-colors duration-300 group-hover:text-muted-foreground/80">Monitoring & Tracing</div>
+            <div className="text-chat-xs font-medium leading-tight transition-colors duration-300 group-hover:text-chat-sidebar-primary/90">LangSmith</div>
+            <div className="text-[10px] text-chat-muted-foreground leading-tight transition-colors duration-300 group-hover:text-chat-muted-foreground/80">Monitoring & Tracing</div>
           </div>
         </a>
 
@@ -281,14 +281,14 @@ export const Sidebar = memo(function Sidebar({
           href="https://forum.langchain.com/"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 text-sm text-sidebar-foreground transition-all duration-300 ease-out hover:bg-sidebar-accent/10 group"
+          className="flex items-center gap-2 px-4 py-2 text-sm text-chat-sidebar-foreground transition-all duration-300 ease-out hover:bg-chat-sidebar-accent/10 group"
         >
-          <div className="h-6 w-6 rounded-full bg-sidebar-primary/20 flex items-center justify-center shadow-sm shrink-0">
-            <MessageSquare className="w-3 h-3 text-sidebar-primary" />
+          <div className="h-6 w-6 rounded-full bg-chat-sidebar-primary/20 flex items-center justify-center shadow-sm shrink-0">
+            <MessageSquare className="w-3 h-3 text-chat-sidebar-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium leading-tight transition-colors duration-300 group-hover:text-sidebar-primary/90">Community Forum</div>
-            <div className="text-[10px] text-muted-foreground leading-tight transition-colors duration-300 group-hover:text-muted-foreground/80">Join the Discussion</div>
+            <div className="text-chat-xs font-medium leading-tight transition-colors duration-300 group-hover:text-chat-sidebar-primary/90">Community Forum</div>
+            <div className="text-[10px] text-chat-muted-foreground leading-tight transition-colors duration-300 group-hover:text-chat-muted-foreground/80">Join the Discussion</div>
           </div>
         </a>
 
@@ -296,14 +296,14 @@ export const Sidebar = memo(function Sidebar({
           href="https://docs.langchain.com/oss/python/langchain/overview"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 text-sm text-sidebar-foreground transition-all duration-300 ease-out hover:bg-sidebar-accent/10 group"
+          className="flex items-center gap-2 px-4 py-2 text-sm text-chat-sidebar-foreground transition-all duration-300 ease-out hover:bg-chat-sidebar-accent/10 group"
         >
-          <div className="h-6 w-6 rounded-full bg-sidebar-primary/20 flex items-center justify-center shadow-sm shrink-0">
-            <BookOpen className="w-3 h-3 text-sidebar-primary" />
+          <div className="h-6 w-6 rounded-full bg-chat-sidebar-primary/20 flex items-center justify-center shadow-sm shrink-0">
+            <BookOpen className="w-3 h-3 text-chat-sidebar-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium leading-tight transition-colors duration-300 group-hover:text-sidebar-primary/90">Documentation</div>
-            <div className="text-[10px] text-muted-foreground leading-tight transition-colors duration-300 group-hover:text-muted-foreground/80">LangChain Docs</div>
+            <div className="text-chat-xs font-medium leading-tight transition-colors duration-300 group-hover:text-chat-sidebar-primary/90">Documentation</div>
+            <div className="text-[10px] text-chat-muted-foreground leading-tight transition-colors duration-300 group-hover:text-chat-muted-foreground/80">LangChain Docs</div>
           </div>
         </a>
 

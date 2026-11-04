@@ -152,19 +152,19 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
         {Object.keys(REGION_OPTIONS).length > 1 && (
           <div className="flex justify-center mb-4">
             <DropdownMenu>
-              <DropdownMenuTrigger className="group inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs outline-none transition-colors hover:bg-muted/50 data-[state=open]:bg-muted/50">
+              <DropdownMenuTrigger className="group inline-flex items-center gap-1.5 rounded-lg border border-chat-border px-3 py-2 text-chat-xs outline-none transition-colors hover:bg-chat-muted/50 data-[state=open]:bg-chat-muted/50">
                 <span className="flex items-center gap-1.5">
-                  <span className="font-medium text-muted-foreground text-xs">
+                  <span className="font-medium text-chat-muted-foreground text-chat-xs">
                     Data Region
                   </span>
                   <span className="flex items-center gap-1">
                     <RegionIcon region={authRegion} />
-                    <span className="font-medium text-xs">
+                    <span className="font-medium text-chat-xs">
                       {REGION_OPTIONS[authRegion].label}
                     </span>
                   </span>
                 </span>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                <ChevronDown className="h-3.5 w-3.5 text-chat-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="center" className="min-w-[220px]">
                 {(Object.keys(REGION_OPTIONS) as AuthRegion[]).map((region) => {
@@ -181,7 +181,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
                     >
                       <RegionIcon region={region} />
                       <span>{REGION_OPTIONS[region].label}</span>
-                      <span className="text-muted-foreground text-xs ml-auto">
+                      <span className="text-chat-muted-foreground text-chat-xs ml-auto">
                         {isRegionConfigured
                           ? REGION_OPTIONS[region].location
                           : "Not configured"}
@@ -195,7 +195,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
                     href="https://docs.langchain.com/langsmith/regions-faq"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline"
+                    className="text-chat-xs text-chat-primary hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     Learn more about regions
@@ -216,11 +216,11 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
 
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-4 -mb-1">
-            <div className="flex-1 h-px bg-foreground/20" />
-            <span className="text-sm font-normal text-foreground">
+            <div className="flex-1 h-px bg-chat-foreground/20" />
+            <span className="text-sm font-normal text-chat-foreground">
               Log in with
             </span>
-            <div className="flex-1 h-px bg-foreground/20" />
+            <div className="flex-1 h-px bg-chat-foreground/20" />
           </div>
 
           {!isConfigured && (
@@ -231,7 +231,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
           )}
 
           {error && (
-            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-lg bg-chat-destructive/10 px-4 py-3 text-sm text-chat-destructive">
               {error}
             </div>
           )}
@@ -263,20 +263,20 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
           </div>
 
           <div className="flex items-center gap-4 -mb-1">
-            <div className="flex-1 h-px bg-foreground/20" />
-            <span className="text-xs font-normal text-foreground">
+            <div className="flex-1 h-px bg-chat-foreground/20" />
+            <span className="text-chat-xs font-normal text-chat-foreground">
               or continue with email
             </span>
-            <div className="flex-1 h-px bg-foreground/20" />
+            <div className="flex-1 h-px bg-chat-foreground/20" />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="email" className="text-sm font-medium">
               Email
             </label>
-            <div className="flex h-12 items-center rounded-full border border-border px-4 py-2 transition-all focus-within:border-primary hover:border-muted-foreground bg-transparent">
+            <div className="flex h-12 items-center rounded-full border border-chat-border px-4 py-2 transition-all focus-within:border-chat-primary hover:border-chat-muted-foreground bg-transparent">
               <input
-                className="grow border-none bg-transparent outline-none text-sm placeholder:text-muted-foreground/60"
+                className="grow border-none bg-transparent outline-none text-sm placeholder:text-chat-muted-foreground/60"
                 type="email"
                 name="email"
                 placeholder="Your email address"
@@ -292,9 +292,9 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
             <label htmlFor="password" className="text-sm font-medium">
               Password
             </label>
-            <div className="flex h-12 items-center gap-2 rounded-full border border-border px-4 py-2 transition-all focus-within:border-primary hover:border-muted-foreground bg-transparent">
+            <div className="flex h-12 items-center gap-2 rounded-full border border-chat-border px-4 py-2 transition-all focus-within:border-chat-primary hover:border-chat-muted-foreground bg-transparent">
               <input
-                className="grow border-none bg-transparent outline-none text-sm placeholder:text-muted-foreground/60"
+                className="grow border-none bg-transparent outline-none text-sm placeholder:text-chat-muted-foreground/60"
                 type={showPassword ? "text" : "password"}
                 name="password"
                 id="password"
@@ -307,13 +307,13 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="rounded-md p-1 transition-colors hover:bg-muted/50"
+                className="rounded-md p-1 transition-colors hover:bg-chat-muted/50"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  <EyeOff className="h-4 w-4 text-chat-muted-foreground" />
                 ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
+                  <Eye className="h-4 w-4 text-chat-muted-foreground" />
                 )}
               </button>
             </div>
@@ -322,7 +322,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
                 href={getLangSmithAuthUrl(authRegion, "forgotten_password")}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs font-semibold text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+                className="text-chat-xs font-semibold text-chat-muted-foreground underline underline-offset-4 transition-colors hover:text-chat-foreground"
               >
                 Forgot password?
               </a>
@@ -338,14 +338,14 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
             {isEmailLoading ? <Spinner /> : "Continue"}
           </button>
 
-          <div className="flex items-center justify-center gap-1.5 text-xs">
+          <div className="flex items-center justify-center gap-1.5 text-chat-xs">
             <span>Don't have an account?</span>
             <a
               href={getLangSmithAuthUrl(authRegion, "sign_up")}
               target="_blank"
               rel="noreferrer"
               onClick={handleSignUpClick}
-              className="font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+              className="font-semibold text-chat-muted-foreground underline underline-offset-4 hover:text-chat-foreground transition-colors"
             >
               Sign up
             </a>
@@ -354,16 +354,16 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="flex h-12 items-center justify-center rounded-full border border-border text-sm font-medium text-foreground/80 transition-all hover:bg-muted/50 hover:text-foreground"
+            className="flex h-12 items-center justify-center rounded-full border border-chat-border text-sm font-medium text-chat-foreground/80 transition-all hover:bg-chat-muted/50 hover:text-chat-foreground"
           >
             Continue as guest
           </button>
 
-          <p className="text-center text-[10px] text-muted-foreground/80 leading-relaxed px-2">
+          <p className="text-center text-[10px] text-chat-muted-foreground/80 leading-relaxed px-2">
             By continuing, you agree to our{" "}
             <a
               href="https://www.langchain.com/terms-of-service"
-              className="underline hover:text-foreground/90 transition-colors"
+              className="underline hover:text-chat-foreground/90 transition-colors"
               target="_blank"
               rel="noreferrer"
             >
@@ -372,7 +372,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
             and{" "}
             <a
               href="https://www.langchain.com/privacy-policy"
-              className="underline hover:text-foreground/90 transition-colors"
+              className="underline hover:text-chat-foreground/90 transition-colors"
               target="_blank"
               rel="noreferrer"
             >
@@ -407,13 +407,13 @@ function AuthProviderButton({
       disabled={disabled}
       className={`group relative flex h-14 w-[90px] grow items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
         isLastUsed
-          ? "border-primary/70 bg-primary/5 hover:bg-primary/10 hover:border-primary"
-          : "border-border hover:bg-muted/50 hover:border-muted-foreground"
+          ? "border-chat-primary/70 bg-chat-primary/5 hover:bg-chat-primary/10 hover:border-chat-primary"
+          : "border-chat-border hover:bg-chat-muted/50 hover:border-chat-muted-foreground"
       }`}
     >
       {loadingProvider === provider ? <Spinner /> : <ProviderIcon provider={provider} />}
       {isLastUsed && loadingProvider !== provider && (
-        <span className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-primary/90 px-2 py-0.5 text-xs font-medium text-primary-foreground">
+        <span className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-chat-primary/90 px-2 py-0.5 text-chat-xs font-medium text-chat-primary-foreground">
           LAST USED
         </span>
       )}

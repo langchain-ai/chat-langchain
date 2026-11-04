@@ -1,99 +1,117 @@
+/* Keep Macaw's compiled utilities after app utilities in the shared layer. */
+@layer theme, base, langchain-ds-base, components, langchain-ds-components, utilities, langchain-ds-utilities;
 @import "tailwindcss";
+@import "@langchain/macaw-components/styles.css";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
+/* Legacy colors stay separate from Macaw's public semantic tokens. */
 :root {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Fira Code", ui-monospace, monospace;
   /* LangChain brand colors - defined first so they can be referenced */
-  --langchain-blue: #7FC8FF; /* LangChain brand blue */
-  --langchain-blue-rgb: 127, 200, 255;
+  --chat-langchain-blue: #7FC8FF; /* LangChain brand blue */
+  --chat-langchain-blue-rgb: 127, 200, 255;
 
-  --background: oklch(0.12 0 0);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.15 0 0);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.15 0 0);
-  --popover-foreground: oklch(0.95 0 0);
-  --primary: var(--langchain-blue); /* Updated primary color to blue */
-  --primary-foreground: oklch(0.15 0 0); /* Dark text for better readability on blue */
-  --secondary: oklch(0.22 0 0);
-  --secondary-foreground: oklch(0.95 0 0);
-  --muted: oklch(0.25 0 0);
-  --muted-foreground: oklch(0.6 0 0);
-  --accent: var(--langchain-blue); /* Updated accent color to blue */
-  --accent-foreground: oklch(0.15 0 0); /* Dark text for better readability on blue */
-  --destructive: oklch(0.55 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.25 0 0);
-  --input: oklch(0.25 0 0);
-  --ring: var(--langchain-blue); /* Updated ring color to blue */
-  --success: oklch(0.55 0.18 145);
-  --warning: oklch(0.65 0.18 65);
-  --error: oklch(0.55 0.22 25);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.1 0 0);
-  --sidebar-foreground: oklch(0.95 0 0);
-  --sidebar-primary: var(--langchain-blue); /* Updated sidebar primary to blue */
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.18 0 0);
-  --sidebar-accent-foreground: oklch(0.95 0 0);
-  --sidebar-border: oklch(0.2 0 0);
-  --sidebar-ring: var(--langchain-blue); /* Updated sidebar ring to blue */
+  --chat-background: oklch(0.12 0 0);
+  --chat-foreground: oklch(0.95 0 0);
+  --chat-card: oklch(0.15 0 0);
+  --chat-card-foreground: oklch(0.95 0 0);
+  --chat-popover: oklch(0.15 0 0);
+  --chat-popover-foreground: oklch(0.95 0 0);
+  --chat-primary: var(--chat-langchain-blue); /* Updated primary color to blue */
+  --chat-primary-foreground: oklch(0.15 0 0); /* Dark text for better readability on blue */
+  --chat-secondary: oklch(0.22 0 0);
+  --chat-secondary-foreground: oklch(0.95 0 0);
+  --chat-muted: oklch(0.25 0 0);
+  --chat-muted-foreground: oklch(0.6 0 0);
+  --chat-accent: var(--chat-langchain-blue); /* Updated accent color to blue */
+  --chat-accent-foreground: oklch(0.15 0 0); /* Dark text for better readability on blue */
+  --chat-destructive: oklch(0.55 0.22 25);
+  --chat-destructive-foreground: oklch(0.98 0 0);
+  --chat-border: oklch(0.25 0 0);
+  --chat-input: oklch(0.25 0 0);
+  --chat-ring: var(--chat-langchain-blue); /* Updated ring color to blue */
+  --chat-success: oklch(0.55 0.18 145);
+  --chat-warning: oklch(0.65 0.18 65);
+  --chat-error: oklch(0.55 0.22 25);
+  --chat-radius: 0.5rem;
+  --chat-sidebar: oklch(0.1 0 0);
+  --chat-sidebar-foreground: oklch(0.95 0 0);
+  --chat-sidebar-primary: var(--chat-langchain-blue); /* Updated sidebar primary to blue */
+  --chat-sidebar-primary-foreground: oklch(0.98 0 0);
+  --chat-sidebar-accent: oklch(0.18 0 0);
+  --chat-sidebar-accent-foreground: oklch(0.95 0 0);
+  --chat-sidebar-border: oklch(0.2 0 0);
+  --chat-sidebar-ring: var(--chat-langchain-blue); /* Updated sidebar ring to blue */
 }
 
 @theme inline {
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-inconsolata);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-error: var(--error);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-langchain-blue: var(--langchain-blue);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Fira Code", ui-monospace, monospace;
+  --text-chat-xs: 0.75rem;
+  --text-chat-xs--line-height: 1rem;
+  --color-chat-background: var(--chat-background);
+  --color-chat-foreground: var(--chat-foreground);
+  --color-chat-card: var(--chat-card);
+  --color-chat-card-foreground: var(--chat-card-foreground);
+  --color-chat-popover: var(--chat-popover);
+  --color-chat-popover-foreground: var(--chat-popover-foreground);
+  --color-chat-primary: var(--chat-primary);
+  --color-chat-primary-foreground: var(--chat-primary-foreground);
+  --color-chat-secondary: var(--chat-secondary);
+  --color-chat-secondary-foreground: var(--chat-secondary-foreground);
+  --color-chat-muted: var(--chat-muted);
+  --color-chat-muted-foreground: var(--chat-muted-foreground);
+  --color-chat-accent: var(--chat-accent);
+  --color-chat-accent-foreground: var(--chat-accent-foreground);
+  --color-chat-destructive: var(--chat-destructive);
+  --color-chat-destructive-foreground: var(--chat-destructive-foreground);
+  --color-chat-border: var(--chat-border);
+  --color-chat-input: var(--chat-input);
+  --color-chat-ring: var(--chat-ring);
+  --color-chat-success: var(--chat-success);
+  --color-chat-warning: var(--chat-warning);
+  --color-chat-error: var(--chat-error);
+  --radius-sm: calc(var(--chat-radius) - 4px);
+  --radius-md: calc(var(--chat-radius) - 2px);
+  --radius-lg: var(--chat-radius);
+  --radius-xl: calc(var(--chat-radius) + 4px);
+  --color-chat-sidebar: var(--chat-sidebar);
+  --color-chat-sidebar-foreground: var(--chat-sidebar-foreground);
+  --color-chat-sidebar-primary: var(--chat-sidebar-primary);
+  --color-chat-sidebar-primary-foreground: var(--chat-sidebar-primary-foreground);
+  --color-chat-sidebar-accent: var(--chat-sidebar-accent);
+  --color-chat-sidebar-accent-foreground: var(--chat-sidebar-accent-foreground);
+  --color-chat-sidebar-border: var(--chat-sidebar-border);
+  --color-chat-sidebar-ring: var(--chat-sidebar-ring);
+  --color-chat-langchain-blue: var(--chat-langchain-blue);
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
+    @apply border-chat-border outline-chat-ring/50;
   }
 }
 
+/* Retain the legacy page surface while individual regions migrate to Macaw. */
+body {
+  background-color: var(--chat-background);
+  color: var(--chat-foreground);
+  font-family: var(--font-sans);
+}
+
+/* Macaw removes field box shadows; legacy controls still need keyboard focus. */
+input[data-slot="input"]:focus-visible,
+textarea[data-slot="textarea"]:focus-visible {
+  outline: 2px solid var(--chat-ring);
+  outline-offset: 2px;
+}
 
 /* Markdown prose styles */
 .prose {
-  color: var(--color-foreground);
+  color: var(--color-chat-foreground);
   line-height: 1.65;
   max-width: 100%;
 }
@@ -108,12 +126,12 @@
 
 .prose h1 {
   font-size: 1.75em;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-chat-border);
   padding-bottom: 0.3em;
 }
 .prose h2 {
   font-size: 1.5em;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-chat-border);
   padding-bottom: 0.25em;
 }
 .prose h3 {
@@ -193,7 +211,7 @@
 }
 
 .prose blockquote {
-  border-left: 4px solid var(--color-primary);
+  border-left: 4px solid var(--color-chat-primary);
   padding-left: 1.25em;
   padding-top: 0.5em;
   padding-bottom: 0.5em;
@@ -216,7 +234,7 @@
 
 .prose hr {
   border: none;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-chat-border);
   margin: 2em 0;
 }
 
@@ -233,12 +251,12 @@
   text-align: left;
   font-weight: 600;
   color: oklch(0.95 0 0);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-chat-border);
 }
 
 .prose td {
   padding: 0.75em 1em;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-chat-border);
   color: oklch(0.88 0 0);
 }
 

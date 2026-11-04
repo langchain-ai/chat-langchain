@@ -38,9 +38,9 @@ interface WelcomeScreenProps {
   onPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onRemoveFile: (fileId: string) => void
   onFileButtonClick: (e: React.MouseEvent) => void
-  fileInputRef: React.RefObject<HTMLInputElement>
+  fileInputRef: React.RefObject<HTMLInputElement | null>
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
-  textareaRef?: React.RefObject<HTMLTextAreaElement>
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>
 
   // Voice input
   isVoiceListening?: boolean
@@ -106,14 +106,14 @@ export function WelcomeScreen({
 
         {/* Upload Error */}
         {uploadError && (
-          <div className="mb-3 text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+          <div className="mb-3 text-sm text-chat-destructive bg-chat-destructive/10 px-3 py-2 rounded-md">
             {uploadError}
           </div>
         )}
 
         {/* Voice Error */}
         {voiceError && (
-          <div className="mb-3 text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+          <div className="mb-3 text-sm text-chat-destructive bg-chat-destructive/10 px-3 py-2 rounded-md">
             {voiceError}
           </div>
         )}
@@ -121,18 +121,18 @@ export function WelcomeScreen({
         {/* Centered Input Container */}
         <div className="relative group">
           <div
-            className={`relative bg-card border-2 rounded-2xl shadow-2xl transition-all duration-300 border-primary/60 ring-1 ring-primary/20 ${
+            className={`relative bg-chat-card border-2 rounded-2xl shadow-2xl transition-all duration-300 border-chat-primary/60 ring-1 ring-chat-primary/20 ${
               isDragging
-                ? 'border-primary bg-primary/5 ring-2 ring-primary/30'
-                : 'group-hover:border-primary/80 group-focus-within:border-primary/90 group-focus-within:ring-2 group-focus-within:ring-primary/30'
+                ? 'border-chat-primary bg-chat-primary/5 ring-2 ring-chat-primary/30'
+                : 'group-hover:border-chat-primary/80 group-focus-within:border-chat-primary/90 group-focus-within:ring-2 group-focus-within:ring-chat-primary/30'
             }`}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
           >
             {isDragging && (
-              <div className="absolute inset-0 bg-primary/10 rounded-2xl flex items-center justify-center z-20 pointer-events-none">
-                <div className="text-primary font-medium">Drop files here</div>
+              <div className="absolute inset-0 bg-chat-primary/10 rounded-2xl flex items-center justify-center z-20 pointer-events-none">
+                <div className="text-chat-primary font-medium">Drop files here</div>
               </div>
             )}
             <div className="flex items-end gap-2 px-4 py-3">
@@ -151,7 +151,7 @@ export function WelcomeScreen({
                   variant="ghost"
                   size="sm"
                   disabled={isLoading || !userId}
-                  className="group h-10 w-10 p-0 mb-0.5 rounded-full bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="group h-10 w-10 p-0 mb-0.5 rounded-full bg-chat-muted/50 hover:bg-chat-primary/10 text-chat-muted-foreground hover:text-chat-primary border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
                   type="button"
                   title="Attach files (images, code, logs)"
                 >
@@ -180,7 +180,7 @@ export function WelcomeScreen({
                 onPaste={onPaste}
                 maxLength={MAX_INPUT_CHARS}
                 placeholder={userId ? "Ask me anything about LangChain..." : "Initializing..."}
-                className="relative z-10 min-h-[48px] max-h-[240px] resize-none bg-transparent border-0 w-full px-3 py-3 text-base leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
+                className="relative z-10 min-h-[48px] max-h-[240px] resize-none bg-transparent border-0 w-full px-3 py-3 text-base leading-relaxed text-chat-foreground placeholder:text-chat-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
                 disabled={isLoading || !userId}
                 rows={1}
               />
@@ -203,7 +203,7 @@ export function WelcomeScreen({
                   className={`
                     h-10 px-5 mb-0.5 rounded-full flex-shrink-0
                     transition-all duration-200 hover:scale-105 active:scale-95
-                    bg-muted text-primary hover:text-primary hover:bg-muted/80 border-2 border-primary
+                    bg-chat-muted text-chat-primary hover:text-chat-primary hover:bg-chat-muted/80 border-2 border-chat-primary
                     ${isStopping ? 'opacity-60 cursor-not-allowed' : ''}
                   `}
                   type="button"
@@ -218,7 +218,7 @@ export function WelcomeScreen({
           </div>
 
           {inputError && (
-            <div className="mt-2 px-2 text-sm text-destructive">
+            <div className="mt-2 px-2 text-sm text-chat-destructive">
               {inputError}
             </div>
           )}

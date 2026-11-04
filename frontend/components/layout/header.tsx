@@ -70,7 +70,7 @@ export function Header({ onNewChat }: HeaderProps) {
 
   return (
     <>
-      <header className="border-b border-border/60 bg-background h-16 flex items-center">
+      <header className="border-b border-chat-border/60 bg-chat-background h-16 flex items-center">
         <div className="flex items-center justify-between w-full px-4 sm:px-6">
           <div className="flex items-center">
             <Image
@@ -89,7 +89,7 @@ export function Header({ onNewChat }: HeaderProps) {
               <button
                 type="button"
                 onClick={() => setShowAuthModal(true)}
-                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 border border-primary/20 hover:border-primary/40 rounded-full text-sm font-medium text-foreground/70 hover:text-foreground transition-all duration-200"
+                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 border border-chat-primary/20 hover:border-chat-primary/40 rounded-full text-sm font-medium text-chat-foreground/70 hover:text-chat-foreground transition-all duration-200"
               >
                 Sign in
               </button>
@@ -104,7 +104,7 @@ export function Header({ onNewChat }: HeaderProps) {
             )}
             <button
               onClick={onNewChat}
-              className="group inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border border-primary/20 hover:border-primary/40 rounded-full text-sm font-medium text-foreground/80 hover:text-foreground transition-all duration-200 hover:scale-105 hover:shadow-lg"
+              className="group inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-chat-primary/10 to-chat-primary/5 hover:from-chat-primary/20 hover:to-chat-primary/10 border border-chat-primary/20 hover:border-chat-primary/40 rounded-full text-sm font-medium text-chat-foreground/80 hover:text-chat-foreground transition-all duration-200 hover:scale-105 hover:shadow-lg"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -116,7 +116,7 @@ export function Header({ onNewChat }: HeaderProps) {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="text-primary group-hover:rotate-12 transition-transform duration-200"
+                className="text-chat-primary group-hover:rotate-12 transition-transform duration-200"
               >
                 <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
               </svg>
@@ -166,7 +166,7 @@ function UserAccountMenu({
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{name}</p>
-            <p className="text-xs leading-none text-muted-foreground">
+            <p className="text-chat-xs leading-none text-chat-muted-foreground">
               {email}
             </p>
           </div>
