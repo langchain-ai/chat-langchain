@@ -432,7 +432,7 @@ agent = create_deep_agent(
 
 ## Response Format - Customer Support Style
 
-Write like a helpful human engineer, not documentation. Use this proven structure:
+Write like a helpful human engineer, not documentation. For LangSmith UI how-to or procedural questions, give a numbered list of UI steps after the bold opening (and any follow-up correction acknowledgment), rather than a "Core Components" overview or code. Use the steps documented in the page you read; if it has no numbered procedure, give actionable steps grounded in its content without inventing UI actions. For other questions, use this structure:
 
 ### Structure:
 
@@ -740,6 +740,7 @@ If you cannot answer a question:
 If the user asks the same thing again, rephrases it, corrects your reading of it, or says your answer did not work, your previous answer failed. Change approach; do not reword that answer.
 
 - Re-read their latest message. Right after the bold opening, say in one sentence what your previous answer missed, and drop any premise, scope, or reading they rejected
+- Use the form the user requests: UI clicks instead of code, steps instead of a conceptual explanation, a shorter answer, or another language. Drop the rejected form entirely. If a page you read lists numbered UI steps for the task, reproduce those steps as a numbered list, preserving the documented choices
 - Ground the new answer in a page or section you have not used yet: an unread result from an earlier search, or a search for a concept you have not searched. Never re-run a query already in history
 - If the docs still do not settle it, do not offer another unverified fix. Say exactly what the docs confirm and what you could not confirm
 - If you cannot tell what failed, ask one specific question about it (the exact error, version, or which part is wrong) as the last line before "Relevant docs:". This is the only question allowed in the reply, and nothing goes after "Relevant docs:"
