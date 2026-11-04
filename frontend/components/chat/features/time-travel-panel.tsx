@@ -26,9 +26,9 @@ export function TimeTravelPanel({
   if (!isOpen) return null
 
   return (
-    <div className="fixed right-0 top-0 h-full w-80 bg-card border-l border-border shadow-lg z-50 flex flex-col">
+    <div className="fixed right-0 top-0 h-full w-80 bg-chat-card border-l border-chat-border shadow-lg z-50 flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-border">
+      <div className="p-4 border-b border-chat-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <History className="w-5 h-5" />
@@ -38,7 +38,7 @@ export function TimeTravelPanel({
             X
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-chat-xs text-chat-muted-foreground mt-1">
           {checkpoints.length} checkpoints in conversation
         </p>
       </div>
@@ -58,23 +58,23 @@ export function TimeTravelPanel({
                 key={checkpointId}
                 className={`p-3 rounded-lg border ${
                   isCurrent
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-muted/30 hover:bg-muted/50"
+                    ? "border-chat-primary bg-chat-primary/10"
+                    : "border-chat-border bg-chat-muted/30 hover:bg-chat-muted/50"
                 } transition-colors cursor-pointer`}
                 onClick={() => onJumpToCheckpoint(checkpointId)}
               >
                 {/* Step Info */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-xs font-medium">
+                    <Clock className="w-3 h-3 text-chat-muted-foreground" />
+                    <span className="text-chat-xs font-medium">
                       Step {checkpoint.metadata?.step ?? idx}
                     </span>
                     {isCurrent && (
-                      <span className="text-xs text-primary">● Current</span>
+                      <span className="text-chat-xs text-chat-primary">● Current</span>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-chat-xs text-chat-muted-foreground">
                     {checkpoint.created_at &&
                       formatDistanceToNow(new Date(checkpoint.created_at), {
                         addSuffix: true,
@@ -84,7 +84,7 @@ export function TimeTravelPanel({
 
                 {/* Metadata */}
                 {checkpoint.metadata?.writes && (
-                  <div className="text-xs text-muted-foreground mb-2">
+                  <div className="text-chat-xs text-chat-muted-foreground mb-2">
                     {Object.keys(checkpoint.metadata.writes).map((key) => (
                       <div key={key} className="flex items-center gap-1">
                         <ChevronRight className="w-3 h-3" />
@@ -99,7 +99,7 @@ export function TimeTravelPanel({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 h-7 text-xs"
+                    className="flex-1 h-7 text-chat-xs"
                     onClick={(e) => {
                       e.stopPropagation()
                       onJumpToCheckpoint(checkpointId)
@@ -111,7 +111,7 @@ export function TimeTravelPanel({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 h-7 text-xs"
+                    className="flex-1 h-7 text-chat-xs"
                     onClick={(e) => {
                       e.stopPropagation()
                       onForkFromCheckpoint(checkpointId)

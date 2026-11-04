@@ -35,7 +35,7 @@ export function ThinkingTimer({ startTime, duration, isThinking }: ThinkingTimer
   }
 
   return (
-    <span className="text-muted-foreground font-mono text-[10px]">
+    <span className="text-chat-muted-foreground font-mono text-[10px]">
       {formatTime(elapsed)}
     </span>
   )

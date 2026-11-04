@@ -162,7 +162,7 @@ const CodeBlock = memo(({ codeString, language }: { codeString: string; language
       </SyntaxHighlighter>
       <button
         onClick={handleCopyCode}
-        className="absolute top-2 right-2 sm:top-3 sm:right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-xs flex items-center gap-1 sm:gap-1.5 backdrop-blur-sm"
+        className="absolute top-2 right-2 sm:top-3 sm:right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-chat-xs flex items-center gap-1 sm:gap-1.5 backdrop-blur-sm"
         style={{
           background: 'rgba(0, 0, 0, 0.7)',
           color: CODE_COLORS.text,
@@ -430,7 +430,7 @@ export const MessageItem = memo(function MessageItem({
       <div className="flex-1 min-w-0 space-y-2">
         <div
           className={`rounded-lg px-4 py-3 transition-all duration-150 ease-out ${
-            message.role === "user" ? "bg-muted/50 text-foreground" : "bg-muted text-foreground"
+            message.role === "user" ? "bg-chat-muted/50 text-chat-foreground" : "bg-chat-muted text-chat-foreground"
           }`}
           style={{
             willChange: message.isThinking ? 'contents' : 'auto',
@@ -439,9 +439,9 @@ export const MessageItem = memo(function MessageItem({
         >
           {/* Thinking indicator - only for assistant messages */}
           {message.role === "assistant" && (message.isThinking || message.thinkingStartTime || (message.thinkingSteps && message.thinkingSteps.length > 0)) && (
-            <details open className="mb-3 text-xs">
-              <summary className="cursor-pointer flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-                {message.isThinking && <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />}
+            <details open className="mb-3 text-chat-xs">
+              <summary className="cursor-pointer flex items-center gap-2 text-chat-muted-foreground hover:text-chat-foreground transition-colors">
+                {message.isThinking && <div className="w-2 h-2 rounded-full bg-chat-primary animate-pulse" />}
                 <span>
                   {message.isThinking ? <AnimatedThinking /> : <span className="font-medium">Agent steps</span>} ({message.thinkingSteps?.length || 0})
                 </span>
@@ -453,10 +453,10 @@ export const MessageItem = memo(function MessageItem({
                 />
               </summary>
               {message.thinkingSteps && message.thinkingSteps.length > 0 && (
-                <div className="mt-2 pl-4 space-y-1 text-muted-foreground font-mono text-[11px]">
+                <div className="mt-2 pl-4 space-y-1 text-chat-muted-foreground font-mono text-[11px]">
                   {message.thinkingSteps.map((step, idx) => (
                     <div key={`${message.id}-step-${idx}`} className="flex items-start gap-2">
-                      <span className="text-primary opacity-50">{(idx + 1).toString().padStart(2, '0')}</span>
+                      <span className="text-chat-primary opacity-50">{(idx + 1).toString().padStart(2, '0')}</span>
                       <span>{step}</span>
                     </div>
                   ))}
@@ -491,7 +491,7 @@ export const MessageItem = memo(function MessageItem({
                     }}
                 />
                 {editError && (
-                  <div className="mt-1 text-xs text-destructive">
+                  <div className="mt-1 text-chat-xs text-chat-destructive">
                     {editError}
                   </div>
                 )}
@@ -515,7 +515,7 @@ export const MessageItem = memo(function MessageItem({
                       return (
                         <div
                           key={file.id}
-                          className="h-32 rounded-lg border-2 border-border bg-muted/30 hover:bg-muted/50 hover:border-primary transition-all flex flex-col overflow-hidden"
+                          className="h-32 rounded-lg border-2 border-chat-border bg-chat-muted/30 hover:bg-chat-muted/50 hover:border-chat-primary transition-all flex flex-col overflow-hidden"
                         >
                           {isImage ? (
                             // Image with filename overlay
@@ -526,7 +526,7 @@ export const MessageItem = memo(function MessageItem({
                                 className="h-full w-full object-cover"
                               />
                               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-1">
-                                <p className="text-xs text-white truncate" title={fileName}>
+                                <p className="text-chat-xs text-white truncate" title={fileName}>
                                   {fileName}
                                 </p>
                               </div>
@@ -547,15 +547,15 @@ export const MessageItem = memo(function MessageItem({
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                 <polyline points="14 2 14 8 20 8"></polyline>
                               </svg>
-                              <span className="text-xs font-medium text-foreground truncate w-full px-1 mb-1" title={fileName}>
+                              <span className="text-chat-xs font-medium text-chat-foreground truncate w-full px-1 mb-1" title={fileName}>
                                 {fileName}
                               </span>
                               <div className="flex items-center gap-1.5">
-                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded bg-muted ${getFileColor()}`}>
+                                <span className={`text-chat-xs font-bold px-1.5 py-0.5 rounded bg-chat-muted ${getFileColor()}`}>
                                   {fileExt?.toUpperCase().slice(0, 4)}
                                 </span>
                                 {fileSizeKB > 0 && (
-                                  <span className="text-xs text-muted-foreground">
+                                  <span className="text-chat-xs text-chat-muted-foreground">
                                     {fileSizeKB}KB
                                   </span>
                                 )}
@@ -602,7 +602,7 @@ export const MessageItem = memo(function MessageItem({
 
               {/* Metadata in bottom right of message box */}
               {!message.isThinking && message.runId && (message.shareUrl || message.usageMetadata?.total_tokens || message.thinkingDuration) && (
-                <div className="flex items-center justify-end gap-2 mt-3 text-xs text-white font-mono font-medium">
+                <div className="flex items-center justify-end gap-2 mt-3 text-chat-xs text-white font-mono font-medium">
                   <>
                     {message.thinkingDuration && (
                       <span>{(message.thinkingDuration / 1000).toFixed(1)}s</span>
@@ -627,7 +627,7 @@ export const MessageItem = memo(function MessageItem({
                         href={message.shareUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-0.5 text-xs font-medium transition-colors ml-1"
+                        className="inline-flex items-center gap-0.5 text-chat-xs font-medium transition-colors ml-1"
                         style={{ color: '#7FC8FF', textDecorationColor: '#7FC8FF' }}
                       >
                         View trace
@@ -651,7 +651,7 @@ export const MessageItem = memo(function MessageItem({
                     variant="ghost"
                     size="sm"
                     onClick={() => onCopy(message.content, message.id)}
-                    className="h-8 px-2 text-xs"
+                    className="h-8 px-2 text-chat-xs"
                   >
                     {copiedId === message.id ? (
                       <>
@@ -672,7 +672,7 @@ export const MessageItem = memo(function MessageItem({
                       size="sm"
                       onClick={onRegenerate}
                       disabled={isRegenerating}
-                      className="h-8 px-2 text-xs"
+                      className="h-8 px-2 text-chat-xs"
                     >
                       <RefreshCw className={`w-3 h-3 mr-1 ${isRegenerating ? "animate-spin" : ""}`} />
                       Regenerate
@@ -688,10 +688,10 @@ export const MessageItem = memo(function MessageItem({
                     size="sm"
                     onClick={() => onFeedback(message.id, "positive", feedbackComment[message.id])}
                     aria-pressed={message.feedback === "positive"}
-                    className={`h-8 px-2 text-xs rounded-md transition-all duration-150 ease-out active:scale-95 bg-transparent ${
+                    className={`h-8 px-2 text-chat-xs rounded-md transition-all duration-150 ease-out active:scale-95 bg-transparent ${
                       message.feedback === "positive"
                         ? "text-white"
-                        : "text-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
+                        : "text-chat-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
                     }`}
                   >
                     <ThumbsUp
@@ -706,10 +706,10 @@ export const MessageItem = memo(function MessageItem({
                     size="sm"
                     onClick={() => onFeedback(message.id, "negative", feedbackComment[message.id])}
                     aria-pressed={message.feedback === "negative"}
-                    className={`h-8 px-2 text-xs rounded-md transition-all duration-150 ease-out active:scale-95 bg-transparent ${
+                    className={`h-8 px-2 text-chat-xs rounded-md transition-all duration-150 ease-out active:scale-95 bg-transparent ${
                       message.feedback === "negative"
                         ? "text-white"
-                        : "text-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
+                        : "text-chat-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
                     }`}
                   >
                     <ThumbsDown
@@ -723,7 +723,7 @@ export const MessageItem = memo(function MessageItem({
                     variant="ghost"
                     size="sm"
                     onClick={() => onToggleComment(message.id)}
-                    className="h-8 px-2 text-xs rounded-md transition-colors duration-150 ease-out text-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
+                    className="h-8 px-2 text-chat-xs rounded-md transition-colors duration-150 ease-out text-chat-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
                   >
                     <MessageSquare className="w-3 h-3 mr-1" />
                     Feedback
@@ -741,7 +741,7 @@ export const MessageItem = memo(function MessageItem({
                     setFeedbackComment((prev) => ({ ...prev, [message.id]: e.target.value }))
                   }}
                   placeholder="Add feedback about this response..."
-                  className="min-h-[60px] text-xs"
+                  className="min-h-[60px] text-chat-xs"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -755,7 +755,7 @@ export const MessageItem = memo(function MessageItem({
                   }}
                 />
                 {!message.feedback && (
-                  <p className="text-[10px] text-muted-foreground mt-1">
+                  <p className="text-[10px] text-chat-muted-foreground mt-1">
                     Select thumbs up or down before submitting
                   </p>
                 )}
@@ -767,14 +767,14 @@ export const MessageItem = memo(function MessageItem({
                 {message.toolCalls.map((tool) => (
                   <div
                     key={tool.id}
-                    className="px-3 py-2 rounded-lg border border-border bg-muted/50 text-xs"
+                    className="px-3 py-2 rounded-lg border border-chat-border bg-chat-muted/50 text-chat-xs"
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-primary">
+                      <span className="font-semibold text-chat-primary">
                         Tool: {tool.name}
                       </span>
                     </div>
-                    <div className="text-xs font-mono text-muted-foreground">
+                    <div className="text-chat-xs font-mono text-chat-muted-foreground">
                       <details>
                         <summary className="cursor-pointer hover:opacity-80">
                           View arguments
@@ -804,7 +804,7 @@ export const MessageItem = memo(function MessageItem({
             {message.subgraphOutputs && message.subgraphOutputs.length > 0 && (
               <div className="mt-3">
                 <details className="group">
-                  <summary className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
+                  <summary className="cursor-pointer text-chat-xs font-semibold text-chat-muted-foreground hover:text-chat-foreground transition-colors flex items-center gap-2">
                     <span>Subagent Outputs ({message.subgraphOutputs.length})</span>
                     <span className="text-[10px] opacity-50">Click to expand</span>
                   </summary>
@@ -812,14 +812,14 @@ export const MessageItem = memo(function MessageItem({
                     {message.subgraphOutputs.map((subgraph, idx) => (
                       <details
                         key={`${subgraph.name}-${idx}`}
-                        className="px-3 py-2 rounded-lg border border-primary/30 bg-primary/5"
+                        className="px-3 py-2 rounded-lg border border-chat-primary/30 bg-chat-primary/5"
                       >
-                        <summary className="cursor-pointer flex items-center gap-2 text-xs hover:opacity-80">
-                          <Settings className="w-3 h-3 text-primary" />
-                          <span className="font-semibold text-primary">{subgraph.name}</span>
+                        <summary className="cursor-pointer flex items-center gap-2 text-chat-xs hover:opacity-80">
+                          <Settings className="w-3 h-3 text-chat-primary" />
+                          <span className="font-semibold text-chat-primary">{subgraph.name}</span>
                           {subgraph.isStreaming && (
-                            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                            <span className="flex items-center gap-1 text-[10px] text-chat-muted-foreground">
+                              <div className="w-1.5 h-1.5 rounded-full bg-chat-primary animate-pulse" />
                               Running...
                             </span>
                           )}
@@ -830,13 +830,13 @@ export const MessageItem = memo(function MessageItem({
                           )}
                         </summary>
                         {subgraph.output ? (
-                          <div className="mt-2 text-xs font-mono text-muted-foreground">
+                          <div className="mt-2 text-chat-xs font-mono text-chat-muted-foreground">
                             <pre className="whitespace-pre-wrap break-words text-[10px] max-h-60 overflow-y-auto">
                               {subgraph.output}
                             </pre>
                           </div>
                         ) : (
-                          <div className="mt-2 text-[10px] text-muted-foreground italic">
+                          <div className="mt-2 text-[10px] text-chat-muted-foreground italic">
                             Waiting for output...
                           </div>
                         )}

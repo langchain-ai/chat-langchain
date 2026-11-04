@@ -1,20 +1,10 @@
 import type { Metadata } from "next";
-import { Inter, Inconsolata } from "next/font/google";
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import Script from "next/script";
 import "./globals.css";
 import { SegmentProvider } from "@/components/providers/segment-provider";
 import { AuthProvider } from "@/lib/auth";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const inconsolata = Inconsolata({
-  variable: "--font-inconsolata",
-  subsets: ["latin"],
-});
+import { MacawProvider } from "@/components/providers/macaw-provider";
 
 export const metadata: Metadata = {
   title: "Chat LangChain",
@@ -37,7 +27,13 @@ export default function RootLayout({
   const segmentWriteKey = process.env.NEXT_PUBLIC_SEGMENT_WRITE_KEY;
 
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className="dark"
+      data-theme="dark"
+      data-theme-mode="dark"
+      style={{ colorScheme: "dark" }}
+    >
       <head>
         {/* Segment Analytics */}
         {segmentWriteKey && (
@@ -56,16 +52,18 @@ analytics.page();
         )}
       </head>
       <body
-        className={`${inter.variable} ${inconsolata.variable} antialiased`}
+        className="antialiased"
         suppressHydrationWarning
       >
-        <AuthProvider>
-          <SegmentProvider>
-            <NuqsAdapter>
-              {children}
-            </NuqsAdapter>
-          </SegmentProvider>
-        </AuthProvider>
+        <MacawProvider>
+          <AuthProvider>
+            <SegmentProvider>
+              <NuqsAdapter>
+                {children}
+              </NuqsAdapter>
+            </SegmentProvider>
+          </AuthProvider>
+        </MacawProvider>
       </body>
     </html>
   );

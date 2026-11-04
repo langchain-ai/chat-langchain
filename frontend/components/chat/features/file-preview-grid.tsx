@@ -29,7 +29,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
   const fileSizeKB = file.size ? Math.round(file.size / 1024) : 0
 
   return (
-    <div className="group relative h-24 rounded-lg border-2 border-border hover:border-primary bg-card/50 hover:bg-muted/50 transition-all flex flex-col overflow-hidden">
+    <div className="group relative h-24 rounded-lg border-2 border-chat-border hover:border-chat-primary bg-chat-card/50 hover:bg-chat-muted/50 transition-all flex flex-col overflow-hidden">
       {isImage ? (
         // Image preview
         <div className="relative h-full w-full">
@@ -39,7 +39,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
             className="h-full w-full object-cover"
           />
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 py-1">
-            <p className="text-xs text-white truncate" title={fileName}>
+            <p className="text-chat-xs text-white truncate" title={fileName}>
               {fileName}
             </p>
           </div>
@@ -60,15 +60,15 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
           </svg>
-          <span className="text-[11px] font-medium text-foreground truncate w-full px-1 mb-0.5" title={fileName}>
+          <span className="text-[11px] font-medium text-chat-foreground truncate w-full px-1 mb-0.5" title={fileName}>
             {fileName}
           </span>
           <div className="flex items-center gap-1">
-            <span className={`text-[10px] font-bold px-1 py-0.5 rounded bg-muted ${getFileColor(fileExt)}`}>
+            <span className={`text-[10px] font-bold px-1 py-0.5 rounded bg-chat-muted ${getFileColor(fileExt)}`}>
               {fileExt?.toUpperCase().slice(0, 4) || 'FILE'}
             </span>
             {fileSizeKB > 0 && (
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-[10px] text-chat-muted-foreground">
                 {fileSizeKB}KB
               </span>
             )}

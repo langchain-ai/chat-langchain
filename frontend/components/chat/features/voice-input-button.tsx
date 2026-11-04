@@ -33,8 +33,8 @@ export function VoiceInputButton({
         group ${dimensions} p-0 mb-0.5 rounded-full flex-shrink-0
         transition-all duration-200 hover:scale-105 active:scale-95 border-0
         ${isListening
-          ? "bg-muted text-primary hover:text-primary hover:bg-muted/80 border-2 border-primary"
-          : "bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary"
+          ? "bg-chat-muted text-chat-primary hover:text-chat-primary hover:bg-chat-muted/80 border-2 border-chat-primary"
+          : "bg-chat-muted/50 hover:bg-chat-primary/10 text-chat-muted-foreground hover:text-chat-primary"
         }
       `}
       type="button"
