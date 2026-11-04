@@ -33,7 +33,10 @@ def _extract_text(html: str) -> str:
         flags=re.DOTALL | re.IGNORECASE,
     )
     text = re.sub(
-        r"<style\b[^>]*>[\s\S]*?</style\b[^>]*>", "", text, flags=re.DOTALL | re.IGNORECASE
+        r"<style\b[^>]*>[\s\S]*?</style\b[^>]*>",
+        "",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
     )
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"[ \t]+", " ", text)
@@ -54,16 +57,7 @@ async def _fetch_pricing_uncached() -> str:
 
 @tool
 async def fetch_langchain_pricing() -> str:
-    """ALWAYS use this tool for ANY question about LangChain pricing, plans, or trace limits.
-
-    DO NOT use docs search for pricing questions — it does not have current pricing data.
-
-    Triggers: "how many traces", "plus plan", "developer plan", "enterprise plan",
-    "how much does", "pricing", "cost", "seats", "quota", "pay-as-you-go", "fleet runs",
-    "upgrade", "billing", "what plan", "which plan".
-
-    Returns live pricing data directly from https://www.langchain.com/pricing.
-    """
+    """Fetch live plan tiers, seat prices, base trace quotas, invoices, pay-as-you-go rates, and Fleet run/deployment quotas from https://www.langchain.com/pricing; use documentation search and page reads for LangSmith cost/usage features, settings, or UI (model pricing maps/tables, cost tracking, custom model costs, usage views, LLM Gateway credits), both sources for mixed questions, and never guess current prices from memory or deny a feature without a current-turn docs search and reading relevant pages; do not deny documented features."""
     global _cached_text, _cached_at
 
     # Fast path: return cached text if it's still fresh. The lock here is
