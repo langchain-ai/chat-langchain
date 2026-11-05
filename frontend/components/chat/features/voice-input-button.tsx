@@ -1,25 +1,26 @@
-import { Button } from "@langchain/macaw-components/Button"
+import { IconButton } from "@langchain/macaw-components/IconButton"
+import { MicrophoneIcon } from "@phosphor-icons/react/dist/ssr/Microphone"
+import { StopIcon } from "@phosphor-icons/react/dist/ssr/Stop"
 
 interface VoiceInputButtonProps {
   isListening: boolean
   disabled?: boolean
   onClick: () => void
-  size?: "sm" | "md"
 }
 
-export function VoiceInputButton({ isListening, disabled, onClick, size = "sm" }: VoiceInputButtonProps) {
+export function VoiceInputButton({ isListening, disabled, onClick }: VoiceInputButtonProps) {
   return (
-    <Button
+    <IconButton
       type="button"
-      aria-label={isListening ? "Stop listening" : "Voice input"}
+      icon={isListening ? StopIcon : MicrophoneIcon}
+      iconWeight={isListening ? "fill" : "regular"}
+      label={isListening ? "Stop voice input" : "Start voice input"}
       aria-pressed={isListening}
       color={isListening ? "primary" : "secondary"}
-      variant={isListening ? "outlined" : "plain"}
-      size={size}
+      variant="plain"
+      size="sm"
       disabled={disabled}
       onClick={onClick}
-    >
-      {isListening ? "Stop listening" : "Voice"}
-    </Button>
+    />
   )
 }

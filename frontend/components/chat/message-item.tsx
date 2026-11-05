@@ -9,36 +9,32 @@ import { ChatState } from "@langchain/macaw-components/ChatState"
 import { ChatToolCall, ChatToolCallGroup, ChatToolCallReasoning } from "@langchain/macaw-components/ChatToolCall"
 import { Attachment, AttachmentList } from "@langchain/macaw-components/Attachment"
 import { Button } from "@langchain/macaw-components/Button"
-import { CodeLite } from "@langchain/macaw-components/Code/CodeLite"
+import { IconButton } from "@langchain/macaw-components/IconButton"
+import { CodeLite, type CodeLiteCodeProps } from "@langchain/macaw-components/Code/CodeLite"
+import { resolveCodeLanguage } from "@langchain/macaw-components/Code/codeLanguages"
 import { Link } from "@langchain/macaw-components/Link"
-import { Text } from "@langchain/macaw-components/Text"
 import { Textarea } from "@langchain/macaw-components/Textarea"
+import { ChatTextIcon } from "@phosphor-icons/react/dist/ssr/ChatText"
+import { ThumbsDownIcon } from "@phosphor-icons/react/dist/ssr/ThumbsDown"
+import { ThumbsUpIcon } from "@phosphor-icons/react/dist/ssr/ThumbsUp"
 import type { Message } from "@/lib/types"
 import { INPUT_TOO_LONG_MESSAGE, MAX_INPUT_CHARS } from "@/lib/constants/features"
 import { messageStatus, subgraphStatus, toolStatus } from "@/lib/utils/chat/presentation"
 
-function codeLanguage(language: string) {
-  if (["js", "jsx", "javascript", "ts", "tsx", "typescript"].includes(language)) return "typescript"
-  if (["py", "python"].includes(language)) return "python"
-  if (["sh", "bash", "shell", "zsh"].includes(language)) return "shell"
-  if (["yml", "yaml"].includes(language)) return "yaml"
-  if (language === "json") return "json"
-  return "plaintext"
+// CodeLite bundles TypeScript (a JavaScript superset), Python, shell, YAML, and JSON grammars.
+function codeLanguage(language: string): CodeLiteCodeProps["language"] {
+  const resolved = resolveCodeLanguage(language)
+  if (resolved === "javascript") return "typescript"
+  return resolved === "typescript" || resolved === "python" || resolved === "shell" || resolved === "yaml" || resolved === "json"
+    ? resolved
+    : "plaintext"
 }
 
-// Override the block wrapper so CodeLite never sits inside a native <pre>.
-// React keeps each Markdown node mounted as its streamed text changes.
+// Headings, paragraphs, lists, tables, and inline code are styled by `.prose`
+// in globals.css. Override the block wrapper so CodeLite never sits inside a
+// native <pre>. React keeps each Markdown node mounted as its streamed text changes.
 const markdownComponents: Components = {
   a: ({ href, children }) => href ? <Link href={href} target="_blank" rel="noopener noreferrer">{children}</Link> : <>{children}</>,
-  h1: ({ children }) => <Text as="h1" variant="h3" className="mb-3 mt-5">{children}</Text>,
-  h2: ({ children }) => <Text as="h2" variant="h4" className="mb-3 mt-5">{children}</Text>,
-  h3: ({ children }) => <Text as="h3" variant="h5" className="mb-2 mt-4">{children}</Text>,
-  p: ({ children }) => <Text as="p" variant="sm" className="mb-3 leading-relaxed last:mb-0">{children}</Text>,
-  ul: ({ children }) => <ul className="my-3 list-disc space-y-1 pl-5">{children}</ul>,
-  ol: ({ children }) => <ol className="my-3 list-decimal space-y-1 pl-5">{children}</ol>,
-  blockquote: ({ children }) => <blockquote className="my-3 border-l-2 border-subtle pl-4 text-secondary">{children}</blockquote>,
-  table: ({ children }) => <table className="my-3 border-collapse text-sm [&_td]:border [&_td]:border-subtle [&_td]:p-2 [&_th]:border [&_th]:border-subtle [&_th]:p-2 [&_th]:text-left">{children}</table>,
-  code: ({ children }) => <code className="rounded bg-surface-level-2 px-1 py-0.5 font-mono text-[0.9em]">{children}</code>,
   pre: ({ children }) => {
     const code = Children.toArray(children).find(isValidElement)
     const props = code?.props as { className?: string; children?: ReactNode } | undefined
@@ -175,10 +171,11 @@ export const MessageItem = memo(function MessageItem({
             edit: !isAssistant && onEditAndRerun && !isRegenerating ? { onClick: startEdit, label: "Edit and rerun" } : undefined,
             retry: isAssistant && isLastAssistant && !isRegenerating ? { onClick: onRegenerate, label: "Regenerate response" } : undefined,
           }}>
+            {/* Match ChatMessageActions' built-in xs icon actions. */}
             {hasFeedback && <>
-              <Button size="sm" variant="plain" color={message.feedback === "positive" ? "primary" : "secondary"} aria-pressed={message.feedback === "positive"} onClick={() => onFeedback(message.id, "positive", feedbackComment[message.id])}>Helpful</Button>
-              <Button size="sm" variant="plain" color={message.feedback === "negative" ? "primary" : "secondary"} aria-pressed={message.feedback === "negative"} onClick={() => onFeedback(message.id, "negative", feedbackComment[message.id])}>Not helpful</Button>
-              <Button size="sm" variant="plain" color="secondary" aria-expanded={showCommentInput === message.id} onClick={() => onToggleComment(message.id)}>Feedback</Button>
+              <IconButton icon={ThumbsUpIcon} label="Helpful" size="xs" variant="plain" color={message.feedback === "positive" ? "primary" : "secondary"} iconWeight={message.feedback === "positive" ? "fill" : "regular"} aria-pressed={message.feedback === "positive"} onClick={() => onFeedback(message.id, "positive", feedbackComment[message.id])} />
+              <IconButton icon={ThumbsDownIcon} label="Not helpful" size="xs" variant="plain" color={message.feedback === "negative" ? "primary" : "secondary"} iconWeight={message.feedback === "negative" ? "fill" : "regular"} aria-pressed={message.feedback === "negative"} onClick={() => onFeedback(message.id, "negative", feedbackComment[message.id])} />
+              <IconButton icon={ChatTextIcon} label="Add feedback comment" size="xs" variant="plain" color="secondary" iconWeight="regular" aria-expanded={showCommentInput === message.id} onClick={() => onToggleComment(message.id)} />
             </>}
           </ChatMessageActions>
           {isAssistant && <div className="flex flex-wrap items-center gap-2 text-xs text-secondary">

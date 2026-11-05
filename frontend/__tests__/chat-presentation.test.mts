@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { mergeToolCalls, messageStatus, settleInterruptedMessages, subgraphStatus, toolStatus } from "../lib/utils/chat/presentation.ts"
+import { failActiveRun, mergeToolCalls, messageStatus, settleInterruptedMessages, subgraphStatus, toolStatus } from "../lib/utils/chat/presentation.ts"
 import type { Message } from "../lib/types/messages.ts"
 
 const message: Message = { id: "reply-1", role: "assistant", content: "", timestamp: new Date(0) }
@@ -77,4 +77,23 @@ test("stop before the first stream event still produces a settled assistant mess
   assert.equal(result?.id, "new-reply")
   assert.equal(result?.status, "interrupted")
   assert.match(result?.content ?? "", /Response stopped/)
+})
+
+test("a failed run produces one failed reply that keeps partial content", () => {
+  const user: Message = { id: "user-1", role: "user", content: "Search the docs", timestamp: new Date(0) }
+  const pending: Message = { ...message, content: "Partial answer", status: "streaming", isThinking: true, thinkingStartTime: 100, toolCalls: [{ ...tool, status: "running" }] }
+  const result = failActiveRun([user, pending], pending.id, "Error: Search unavailable", 600)
+  assert.deepEqual(result.map((item) => item.id), ["user-1", "reply-1"])
+  assert.equal(result[1]?.status, "failed")
+  assert.equal(result[1]?.isThinking, false)
+  assert.equal(result[1]?.content, "Partial answer\n\nError: Search unavailable")
+  assert.equal(result[1]?.thinkingDuration, 500)
+  assert.equal(toolStatus(result[1]!.toolCalls![0]!, result[1]!), "canceled")
+})
+
+test("a run that fails before its first event appends a single failed reply", () => {
+  const [result] = failActiveRun([], "new-reply", "Error: Failed to connect to the agent", 100)
+  assert.equal(result?.id, "new-reply")
+  assert.equal(result?.status, "failed")
+  assert.equal(result?.content, "Error: Failed to connect to the agent")
 })

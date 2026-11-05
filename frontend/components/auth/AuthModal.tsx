@@ -165,7 +165,8 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
       >
         <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <Text as="label" variant="sm" weight="medium">Data region</Text>
+            {/* Macaw Select names its trigger with aria-label; a <label> here would have no control. */}
+            <Text as="span" variant="sm" weight="medium">Data region</Text>
             <Select<AuthRegion>
               aria-label="Data region"
               value={authRegion}

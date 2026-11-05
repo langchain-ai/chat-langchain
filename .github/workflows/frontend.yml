@@ -2,12 +2,12 @@ name: Frontend
 
 on:
   pull_request:
-    branches: [master, codex/macaw-migration-release]
+    branches: [master]
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
   push:
-    branches: [codex/macaw-migration-release]
+    branches: [master]
     paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"

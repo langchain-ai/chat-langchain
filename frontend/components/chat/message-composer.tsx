@@ -196,8 +196,9 @@ export function MessageComposer({
           {errors.map((error, index) => <ErrorMessage key={index} message={error} size="sm" />)}
         </div>
       )}
-      <div id={helpId} className="flex flex-wrap items-center justify-between gap-2 px-1">
-        <Text variant="xs" color="tertiary">
+      {/* Key hints only apply to hardware keyboards; the voice status still shows on touch screens. */}
+      <div id={helpId} className={`flex flex-wrap items-center justify-between gap-2 px-1${isVoiceListening ? "" : " max-sm:hidden"}`}>
+        <Text variant="xs" color="tertiary" className="max-sm:hidden">
           <Kbd>Enter</Kbd> {isLoading ? "to queue" : "to send"}
           <span className="mx-2">·</span>
           <Kbd>Shift Enter</Kbd> for a new line

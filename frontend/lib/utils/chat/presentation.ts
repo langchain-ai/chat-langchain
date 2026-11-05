@@ -65,3 +65,20 @@ export function settleInterruptedMessages(messages: Message[], assistantId: stri
     ? messages.map((message) => message.id === assistantId ? interrupted : message)
     : [...messages, interrupted]
 }
+
+/** One failed reply per run: the error lands on the in-progress reply when it exists. */
+export function failActiveRun(messages: Message[], assistantId: string, errorText: string, now = Date.now()): Message[] {
+  const pending = messages.find((message) => message.id === assistantId)
+  const failed: Message = {
+    ...(pending ?? { id: assistantId, role: "assistant", timestamp: new Date(now) }),
+    content: pending?.content ? `${pending.content}\n\n${errorText}` : errorText,
+    status: "failed",
+    isThinking: false,
+    thinkingDuration: pending?.thinkingDuration ?? (pending?.thinkingStartTime !== undefined
+      ? Math.max(0, now - pending.thinkingStartTime)
+      : undefined),
+  }
+  return pending
+    ? messages.map((message) => message.id === assistantId ? failed : message)
+    : [...messages, failed]
+}

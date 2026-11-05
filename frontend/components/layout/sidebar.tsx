@@ -1,7 +1,8 @@
 "use client"
 
-import { memo, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useEffect, useMemo, useRef, useState, type SVGProps } from "react"
 import { ArticleRegularIcon, ChatsFillIcon, SidebarSimpleRightRegularIcon, MagnifyingGlassRegularIcon, XIcon } from "@langchain/macaw-components/icons"
+import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash"
 import { Button } from "@langchain/macaw-components/Button"
 import { ChatConversationList, ChatConversationListGroup, ChatConversationListItem } from "@langchain/macaw-components/ChatConversationList"
 import { Dialog, DialogContent } from "@langchain/macaw-components/Dialog"
@@ -10,6 +11,7 @@ import { EmptyState } from "@langchain/macaw-components/EmptyState"
 import { IconButton } from "@langchain/macaw-components/IconButton"
 import { Input } from "@langchain/macaw-components/Input"
 import { Link } from "@langchain/macaw-components/Link"
+import { Logo } from "@langchain/macaw-components/Logo"
 import { Text } from "@langchain/macaw-components/Text"
 import type { Thread } from "@/lib/hooks/threads"
 
@@ -23,6 +25,11 @@ interface SidebarProps {
   isLoading?: boolean
   mobileOpen?: boolean
   onMobileOpenChange?: (open: boolean) => void
+}
+
+// Link decorators receive icon props; the logomark inherits Link's size and color.
+function LangSmithMark({ className }: SVGProps<SVGSVGElement>) {
+  return <Logo brand="langsmith" variant="logomark" className={className} />
 }
 
 function groupThreads(threads: Thread[]) {
@@ -112,7 +119,7 @@ export const Sidebar = memo(function Sidebar({
                       onSelectThread(thread.thread_id)
                       if (mobile) onMobileOpenChange?.(false)
                     }}
-                    actions={{ items: <DropdownMenuItem onSelect={() => setPendingDelete(thread)} className="text-error-primary"><XIcon className="mr-2 size-4" aria-hidden="true" />Delete conversation</DropdownMenuItem> }}
+                    actions={{ items: <DropdownMenuItem onSelect={() => setPendingDelete(thread)} className="text-error-primary"><TrashIcon className="mr-2 size-4" aria-hidden="true" />Delete conversation</DropdownMenuItem> }}
                   />
                 ))}
               </ChatConversationListGroup>
@@ -121,7 +128,7 @@ export const Sidebar = memo(function Sidebar({
         )}
       </nav>
       <div className="flex flex-col gap-3 border-t border-subtle p-4">
-        <Link href="https://smith.langchain.com" target="_blank" rel="noopener noreferrer" variant="sm">LangSmith</Link>
+        <Link href="https://smith.langchain.com" target="_blank" rel="noopener noreferrer" leftDecorator={LangSmithMark} variant="sm">LangSmith</Link>
         <Link href="https://forum.langchain.com/" target="_blank" rel="noopener noreferrer" leftDecorator={ChatsFillIcon} variant="sm">Community forum</Link>
         <Link href="https://docs.langchain.com/oss/python/langchain/overview" target="_blank" rel="noopener noreferrer" leftDecorator={ArticleRegularIcon} variant="sm">Documentation</Link>
       </div>

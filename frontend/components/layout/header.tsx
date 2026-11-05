@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { InfoRegularIcon, SignOutRegularIcon, SidebarSimpleRightRegularIcon, PlusIcon } from "@langchain/macaw-components/icons"
+import { SignOutRegularIcon, SidebarSimpleRightRegularIcon, PlusIcon } from "@langchain/macaw-components/icons"
+import { KeyboardIcon } from "@phosphor-icons/react/dist/ssr/Keyboard"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { AuthModal } from "@/components/auth/AuthModal"
@@ -89,7 +90,7 @@ export function Header({ onNewChat, onOpenSidebar, onOpenShortcuts, showInitialA
           />
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {onOpenShortcuts && <IconButton icon={InfoRegularIcon} label="Keyboard shortcuts" variant="plain" onClick={onOpenShortcuts} className="hidden sm:inline-flex" />}
+          {onOpenShortcuts && <IconButton icon={KeyboardIcon} iconWeight="regular" label="Keyboard shortcuts" variant="plain" onClick={onOpenShortcuts} className="hidden sm:inline-flex" />}
           {!loading && !user && <Button variant="outlined" onClick={() => setShowAuthModal(true)}>Sign in</Button>}
           {!loading && user && <UserAccountMenu name={user.user_metadata?.full_name || user.email || "User"} email={user.email || ""} image={user.user_metadata?.avatar_url} onSignOut={handleSignOut} />}
           <Button leftDecorator={PlusIcon} onClick={onNewChat} className="hidden sm:inline-flex">New chat</Button>

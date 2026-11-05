@@ -8,7 +8,7 @@ import { readRun, shareRun, type LangSmithAuth } from "@/lib/api/langsmith"
 import type { Message, ImageAttachment } from "@/lib/types"
 import { createUserMessage, generateMessageId } from "@/lib/utils/chat"
 import { restoreThreadMessages } from "@/lib/utils/chat/history"
-import { settleInterruptedMessages } from "@/lib/utils/chat/presentation"
+import { failActiveRun, settleInterruptedMessages } from "@/lib/utils/chat/presentation"
 import { claimInitialPrompt, getAttachedTextLength, limitComposerInput } from "@/lib/utils/chat/composer-state"
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
@@ -581,17 +581,13 @@ export function ChatInterface({
         return
       }
       console.error("Error streaming from LangGraph:", error)
-      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to connect to the agent"}`)
-      errorMessage.role = "assistant"
-      errorMessage.status = "failed"
-      const failedId = activeRunRef.current?.assistantMessageId
-      setMessages((prev) => [...prev.map(message => message.id === failedId
-        ? { ...message, status: "failed" as const, isThinking: false }
-        : message), errorMessage])
+      const errorText = `Error: ${error instanceof Error ? error.message : "Failed to connect to the agent"}`
+      const failedId = activeRunRef.current?.assistantMessageId ?? generateMessageId()
+      setMessages((prev) => failActiveRun(prev, failedId, errorText))
 
       if (onThreadUpdate) {
         const messageCount = messages.length + 2
-        onThreadUpdate(threadId, customTitle || truncate(userMessage.content, 60) || "New conversation", truncate(errorMessage.content, 100), undefined, messageCount)
+        onThreadUpdate(threadId, customTitle || truncate(userMessage.content, 60) || "New conversation", truncate(errorText, 100), undefined, messageCount)
       }
     } finally {
       activeRunRef.current = null
@@ -780,13 +776,9 @@ export function ChatInterface({
         return
       }
       console.error("Error regenerating:", error)
-      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to regenerate response"}`)
-      errorMessage.role = "assistant"
-      errorMessage.status = "failed"
-      const failedId = activeRunRef.current?.assistantMessageId
-      setMessages((prev) => [...prev.map(message => message.id === failedId
-        ? { ...message, status: "failed" as const, isThinking: false }
-        : message), errorMessage])
+      const errorText = `Error: ${error instanceof Error ? error.message : "Failed to regenerate response"}`
+      const failedId = activeRunRef.current?.assistantMessageId ?? generateMessageId()
+      setMessages((prev) => failActiveRun(prev, failedId, errorText))
     } finally {
       activeRunRef.current = null
       uiDispatch({ type: 'FINISH_REGENERATE' })
@@ -830,13 +822,9 @@ export function ChatInterface({
         return
       }
       console.error("Error rerunning from edit:", error)
-      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to rerun from edit"}`)
-      errorMessage.role = "assistant"
-      errorMessage.status = "failed"
-      const failedId = activeRunRef.current?.assistantMessageId
-      setMessages((prev) => [...prev.map(message => message.id === failedId
-        ? { ...message, status: "failed" as const, isThinking: false }
-        : message), errorMessage])
+      const errorText = `Error: ${error instanceof Error ? error.message : "Failed to rerun from edit"}`
+      const failedId = activeRunRef.current?.assistantMessageId ?? generateMessageId()
+      setMessages((prev) => failActiveRun(prev, failedId, errorText))
     } finally {
       activeRunRef.current = null
       uiDispatch({ type: 'SET_LOADING', payload: false })
