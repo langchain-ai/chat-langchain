@@ -62,10 +62,18 @@ MODELS: dict[str, ModelConfig] = {
         api_key_env="GOOGLE_API_KEY",
         description="Fastest, most cost-effective Gemini",
     ),
+    # Fireworks
+    "kimi-k3p1-pro": ModelConfig(
+        id="fireworks:accounts/fireworks/models/kimi-k3p1-pro",
+        name="Kimi K3.1 Pro",
+        provider="fireworks",
+        api_key_env="FIREWORKS_API_KEY",
+        description="Moonshot Kimi K3.1 Pro on Fireworks",
+    ),
 }
 
 # Default models for different use cases
-DEFAULT_MODEL = MODELS["gemini-3.5-flash-lite"]
+DEFAULT_MODEL = MODELS["kimi-k3p1-pro"]
 GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
 
 # Fallback chain (in order of preference)
@@ -82,6 +90,7 @@ API_KEYS = [
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "GOOGLE_API_KEY",
+    "FIREWORKS_API_KEY",
 ]
 
 for key in API_KEYS:
