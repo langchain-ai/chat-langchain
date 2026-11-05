@@ -14,34 +14,45 @@ export type ChatUIAction =
   | { type: "SET_COPIED_ID"; payload: string | null }
   | { type: "SET_LOADING"; payload: boolean }
   | { type: "SET_LOADING_THREAD"; payload: boolean }
-  | { type: "SET_REGENERATING"; payload: boolean }
   | { type: "SET_STOPPING"; payload: boolean }
   | { type: "SET_AUTO_SENT"; payload: boolean }
   | { type: "SET_ERROR"; payload: string | null }
-  | { type: "RESET_INPUT" }
   | { type: "START_SEND" }
   | { type: "FINISH_SEND" }
   | { type: "START_REGENERATE" }
   | { type: "FINISH_REGENERATE" }
 
-export function chatUIReducer(state: ChatUIState, action: ChatUIAction): ChatUIState {
+export function chatUIReducer(
+  state: ChatUIState,
+  action: ChatUIAction
+): ChatUIState {
   switch (action.type) {
-    case "SET_INPUT": return { ...state, input: action.payload }
-    case "SET_COPIED_ID": return { ...state, copiedId: action.payload }
-    case "SET_LOADING": return { ...state, isLoading: action.payload }
-    case "SET_LOADING_THREAD": return { ...state, isLoadingThread: action.payload }
-    case "SET_REGENERATING": return { ...state, isRegenerating: action.payload }
-    case "SET_STOPPING": return { ...state, isStopping: action.payload }
-    case "SET_AUTO_SENT": return { ...state, hasAutoSent: action.payload }
-    case "SET_ERROR": return { ...state, errorMessage: action.payload }
-    case "RESET_INPUT": return { ...state, input: "" }
+    case "SET_INPUT":
+      return { ...state, input: action.payload }
+    case "SET_COPIED_ID":
+      return { ...state, copiedId: action.payload }
+    case "SET_LOADING":
+      return { ...state, isLoading: action.payload }
+    case "SET_LOADING_THREAD":
+      return { ...state, isLoadingThread: action.payload }
+    case "SET_STOPPING":
+      return { ...state, isStopping: action.payload }
+    case "SET_AUTO_SENT":
+      return { ...state, hasAutoSent: action.payload }
+    case "SET_ERROR":
+      return { ...state, errorMessage: action.payload }
     // Sending the current draft clears it in handleSend. Starting a queued run or
     // an initial URL prompt must preserve a different draft being composed.
-    case "START_SEND": return { ...state, isLoading: true }
-    case "FINISH_SEND": return { ...state, isLoading: false, isStopping: false }
-    case "START_REGENERATE": return { ...state, isRegenerating: true }
-    case "FINISH_REGENERATE": return { ...state, isRegenerating: false, isStopping: false }
-    default: return state
+    case "START_SEND":
+      return { ...state, isLoading: true }
+    case "FINISH_SEND":
+      return { ...state, isLoading: false, isStopping: false }
+    case "START_REGENERATE":
+      return { ...state, isRegenerating: true }
+    case "FINISH_REGENERATE":
+      return { ...state, isRegenerating: false, isStopping: false }
+    default:
+      return state
   }
 }
 
@@ -50,22 +61,42 @@ interface TextAttachment {
   textLength?: number
 }
 
-export function getAttachmentMimeType(file: { type: string; name: string }): string {
+export function getAttachmentMimeType(file: {
+  type: string
+  name: string
+}): string {
   if (file.type && file.type !== "application/octet-stream") return file.type
   const extension = file.name.split(".").pop()?.toLowerCase()
   const imageTypes: Record<string, string> = {
-    jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+    webp: "image/webp",
   }
   return (extension && imageTypes[extension]) || file.type || "text/plain"
 }
 
-export function getAttachedTextLength(files: readonly TextAttachment[]): number {
-  return files.reduce((total, file) => total + (file.mimeType.startsWith("image/") ? 0 : (file.textLength ?? 0)), 0)
+export function getAttachedTextLength(
+  files: readonly TextAttachment[]
+): number {
+  return files.reduce(
+    (total, file) =>
+      total + (file.mimeType.startsWith("image/") ? 0 : (file.textLength ?? 0)),
+    0
+  )
 }
 
-export function limitComposerInput(value: string, attachedTextLength: number, maxLength: number) {
+export function limitComposerInput(
+  value: string,
+  attachedTextLength: number,
+  maxLength: number
+) {
   const remaining = Math.max(0, maxLength - attachedTextLength)
-  return { value: value.slice(0, remaining), overLimit: value.length > remaining }
+  return {
+    value: value.slice(0, remaining),
+    overLimit: value.length > remaining,
+  }
 }
 
 /** Recheck after asynchronous conversion using the current draft and attachments. */
@@ -73,9 +104,15 @@ export function appendWithinInputBudget<T extends TextAttachment>(
   files: readonly T[],
   nextFile: T,
   inputLength: number,
-  maxLength: number,
+  maxLength: number
 ): T[] | null {
-  if (inputLength + getAttachedTextLength(files) + getAttachedTextLength([nextFile]) > maxLength) return null
+  if (
+    inputLength +
+      getAttachedTextLength(files) +
+      getAttachedTextLength([nextFile]) >
+    maxLength
+  )
+    return null
   return [...files, nextFile]
 }
 
@@ -84,7 +121,7 @@ export function claimInitialPrompt(
   claimedThreads: Set<string>,
   threadId: string,
   initialMessage: string | null | undefined,
-  ready: boolean,
+  ready: boolean
 ): string | null {
   const prompt = initialMessage?.trim()
   if (!ready || !prompt || claimedThreads.has(threadId)) return null

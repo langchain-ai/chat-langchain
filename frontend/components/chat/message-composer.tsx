@@ -15,7 +15,8 @@ import { Kbd } from "@langchain/macaw-components/Kbd"
 import { Text } from "@langchain/macaw-components/Text"
 import { PlusIcon } from "@langchain/macaw-components/icons"
 import { FilePreviewGrid } from "./features/file-preview-grid"
-import { VoiceInputButton } from "./features/voice-input-button"
+import { MicrophoneIcon } from "@phosphor-icons/react/dist/ssr/Microphone"
+import { StopIcon } from "@phosphor-icons/react/dist/ssr/Stop"
 import type { ImageAttachment } from "@/lib/types"
 
 export interface MessageComposerProps {
@@ -46,7 +47,8 @@ export interface MessageComposerProps {
   queuedMessages?: { content: string; id: string }[]
 }
 
-const acceptedFiles = "image/*,.py,.js,.ts,.tsx,.jsx,.java,.cpp,.c,.h,.cs,.go,.rs,.rb,.php,.sh,.bash,.yaml,.yml,.json,.xml,.html,.css,.md,.txt,.log,.sql,.graphql,.r,.swift,.kt,.scala,.har"
+const acceptedFiles =
+  "image/*,.py,.js,.ts,.tsx,.jsx,.java,.cpp,.c,.h,.cs,.go,.rs,.rb,.php,.sh,.bash,.yaml,.yml,.json,.xml,.html,.css,.md,.txt,.log,.sql,.graphql,.r,.swift,.kt,.scala,.har"
 
 /** Translate app-owned draft, upload, speech, and queue state into Macaw slots. */
 export function MessageComposer({
@@ -82,7 +84,8 @@ export function MessageComposer({
   const errorId = useId()
   const errors = [uploadError, voiceError, inputError].filter(Boolean)
   const disabled = !userId
-  const canSend = !disabled && (input.trim().length > 0 || attachedFiles.length > 0)
+  const canSend =
+    !disabled && (input.trim().length > 0 || attachedFiles.length > 0)
 
   return (
     <div className="space-y-2">
@@ -112,23 +115,44 @@ export function MessageComposer({
         onClick={(event) => {
           // Focus only blank composer space; leave editor selections and controls alone.
           const target = event.target as HTMLElement
-          if (!disabled && !target.closest("button, input, textarea, a, [contenteditable], [role='textbox']")) {
+          if (
+            !disabled &&
+            !target.closest(
+              "button, input, textarea, a, [contenteditable], [role='textbox']"
+            )
+          ) {
             inputRef.current?.focus()
           }
         }}
-        drawer={queuedMessages.length > 0 ? (
-          <div className="space-y-1 p-3" aria-live="polite" aria-label="Queued messages">
-            {queuedMessages.map((message) => (
-              <div key={message.id} className="flex min-w-0 items-center gap-2">
-                <Text as="span" variant="xs" color="secondary">Queued</Text>
-                <Text as="span" variant="sm" className="truncate">{message.content}</Text>
-              </div>
-            ))}
-          </div>
-        ) : undefined}
+        drawer={
+          queuedMessages.length > 0 ? (
+            <div
+              className="space-y-1 p-3"
+              aria-live="polite"
+              aria-label="Queued messages"
+            >
+              {queuedMessages.map((message) => (
+                <div
+                  key={message.id}
+                  className="flex min-w-0 items-center gap-2"
+                >
+                  <Text as="span" variant="xs" color="secondary">
+                    Queued
+                  </Text>
+                  <Text as="span" variant="sm" className="truncate">
+                    {message.content}
+                  </Text>
+                </div>
+              ))}
+            </div>
+          ) : undefined
+        }
       >
         {isDragging && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl border border-focus bg-surface-level-2/95" role="status">
+          <div
+            className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl border border-focus bg-surface-level-2/95"
+            role="status"
+          >
             <Text weight="medium">Drop files here</Text>
           </div>
         )}
@@ -138,14 +162,20 @@ export function MessageComposer({
           ref={inputRef}
           value={input}
           onChange={onInputChange}
-          placeholder={disabled ? "Initializing…" : isLoading ? "Type your next message…" : "Ask about LangChain…"}
+          placeholder={
+            disabled
+              ? "Initializing…"
+              : isLoading
+                ? "Type your next message…"
+                : "Ask about LangChain…"
+          }
           aria-label="Message"
           aria-describedby={`${helpId}${errors.length ? ` ${errorId}` : ""}`}
           minHeight={64}
           maxHeight={240}
         />
         <ChatComposerToolbar
-          actions={(
+          actions={
             <>
               {isLoading && (
                 <Button
@@ -154,14 +184,18 @@ export function MessageComposer({
                   variant="outlined"
                   onClick={onStop}
                   disabled={isStopping}
-                  aria-label={isStopping ? "Stopping response" : "Stop response"}
+                  aria-label={
+                    isStopping ? "Stopping response" : "Stop response"
+                  }
                 >
                   {isStopping ? "Stopping…" : "Stop"}
                 </Button>
               )}
-              <ChatComposerAction label={isLoading ? "Queue message" : "Send message"} />
+              <ChatComposerAction
+                label={isLoading ? "Queue message" : "Send message"}
+              />
             </>
-          )}
+          }
         >
           <input
             ref={fileInputRef}
@@ -183,27 +217,45 @@ export function MessageComposer({
             disabled={disabled || isLoading}
           />
           {isVoiceSupported && onVoiceToggle && (
-            <VoiceInputButton
-              isListening={isVoiceListening}
-              onClick={onVoiceToggle}
+            <IconButton
+              type="button"
+              icon={isVoiceListening ? StopIcon : MicrophoneIcon}
+              iconWeight={isVoiceListening ? "fill" : "regular"}
+              label={
+                isVoiceListening ? "Stop voice input" : "Start voice input"
+              }
+              aria-pressed={isVoiceListening}
+              color={isVoiceListening ? "primary" : "secondary"}
+              variant="plain"
+              size="sm"
               disabled={disabled}
+              onClick={onVoiceToggle}
             />
           )}
         </ChatComposerToolbar>
       </ChatComposer>
       {errors.length > 0 && (
         <div id={errorId} role="alert" className="space-y-1">
-          {errors.map((error, index) => <ErrorMessage key={index} message={error} size="sm" />)}
+          {errors.map((error, index) => (
+            <ErrorMessage key={index} message={error} size="sm" />
+          ))}
         </div>
       )}
       {/* Key hints only apply to hardware keyboards; the voice status still shows on touch screens. */}
-      <div id={helpId} className={`flex flex-wrap items-center justify-between gap-2 px-1${isVoiceListening ? "" : " max-sm:hidden"}`}>
+      <div
+        id={helpId}
+        className={`flex flex-wrap items-center justify-between gap-2 px-1${isVoiceListening ? "" : " max-sm:hidden"}`}
+      >
         <Text variant="xs" color="tertiary" className="max-sm:hidden">
           <Kbd>Enter</Kbd> {isLoading ? "to queue" : "to send"}
           <span className="mx-2">·</span>
           <Kbd>Shift Enter</Kbd> for a new line
         </Text>
-        {isVoiceListening && <Text variant="xs" color="secondary" role="status">Listening…</Text>}
+        {isVoiceListening && (
+          <Text variant="xs" color="secondary" role="status">
+            Listening…
+          </Text>
+        )}
       </div>
     </div>
   )

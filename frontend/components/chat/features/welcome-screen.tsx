@@ -19,14 +19,20 @@ export function WelcomeScreen(props: MessageComposerProps) {
         <div className="flex flex-col items-center gap-4 text-center">
           <Logo brand="langchain" variant="logomark" size="xl" />
           <div className="space-y-2">
-            <Text as="h1" variant="h1">What can I help with?</Text>
+            <Text as="h1" variant="h1">
+              What can I help with?
+            </Text>
             <Text color="secondary">
               Build with LangChain, LangGraph, and LangSmith.
             </Text>
           </div>
         </div>
         <MessageComposer {...props} />
-        <div role="group" className="flex flex-wrap justify-center gap-2" aria-label="Suggested questions">
+        <div
+          role="group"
+          className="flex flex-wrap justify-center gap-2"
+          aria-label="Suggested questions"
+        >
           {suggestions.map((suggestion) => (
             <Button
               key={suggestion}

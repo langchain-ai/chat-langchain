@@ -384,7 +384,7 @@ export function ChatInterface({
               ])
             )
 
-            return convertedMessages.map((msg, idx) => {
+            return convertedMessages.map((msg) => {
               // Try to find existing metadata by ID first, then by runId, then by content
               const existingByIdMatch = existingById.get(msg.id)
               const existingByRunIdMatch = msg.runId ? existingByRunId.get(msg.runId) : undefined

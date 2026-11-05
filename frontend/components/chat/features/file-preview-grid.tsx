@@ -1,4 +1,7 @@
-import { ChatComposerAttachment, ChatComposerAttachments } from "@langchain/macaw-components/ChatComposer"
+import {
+  ChatComposerAttachment,
+  ChatComposerAttachments,
+} from "@langchain/macaw-components/ChatComposer"
 import type { ImageAttachment } from "@/lib/types"
 
 interface FilePreviewGridProps {
@@ -13,7 +16,11 @@ export function FilePreviewGrid({ files, onRemove }: FilePreviewGridProps) {
     <ChatComposerAttachments aria-label="Attached files" layout="wrap">
       {files.map((file) => {
         const name = file.name || "Attachment"
-        const imageSource = file.url || (file.base64 ? `data:${file.mimeType};base64,${file.base64}` : undefined)
+        const imageSource =
+          file.url ||
+          (file.base64
+            ? `data:${file.mimeType};base64,${file.base64}`
+            : undefined)
         const isImage = file.mimeType.startsWith("image/") && imageSource
 
         return (
@@ -22,8 +29,20 @@ export function FilePreviewGrid({ files, onRemove }: FilePreviewGridProps) {
             name={name}
             contentType={file.mimeType}
             variant={isImage ? "thumbnail" : "file"}
-            preview={isImage ? <img src={imageSource} alt={name} className="h-full w-full object-cover" /> : undefined}
-            metadata={file.size ? `${Math.max(1, Math.round(file.size / 1024))} KB` : undefined}
+            preview={
+              isImage ? (
+                <img
+                  src={imageSource}
+                  alt={name}
+                  className="h-full w-full object-cover"
+                />
+              ) : undefined
+            }
+            metadata={
+              file.size
+                ? `${Math.max(1, Math.round(file.size / 1024))} KB`
+                : undefined
+            }
             onRemove={() => onRemove(file.id)}
           />
         )

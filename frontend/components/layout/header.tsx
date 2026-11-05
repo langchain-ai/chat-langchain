@@ -1,7 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { SignOutRegularIcon, SidebarSimpleRightRegularIcon, PlusIcon } from "@langchain/macaw-components/icons"
+import {
+  SignOutRegularIcon,
+  SidebarSimpleRightRegularIcon,
+  PlusIcon,
+} from "@langchain/macaw-components/icons"
 import { KeyboardIcon } from "@phosphor-icons/react/dist/ssr/Keyboard"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
@@ -29,7 +33,12 @@ interface HeaderProps {
   showInitialAuthPrompt?: boolean
 }
 
-export function Header({ onNewChat, onOpenSidebar, onOpenShortcuts, showInitialAuthPrompt = true }: HeaderProps) {
+export function Header({
+  onNewChat,
+  onOpenSidebar,
+  onOpenShortcuts,
+  showInitialAuthPrompt = true,
+}: HeaderProps) {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const { user, loading, signOut } = useAuth()
@@ -49,7 +58,9 @@ export function Header({ onNewChat, onOpenSidebar, onOpenShortcuts, showInitialA
     if (!error) return
 
     const lastProvider =
-      typeof window === "undefined" ? null : localStorage.getItem("lastAuthProvider")
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("lastAuthProvider")
     const githubConflictMessage =
       "We couldn't sign you in with GitHub. This can happen when the same GitHub account is connected to multiple LangSmith accounts with different emails. Please sign in with email/password or another provider."
 
@@ -79,7 +90,15 @@ export function Header({ onNewChat, onOpenSidebar, onOpenShortcuts, showInitialA
     <>
       <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-subtle bg-background px-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
-          {onOpenSidebar && <IconButton icon={SidebarSimpleRightRegularIcon} label="Open conversation history" variant="plain" onClick={onOpenSidebar} className="md:hidden" />}
+          {onOpenSidebar && (
+            <IconButton
+              icon={SidebarSimpleRightRegularIcon}
+              label="Open conversation history"
+              variant="plain"
+              onClick={onOpenSidebar}
+              className="md:hidden"
+            />
+          )}
           <Image
             src="/assets/images/ChatLangChain-logo.svg"
             alt="Chat LangChain"
@@ -90,11 +109,42 @@ export function Header({ onNewChat, onOpenSidebar, onOpenShortcuts, showInitialA
           />
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {onOpenShortcuts && <IconButton icon={KeyboardIcon} iconWeight="regular" label="Keyboard shortcuts" variant="plain" onClick={onOpenShortcuts} className="hidden sm:inline-flex" />}
-          {!loading && !user && <Button variant="outlined" onClick={() => setShowAuthModal(true)}>Sign in</Button>}
-          {!loading && user && <UserAccountMenu name={user.user_metadata?.full_name || user.email || "User"} email={user.email || ""} image={user.user_metadata?.avatar_url} onSignOut={handleSignOut} />}
-          <Button leftDecorator={PlusIcon} onClick={onNewChat} className="hidden sm:inline-flex">New chat</Button>
-          <IconButton icon={PlusIcon} label="New chat" onClick={onNewChat} className="sm:hidden" />
+          {onOpenShortcuts && (
+            <IconButton
+              icon={KeyboardIcon}
+              iconWeight="regular"
+              label="Keyboard shortcuts"
+              variant="plain"
+              onClick={onOpenShortcuts}
+              className="hidden sm:inline-flex"
+            />
+          )}
+          {!loading && !user && (
+            <Button variant="outlined" onClick={() => setShowAuthModal(true)}>
+              Sign in
+            </Button>
+          )}
+          {!loading && user && (
+            <UserAccountMenu
+              name={user.user_metadata?.full_name || user.email || "User"}
+              email={user.email || ""}
+              image={user.user_metadata?.avatar_url}
+              onSignOut={handleSignOut}
+            />
+          )}
+          <Button
+            leftDecorator={PlusIcon}
+            onClick={onNewChat}
+            className="hidden sm:inline-flex"
+          >
+            New chat
+          </Button>
+          <IconButton
+            icon={PlusIcon}
+            label="New chat"
+            onClick={onNewChat}
+            className="sm:hidden"
+          />
         </div>
       </header>
       <AuthModal
@@ -127,8 +177,12 @@ function UserAccountMenu({
       <DropdownMenuContent className="w-64" align="end">
         <DropdownMenuLabel>
           <div className="flex min-w-0 flex-col gap-1">
-            <Text variant="sm" weight="medium" className="truncate">{name}</Text>
-            <Text variant="xs" color="tertiary" className="truncate">{email}</Text>
+            <Text variant="sm" weight="medium" className="truncate">
+              {name}
+            </Text>
+            <Text variant="xs" color="tertiary" className="truncate">
+              {email}
+            </Text>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
