@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { mergeToolCalls, messageStatus, subgraphStatus, toolStatus } from "../lib/utils/chat/presentation.ts"
+import { mergeToolCalls, messageStatus, settleInterruptedMessages, subgraphStatus, toolStatus } from "../lib/utils/chat/presentation.ts"
 import type { Message } from "../lib/types/messages.ts"
 
 const message: Message = { id: "reply-1", role: "assistant", content: "", timestamp: new Date(0) }
@@ -39,4 +39,42 @@ test("repeated tool-call events preserve results, stable IDs, and execution orde
   assert.equal(next[0]?.status, "succeeded")
   assert.equal(next[1]?.status, "running")
   assert.notEqual(next[0], completed)
+})
+
+test("a transport rejection after stop settles the active reply and preserves partial results", () => {
+  const pending: Message = {
+    ...message,
+    content: "Here is the partial answer",
+    status: "streaming",
+    isThinking: true,
+    thinkingStartTime: 100,
+    toolCalls: [
+      { ...tool, status: "succeeded", output: false },
+      { ...tool, id: "running", status: "running", output: "Partial output" },
+      { ...tool, id: "failed", status: "failed", error: "Search unavailable" },
+      { ...tool, id: "canceled", status: "canceled" },
+    ],
+    subgraphOutputs: [
+      { name: "research", output: "Partial research", timestamp: 1, isStreaming: true },
+      { name: "completed", output: "Complete research", timestamp: 2, isComplete: true },
+    ],
+  }
+  const [result] = settleInterruptedMessages([pending], pending.id, 600)
+  assert.equal(result?.content, pending.content)
+  assert.equal(result?.status, "interrupted")
+  assert.equal(result?.isThinking, false)
+  assert.equal(result?.wasInterrupted, true)
+  assert.equal(result?.thinkingDuration, 500)
+  assert.deepEqual(result?.toolCalls?.map((call) => call.status), ["succeeded", "canceled", "failed", "canceled"])
+  assert.equal(result?.toolCalls?.[1]?.output, "Partial output")
+  assert.deepEqual(result?.subgraphOutputs?.map((subgraph) => subgraph.status), ["canceled", "succeeded"])
+  assert.equal(result?.subgraphOutputs?.[0]?.isStreaming, false)
+  assert.equal(pending.isThinking, true)
+})
+
+test("stop before the first stream event still produces a settled assistant message", () => {
+  const [result] = settleInterruptedMessages([], "new-reply", 100)
+  assert.equal(result?.id, "new-reply")
+  assert.equal(result?.status, "interrupted")
+  assert.match(result?.content ?? "", /Response stopped/)
 })

@@ -8,6 +8,7 @@ import { readRun, shareRun, type LangSmithAuth } from "@/lib/api/langsmith"
 import type { Message, ImageAttachment } from "@/lib/types"
 import { createUserMessage, generateMessageId } from "@/lib/utils/chat"
 import { restoreThreadMessages } from "@/lib/utils/chat/history"
+import { settleInterruptedMessages } from "@/lib/utils/chat/presentation"
 import { claimInitialPrompt, getAttachedTextLength, limitComposerInput } from "@/lib/utils/chat/composer-state"
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
@@ -575,6 +576,8 @@ export function ChatInterface({
       }
     } catch (error) {
       if (activeRunRef.current?.cancelRequested) {
+        const interruptedId = activeRunRef.current.assistantMessageId
+        setMessages((previous) => settleInterruptedMessages(previous, interruptedId))
         return
       }
       console.error("Error streaming from LangGraph:", error)
@@ -772,6 +775,8 @@ export function ChatInterface({
       }
     } catch (error) {
       if (activeRunRef.current?.cancelRequested) {
+        const interruptedId = activeRunRef.current.assistantMessageId
+        setMessages((previous) => settleInterruptedMessages(previous, interruptedId))
         return
       }
       console.error("Error regenerating:", error)
@@ -820,6 +825,8 @@ export function ChatInterface({
       }
     } catch (error) {
       if (activeRunRef.current?.cancelRequested) {
+        const interruptedId = activeRunRef.current.assistantMessageId
+        setMessages((previous) => settleInterruptedMessages(previous, interruptedId))
         return
       }
       console.error("Error rerunning from edit:", error)

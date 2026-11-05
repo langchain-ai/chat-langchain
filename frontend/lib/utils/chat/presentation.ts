@@ -36,3 +36,32 @@ export function mergeToolCalls(current: ToolCall[], incoming: ToolCall[]): ToolC
   }
   return next
 }
+
+/** A canceled transport can reject before the stream's normal completion path. */
+export function settleInterruptedMessages(messages: Message[], assistantId: string, now = Date.now()): Message[] {
+  const pending = messages.find((message) => message.id === assistantId)
+  const interrupted: Message = {
+    ...(pending ?? { id: assistantId, role: "assistant", timestamp: new Date(now) }),
+    content: pending?.content || "Response stopped. The agent was interrupted while processing your request.",
+    status: "interrupted",
+    wasInterrupted: true,
+    isThinking: false,
+    thinkingDuration: pending?.thinkingDuration ?? (pending?.thinkingStartTime !== undefined
+      ? Math.max(0, now - pending.thinkingStartTime)
+      : undefined),
+    toolCalls: pending?.toolCalls?.map((tool) => {
+      const settled = tool.status === "succeeded" || tool.status === "failed" || tool.status === "canceled"
+      return { ...tool, status: settled ? tool.status : "canceled" }
+    }),
+    subgraphOutputs: pending?.subgraphOutputs?.map((subgraph) => ({
+      ...subgraph,
+      isStreaming: false,
+      status: subgraph.status === "succeeded" || subgraph.status === "failed" || subgraph.status === "canceled"
+        ? subgraph.status
+        : subgraph.isComplete ? "succeeded" : "canceled",
+    })),
+  }
+  return pending
+    ? messages.map((message) => message.id === assistantId ? interrupted : message)
+    : [...messages, interrupted]
+}
