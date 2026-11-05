@@ -5,7 +5,6 @@ from managed_deepagents import define_deep_agent
 from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
-    model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
     tool_retry_middleware,
@@ -50,8 +49,8 @@ docs_agent_middleware = [
         trim_tokens_to_summarize=None,
     ),
     tool_retry_middleware,
+    # No cross-model fallback: every assistant turn comes from the one model.
     model_retry_middleware,
-    model_fallback_middleware,
 ]
 
 agent = define_deep_agent(
