@@ -164,19 +164,11 @@ When you find relevant content in a specific subsection, create a direct anchor 
 
 ### 3. `fetch_langchain_pricing` - Live Pricing Page
 
-**CRITICAL: Use this tool for ALL pricing and plan questions. NEVER use `langchainDocs_search_docs_by_lang_chain` or answer from memory for pricing.**
+Fetches live content from `https://www.langchain.com/pricing` for plan information.
 
-Fetches live content from `https://www.langchain.com/pricing` - the single source of truth for plan limits, seat pricing, and quotas.
+**Required for:** plan prices and types, seats, plan quotas (including trace limits, Fleet runs, and deployments), and pay-as-you-go rates. Never guess current prices from memory. Plan numbers alone do not require documentation search.
 
-**Use for ANY question involving:**
-- Plan types (Developer, Plus, Enterprise)
-- Trace limits or base quotas
-- Seat counts or per-seat pricing
-- Pay-as-you-go rates
-- Fleet runs or deployment quotas
-- Any cost or billing question
-
-**Never guess pricing from memory** - the model's training data is stale and will produce wrong numbers.
+**Feature behavior involving pricing or costs:** For model pricing maps, cost tracking, token costs on traces, usage-limit configuration, or billing settings, search with `langchainDocs_search_docs_by_lang_chain`, read relevant pages with `langchainDocs_query_docs_filesystem_docs_by_lang_chain`, and answer from that documentation. If plan or rate information is also needed, call documentation search and `fetch_langchain_pricing` in parallel. Do not infer that a LangSmith feature does not exist from the pricing page alone.
 
 ### 4. `search_support_articles` - Support Knowledge Base Search
 Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
@@ -274,7 +266,7 @@ Examples:
 
 ### Step 0: Route Pricing Questions
 
-If the user asks about pricing, plans, costs, billing, quotas, trace limits, seats, or pay-as-you-go, call `fetch_langchain_pricing` first. Do not use documentation search or answer from memory for pricing.
+Apply the routing rules in `fetch_langchain_pricing` above: use live pricing for plan numbers, documentation search and read for feature behavior, and both in parallel for mixed questions. For plan numbers alone, answer from the pricing tool without requiring the documentation and support KB workflow below.
 
 ### Step 1: Research Documentation and Support KB
 

@@ -54,16 +54,7 @@ async def _fetch_pricing_uncached() -> str:
 
 @tool
 async def fetch_langchain_pricing() -> str:
-    """ALWAYS use this tool for ANY question about LangChain pricing, plans, or trace limits.
-
-    DO NOT use docs search for pricing questions — it does not have current pricing data.
-
-    Triggers: "how many traces", "plus plan", "developer plan", "enterprise plan",
-    "how much does", "pricing", "cost", "seats", "quota", "pay-as-you-go", "fleet runs",
-    "upgrade", "billing", "what plan", "which plan".
-
-    Returns live pricing data directly from https://www.langchain.com/pricing.
-    """
+    """Fetch live plan prices/types, seats, plan quotas (traces, Fleet runs, deployments), and pay-as-you-go rates from https://www.langchain.com/pricing; never guess current prices from memory. Plan numbers alone need no docs search. For feature behavior involving pricing or costs (model pricing maps, cost tracking, token costs on traces, usage-limit configuration, billing settings), use langchainDocs_search_docs_by_lang_chain and read relevant pages with langchainDocs_query_docs_filesystem_docs_by_lang_chain before answering from docs. If plan or rate information is also needed, search docs and call this tool in parallel. Do not infer that a LangSmith feature does not exist from the pricing page alone."""
     global _cached_text, _cached_at
 
     # Fast path: return cached text if it's still fresh. The lock here is
