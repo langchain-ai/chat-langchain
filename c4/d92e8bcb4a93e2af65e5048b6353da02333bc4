@@ -1,0 +1,16 @@
+agent.py
+  h_3e3c9c8a17c7af 52,59-60
+src/agent/config.py
+  h_3e3c9c8a17c7af 65-71,75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4d92e8bcb4a93e2af65e5048b6353da02333bc4",
+  "prompts": {},
+  "humans": {
+    "h_3e3c9c8a17c7af": {
+      "author": "nick-hollon-lc <nick.hollon@langchain.dev>"
+    }
+  }
+}
