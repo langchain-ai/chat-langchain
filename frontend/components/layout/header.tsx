@@ -1,11 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { LogOut } from "lucide-react"
+import { InfoRegularIcon, SignOutRegularIcon, SidebarSimpleRightRegularIcon, PlusIcon } from "@langchain/macaw-components/icons"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { AuthModal } from "@/components/auth/AuthModal"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar } from "@langchain/macaw-components/Avatar"
+import { Button } from "@langchain/macaw-components/Button"
+import { IconButton } from "@langchain/macaw-components/IconButton"
+import { Text } from "@langchain/macaw-components/Text"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,29 +16,32 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@langchain/macaw-components/DropdownMenu"
 import { useAuth } from "@/lib/auth"
 
 const AUTH_MODAL_DISMISSED_KEY = "chat-langchain-auth-modal-dismissed"
 
 interface HeaderProps {
   onNewChat?: () => void
+  onOpenSidebar?: () => void
+  onOpenShortcuts?: () => void
+  showInitialAuthPrompt?: boolean
 }
 
-export function Header({ onNewChat }: HeaderProps) {
+export function Header({ onNewChat, onOpenSidebar, onOpenShortcuts, showInitialAuthPrompt = true }: HeaderProps) {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
   const { user, loading, signOut } = useAuth()
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (showInitialAuthPrompt && !loading && !user) {
       if (sessionStorage.getItem(AUTH_MODAL_DISMISSED_KEY) === "true") {
         return
       }
       setShowAuthModal(true)
     }
-  }, [loading, user])
+  }, [loading, user, showInitialAuthPrompt])
 
   useEffect(() => {
     const error = searchParams.get("auth_error")
@@ -70,59 +76,24 @@ export function Header({ onNewChat }: HeaderProps) {
 
   return (
     <>
-      <header className="border-b border-chat-border/60 bg-chat-background h-16 flex items-center">
-        <div className="flex items-center justify-between w-full px-4 sm:px-6">
-          <div className="flex items-center">
-            <Image
-              src="/assets/images/ChatLangChain-logo.svg"
-              alt="Chat LangChain"
-              width={200}
-              height={32}
-              className="object-contain"
-              style={{ width: "200px", height: "32px" }}
-              priority
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            {!loading && !user && (
-              <button
-                type="button"
-                onClick={() => setShowAuthModal(true)}
-                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 border border-chat-primary/20 hover:border-chat-primary/40 rounded-full text-sm font-medium text-chat-foreground/70 hover:text-chat-foreground transition-all duration-200"
-              >
-                Sign in
-              </button>
-            )}
-            {!loading && user && (
-              <UserAccountMenu
-                name={user.user_metadata?.full_name || user.email || "User"}
-                email={user.email || ""}
-                image={user.user_metadata?.avatar_url}
-                onSignOut={handleSignOut}
-              />
-            )}
-            <button
-              onClick={onNewChat}
-              className="group inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-chat-primary/10 to-chat-primary/5 hover:from-chat-primary/20 hover:to-chat-primary/10 border border-chat-primary/20 hover:border-chat-primary/40 rounded-full text-sm font-medium text-chat-foreground/80 hover:text-chat-foreground transition-all duration-200 hover:scale-105 hover:shadow-lg"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-chat-primary group-hover:rotate-12 transition-transform duration-200"
-              >
-                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
-              </svg>
-              <span className="hidden sm:inline">New Chat</span>
-            </button>
-          </div>
+      <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-subtle bg-background px-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
+          {onOpenSidebar && <IconButton icon={SidebarSimpleRightRegularIcon} label="Open conversation history" variant="plain" onClick={onOpenSidebar} className="md:hidden" />}
+          <Image
+            src="/assets/images/ChatLangChain-logo.svg"
+            alt="Chat LangChain"
+            width={200}
+            height={32}
+            className="h-auto w-36 sm:w-[200px]"
+            priority
+          />
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {onOpenShortcuts && <IconButton icon={InfoRegularIcon} label="Keyboard shortcuts" variant="plain" onClick={onOpenShortcuts} className="hidden sm:inline-flex" />}
+          {!loading && !user && <Button variant="outlined" onClick={() => setShowAuthModal(true)}>Sign in</Button>}
+          {!loading && user && <UserAccountMenu name={user.user_metadata?.full_name || user.email || "User"} email={user.email || ""} image={user.user_metadata?.avatar_url} onSignOut={handleSignOut} />}
+          <Button leftDecorator={PlusIcon} onClick={onNewChat} className="hidden sm:inline-flex">New chat</Button>
+          <IconButton icon={PlusIcon} label="New chat" onClick={onNewChat} className="sm:hidden" />
         </div>
       </header>
       <AuthModal
@@ -145,36 +116,24 @@ function UserAccountMenu({
   image?: string
   onSignOut: () => void
 }) {
-  const initials = name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) || "U"
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="relative h-9 w-9 rounded-full">
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={image} alt={name} />
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-        </button>
+        <Button variant="plain" aria-label={`Account menu for ${name}`}>
+          <Avatar label={name} imageUrl={image} size="md" />
+        </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end" forceMount>
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{name}</p>
-            <p className="text-chat-xs leading-none text-chat-muted-foreground">
-              {email}
-            </p>
+      <DropdownMenuContent className="w-64" align="end">
+        <DropdownMenuLabel>
+          <div className="flex min-w-0 flex-col gap-1">
+            <Text variant="sm" weight="medium" className="truncate">{name}</Text>
+            <Text variant="xs" color="tertiary" className="truncate">{email}</Text>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onSignOut}>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Sign out</span>
+        <DropdownMenuItem onSelect={onSignOut}>
+          <SignOutRegularIcon className="mr-2 size-4" aria-hidden="true" />
+          Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

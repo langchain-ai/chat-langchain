@@ -1,20 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { ChevronDown, Eye, EyeOff } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { useEffect, useRef, useState } from "react"
+import { Banner } from "@langchain/macaw-components/Banner"
+import { Button } from "@langchain/macaw-components/Button"
+import { Dialog, DialogContent } from "@langchain/macaw-components/Dialog"
+import { Divider } from "@langchain/macaw-components/Divider"
+import { Input } from "@langchain/macaw-components/Input"
+import { Link } from "@langchain/macaw-components/Link"
+import { Select } from "@langchain/macaw-components/Select"
+import { Text } from "@langchain/macaw-components/Text"
 import { trackEvent } from "@/components/providers/segment-provider"
 import { useAuth, type OAuthProvider } from "@/lib/auth"
 import type { AuthRegion } from "@/lib/auth/supabase"
@@ -62,13 +56,13 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
     availableAuthRegions,
     setAuthRegion,
   } = useAuth()
+  const returnFocusRef = useRef<HTMLElement | null>(null)
   const isDiscordSupportedRegion = authRegion !== "apac" && authRegion !== "aws"
   const [loadingProvider, setLoadingProvider] =
     useState<OAuthProvider | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
   const [lastUsedProvider, setLastUsedProvider] =
     useState<OAuthProvider | null>(null)
   const [isEmailLoading, setIsEmailLoading] = useState(false)
@@ -87,7 +81,6 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
       setError(null)
       setEmail("")
       setPassword("")
-      setShowPassword(false)
     }
   }, [open])
 
@@ -146,240 +139,73 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
     localStorage.setItem(SIGN_UP_CLICK_TRACKED_KEY, "true")
   }
 
+  const isBusy = isEmailLoading || loadingProvider !== null
+  const providerButtons = (
+    <div className="flex items-stretch gap-2">
+      {(["google", "github", ...(isDiscordSupportedRegion ? ["discord"] : [])] as OAuthProvider[]).map(provider => (
+        <AuthProviderButton key={provider} provider={provider} loadingProvider={loadingProvider} lastUsedProvider={lastUsedProvider} disabled={!isConfigured || isBusy} onClick={handleOAuthSignIn} />
+      ))}
+    </div>
+  )
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[90vw] sm:min-w-[550px] sm:max-w-[600px] px-8 sm:px-12 py-8 rounded-3xl">
-        {Object.keys(REGION_OPTIONS).length > 1 && (
-          <div className="flex justify-center mb-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger className="group inline-flex items-center gap-1.5 rounded-lg border border-chat-border px-3 py-2 text-chat-xs outline-none transition-colors hover:bg-chat-muted/50 data-[state=open]:bg-chat-muted/50">
-                <span className="flex items-center gap-1.5">
-                  <span className="font-medium text-chat-muted-foreground text-chat-xs">
-                    Data Region
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <RegionIcon region={authRegion} />
-                    <span className="font-medium text-chat-xs">
-                      {REGION_OPTIONS[authRegion].label}
-                    </span>
-                  </span>
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-chat-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="min-w-[220px]">
-                {(Object.keys(REGION_OPTIONS) as AuthRegion[]).map((region) => {
-                  const isRegionConfigured = availableAuthRegions.includes(region)
-
-                  return (
-                    <DropdownMenuItem
-                      key={region}
-                      disabled={!isRegionConfigured}
-                      onClick={() => {
-                        if (isRegionConfigured) setAuthRegion(region)
-                      }}
-                      className="flex items-center gap-2 cursor-pointer text-sm data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50"
-                    >
-                      <RegionIcon region={region} />
-                      <span>{REGION_OPTIONS[region].label}</span>
-                      <span className="text-chat-muted-foreground text-chat-xs ml-auto">
-                        {isRegionConfigured
-                          ? REGION_OPTIONS[region].location
-                          : "Not configured"}
-                      </span>
-                    </DropdownMenuItem>
-                  )
-                })}
-                <DropdownMenuSeparator />
-                <div className="px-2 py-1.5">
-                  <a
-                    href="https://docs.langchain.com/langsmith/regions-faq"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-chat-xs text-chat-primary hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Learn more about regions
-                  </a>
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
-
-        <DialogTitle className="mb-5 text-center text-2xl font-medium leading-tight">
-          Log in with your LangSmith account
-        </DialogTitle>
-        <DialogDescription className="sr-only">
-          Sign in with a LangSmith account or continue as a guest to use Chat
-          LangChain.
-        </DialogDescription>
-
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-4 -mb-1">
-            <div className="flex-1 h-px bg-chat-foreground/20" />
-            <span className="text-sm font-normal text-chat-foreground">
-              Log in with
-            </span>
-            <div className="flex-1 h-px bg-chat-foreground/20" />
-          </div>
-
-          {!isConfigured && (
-            <div className="rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-              Login is not configured for the selected region. You can continue
-              as a guest.
-            </div>
-          )}
-
-          {error && (
-            <div className="rounded-lg bg-chat-destructive/10 px-4 py-3 text-sm text-chat-destructive">
-              {error}
-            </div>
-          )}
-
-          <div className="flex w-full items-stretch justify-center gap-2.5">
-            <AuthProviderButton
-              provider="google"
-              loadingProvider={loadingProvider}
-              lastUsedProvider={lastUsedProvider}
-              disabled={!isConfigured || !!loadingProvider}
-              onClick={handleOAuthSignIn}
+      <DialogContent
+        title="Log in with your LangSmith account"
+        description="Sign in to save your conversations, or continue as a guest."
+        className="w-[calc(100vw-2rem)] max-w-lg"
+        onOpenAutoFocus={() => { returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null }}
+        onCloseAutoFocus={event => {
+          const target = returnFocusRef.current
+          if (target?.isConnected && target !== document.body) {
+            event.preventDefault()
+            target.focus()
+          }
+        }}
+      >
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <Text as="label" variant="sm" weight="medium">Data region</Text>
+            <Select<AuthRegion>
+              aria-label="Data region"
+              value={authRegion}
+              onChange={region => { if (region) setAuthRegion(region) }}
+              disabled={isBusy}
+              options={(Object.keys(REGION_OPTIONS) as AuthRegion[]).map(region => ({
+                value: region,
+                label: REGION_OPTIONS[region].label,
+                description: availableAuthRegions.includes(region) ? REGION_OPTIONS[region].location : "Not configured",
+                disabled: !availableAuthRegions.includes(region),
+              }))}
+              renderValue={option => <span className="flex items-center gap-2"><RegionIcon region={option.value} />{option.label}</span>}
             />
-            <AuthProviderButton
-              provider="github"
-              loadingProvider={loadingProvider}
-              lastUsedProvider={lastUsedProvider}
-              disabled={!isConfigured || !!loadingProvider}
-              onClick={handleOAuthSignIn}
-            />
-            {isDiscordSupportedRegion && (
-              <AuthProviderButton
-                provider="discord"
-                loadingProvider={loadingProvider}
-                lastUsedProvider={lastUsedProvider}
-                disabled={!isConfigured || !!loadingProvider}
-                onClick={handleOAuthSignIn}
-              />
-            )}
+            <Link href="https://docs.langchain.com/langsmith/regions-faq" target="_blank" rel="noopener noreferrer" variant="xs">Learn more about regions</Link>
           </div>
-
-          <div className="flex items-center gap-4 -mb-1">
-            <div className="flex-1 h-px bg-chat-foreground/20" />
-            <span className="text-chat-xs font-normal text-chat-foreground">
-              or continue with email
-            </span>
-            <div className="flex-1 h-px bg-chat-foreground/20" />
+          {!isConfigured && <Banner intent="info">Login is not configured for this region. You can continue as a guest.</Banner>}
+          {error && <div role="alert"><Banner intent="error">{error}</Banner></div>}
+          {providerButtons}
+          <div className="flex items-center gap-3">
+            <Divider className="flex-1" />
+            <Text variant="xs" color="tertiary">Or continue with email</Text>
+            <Divider className="flex-1" />
           </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
-            <div className="flex h-12 items-center rounded-full border border-chat-border px-4 py-2 transition-all focus-within:border-chat-primary hover:border-chat-muted-foreground bg-transparent">
-              <input
-                className="grow border-none bg-transparent outline-none text-sm placeholder:text-chat-muted-foreground/60"
-                type="email"
-                name="email"
-                placeholder="Your email address"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={!isConfigured}
-              />
-            </div>
+          <form className="flex flex-col gap-4" onSubmit={event => {
+            event.preventDefault()
+            if (isConfigured && email && password && !isBusy) void handleEmailAuth()
+          }}>
+            <Input id="auth-email" name="email" label="Email" type="email" autoComplete="username" placeholder="Your email address" value={email} onChange={setEmail} debounceMs={0} required disabled={!isConfigured || isBusy} />
+            <Input id="auth-password" name="password" label="Password" type="password" autoComplete="current-password" placeholder="Your password" value={password} onChange={setPassword} debounceMs={0} required disabled={!isConfigured || isBusy} />
+            <Link href={getLangSmithAuthUrl(authRegion, "forgotten_password")} target="_blank" rel="noreferrer" variant="xs">Forgot password?</Link>
+            <Button type="submit" loading={isEmailLoading} disabled={!isConfigured || !email || !password || isBusy}>Continue</Button>
+          </form>
+          <div className="flex items-center justify-center gap-2">
+            <Text variant="sm" color="secondary">Don't have an account?</Text>
+            <Link href={getLangSmithAuthUrl(authRegion, "sign_up")} target="_blank" rel="noreferrer" variant="sm" onClick={handleSignUpClick}>Sign up</Link>
           </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
-            </label>
-            <div className="flex h-12 items-center gap-2 rounded-full border border-chat-border px-4 py-2 transition-all focus-within:border-chat-primary hover:border-chat-muted-foreground bg-transparent">
-              <input
-                className="grow border-none bg-transparent outline-none text-sm placeholder:text-chat-muted-foreground/60"
-                type={showPassword ? "text" : "password"}
-                name="password"
-                id="password"
-                placeholder="Your password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={!isConfigured}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="rounded-md p-1 transition-colors hover:bg-chat-muted/50"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4 text-chat-muted-foreground" />
-                ) : (
-                  <Eye className="h-4 w-4 text-chat-muted-foreground" />
-                )}
-              </button>
-            </div>
-            <div className="flex justify-center">
-              <a
-                href={getLangSmithAuthUrl(authRegion, "forgotten_password")}
-                target="_blank"
-                rel="noreferrer"
-                className="text-chat-xs font-semibold text-chat-muted-foreground underline underline-offset-4 transition-colors hover:text-chat-foreground"
-              >
-                Forgot password?
-              </a>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleEmailAuth}
-            disabled={!isConfigured || !email || !password || isEmailLoading}
-            className="mt-1 flex h-12 items-center justify-center gap-2 rounded-full py-2.5 text-center text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50 bg-[#1C3C3C] text-white hover:bg-[#1C3C3C]/90 active:bg-[#1C3C3C]/70 disabled:hover:bg-[#1C3C3C]"
-          >
-            {isEmailLoading ? <Spinner /> : "Continue"}
-          </button>
-
-          <div className="flex items-center justify-center gap-1.5 text-chat-xs">
-            <span>Don't have an account?</span>
-            <a
-              href={getLangSmithAuthUrl(authRegion, "sign_up")}
-              target="_blank"
-              rel="noreferrer"
-              onClick={handleSignUpClick}
-              className="font-semibold text-chat-muted-foreground underline underline-offset-4 hover:text-chat-foreground transition-colors"
-            >
-              Sign up
-            </a>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="flex h-12 items-center justify-center rounded-full border border-chat-border text-sm font-medium text-chat-foreground/80 transition-all hover:bg-chat-muted/50 hover:text-chat-foreground"
-          >
-            Continue as guest
-          </button>
-
-          <p className="text-center text-[10px] text-chat-muted-foreground/80 leading-relaxed px-2">
-            By continuing, you agree to our{" "}
-            <a
-              href="https://www.langchain.com/terms-of-service"
-              className="underline hover:text-chat-foreground/90 transition-colors"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Terms of Service
-            </a>{" "}
-            and{" "}
-            <a
-              href="https://www.langchain.com/privacy-policy"
-              className="underline hover:text-chat-foreground/90 transition-colors"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Privacy Policy
-            </a>
-            .
-          </p>
+          <Button variant="outlined" onClick={() => onOpenChange(false)}>Continue as guest</Button>
+          <Text variant="xs" color="tertiary" className="text-center">
+            By continuing, you agree to our <Link href="https://www.langchain.com/terms-of-service" target="_blank" rel="noreferrer" variant="xs">Terms of Service</Link> and <Link href="https://www.langchain.com/privacy-policy" target="_blank" rel="noreferrer" variant="xs">Privacy Policy</Link>.
+          </Text>
         </div>
       </DialogContent>
     </Dialog>
@@ -399,25 +225,14 @@ function AuthProviderButton({
   disabled: boolean
   onClick: (provider: OAuthProvider) => void
 }) {
-  const isLastUsed = lastUsedProvider === provider
+  const label = provider === "google" ? "Google" : provider === "github" ? "GitHub" : "Discord"
   return (
-    <button
-      type="button"
-      onClick={() => onClick(provider)}
-      disabled={disabled}
-      className={`group relative flex h-14 w-[90px] grow items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-        isLastUsed
-          ? "border-chat-primary/70 bg-chat-primary/5 hover:bg-chat-primary/10 hover:border-chat-primary"
-          : "border-chat-border hover:bg-chat-muted/50 hover:border-chat-muted-foreground"
-      }`}
-    >
-      {loadingProvider === provider ? <Spinner /> : <ProviderIcon provider={provider} />}
-      {isLastUsed && loadingProvider !== provider && (
-        <span className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-chat-primary/90 px-2 py-0.5 text-chat-xs font-medium text-chat-primary-foreground">
-          LAST USED
-        </span>
-      )}
-    </button>
+    <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1">
+      <Button variant="outlined" className="h-auto min-h-14" aria-label={`Continue with ${label}`} disabled={disabled} loading={loadingProvider === provider} onClick={() => onClick(provider)}>
+        <span className="flex flex-col items-center gap-1"><ProviderIcon provider={provider} /><span>{label}</span></span>
+      </Button>
+      {lastUsedProvider === provider && <Text variant="xs" color="tertiary" className="text-center">Last used</Text>}
+    </div>
   )
 }
 
@@ -425,12 +240,6 @@ function ProviderIcon({ provider }: { provider: OAuthProvider }) {
   if (provider === "google") return <GoogleIcon />
   if (provider === "github") return <GitHubIcon />
   return <DiscordIcon />
-}
-
-function Spinner() {
-  return (
-    <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-  )
 }
 
 function GoogleIcon() {

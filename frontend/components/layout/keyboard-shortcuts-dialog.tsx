@@ -1,53 +1,41 @@
-'use client'
+"use client"
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { useAvailableShortcuts, formatShortcut, type KeyboardShortcut } from '@/hooks/useKeyboardShortcuts'
+import { useRef } from "react"
+import { Dialog, DialogContent } from "@langchain/macaw-components/Dialog"
+import { Kbd } from "@langchain/macaw-components/Kbd"
+import { Text } from "@langchain/macaw-components/Text"
+import { useAvailableShortcuts, formatShortcut, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts"
 
 interface KeyboardShortcutsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function KeyboardShortcutsDialog({
-  open,
-  onOpenChange,
-}: KeyboardShortcutsDialogProps) {
+export function KeyboardShortcutsDialog({ open, onOpenChange }: KeyboardShortcutsDialogProps) {
+  const returnFocusRef = useRef<HTMLElement | null>(null)
   const shortcuts = useAvailableShortcuts()
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Keyboard Shortcuts</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-6 py-4">
+      <DialogContent title="Keyboard shortcuts" description="Navigate conversations and compose messages with your keyboard." className="w-[calc(100vw-2rem)] max-w-xl"
+        onOpenAutoFocus={() => { returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null }}
+        onCloseAutoFocus={event => {
+          if (returnFocusRef.current?.isConnected) {
+            event.preventDefault()
+            returnFocusRef.current.focus()
+          }
+        }}
+      >
+        <div className="space-y-6">
           {Object.entries(shortcuts).map(([category, categoryShortcuts]) => (
-            <div key={category}>
-              <h3 className="text-base font-bold text-chat-foreground mb-4 pb-2 border-b border-chat-border/50">
-                {category}
-              </h3>
-              <div className="space-y-3">
-                {categoryShortcuts.map((shortcut: KeyboardShortcut, index: number) => (
-                  <div
-                    key={`${category}-${index}`}
-                    className="flex items-center justify-between py-3 px-4 rounded-lg bg-chat-muted/30 hover:bg-chat-muted/50 transition-colors border border-chat-border/30"
-                  >
-                    <span className="text-sm font-medium text-chat-foreground">
-                      {shortcut.description}
-                    </span>
-                    <kbd className="inline-flex items-center gap-1 rounded-md border-2 border-chat-border bg-chat-card px-3 py-1.5 font-mono text-sm font-bold text-chat-foreground shadow-sm min-w-[60px] justify-center">
-                      {formatShortcut(shortcut)}
-                    </kbd>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <section key={category} aria-label={category} className="space-y-3">
+              <Text as="h3" variant="sm" weight="semibold">{category}</Text>
+              {categoryShortcuts.map((shortcut: KeyboardShortcut, index: number) => (
+                <div key={`${category}-${index}`} className="flex items-center justify-between gap-4">
+                  <Text variant="sm" color="secondary">{shortcut.description}</Text>
+                  <Kbd className="shrink-0">{formatShortcut(shortcut)}</Kbd>
+                </div>
+              ))}
+            </section>
           ))}
         </div>
       </DialogContent>

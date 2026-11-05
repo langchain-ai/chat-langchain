@@ -8,9 +8,10 @@
  * - Manages upload errors and loading states
  */
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import type { ImageAttachment } from "../../types"
 import { createImageAttachment, validateImageFile } from "../../utils/chat"
+import { appendWithinInputBudget, getAttachmentMimeType } from "../../utils/chat/composer-state"
 import {
   FILE_TOO_LARGE_MESSAGE,
   IMAGE_UNSUPPORTED_MODEL_MESSAGE,
@@ -41,7 +42,7 @@ interface UseFileUploadOptions {
 }
 
 const isImageFile = (file: File): boolean =>
-  file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp)$/i.test(file.name)
+  getAttachmentMimeType(file).startsWith("image/")
 
 // ============================================================================
 // Hook Implementation
@@ -70,21 +71,26 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
   const [attachedFiles, setAttachedFiles] = useState<ImageAttachment[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const getInputLength = options.getInputLength ?? (() => 0)
+  const attachedFilesRef = useRef<ImageAttachment[]>([])
+  const uploadGenerationRef = useRef(0)
+  const getInputLengthRef = useRef(options.getInputLength)
+  getInputLengthRef.current = options.getInputLength
   const disableImageUploads = options.disableImageUploads ?? false
+
+  useEffect(() => () => {
+    uploadGenerationRef.current += 1
+  }, [])
 
   /**
    * Process multiple files and add them to attached files list.
    * Validates each file and converts to base64.
    */
   const processFiles = useCallback(async (files: File[]) => {
+    const generation = uploadGenerationRef.current
     setUploadError(null)
-    let acceptedTextLength = attachedFiles.reduce((total, file) => {
-      if (file.mimeType?.startsWith('image/')) return total
-      return total + (file.textLength ?? 0)
-    }, 0)
 
     for (const file of files) {
+      if (generation !== uploadGenerationRef.current) return
       // Validate file
       const validation = validateImageFile(file)
       if (!validation.valid) {
@@ -103,14 +109,10 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
 
         if (!isImage) {
           const text = await file.text()
+          if (generation !== uploadGenerationRef.current) return
           textLength = text.length
 
           if (textLength > MAX_INPUT_CHARS) {
-            setUploadError(FILE_TOO_LARGE_MESSAGE)
-            continue
-          }
-
-          if (getInputLength() + acceptedTextLength + textLength > MAX_INPUT_CHARS) {
             setUploadError(FILE_TOO_LARGE_MESSAGE)
             continue
           }
@@ -119,14 +121,33 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
         // Convert to attachment
         const imageAttachment = await createImageAttachment(file)
         imageAttachment.textLength = textLength
-        setAttachedFiles(prev => [...prev, imageAttachment])
-        acceptedTextLength += textLength ?? 0
+        if (generation !== uploadGenerationRef.current) {
+          if (imageAttachment.url) URL.revokeObjectURL(imageAttachment.url)
+          return
+        }
+
+        // Concurrent picker/drop operations and typing can change the budget
+        // while FileReader is working. Admit against the latest state atomically.
+        const nextFiles = appendWithinInputBudget(
+          attachedFilesRef.current,
+          imageAttachment,
+          getInputLengthRef.current?.() ?? 0,
+          MAX_INPUT_CHARS,
+        )
+        if (!nextFiles) {
+          if (imageAttachment.url) URL.revokeObjectURL(imageAttachment.url)
+          setUploadError(FILE_TOO_LARGE_MESSAGE)
+          continue
+        }
+        attachedFilesRef.current = nextFiles
+        setAttachedFiles(nextFiles)
       } catch (error) {
+        if (generation !== uploadGenerationRef.current) return
         console.error("Error processing file:", error)
         setUploadError("Failed to process file")
       }
     }
-  }, [attachedFiles, disableImageUploads, getInputLength])
+  }, [disableImageUploads])
 
   /**
    * Handle file selection from input element.
@@ -135,10 +156,10 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
     const files = event.target.files
     if (!files || files.length === 0) return
 
-    await processFiles(Array.from(files))
-
-    // Reset file input
+    const selectedFiles = Array.from(files)
+    // Allow selecting the same file again after removal, even during conversion.
     event.target.value = ""
+    await processFiles(selectedFiles)
   }, [processFiles])
 
   /**
@@ -148,41 +169,14 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
     const items = event.clipboardData?.items
     if (!items) return
 
-    setUploadError(null)
-
-    // Process clipboard items
-    for (const item of Array.from(items)) {
-      // Check if item is an image (paste only supports images for now)
-      if (item.type.startsWith('image/')) {
-        event.preventDefault() // Prevent default paste behavior for images
-
-        if (disableImageUploads) {
-          setUploadError(IMAGE_UNSUPPORTED_MODEL_MESSAGE)
-          continue
-        }
-
-        const file = item.getAsFile()
-        if (!file) continue
-
-        // Validate file
-        const validation = validateImageFile(file)
-        if (!validation.valid) {
-          setUploadError(validation.error || "Invalid image")
-          continue
-        }
-
-        try {
-          // Convert to image attachment
-          const imageAttachment = await createImageAttachment(file)
-          setAttachedFiles(prev => [...prev, imageAttachment])
-          console.log('Pasted image from clipboard:', file.name || 'screenshot')
-        } catch (error) {
-          console.error("Error processing pasted image:", error)
-          setUploadError("Failed to process pasted image")
-        }
-      }
-    }
-  }, [disableImageUploads])
+    const files = Array.from(items)
+      .filter(item => item.type.startsWith("image/"))
+      .map(item => item.getAsFile())
+      .filter((file): file is File => file !== null)
+    if (files.length === 0) return // Ordinary text paste belongs to the editor.
+    event.preventDefault()
+    await processFiles(files)
+  }, [processFiles])
 
   /**
    * Handle drag over event.
@@ -218,14 +212,10 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
    * Remove a file from the attached files list.
    */
   const removeFile = useCallback((fileId: string) => {
-    setAttachedFiles(prev => {
-      const file = prev.find(f => f.id === fileId)
-      // Revoke object URL to free memory
-      if (file?.url) {
-        URL.revokeObjectURL(file.url)
-      }
-      return prev.filter(f => f.id !== fileId)
-    })
+    const file = attachedFilesRef.current.find(file => file.id === fileId)
+    if (file?.url) URL.revokeObjectURL(file.url)
+    attachedFilesRef.current = attachedFilesRef.current.filter(file => file.id !== fileId)
+    setAttachedFiles(attachedFilesRef.current)
   }, [])
 
   /**
@@ -235,6 +225,9 @@ export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUpload
    * when the page is closed or refreshed.
    */
   const clearFiles = useCallback(() => {
+    // A file still converting at send time belongs to the old draft.
+    uploadGenerationRef.current += 1
+    attachedFilesRef.current = []
     setAttachedFiles([])
     setUploadError(null)
   }, [])

@@ -36,6 +36,8 @@ import {
   updateMessageInList,
 } from "../../utils/chat"
 import { shareRun, readRun, type LangSmithAuth } from "../../api/langsmith"
+import { mergeToolCalls } from "../../utils/chat/presentation"
+import { decodeTextAttachment } from "../../utils/chat/content-helpers"
 
 // ============================================================================
 // Constants
@@ -375,7 +377,7 @@ export function useStreamHandler({
             // Text files: decode base64 and send as text block
             try {
               // Decode base64 to get text content
-              const decodedContent = atob(file.base64 || '')
+              const decodedContent = decodeTextAttachment(file.base64 || '')
               console.log(`📄 Decoded file ${file.name}:`, {
                 mimeType: file.mimeType,
                 size: file.size,
@@ -481,6 +483,9 @@ export function useStreamHandler({
 
         const eventType = chunk.event as string
         const data = chunk.data as any
+        if (eventType === "error") {
+          throw new Error(typeof data?.message === "string" ? data.message : "The agent could not complete this response.")
+        }
 
         // Capture run_id from metadata
         if (!runId) {
@@ -518,6 +523,7 @@ export function useStreamHandler({
                       id: toolCall.id,
                       name: toolCall.name,
                       args: toolCall.args,
+                      status: "running",
                     })
                   }
 
@@ -537,6 +543,7 @@ export function useStreamHandler({
                         toolCallId: toolCall.id,
                         isStreaming: true,
                         isComplete: false,
+                        status: "running",
                       })
                     }
                   }
@@ -549,8 +556,14 @@ export function useStreamHandler({
           if (data.tools?.messages && Array.isArray(data.tools.messages)) {
             data.tools.messages.forEach((msg: any) => {
               if (msg.type === "tool" && msg.tool_call_id) {
+                const completedTool = assistantToolCalls.find((tool) => tool.id === msg.tool_call_id)
+                if (completedTool) {
+                  if (Object.prototype.hasOwnProperty.call(msg, "content")) completedTool.output = msg.content
+                  completedTool.status = msg.status === "error" ? "failed" : "succeeded"
+                  completedTool.error = msg.status === "error" ? msg.content : undefined
+                }
                 // Handle task tools (subagents) separately
-                if (msg.name === "task" && msg.content) {
+                if (msg.name === "task" || completedTool?.name === "task") {
                   const existingOutput = subgraphOutputs.find(
                     (output) => output.toolCallId === msg.tool_call_id
                   )
@@ -559,9 +572,11 @@ export function useStreamHandler({
                     existingOutput.output =
                       typeof msg.content === "string"
                         ? msg.content
-                        : JSON.stringify(msg.content)
+                        : (JSON.stringify(msg.content) ?? "")
                     existingOutput.isStreaming = false
                     existingOutput.isComplete = true
+                    existingOutput.status = msg.status === "error" ? "failed" : "succeeded"
+                    existingOutput.error = msg.status === "error" ? msg.content : undefined
                   } else {
                     const toolCall = assistantToolCalls.find(
                       (tc) => tc.id === msg.tool_call_id
@@ -569,31 +584,21 @@ export function useStreamHandler({
                     const subagentName =
                       toolCall?.args?.subagent_type || "subagent-task"
 
-                    const taskOutput = {
+                    const taskOutput: SubgraphOutput = {
                       name: subagentName,
                       output:
                         typeof msg.content === "string"
                           ? msg.content
-                          : JSON.stringify(msg.content),
+                          : (JSON.stringify(msg.content) ?? ""),
                       timestamp: Date.now(),
                       toolCallId: msg.tool_call_id,
                       isStreaming: false,
                       isComplete: true,
+                      status: msg.status === "error" ? "failed" : "succeeded",
+                      error: msg.status === "error" ? msg.content : undefined,
                     }
 
                     subgraphOutputs.push(taskOutput)
-                  }
-                }
-                // Handle regular tools (attach output to tool call)
-                else {
-                  const toolCall = assistantToolCalls.find(
-                    (tc) => tc.id === msg.tool_call_id
-                  )
-                  if (toolCall && msg.content) {
-                    toolCall.output =
-                      typeof msg.content === "string"
-                        ? msg.content
-                        : JSON.stringify(msg.content)
                   }
                 }
               }
@@ -603,7 +608,7 @@ export function useStreamHandler({
 
         setMessages((prev) => {
           const existing = prev.find((m) => m.id === assistantMessageId)
-          const thinkingSteps = existing?.thinkingSteps || []
+          const thinkingSteps = [...(existing?.thinkingSteps || [])]
           const thinkingStartTime = existing?.thinkingStartTime || Date.now()
           let hasNewSteps = false
           let hasNewSubgraphOutputs = false
@@ -694,20 +699,24 @@ export function useStreamHandler({
               content: "",
               timestamp: new Date(),
               isThinking: true,
+              status: "streaming",
               thinkingSteps: [...thinkingSteps],
               thinkingStartTime,
-              subgraphOutputs: subgraphOutputs.length > 0 ? [...subgraphOutputs] : [],
+              toolCalls: assistantToolCalls.map((tool) => ({ ...tool })),
+              subgraphOutputs: subgraphOutputs.length > 0 ? subgraphOutputs.map((subgraph) => ({ ...subgraph })) : [],
             },
           ]
-        } else if (hasNewSteps || hasNewSubgraphOutputs) {
+        } else if (hasNewSteps || hasNewSubgraphOutputs || ((eventType === "updates" || baseEvent === "updates") && data?.tools?.messages?.length)) {
           return prev.map((m) =>
             m.id === assistantMessageId
               ? {
                   ...m,
                   isThinking: true,
+                  status: "streaming",
                   thinkingSteps: [...thinkingSteps],
                   thinkingStartTime,
-                  subgraphOutputs: [...subgraphOutputs],
+                  toolCalls: assistantToolCalls.map((tool) => ({ ...tool })),
+                  subgraphOutputs: subgraphOutputs.map((subgraph) => ({ ...subgraph })),
                 }
               : m
           )
@@ -745,14 +754,16 @@ export function useStreamHandler({
               content: assistantContent,
               timestamp: new Date(),
               isThinking: true,
-              subgraphOutputs: [...subgraphOutputs],
+              status: "streaming",
+              subgraphOutputs: subgraphOutputs.map((subgraph) => ({ ...subgraph })),
             }
 
             const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
             return updateMessageInList(withMessage, assistantMessageId, {
               content: assistantContent,
               isThinking: true,
-              subgraphOutputs: [...subgraphOutputs],
+              status: "streaming",
+              subgraphOutputs: subgraphOutputs.map((subgraph) => ({ ...subgraph })),
             })
           })
         }
@@ -795,14 +806,16 @@ export function useStreamHandler({
                 content: streamedContent,
                 timestamp: new Date(),
                 isThinking: true,
-                subgraphOutputs: [...subgraphOutputs],
+                status: "streaming",
+                subgraphOutputs: subgraphOutputs.map((subgraph) => ({ ...subgraph })),
               }
 
               const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
               return updateMessageInList(withMessage, assistantMessageId, {
                 content: streamedContent,
                 isThinking: true,
-                subgraphOutputs: [...subgraphOutputs],
+                status: "streaming",
+                subgraphOutputs: subgraphOutputs.map((subgraph) => ({ ...subgraph })),
               })
             })
           }
@@ -815,7 +828,7 @@ export function useStreamHandler({
       if ((eventType === "updates" || baseEvent === "updates") && agentMessages && Array.isArray(agentMessages)) {
         agentMessages.forEach((msg: any) => {
           if (msg.type === "ai" && msg.tool_calls?.length > 0) {
-            assistantToolCalls = msg.tool_calls
+            assistantToolCalls = mergeToolCalls(assistantToolCalls, msg.tool_calls)
           }
         })
 
@@ -826,16 +839,18 @@ export function useStreamHandler({
               role: "assistant",
               content: "",
               timestamp: new Date(),
-              toolCalls: assistantToolCalls,
+              toolCalls: assistantToolCalls.map((tool) => ({ ...tool })),
               isThinking: true,
-              subgraphOutputs: [...subgraphOutputs],
+              status: "streaming",
+              subgraphOutputs: subgraphOutputs.map((subgraph) => ({ ...subgraph })),
             }
 
             const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
             return updateMessageInList(withMessage, assistantMessageId, {
-              toolCalls: assistantToolCalls,
+              toolCalls: assistantToolCalls.map((tool) => ({ ...tool })),
               isThinking: true,
-              subgraphOutputs: [...subgraphOutputs],
+              status: "streaming",
+              subgraphOutputs: subgraphOutputs.map((subgraph) => ({ ...subgraph })),
             })
           })
         }
@@ -860,9 +875,18 @@ export function useStreamHandler({
                 ? "Response stopped. The agent was interrupted while processing your request."
                 : assistantContent || "(No response generated)",
               isThinking: false,
+              status: wasInterrupted ? "interrupted" : "completed",
+              toolCalls: assistantToolCalls.map((tool) => ({
+                ...tool,
+                status: wasInterrupted && (!tool.status || tool.status === "running" || tool.status === "pending") ? "canceled" : tool.status,
+              })),
               thinkingDuration,
               runId,
-              subgraphOutputs: subgraphOutputs.length > 0 ? subgraphOutputs : undefined,
+              subgraphOutputs: subgraphOutputs.length > 0 ? subgraphOutputs.map((subgraph) => ({
+                ...subgraph,
+                isStreaming: false,
+                status: wasInterrupted && !subgraph.isComplete ? "canceled" : subgraph.status,
+              })) : undefined,
               wasInterrupted,
             }
           : m

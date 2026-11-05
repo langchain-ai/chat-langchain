@@ -6,6 +6,7 @@
 
 import { generateMessageId } from "./message-helpers"
 import type { ImageAttachment } from "../../types"
+import { getAttachmentMimeType } from "./composer-state"
 
 /**
  * Convert a File object to a base64 string.
@@ -37,7 +38,7 @@ export const createImageAttachment = async (file: File): Promise<ImageAttachment
     id: generateMessageId(),
     base64,
     url,
-    mimeType: file.type,
+    mimeType: getAttachmentMimeType(file),
     name: file.name,
     size: file.size,
   }

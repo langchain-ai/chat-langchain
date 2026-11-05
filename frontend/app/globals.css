@@ -1,367 +1,60 @@
-/* Keep Macaw's compiled utilities after app utilities in the shared layer. */
-@layer theme, base, langchain-ds-base, components, langchain-ds-components, utilities, langchain-ds-utilities;
-@import "tailwindcss";
+@layer theme, base, langchain-ds-base, components, langchain-ds-components, langchain-ds-utilities, utilities;
 @import "@langchain/macaw-components/styles.css";
-@import "tw-animate-css";
+@import "tailwindcss";
+@config "../tailwind.config.cjs";
 
 @custom-variant dark (&:is(.dark *));
-
-/* Legacy colors stay separate from Macaw's public semantic tokens. */
-:root {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Fira Code", ui-monospace, monospace;
-  /* LangChain brand colors - defined first so they can be referenced */
-  --chat-langchain-blue: #7FC8FF; /* LangChain brand blue */
-  --chat-langchain-blue-rgb: 127, 200, 255;
-
-  --chat-background: oklch(0.12 0 0);
-  --chat-foreground: oklch(0.95 0 0);
-  --chat-card: oklch(0.15 0 0);
-  --chat-card-foreground: oklch(0.95 0 0);
-  --chat-popover: oklch(0.15 0 0);
-  --chat-popover-foreground: oklch(0.95 0 0);
-  --chat-primary: var(--chat-langchain-blue); /* Updated primary color to blue */
-  --chat-primary-foreground: oklch(0.15 0 0); /* Dark text for better readability on blue */
-  --chat-secondary: oklch(0.22 0 0);
-  --chat-secondary-foreground: oklch(0.95 0 0);
-  --chat-muted: oklch(0.25 0 0);
-  --chat-muted-foreground: oklch(0.6 0 0);
-  --chat-accent: var(--chat-langchain-blue); /* Updated accent color to blue */
-  --chat-accent-foreground: oklch(0.15 0 0); /* Dark text for better readability on blue */
-  --chat-destructive: oklch(0.55 0.22 25);
-  --chat-destructive-foreground: oklch(0.98 0 0);
-  --chat-border: oklch(0.25 0 0);
-  --chat-input: oklch(0.25 0 0);
-  --chat-ring: var(--chat-langchain-blue); /* Updated ring color to blue */
-  --chat-success: oklch(0.55 0.18 145);
-  --chat-warning: oklch(0.65 0.18 65);
-  --chat-error: oklch(0.55 0.22 25);
-  --chat-radius: 0.5rem;
-  --chat-sidebar: oklch(0.1 0 0);
-  --chat-sidebar-foreground: oklch(0.95 0 0);
-  --chat-sidebar-primary: var(--chat-langchain-blue); /* Updated sidebar primary to blue */
-  --chat-sidebar-primary-foreground: oklch(0.98 0 0);
-  --chat-sidebar-accent: oklch(0.18 0 0);
-  --chat-sidebar-accent-foreground: oklch(0.95 0 0);
-  --chat-sidebar-border: oklch(0.2 0 0);
-  --chat-sidebar-ring: var(--chat-langchain-blue); /* Updated sidebar ring to blue */
-}
 
 @theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Fira Code", ui-monospace, monospace;
-  --text-chat-xs: 0.75rem;
-  --text-chat-xs--line-height: 1rem;
-  --color-chat-background: var(--chat-background);
-  --color-chat-foreground: var(--chat-foreground);
-  --color-chat-card: var(--chat-card);
-  --color-chat-card-foreground: var(--chat-card-foreground);
-  --color-chat-popover: var(--chat-popover);
-  --color-chat-popover-foreground: var(--chat-popover-foreground);
-  --color-chat-primary: var(--chat-primary);
-  --color-chat-primary-foreground: var(--chat-primary-foreground);
-  --color-chat-secondary: var(--chat-secondary);
-  --color-chat-secondary-foreground: var(--chat-secondary-foreground);
-  --color-chat-muted: var(--chat-muted);
-  --color-chat-muted-foreground: var(--chat-muted-foreground);
-  --color-chat-accent: var(--chat-accent);
-  --color-chat-accent-foreground: var(--chat-accent-foreground);
-  --color-chat-destructive: var(--chat-destructive);
-  --color-chat-destructive-foreground: var(--chat-destructive-foreground);
-  --color-chat-border: var(--chat-border);
-  --color-chat-input: var(--chat-input);
-  --color-chat-ring: var(--chat-ring);
-  --color-chat-success: var(--chat-success);
-  --color-chat-warning: var(--chat-warning);
-  --color-chat-error: var(--chat-error);
-  --radius-sm: calc(var(--chat-radius) - 4px);
-  --radius-md: calc(var(--chat-radius) - 2px);
-  --radius-lg: var(--chat-radius);
-  --radius-xl: calc(var(--chat-radius) + 4px);
-  --color-chat-sidebar: var(--chat-sidebar);
-  --color-chat-sidebar-foreground: var(--chat-sidebar-foreground);
-  --color-chat-sidebar-primary: var(--chat-sidebar-primary);
-  --color-chat-sidebar-primary-foreground: var(--chat-sidebar-primary-foreground);
-  --color-chat-sidebar-accent: var(--chat-sidebar-accent);
-  --color-chat-sidebar-accent-foreground: var(--chat-sidebar-accent-foreground);
-  --color-chat-sidebar-border: var(--chat-sidebar-border);
-  --color-chat-sidebar-ring: var(--chat-sidebar-ring);
-  --color-chat-langchain-blue: var(--chat-langchain-blue);
 }
 
-@layer base {
-  * {
-    @apply border-chat-border outline-chat-ring/50;
-  }
-}
-
-/* Retain the legacy page surface while individual regions migrate to Macaw. */
-body {
-  background-color: var(--chat-background);
-  color: var(--chat-foreground);
-  font-family: var(--font-sans);
-}
-
-/* Macaw removes field box shadows; legacy controls still need keyboard focus. */
-input[data-slot="input"]:focus-visible,
-textarea[data-slot="textarea"]:focus-visible {
-  outline: 2px solid var(--chat-ring);
-  outline-offset: 2px;
-}
-
-/* Markdown prose styles */
+/* Markdown is application content; controls and code blocks are Macaw components. */
 .prose {
-  color: var(--color-chat-foreground);
+  color: var(--text-primary);
   line-height: 1.65;
   max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
-
-.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
-  color: oklch(0.98 0 0);
+.prose :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--text-primary);
   font-weight: 600;
-  margin-top: 1.5em;
-  margin-bottom: 0.35em;
+  margin: 1.5em 0 .5em;
   line-height: 1.3;
 }
-
-.prose h1 {
-  font-size: 1.75em;
-  border-bottom: 1px solid var(--color-chat-border);
-  padding-bottom: 0.3em;
-}
-.prose h2 {
-  font-size: 1.5em;
-  border-bottom: 1px solid var(--color-chat-border);
-  padding-bottom: 0.25em;
-}
-.prose h3 {
-  font-size: 1.25em;
-  color: oklch(0.95 0 0);
-}
-
-.prose p {
-  margin-top: 0.75em;
-  margin-bottom: 0.75em;
-  color: oklch(0.88 0 0);
-}
-
-.prose code {
-  background: oklch(0.2 0 0);
-  padding: 0.25em 0.5em;
-  border-radius: 0.375em;
-  font-size: 0.9em;
+.prose h1 { font-size: 1.75em; }
+.prose h2 { font-size: 1.5em; }
+.prose h3 { font-size: 1.25em; }
+.prose p { margin: .75em 0; }
+.prose > :first-child { margin-top: 0; }
+.prose > :last-child { margin-bottom: 0; }
+.prose :not(pre) > code {
+  background: var(--bg-surface-level-2);
+  border: 1px solid var(--border-default);
+  border-radius: .25rem;
+  padding: .1em .3em;
   font-family: var(--font-mono);
-  color: oklch(0.92 0.05 180);
-  border: 1px solid oklch(0.3 0 0);
+  font-size: .9em;
 }
-
-.prose pre {
-  background: transparent;
-  padding: 0;
-  border-radius: 0;
-  overflow-x: visible;
-  margin: 1em 0;
-  border: none;
-  box-shadow: none;
-  line-height: 1.5;
-}
-
-.prose pre code {
-  background: transparent;
-  padding: 0;
-  border: none;
-  font-size: 0.9em;
-  line-height: 1.7;
-  color: oklch(0.9 0 0);
-}
-
-.prose a {
-  color: #7FC8FF;
-  text-decoration: none;
-  border-bottom: 1px solid rgba(127, 200, 255, 0.4);
-  transition: all 0.2s ease;
-}
-
-.prose a:hover {
-  color: #7FC8FF;
-  border-bottom-color: #7FC8FF;
-}
-
-.prose ul, .prose ol {
-  margin: 0.5em 0;
-  padding-left: 0;
-  list-style-position: inside;
-  color: oklch(0.88 0 0);
-}
-
-.prose li {
-  margin: 0.25em 0;
-  line-height: 1.5;
-  padding-left: 0;
-}
-
-.prose li > p {
-  margin: 0.25em 0;
-  display: inline;
-}
-
-.prose ul ul, .prose ol ul, .prose ul ol, .prose ol ol {
-  margin: 0.5em 0 0.5em 1.5em;
-  padding-left: 0;
-}
-
+.prose pre { max-width: 100%; overflow-x: auto; margin: 1em 0; }
+.prose a { color: var(--text-link); text-decoration: underline; text-underline-offset: 3px; }
+.prose a:hover { color: var(--text-link-hover); }
+.prose :is(ul, ol) { margin: .5em 0; padding-left: 1.5em; }
+.prose ul { list-style-type: disc; }
+.prose ol { list-style-type: decimal; }
+.prose li { margin: .25em 0; }
+.prose li > p { margin: .25em 0; }
 .prose blockquote {
-  border-left: 4px solid var(--color-chat-primary);
-  padding-left: 1.25em;
-  padding-top: 0.5em;
-  padding-bottom: 0.5em;
+  border-left: 3px solid var(--border-default);
+  padding: .25em 1em;
   margin: 1em 0;
-  font-style: italic;
-  color: oklch(0.75 0 0);
-  background: oklch(0.16 0 0);
-  border-radius: 0 0.375em 0.375em 0;
+  color: var(--text-secondary);
 }
-
-.prose strong {
-  font-weight: 600;
-  color: oklch(0.95 0 0);
-}
-
-.prose em {
-  font-style: italic;
-  color: oklch(0.85 0 0);
-}
-
-.prose hr {
-  border: none;
-  border-top: 1px solid var(--color-chat-border);
-  margin: 2em 0;
-}
-
-.prose table {
-  width: 100%;
-  margin: 1.5em 0;
-  border-collapse: collapse;
-  font-size: 0.95em;
-}
-
-.prose th {
-  background: oklch(0.2 0 0);
-  padding: 0.75em 1em;
-  text-align: left;
-  font-weight: 600;
-  color: oklch(0.95 0 0);
-  border: 1px solid var(--color-chat-border);
-}
-
-.prose td {
-  padding: 0.75em 1em;
-  border: 1px solid var(--color-chat-border);
-  color: oklch(0.88 0 0);
-}
-
-.prose tr:nth-child(even) {
-  background: oklch(0.14 0 0);
-}
-
-/* Animated gradient for thinking text */
-@keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.animate-gradient-shift {
-  animation: gradient-shift 3s ease infinite;
-}
-
-/* Bouncing dots animation */
-@keyframes bounce-dot {
-  0%, 60%, 100% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(-2px);
-  }
-}
-
-.animate-bounce-dot {
-  display: inline-block;
-  animation: bounce-dot 1.4s ease-in-out infinite;
-}
-
-/* Base thinking text - always visible */
-.thinking-text-base {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-/* Gradient overlay that sweeps across */
-.thinking-gradient-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent 40%,
-    rgba(255, 255, 255, 0.8) 50%,
-    transparent 60%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-position: 100% 0;
-  animation: sweep 3s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes sweep {
-  0% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: -100% 0;
-  }
-}
-
-/* Tech word animation styles */
-.tech-word-text {
-  color: rgba(255, 255, 255, 1);
-}
-
-.tech-word-cursor {
-  color: rgba(255, 255, 255, 1);
-  display: inline-block;
-  width: 2px;
-  background-color: rgba(255, 255, 255, 1);
-  margin-left: 2px;
-}
-
-.tech-word-cursor.solid {
-  opacity: 1;
-  animation: none;
-}
-
-.tech-word-cursor.blinking {
-  animation: blink-cursor 0.8s ease-in-out infinite;
-}
-
-@keyframes blink-cursor {
-  0%, 50% {
-    opacity: 1;
-  }
-  51%, 100% {
-    opacity: 0;
-  }
-}
+.prose strong { font-weight: 600; }
+.prose hr { border: 0; border-top: 1px solid var(--border-default); margin: 1.5em 0; }
+.prose > table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 1em 0; }
+.prose > table :is(th, td) { padding: .6em .8em; border: 1px solid var(--border-default); text-align: left; }
+.prose > table th { background: var(--bg-surface-level-2); font-weight: 600; }
+.prose img { max-width: 100%; height: auto; }
