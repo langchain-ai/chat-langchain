@@ -62,10 +62,18 @@ MODELS: dict[str, ModelConfig] = {
         api_key_env="GOOGLE_API_KEY",
         description="Fastest, most cost-effective Gemini",
     ),
+    # Fireworks
+    "glm-5.3-flash": ModelConfig(
+        id="fireworks:accounts/fireworks/models/glm-5p3-flash",
+        name="GLM-5.3 Flash",
+        provider="fireworks",
+        api_key_env="FIREWORKS_API_KEY",
+        description="Z.ai GLM-5.3 Flash on Fireworks",
+    ),
 }
 
 # Default models for different use cases
-DEFAULT_MODEL = MODELS["gemini-3.5-flash-lite"]
+DEFAULT_MODEL = MODELS["glm-5.3-flash"]
 GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
 
 # Fallback chain (in order of preference)
@@ -82,6 +90,7 @@ API_KEYS = [
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "GOOGLE_API_KEY",
+    "FIREWORKS_API_KEY",
 ]
 
 for key in API_KEYS:
