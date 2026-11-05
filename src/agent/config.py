@@ -62,10 +62,17 @@ MODELS: dict[str, ModelConfig] = {
         api_key_env="GOOGLE_API_KEY",
         description="Fastest, most cost-effective Gemini",
     ),
+    "claude-opus-5.5": ModelConfig(
+        id="anthropic:claude-opus-5-5",
+        name="Claude Opus 5.5",
+        provider="anthropic",
+        api_key_env="ANTHROPIC_API_KEY",
+        description="Most capable Anthropic model",
+    ),
 }
 
 # Default models for different use cases
-DEFAULT_MODEL = MODELS["gemini-3.5-flash-lite"]
+DEFAULT_MODEL = MODELS["claude-opus-5.5"]
 GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
 
 # Fallback chain (in order of preference)

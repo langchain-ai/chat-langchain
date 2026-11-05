@@ -5,7 +5,6 @@ from managed_deepagents import define_deep_agent
 from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
-    model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
     tool_retry_middleware,
@@ -50,15 +49,15 @@ docs_agent_middleware = [
         trim_tokens_to_summarize=None,
     ),
     tool_retry_middleware,
+    # No cross-model fallback: every assistant turn comes from the one model.
     model_retry_middleware,
-    model_fallback_middleware,
 ]
 
 agent = define_deep_agent(
     name="docs_agent",
     # Keep this literal so `mda deploy` can infer the provider package and
-    # preflight GOOGLE_API_KEY.
-    model="google_genai:gemini-3.5-flash-lite",
+    # preflight ANTHROPIC_API_KEY.
+    model="anthropic:claude-opus-5-5",
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     metadata=build_docs_agent_trace_metadata(),
