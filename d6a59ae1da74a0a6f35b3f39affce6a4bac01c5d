@@ -1,0 +1,30 @@
+frontend/lib/auth/AuthProvider.tsx
+  s_845cdf2c4d2cb9::t_ece973a4d40abb 124-135
+frontend/components/chat/chat-interface.tsx
+  s_845cdf2c4d2cb9::t_9555660c60afaf 759
+  s_845cdf2c4d2cb9::t_d94696ae2db919 709
+  s_845cdf2c4d2cb9::t_e15c86f9abe98f 12
+  s_845cdf2c4d2cb9::t_c69c061497a388 720-725
+  s_845cdf2c4d2cb9::t_aba7db455b6c47 694-698
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d6a59ae1da74a0a6f35b3f39affce6a4bac01c5d",
+  "prompts": {},
+  "humans": {
+    "h_d9bb7eeb24d8a0": {
+      "author": "Danny Lambert <danielrlambert3@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_845cdf2c4d2cb9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3cc9703b-f72d-4844-bb4b-2afa645403da",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Danny Lambert <danielrlambert3@gmail.com>"
+    }
+  }
+}
