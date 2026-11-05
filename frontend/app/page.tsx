@@ -44,6 +44,7 @@ function DashboardContent() {
     guestToken,
     loading: langGraphAuthLoading,
   } = useLangGraphAuth()
+  const sessionInitializationFailed = !langGraphAuthLoading && !userId
   const shouldLoadGuestThreads = Boolean(
     userId && guestUserId && guestToken && userId !== guestUserId
   )
@@ -477,9 +478,11 @@ function DashboardContent() {
         />
         {!threadId && (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-            <ChatState status={langGraphAuthLoading ? "pending" : "failed"}
-              label={langGraphAuthLoading ? "Starting your chat session" : "Unable to start your chat session"} />
-            {!langGraphAuthLoading && <><p className="text-secondary">Sign in or reload to try again.</p><Button color="secondary" onClick={() => window.location.reload()}>Reload</Button></>}
+            <ChatState
+              status={sessionInitializationFailed ? "failed" : "pending"}
+              label={sessionInitializationFailed ? "Unable to start your chat session" : "Starting your chat session"}
+            />
+            {sessionInitializationFailed && <><p className="text-secondary">Sign in or reload to try again.</p><Button color="secondary" onClick={() => window.location.reload()}>Reload</Button></>}
           </div>
         )}
         {threadId && (

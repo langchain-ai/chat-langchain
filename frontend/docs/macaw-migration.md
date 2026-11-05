@@ -13,7 +13,7 @@ uses its public components, icons, and tokens:
 | Surface | Macaw integration |
 | --- | --- |
 | History and navigation | ChatConversationList, groups/items, Input, Dialog, menus and buttons |
-| Welcome and follow-up input | One app-owned MessageComposer using ChatComposer, Input, Toolbar, Action, Attachments |
+| Welcome and follow-up input | One app-owned MessageComposer using ChatComposer, PlainInput, Toolbar, Action, Attachments |
 | Transcript | ChatConversation, ChatMessage, message actions, Attachment, CodeLite, Link |
 | Edit-and-rerun | ChatRichContent form with Macaw Textarea |
 | Agent execution | ChatState, ChatToolCall, groups and reasoning disclosures |
@@ -24,6 +24,8 @@ feedback, analytics, file serialization, and browser speech recognition. Thin
 presentation adapters map those states to Macaw. Markdown/GFM remains app-owned
 inside ChatMessage custom blocks; Macaw CodeLite renders fenced code with copy.
 The native hidden file input bridges the browser file picker to the upload hook.
+Macaw's plain-text composer input preserves pasted code and whitespace without
+serializing prompts through a rich Markdown editor.
 Raw tools remain gated by the existing `showToolCalls=false` product setting.
 
 Legacy local UI primitives, progress animations, unmounted time-travel UI, and

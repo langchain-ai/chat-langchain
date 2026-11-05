@@ -4,10 +4,10 @@ import { useId, useRef } from "react"
 import {
   ChatComposer,
   ChatComposerAction,
-  ChatComposerInput,
   ChatComposerToolbar,
   type ChatComposerInputHandle,
 } from "@langchain/macaw-components/ChatComposer"
+import { ChatComposerPlainInput } from "@langchain/macaw-components/ChatComposer/ChatComposerPlainInput"
 import { Button } from "@langchain/macaw-components/Button"
 import { ErrorMessage } from "@langchain/macaw-components/ErrorMessage"
 import { IconButton } from "@langchain/macaw-components/IconButton"
@@ -133,7 +133,8 @@ export function MessageComposer({
           </div>
         )}
         <FilePreviewGrid files={attachedFiles} onRemove={onRemoveFile} />
-        <ChatComposerInput
+        {/* Chat prompts are raw text: rich Markdown serialization changes code and indentation. */}
+        <ChatComposerPlainInput
           ref={inputRef}
           value={input}
           onChange={onInputChange}
