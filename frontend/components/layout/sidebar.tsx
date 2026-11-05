@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  memo,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type SVGProps,
-} from "react"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArticleRegularIcon,
   ChatsFillIcon,
@@ -44,10 +37,26 @@ interface SidebarProps {
   onMobileOpenChange?: (open: boolean) => void
 }
 
-// Link decorators receive icon props; the logomark inherits Link's size and color.
-function LangSmithMark({ className }: SVGProps<SVGSVGElement>) {
-  return <Logo brand="langsmith" variant="logomark" className={className} />
-}
+const resources = [
+  {
+    href: "https://smith.langchain.com",
+    title: "LangSmith",
+    description: "Monitoring & Tracing",
+    icon: <Logo brand="langsmith" variant="logomark" className="size-3" />,
+  },
+  {
+    href: "https://forum.langchain.com/",
+    title: "Community Forum",
+    description: "Join the Discussion",
+    icon: <ChatsFillIcon className="size-3" />,
+  },
+  {
+    href: "https://docs.langchain.com/oss/python/langchain/overview",
+    title: "Documentation",
+    description: "LangChain Docs",
+    icon: <ArticleRegularIcon className="size-3" />,
+  },
+]
 
 function groupThreads(threads: Thread[]) {
   const now = Date.now()
@@ -188,34 +197,33 @@ export const Sidebar = memo(function Sidebar({
           </ChatConversationList>
         )}
       </nav>
-      <div className="flex flex-col gap-3 border-t border-subtle p-4">
-        <Link
-          href="https://smith.langchain.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          leftDecorator={LangSmithMark}
-          variant="sm"
-        >
-          LangSmith
-        </Link>
-        <Link
-          href="https://forum.langchain.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          leftDecorator={ChatsFillIcon}
-          variant="sm"
-        >
-          Community forum
-        </Link>
-        <Link
-          href="https://docs.langchain.com/oss/python/langchain/overview"
-          target="_blank"
-          rel="noopener noreferrer"
-          leftDecorator={ArticleRegularIcon}
-          variant="sm"
-        >
-          Documentation
-        </Link>
+      <div className="shrink-0 border-t border-subtle p-2">
+        {resources.map(({ href, title, description, icon }) => (
+          <Link
+            key={href}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full rounded-md px-2 py-2 hover:bg-surface-level-2 [&>span]:w-full [&>span]:no-underline"
+          >
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="flex size-6 shrink-0 items-center justify-center rounded-full bg-langchain-brand/15 text-langchain-brand"
+              >
+                {icon}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <Text as="span" variant="sm" weight="medium" color="primary">
+                  {title}
+                </Text>
+                <Text as="span" variant="xs" color="quaternary">
+                  {description}
+                </Text>
+              </span>
+            </span>
+          </Link>
+        ))}
       </div>
     </>
   )
