@@ -1,5 +1,7 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+import os
+
 from langchain_fireworks import ChatFireworks
 from managed_deepagents import define_deep_agent
 
@@ -19,6 +21,43 @@ from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_support_article_content, search_support_articles
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
+
+GLM = "accounts/fireworks/models/glm-5p3-flash"
+
+
+class PolicyFireworks(ChatFireworks):
+    """GLM-5.3 Flash through Fireworks' RL sidecar (TITO).
+
+    The sidecar fixes the reasoning effort and owns sampling, and rejects a request that sets
+    n, stop or reasoning_effort, so none is sent.
+    """
+
+    @property
+    def _default_params(self) -> dict:
+        params = super()._default_params
+        params.pop("n", None)
+        if params.get("stop") is None:
+            params.pop("stop", None)
+        params.pop("reasoning_effort", None)
+        return params
+
+
+def main_model() -> ChatFireworks:
+    """Build the docs agent's model.
+
+    Under RL (TITO_POLICY_BASE_URL set) it is the policy being trained, reached through the
+    trial's sidecar. The summarizer and the guardrail fallback stay on their usual route, so
+    their calls are not part of the trained trajectory.
+    """
+    if base_url := os.environ.get("TITO_POLICY_BASE_URL"):
+        # The sidecar gives its OpenAI base (…/v1); the Fireworks client adds /v1/chat/completions.
+        return PolicyFireworks(
+            model=GLM,
+            base_url=base_url.removesuffix("/").removesuffix("/v1"),
+            api_key=os.environ["TITO_POLICY_API_KEY"],
+        )
+    return ChatFireworks(model=GLM, reasoning_effort="low")
+
 
 # The MCP docs tools are declared in tools/mcp.py so the managed runtime
 # owns client lifecycle and appends those tools during compilation.
@@ -58,9 +97,7 @@ agent = define_deep_agent(
     name="docs_agent",
     # A model object, so its reasoning effort is set; langchain-fireworks is a
     # declared dependency.
-    model=ChatFireworks(
-        model="accounts/fireworks/models/glm-5p3-flash", reasoning_effort="low"
-    ),
+    model=main_model(),
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     metadata=build_docs_agent_trace_metadata(),
