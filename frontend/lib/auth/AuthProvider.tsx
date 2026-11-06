@@ -36,7 +36,11 @@ interface AuthContextType {
   availableAuthRegions: AuthRegion[]
   setAuthRegion: (region: AuthRegion) => void
   signIn: (provider: OAuthProvider) => Promise<void>
-  signInWithEmail: (email: string, password: string) => Promise<void>
+  signInWithEmail: (
+    email: string,
+    password: string,
+    captchaToken?: string
+  ) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -223,12 +227,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const signInWithEmail = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, captchaToken?: string) => {
       const client = requireClient()
       setStoredAuthRegion(authRegion)
       const { error } = await client.auth.signInWithPassword({
         email,
         password,
+        ...(captchaToken && { options: { captchaToken } }),
       })
 
       if (error) throw new Error(`Sign in failed: ${error.message}`)

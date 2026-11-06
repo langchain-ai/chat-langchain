@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import HCaptcha from "@hcaptcha/react-hcaptcha"
 import { Banner } from "@langchain/macaw-components/Banner"
 import { Button } from "@langchain/macaw-components/Button"
 import { Dialog, DialogContent } from "@langchain/macaw-components/Dialog"
@@ -11,6 +12,12 @@ import { Select } from "@langchain/macaw-components/Select"
 import { Text } from "@langchain/macaw-components/Text"
 import { trackEvent } from "@/components/providers/segment-provider"
 import { useAuth, type OAuthProvider } from "@/lib/auth"
+import {
+  CAPTCHA_LOADING_MESSAGE,
+  CAPTCHA_LOAD_FAILED_MESSAGE,
+  getCaptchaErrorMessage,
+  isCaptchaLoadError,
+} from "@/lib/auth/captcha"
 import type { AuthRegion } from "@/lib/auth/supabase"
 
 interface AuthModalProps {
@@ -40,6 +47,8 @@ const getLangSmithAuthUrl = (
 ) => `${LANGSMITH_REGION_URLS[region]}/?mode=${mode}`
 
 const SIGN_UP_CLICK_TRACKED_KEY = "chat-langchain-sign-up-click-tracked"
+
+const HCAPTCHA_SITEKEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY ?? ""
 
 function RegionIcon({ region }: { region: AuthRegion }) {
   if (region === "us" || region === "aws")
@@ -73,6 +82,9 @@ export function AuthModal({
   const [lastUsedProvider, setLastUsedProvider] =
     useState<OAuthProvider | null>(null)
   const [isEmailLoading, setIsEmailLoading] = useState(false)
+  const captchaRef = useRef<HCaptcha>(null)
+  const [captchaLoadFailed, setCaptchaLoadFailed] = useState(false)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -88,6 +100,7 @@ export function AuthModal({
       setError(null)
       setEmail("")
       setPassword("")
+      setCaptchaLoadFailed(false)
     }
   }, [open])
 
@@ -119,12 +132,46 @@ export function AuthModal({
     }
   }
 
+  // A widget that failed to load or initialize stays broken, and retrying it can
+  // hang, so each retry starts from a fresh one.
+  const restartCaptcha = () => {
+    setCaptchaLoadFailed(false)
+    setCaptchaWidgetKey((key) => key + 1)
+  }
+
   const handleEmailAuth = async () => {
     try {
       setIsEmailLoading(true)
       setError(null)
 
-      await signInWithEmail(email, password)
+      let captchaToken: string | undefined
+      if (HCAPTCHA_SITEKEY) {
+        // Before the script is ready, execute() never settles if the script is
+        // blocked, and rejects with a TypeError if it loads late.
+        if (!captchaRef.current?.isReady()) {
+          setError(
+            captchaLoadFailed
+              ? CAPTCHA_LOAD_FAILED_MESSAGE
+              : CAPTCHA_LOADING_MESSAGE
+          )
+          if (captchaLoadFailed) restartCaptcha()
+          return
+        }
+        try {
+          const { response } = await captchaRef.current.execute({ async: true })
+          captchaToken = response
+        } catch (captchaError) {
+          const message = getCaptchaErrorMessage(captchaError)
+          if (message) {
+            console.error("hCaptcha error:", captchaError)
+            restartCaptcha()
+          }
+          setError(message)
+          return
+        }
+      }
+
+      await signInWithEmail(email, password, captchaToken)
       onOpenChange(false)
     } catch (error) {
       console.error("Email auth error:", error)
@@ -134,6 +181,7 @@ export function AuthModal({
           : "Failed to authenticate. Please try again."
       )
     } finally {
+      captchaRef.current?.resetCaptcha()
       setIsEmailLoading(false)
     }
   }
@@ -174,6 +222,11 @@ export function AuthModal({
         title="Log in with your LangSmith account"
         description="Sign in to save your conversations, or continue as a guest."
         className="w-[calc(100vw-2rem)] max-w-lg"
+        onInteractOutside={(event) => {
+          // hCaptcha renders its challenge and overlay outside the dialog, so
+          // keep the form open while a check runs.
+          if (isEmailLoading) event.preventDefault()
+        }}
         onOpenAutoFocus={() => {
           returnFocusRef.current =
             document.activeElement instanceof HTMLElement
@@ -297,6 +350,17 @@ export function AuthModal({
             >
               Continue
             </Button>
+            {HCAPTCHA_SITEKEY && (
+              <HCaptcha
+                key={captchaWidgetKey}
+                ref={captchaRef}
+                sitekey={HCAPTCHA_SITEKEY}
+                size="invisible"
+                onError={(code) => {
+                  if (isCaptchaLoadError(code)) setCaptchaLoadFailed(true)
+                }}
+              />
+            )}
           </form>
           <div className="flex items-center justify-center gap-2">
             <Text variant="sm" color="secondary">
@@ -341,6 +405,29 @@ export function AuthModal({
             </Link>
             .
           </Text>
+          {HCAPTCHA_SITEKEY && (
+            <Text variant="xs" color="tertiary" className="text-center">
+              This site is protected by hCaptcha and its{" "}
+              <Link
+                href="https://www.hcaptcha.com/privacy"
+                target="_blank"
+                rel="noreferrer"
+                variant="xs"
+              >
+                Privacy Policy
+              </Link>{" "}
+              and{" "}
+              <Link
+                href="https://www.hcaptcha.com/terms"
+                target="_blank"
+                rel="noreferrer"
+                variant="xs"
+              >
+                Terms of Service
+              </Link>{" "}
+              apply.
+            </Text>
+          )}
         </div>
       </DialogContent>
     </Dialog>

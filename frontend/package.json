@@ -16,6 +16,7 @@
     "dev:demo": "cross-env MACAW_SMOKE_TEST=1 next dev"
   },
   "dependencies": {
+    "@hcaptcha/react-hcaptcha": "2.1.0",
     "@langchain/langgraph-sdk": "^1.9.18",
     "@langchain/macaw-components": "1.7.4",
     "@phosphor-icons/react": "2.1.10",
