@@ -726,6 +726,13 @@ export function ChatInterface({
     }
   }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, setInput, clearFiles, processMessage, processQueue, threadId, messages])
 
+  const removeQueuedMessage = useCallback((id: string) => {
+    messageQueueRef.current = messageQueueRef.current.filter(
+      (item) => item.userMessage.id !== id
+    )
+    setQueuedMessagesDisplay((prev) => prev.filter((m) => m.id !== id))
+  }, [])
+
   const handleStop = useCallback(async () => {
     console.log('User requested stop')
     uiDispatch({ type: 'SET_STOPPING', payload: true })
@@ -933,6 +940,7 @@ export function ChatInterface({
             onVoiceToggle={toggleVoiceListening}
             voiceError={voiceError}
             queuedMessages={queuedMessagesDisplay}
+            onRemoveQueuedMessage={removeQueuedMessage}
           />
         )}
       </main>

@@ -17,6 +17,7 @@ import { PlusIcon } from "@langchain/macaw-components/icons"
 import { FilePreviewGrid } from "./features/file-preview-grid"
 import { MicrophoneIcon } from "@phosphor-icons/react/dist/ssr/Microphone"
 import { StopIcon } from "@phosphor-icons/react/dist/ssr/Stop"
+import { XIcon } from "@phosphor-icons/react/dist/ssr/X"
 import type { ImageAttachment } from "@/lib/types"
 
 export interface MessageComposerProps {
@@ -45,6 +46,7 @@ export interface MessageComposerProps {
   onVoiceToggle?: () => void
   voiceError?: string | null
   queuedMessages?: { content: string; id: string }[]
+  onRemoveQueuedMessage?: (id: string) => void
 }
 
 const acceptedFiles =
@@ -77,6 +79,7 @@ export function MessageComposer({
   onVoiceToggle,
   voiceError,
   queuedMessages = [],
+  onRemoveQueuedMessage,
 }: MessageComposerProps) {
   const localInputRef = useRef<ChatComposerInputHandle>(null)
   const inputRef = textareaRef ?? localInputRef
@@ -139,9 +142,20 @@ export function MessageComposer({
                   <Text as="span" variant="xs" color="secondary">
                     Queued
                   </Text>
-                  <Text as="span" variant="sm" className="truncate">
+                  <Text as="span" variant="sm" className="min-w-0 flex-1 truncate">
                     {message.content}
                   </Text>
+                  {onRemoveQueuedMessage && (
+                    <IconButton
+                      type="button"
+                      icon={XIcon}
+                      label="Remove queued message"
+                      variant="plain"
+                      color="secondary"
+                      size="xs"
+                      onClick={() => onRemoveQueuedMessage(message.id)}
+                    />
+                  )}
                 </div>
               ))}
             </div>

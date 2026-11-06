@@ -483,6 +483,8 @@ export function MacawChatDemo() {
       content: draft.content,
       id: draft.id,
     })),
+    onRemoveQueuedMessage: (id: string) =>
+      setQueue((current) => current.filter((draft) => draft.id !== id)),
   }
 
   return (
