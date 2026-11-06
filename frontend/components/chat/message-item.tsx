@@ -1,22 +1,10 @@
 "use client"
 
-import {
-  Children,
-  isValidElement,
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react"
-import ReactMarkdown, { type Components } from "react-markdown"
-import remarkGfm from "remark-gfm"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import {
   ChatMessage,
   ChatMessageActions,
   ChatMessageBody,
-  ChatMessageHeader,
   type ChatMessageContentBlock,
 } from "@langchain/macaw-components/ChatMessage"
 import { ChatRichContent } from "@langchain/macaw-components/ChatRichContent"
@@ -32,12 +20,9 @@ import {
 } from "@langchain/macaw-components/Attachment"
 import { Button } from "@langchain/macaw-components/Button"
 import { IconButton } from "@langchain/macaw-components/IconButton"
-import {
-  CodeLite,
-  type CodeLiteCodeProps,
-} from "@langchain/macaw-components/Code/CodeLite"
-import { resolveCodeLanguage } from "@langchain/macaw-components/Code/codeLanguages"
 import { Link } from "@langchain/macaw-components/Link"
+import { MarkdownDisplay } from "@langchain/macaw-components/MarkdownDisplay"
+import { Text } from "@langchain/macaw-components/Text"
 import { Textarea } from "@langchain/macaw-components/Textarea"
 import { ChatTextIcon } from "@phosphor-icons/react/dist/ssr/ChatText"
 import { ThumbsDownIcon } from "@phosphor-icons/react/dist/ssr/ThumbsDown"
@@ -52,51 +37,6 @@ import {
   subgraphStatus,
   toolStatus,
 } from "@/lib/utils/chat/presentation"
-
-// CodeLite bundles TypeScript (a JavaScript superset), Python, shell, YAML, and JSON grammars.
-function codeLanguage(language: string): CodeLiteCodeProps["language"] {
-  const resolved = resolveCodeLanguage(language)
-  if (resolved === "javascript") return "typescript"
-  return resolved === "typescript" ||
-    resolved === "python" ||
-    resolved === "shell" ||
-    resolved === "yaml" ||
-    resolved === "json"
-    ? resolved
-    : "plaintext"
-}
-
-// Headings, paragraphs, lists, tables, and inline code are styled by `.prose`
-// in globals.css. Override the block wrapper so CodeLite never sits inside a
-// native <pre>. React keeps each Markdown node mounted as its streamed text changes.
-const markdownComponents: Components = {
-  a: ({ href, children }) =>
-    href ? (
-      <Link href={href} target="_blank" rel="noopener noreferrer">
-        {children}
-      </Link>
-    ) : (
-      <>{children}</>
-    ),
-  pre: ({ children }) => {
-    const code = Children.toArray(children).find(isValidElement)
-    const props = code?.props as
-      { className?: string; children?: ReactNode } | undefined
-    const language =
-      /language-([\w+-]+)/.exec(props?.className ?? "")?.[1] ?? "text"
-    return (
-      <CodeLite
-        variant="block"
-        label={language}
-        language={codeLanguage(language)}
-        value={String(props?.children ?? "").replace(/\n$/, "")}
-        showGutter={false}
-        virtualize={false}
-        className="my-3"
-      />
-    )
-  },
-}
 
 export interface MessageItemProps {
   message: Message
@@ -212,9 +152,13 @@ export const MessageItem = memo(function MessageItem({
               status={status}
               elapsedMs={message.thinkingDuration}
             >
-              <ol className="list-decimal space-y-2 pl-5 text-sm text-secondary">
+              <ol className="list-decimal space-y-1 pl-4 text-xs text-tertiary">
                 {steps.map((step, index) => (
-                  <li key={`${message.id}-step-${index}`}>{step}</li>
+                  <li key={`${message.id}-step-${index}`}>
+                    <Text variant="xs" color="tertiary">
+                      {step}
+                    </Text>
+                  </li>
                 ))}
               </ol>
             </ChatToolCallReasoning>
@@ -284,14 +228,10 @@ export const MessageItem = memo(function MessageItem({
               id: `${message.id}-content`,
               type: "custom",
               content: (
-                <div className="prose min-w-0 text-sm leading-relaxed [overflow-wrap:anywhere]">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={markdownComponents}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
-                </div>
+                <MarkdownDisplay
+                  content={message.content}
+                  isStreaming={isStreaming}
+                />
               ),
             }
           : {
@@ -477,7 +417,6 @@ export const MessageItem = memo(function MessageItem({
         </>
       }
     >
-      <ChatMessageHeader name={isAssistant ? "Chat LangChain" : "You"} />
       <ChatMessageBody blocks={blocks} />
       {isEditing && (
         <ChatRichContent
