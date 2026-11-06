@@ -2,9 +2,11 @@
 
 import asyncio
 import os
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -34,7 +36,9 @@ class FakeStructuredModel:
         return outcome
 
 
-def _middleware_with_models(*models: tuple[str, FakeStructuredModel]) -> GuardrailsMiddleware:
+def _middleware_with_models(
+    *models: tuple[str, FakeStructuredModel],
+) -> GuardrailsMiddleware:
     middleware = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
     middleware.classifier_llms = list(models)
     middleware.block_off_topic = True
@@ -45,7 +49,9 @@ def test_guardrails_falls_back_after_primary_retries(monkeypatch):
     """The fallback model should get its own retry budget after primary fails."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
 
-    primary = FakeStructuredModel([RuntimeError("primary down"), RuntimeError("still down")])
+    primary = FakeStructuredModel(
+        [RuntimeError("primary down"), RuntimeError("still down")]
+    )
     fallback = FakeStructuredModel(
         [{"decision": "ALLOWED", "explanation": "LangChain-related question."}]
     )
@@ -64,7 +70,9 @@ def test_guardrails_raises_after_all_models_exhaust_retries(monkeypatch):
     """Guardrails should fail only after every model exhausts retries."""
     monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
 
-    primary = FakeStructuredModel([RuntimeError("primary down"), RuntimeError("still down")])
+    primary = FakeStructuredModel(
+        [RuntimeError("primary down"), RuntimeError("still down")]
+    )
     fallback = FakeStructuredModel(
         [RuntimeError("fallback down"), RuntimeError("fallback still down")]
     )
@@ -96,3 +104,95 @@ def test_guardrails_all_failed_classification_allows_main_agent(monkeypatch):
     )
 
     assert result == {"off_topic_query": False}
+
+
+@pytest.mark.parametrize("decision", ["ALLOW", "ALLOWED", " allow ", " allowed "])
+def test_guardrails_allowed_decisions_continue_and_record_metadata(
+    monkeypatch, decision
+):
+    model = FakeStructuredModel([{"decision": decision}])
+    middleware = _middleware_with_models(("primary", model))
+    run_tree = SimpleNamespace(metadata={})
+    monkeypatch.setattr(guardrails_module.ls, "get_current_run_tree", lambda: run_tree)
+    monkeypatch.setattr(guardrails_module, "ALLOWED_SAMPLE_RATE", 0)
+    rejection = AsyncMock()
+    monkeypatch.setattr(middleware, "_generate_rejection_message", rejection)
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="How do agents work?")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert result is None
+    assert run_tree.metadata["guardrails_result"] == "ALLOWED"
+    assert run_tree.metadata["guardrails_explanation"] == ""
+    rejection.assert_not_awaited()
+
+
+@pytest.mark.parametrize("decision", ["BLOCK", "BLOCKED", " block ", " blocked "])
+def test_guardrails_blocked_decisions_reject_and_record_metadata(monkeypatch, decision):
+    model = FakeStructuredModel([{"decision": decision, "explanation": "Off topic."}])
+    middleware = _middleware_with_models(("primary", model))
+    run_tree = SimpleNamespace(metadata={})
+    monkeypatch.setattr(guardrails_module.ls, "get_current_run_tree", lambda: run_tree)
+    monkeypatch.setattr(middleware, "_add_to_dataset", AsyncMock())
+    rejection = AIMessage(content="Please ask about LangChain.")
+    monkeypatch.setattr(
+        middleware, "_generate_rejection_message", AsyncMock(return_value=rejection)
+    )
+
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {"messages": [HumanMessage(content="Write a novel.")]},
+            Runtime(context=None),
+        )
+    )
+
+    assert result == {
+        "messages": [rejection],
+        "off_topic_query": True,
+        "jump_to": "end",
+    }
+    assert run_tree.metadata["guardrails_result"] == "BLOCKED"
+    assert run_tree.metadata["guardrails_explanation"] == "Off topic."
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {},
+        {"decision": None},
+        {"decision": 1},
+        {"decision": ""},
+        {"decision": "UNKNOWN"},
+        {"decision": "ALLOW THIS"},
+        {"decision": "BLOCK THIS"},
+    ],
+)
+def test_invalid_guardrails_decisions_retry_then_fall_back(monkeypatch, invalid):
+    monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
+    primary = FakeStructuredModel([invalid, invalid])
+    fallback = FakeStructuredModel([invalid, {"decision": "ALLOW"}])
+    middleware = _middleware_with_models(("primary", primary), ("fallback", fallback))
+
+    result = asyncio.run(
+        middleware._classify_query([HumanMessage(content="How do agents work?")])
+    )
+
+    assert result == {"decision": "ALLOWED", "explanation": ""}
+    assert primary.calls == 2
+    assert fallback.calls == 2
+
+
+def test_invalid_guardrails_decisions_exhaust_classification(monkeypatch):
+    monkeypatch.setattr(guardrails_module, "GUARDRAILS_MAX_RETRIES", 1)
+    primary = FakeStructuredModel([{"decision": "UNKNOWN"}] * 2)
+    fallback = FakeStructuredModel([{"decision": "UNKNOWN"}] * 2)
+    middleware = _middleware_with_models(("primary", primary), ("fallback", fallback))
+
+    with pytest.raises(GuardrailsClassificationError, match="Unrecognized"):
+        asyncio.run(
+            middleware._classify_query([HumanMessage(content="How do agents work?")])
+        )
