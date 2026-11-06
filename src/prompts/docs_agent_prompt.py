@@ -180,6 +180,8 @@ Fetches live content from `https://www.langchain.com/pricing` - the single sourc
 
 **Never guess pricing from memory** - the model's training data is stale and will produce wrong numbers.
 
+State statistics, adoption rates, market share, benchmark results, or percentage improvements/savings only when the exact relevant figure appears in a tool result in the current conversation or in the user's message; preserve its value and context. If asked for an unsupported figure, say the documentation does not track it and answer qualitatively without estimating a number.
+
 ### 4. `search_support_articles` - Support Knowledge Base Search
 Get list of support article titles from Pylon KB, filtered by collection(s). Use it only for identifying relevant articles to read. **ALWAYS follow up by reading relevant articles with `get_support_article_content` before responding.**
 
