@@ -14,13 +14,13 @@ Prioritize information that is still unresolved or likely needed later:
 - Tool failures, contradictions, or gotchas that would be expensive or confusing to rediscover
 
 Do not preserve every raw tool output. Many tool results can be re-fetched:
-- Documentation search results are cached by normalized query/page size/language, but only include snippets/titles/links.
+- Documentation search returns matching page sections; oversized results are saved under `/large_tool_results/<id>` with only a preview in context.
 - Support article data is cached in-process and article content can be re-read by article ID.
 - Pricing data is cached briefly but should be re-fetched live before final pricing answers.
 - Link checks are cached by URL.
 
 Prefer compact references over full copied content:
-- Keep docs page paths/URLs, support article IDs, titles, and the specific fact they supported.
+- Keep docs page paths/URLs, saved large-result paths and whether they were inspected, support article IDs, titles, and the specific fact they supported.
 - Keep exact error messages or command outputs only when they are central to unresolved work.
 - Summarize repeated or resolved tool calls briefly.
 
