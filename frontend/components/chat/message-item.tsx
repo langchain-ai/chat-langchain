@@ -347,42 +347,6 @@ export const MessageItem = memo(function MessageItem({
       isLatest={isLastAssistant || isEditing || showCommentInput === message.id}
       footer={
         <>
-          {metadata.length > 0 && (
-            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-              {metadata.map((item) => (
-                <Text
-                  key={item.label}
-                  as="span"
-                  variant="xs"
-                  color="quaternary"
-                  title={item.label}
-                  className="inline-flex items-center gap-1 tabular-nums"
-                >
-                  {item.icon && (
-                    // Icon defaults to text-primary instead of inheriting.
-                    <Icon
-                      icon={item.icon}
-                      size="xs"
-                      className="text-quaternary"
-                      aria-hidden
-                    />
-                  )}
-                  <span className="sr-only">{item.label}: </span>
-                  {item.value}
-                </Text>
-              ))}
-            </span>
-          )}
-          {message.shareUrl && (
-            <Link
-              href={message.shareUrl}
-              variant="xs"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View trace
-            </Link>
-          )}
           <ChatMessageActions
             status={status}
             actions={{
@@ -458,6 +422,44 @@ export const MessageItem = memo(function MessageItem({
               </>
             )}
           </ChatMessageActions>
+          {(metadata.length > 0 || message.shareUrl) && (
+            // Like earlier messages' footers, metadata appears on hover or
+            // focus; touch screens, which cannot hover, always show it.
+            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 pl-1 transition-opacity duration-fast group-focus-within/chat-message:transition-none motion-reduce:transition-none pointer-fine:opacity-0 pointer-fine:group-hover/chat-message:opacity-100 pointer-fine:group-focus-within/chat-message:opacity-100">
+              {metadata.map((item) => (
+                <Text
+                  key={item.label}
+                  as="span"
+                  variant="xs"
+                  color="quaternary"
+                  title={item.label}
+                  className="inline-flex items-center gap-1 tabular-nums"
+                >
+                  {item.icon && (
+                    // Icon defaults to text-primary instead of inheriting.
+                    <Icon
+                      icon={item.icon}
+                      size="xs"
+                      className="text-quaternary"
+                      aria-hidden
+                    />
+                  )}
+                  <span className="sr-only">{item.label}: </span>
+                  {item.value}
+                </Text>
+              ))}
+              {message.shareUrl && (
+                <Link
+                  href={message.shareUrl}
+                  variant="xs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View trace
+                </Link>
+              )}
+            </span>
+          )}
         </>
       }
     >
