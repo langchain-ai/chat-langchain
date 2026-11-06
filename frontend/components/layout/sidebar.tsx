@@ -198,7 +198,7 @@ export const Sidebar = memo(function Sidebar({
         )}
       </nav>
       <div
-        className="flex shrink-0 flex-col justify-end border-t border-subtle p-2"
+        className="flex shrink-0 flex-col justify-end p-2"
         style={mobile ? undefined : { minHeight: "var(--chat-input-height)" }}
       >
         {resources.map(({ href, title, description, icon }) => (
