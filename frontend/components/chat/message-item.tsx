@@ -260,9 +260,13 @@ export const MessageItem = memo(function MessageItem({
               id: `${message.id}-content`,
               type: "custom",
               content: (
+                // Past MarkdownDisplay's 20k-char limit, answers fall back to
+                // plain text; fullLength keeps that text from hiding behind
+                // "Show more".
                 <MarkdownDisplay
                   content={message.content}
                   isStreaming={isStreaming}
+                  fullLength
                 />
               ),
             }
