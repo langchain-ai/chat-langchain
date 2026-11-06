@@ -358,7 +358,15 @@ export const MessageItem = memo(function MessageItem({
                   title={item.label}
                   className="inline-flex items-center gap-1 tabular-nums"
                 >
-                  {item.icon && <Icon icon={item.icon} size="xs" aria-hidden />}
+                  {item.icon && (
+                    // Icon defaults to text-primary instead of inheriting.
+                    <Icon
+                      icon={item.icon}
+                      size="xs"
+                      className="text-quaternary"
+                      aria-hidden
+                    />
+                  )}
                   <span className="sr-only">{item.label}: </span>
                   {item.value}
                 </Text>
