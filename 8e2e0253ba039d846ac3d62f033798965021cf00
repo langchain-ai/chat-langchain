@@ -1,0 +1,25 @@
+frontend/components/auth/AuthModal.tsx
+  s_8f924410f6e6f2::t_7f5c1e733fc3c6 168-173
+  s_8f924410f6e6f2::t_ecddf85dd6a96c 52-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8e2e0253ba039d846ac3d62f033798965021cf00",
+  "prompts": {},
+  "humans": {
+    "h_255864e0abd836": {
+      "author": "lutan-langchain <lucy.tan@langchain.dev>"
+    }
+  },
+  "sessions": {
+    "s_8f924410f6e6f2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a644fcb8-e387-4dc4-8add-291b0db45f95",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "lutan-langchain <lucy.tan@langchain.dev>"
+    }
+  }
+}
