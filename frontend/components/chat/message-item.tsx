@@ -477,6 +477,8 @@ export const MessageItem = memo(function MessageItem({
                   className="min-h-[80px] text-sm"
                   autoFocus
                     onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing || e.keyCode === 229) return
+
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault()
                         handleSaveEdit()
@@ -744,6 +746,8 @@ export const MessageItem = memo(function MessageItem({
                   className="min-h-[60px] text-xs"
                   autoFocus
                   onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing || e.keyCode === 229) return
+
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault()
                       if (feedbackComment[message.id]?.trim() && message.feedback) {
