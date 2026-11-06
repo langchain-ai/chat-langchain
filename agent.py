@@ -1,8 +1,12 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
 import os
+from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
+from typing import Any
 
 from langchain_fireworks import ChatFireworks
+from langchain_fireworks import chat_models as fireworks_chat_models
 from managed_deepagents import define_deep_agent
 
 from src.agent.config import (
@@ -23,13 +27,31 @@ from src.tools.pylon_tools import get_support_article_content, search_support_ar
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
 GLM = "accounts/fireworks/models/glm-5p3-flash"
+# langchain-fireworks adds prompt_cache_key and an x-session-affinity header to a call made
+# while this is set (the agent runtime sets it per thread).
+_CACHE_AFFINITY = getattr(fireworks_chat_models, "_PROMPT_CACHE_AFFINITY", None)
+
+
+@contextmanager
+def _without_cache_affinity() -> Iterator[None]:
+    if _CACHE_AFFINITY is None:
+        yield
+        return
+    previous = _CACHE_AFFINITY.get()
+    _CACHE_AFFINITY.set(None)
+    try:
+        yield
+    finally:
+        # Set, not reset: a stream may finish in another context than it started in.
+        _CACHE_AFFINITY.set(previous)
 
 
 class PolicyFireworks(ChatFireworks):
     """GLM-5.3 Flash through Fireworks' RL sidecar (TITO).
 
-    The sidecar fixes the reasoning effort and owns sampling, and rejects a request that sets
-    n, stop or reasoning_effort, so none is sent.
+    The sidecar fixes the reasoning effort and owns sampling and session affinity: it rejects
+    a request that sets n, stop, reasoning_effort, prompt_cache_key or x-session-affinity, so
+    none is sent.
     """
 
     @property
@@ -40,6 +62,23 @@ class PolicyFireworks(ChatFireworks):
             params.pop("stop", None)
         params.pop("reasoning_effort", None)
         return params
+
+    def _generate(self, *args: Any, **kwargs: Any) -> Any:
+        with _without_cache_affinity():
+            return super()._generate(*args, **kwargs)
+
+    async def _agenerate(self, *args: Any, **kwargs: Any) -> Any:
+        with _without_cache_affinity():
+            return await super()._agenerate(*args, **kwargs)
+
+    def _stream(self, *args: Any, **kwargs: Any) -> Iterator[Any]:
+        with _without_cache_affinity():
+            yield from super()._stream(*args, **kwargs)
+
+    async def _astream(self, *args: Any, **kwargs: Any) -> AsyncIterator[Any]:
+        with _without_cache_affinity():
+            async for chunk in super()._astream(*args, **kwargs):
+                yield chunk
 
 
 def main_model() -> ChatFireworks:
