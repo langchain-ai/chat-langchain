@@ -1,0 +1,30 @@
+frontend/__tests__/captcha.test.mts
+  s_d2a45c5aa16295::t_75c4d6b7865d89 6,9-14
+  s_d2a45c5aa16295::t_a3213be75618e0 15
+frontend/components/auth/AuthModal.tsx
+  s_d2a45c5aa16295::t_e89892f74ed30a 202-204
+  s_d2a45c5aa16295::t_6e6ea9675bf1e8 25
+  s_d2a45c5aa16295::t_595521d1b559d7 135-141
+  s_d2a45c5aa16295::t_09579084744076 398,402-404
+  s_d2a45c5aa16295::t_ab748a730a9c0d 86
+  s_d2a45c5aa16295::t_32517b57cf0475 157
+  s_d2a45c5aa16295::t_8ad6eef47bb833 164-169
+frontend/lib/auth/captcha.ts
+  s_d2a45c5aa16295::t_322e54d6704bec 35-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "13ee4088fbc2ed1bb736a6413619cdd0f13d46b6",
+  "prompts": {},
+  "sessions": {
+    "s_d2a45c5aa16295": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a168ebd7-4253-43f6-b70c-be1969539ee8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "simon-langchain <simon@langchain.dev>"
+    }
+  }
+}

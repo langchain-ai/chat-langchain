@@ -1,0 +1,27 @@
+.env.example
+  s_d2a45c5aa16295::t_7e97e167f70491 48-49
+frontend/.env.local.example
+  s_d2a45c5aa16295::t_ebe22b2aa925ec 14-15
+frontend/__tests__/captcha.test.mts
+  s_d2a45c5aa16295::t_7e9d62b2f8299a 1-47
+frontend/components/auth/AuthModal.tsx
+  s_d2a45c5aa16295::t_06c2bfa8e88135 21-25,87,104,143-159,388,434-457
+frontend/lib/auth/captcha.ts
+  s_d2a45c5aa16295::t_cf97323367f80d 1-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3f365c41af070bfb07dd9bc5b394abc53aa75559",
+  "prompts": {},
+  "sessions": {
+    "s_d2a45c5aa16295": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a168ebd7-4253-43f6-b70c-be1969539ee8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "simon-langchain <simon@langchain.dev>"
+    }
+  }
+}
