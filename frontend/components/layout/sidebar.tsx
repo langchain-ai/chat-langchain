@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArticleRegularIcon,
   ChatsFillIcon,
@@ -12,7 +12,6 @@ import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash"
 import { Button } from "@langchain/macaw-components/Button"
 import {
   ChatConversationList,
-  ChatConversationListGroup,
   ChatConversationListItem,
 } from "@langchain/macaw-components/ChatConversationList"
 import { Dialog, DialogContent } from "@langchain/macaw-components/Dialog"
@@ -119,7 +118,7 @@ export const Sidebar = memo(function Sidebar({
 
   const navigation = (mobile: boolean) => (
     <>
-      <div className="p-3">
+      <div className="px-3 pb-2">
         <Input
           ref={mobile ? mobileSearchRef : desktopSearchRef}
           aria-label="Search conversations"
@@ -160,13 +159,23 @@ export const Sidebar = memo(function Sidebar({
             />
           </div>
         ) : (
-          <ChatConversationList aria-label="Conversations" loading={isLoading}>
-            {groups.map((group) => (
-              <ChatConversationListGroup
-                key={group.title}
-                title={group.title}
-                defaultOpen
-              >
+          <ChatConversationList
+            aria-label="Conversations"
+            loading={isLoading}
+            className="px-3"
+          >
+            {groups.map((group, index) => (
+              <Fragment key={group.title}>
+                {/* Date buckets are headings, not collapsible folders. One list
+                    keeps arrow-key navigation running across them. */}
+                <div
+                  role="listitem"
+                  className={`px-3.5 pb-1 ${index === 0 ? "pt-1" : "pt-4"}`}
+                >
+                  <Text as="span" variant="xs" weight="medium" color="tertiary">
+                    {group.title}
+                  </Text>
+                </div>
                 {group.threads.map((thread) => (
                   <ChatConversationListItem
                     key={thread.thread_id}
@@ -192,13 +201,13 @@ export const Sidebar = memo(function Sidebar({
                     }}
                   />
                 ))}
-              </ChatConversationListGroup>
+              </Fragment>
             ))}
           </ChatConversationList>
         )}
       </nav>
       <div
-        className="flex shrink-0 flex-col justify-end p-2"
+        className="flex shrink-0 flex-col justify-end px-3 py-3"
         style={mobile ? undefined : { minHeight: "var(--chat-input-height)" }}
       >
         {resources.map(({ href, title, description, icon }) => (
@@ -207,7 +216,7 @@ export const Sidebar = memo(function Sidebar({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex w-full rounded-md px-2 py-2 hover:bg-surface-level-2 [&>span]:w-full [&>span]:no-underline"
+            className="flex w-full rounded-lg px-3 py-1.5 hover:bg-surface-level-2 [&>span]:w-full [&>span]:no-underline"
           >
             <span className="flex items-center gap-2">
               <span
