@@ -63,6 +63,17 @@ class PolicyFireworks(ChatFireworks):
         params.pop("reasoning_effort", None)
         return params
 
+    def _create_message_dicts(
+        self, messages: list[Any], stop: list[str] | None
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        message_dicts, params = super()._create_message_dicts(messages, stop)
+        for message in message_dicts:
+            if message.get("role") == "assistant":
+                # The sidecar recorded each turn's reasoning, even when empty; langchain-fireworks
+                # drops an empty one, and a turn sent back without it reads as rewritten history.
+                message.setdefault("reasoning_content", "")
+        return message_dicts, params
+
     def _generate(self, *args: Any, **kwargs: Any) -> Any:
         with _without_cache_affinity():
             return super()._generate(*args, **kwargs)
