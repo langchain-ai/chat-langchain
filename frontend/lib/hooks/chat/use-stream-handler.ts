@@ -375,7 +375,9 @@ export function useStreamHandler({
             // Text files: decode base64 and send as text block
             try {
               // Decode base64 to get text content
-              const decodedContent = atob(file.base64 || '')
+              const binaryContent = atob(file.base64 || '')
+              const bytes = Uint8Array.from(binaryContent, char => char.charCodeAt(0))
+              const decodedContent = new TextDecoder('utf-8').decode(bytes)
               console.log(`📄 Decoded file ${file.name}:`, {
                 mimeType: file.mimeType,
                 size: file.size,
