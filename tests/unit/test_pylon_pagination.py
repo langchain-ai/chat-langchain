@@ -52,7 +52,7 @@ class TestFetchAllArticlesPagination(unittest.TestCase):
         """Reload the module and reset the global cache before each test."""
         # Ensure a clean module state so _articles_cache starts as None
         import src.tools.pylon_tools as pylon_module
-        pylon_module._articles_cache = None
+        pylon_module._articles_cache.clear()
         self.module = pylon_module
 
     # ------------------------------------------------------------------

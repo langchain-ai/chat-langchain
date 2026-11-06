@@ -5,7 +5,9 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+import threading
+import time
+from typing import Any, Callable, Dict, List
 
 import requests
 from dotenv import load_dotenv
@@ -17,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 # Pylon API configuration
 PYLON_API_BASE_URL = "https://api.usepylon.com"
+PYLON_CACHE_TTL_SECONDS = float(os.getenv("PYLON_CACHE_TTL_SECONDS", "900"))
+PYLON_REQUEST_TIMEOUT_SECONDS = 30
 
 
 def _get_kb_id() -> str:
@@ -39,8 +43,49 @@ def _get_api_key() -> str:
 # Cache & API Helpers
 # =============================================================================
 
-_articles_cache: Optional[List[Dict[str, Any]]] = None
-_collections_cache: Optional[Dict[str, str]] = None
+
+class _TTLCache:
+    """Process-wide cache that refetches after PYLON_CACHE_TTL_SECONDS."""
+
+    def __init__(self) -> None:
+        self.value: Any = None
+        self.fetched_at = 0.0
+        self.lock = threading.Lock()
+
+    def _fresh(self) -> bool:
+        return (
+            self.value is not None
+            and time.monotonic() - self.fetched_at < PYLON_CACHE_TTL_SECONDS
+        )
+
+    def get(self, loader: Callable[[], Any]) -> Any:
+        if self._fresh():
+            return self.value
+        if not self.lock.acquire(blocking=self.value is None):
+            return self.value
+        try:
+            if self._fresh():
+                return self.value
+            try:
+                self.value = loader()
+            except Exception:
+                if self.value is None:
+                    raise
+                logger.warning(
+                    "Pylon refresh failed, serving stale cache", exc_info=True
+                )
+            self.fetched_at = time.monotonic()
+            return self.value
+        finally:
+            self.lock.release()
+
+    def clear(self) -> None:
+        self.value = None
+        self.fetched_at = 0.0
+
+
+_articles_cache = _TTLCache()
+_collections_cache = _TTLCache()
 
 
 def _get_headers() -> Dict[str, str]:
@@ -49,44 +94,42 @@ def _get_headers() -> Dict[str, str]:
 
 
 def _fetch_collections() -> Dict[str, str]:
-    """Fetch collections from Pylon API and cache them.
+    """Fetch collections from Pylon API, cached for PYLON_CACHE_TTL_SECONDS.
 
     Returns:
         Mapping of collection names to collection IDs
     """
-    global _collections_cache
+    return _collections_cache.get(_load_collections)
 
-    if _collections_cache is not None:
-        return _collections_cache
 
+def _load_collections() -> Dict[str, str]:
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/collections"
-    response = requests.get(url, headers=_get_headers())
+    response = requests.get(
+        url, headers=_get_headers(), timeout=PYLON_REQUEST_TIMEOUT_SECONDS
+    )
     response.raise_for_status()
 
     collections_data = response.json().get("data", [])
 
     # Build mapping of collection names to IDs (only public collections)
-    _collections_cache = {
+    return {
         coll["title"]: coll["id"]
         for coll in collections_data
         if coll.get("visibility_config", {}).get("visibility") == "public"
     }
 
-    return _collections_cache
-
 
 def _fetch_all_articles() -> List[Dict[str, Any]]:
-    """Fetch all articles from Pylon API and cache them.
+    """Fetch all articles from Pylon API, cached for PYLON_CACHE_TTL_SECONDS.
 
     Follows pagination cursors until all pages are retrieved, with a safety
     cap of 10 pages (~1000 articles) to prevent infinite loops.
     """
-    global _articles_cache
+    return _articles_cache.get(_load_all_articles)
 
-    if _articles_cache is not None:
-        return _articles_cache
 
+def _load_all_articles() -> List[Dict[str, Any]]:
     kb_id = _get_kb_id()
     url = f"{PYLON_API_BASE_URL}/knowledge-bases/{kb_id}/articles"
     headers = _get_headers()
@@ -97,7 +140,12 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
     params: Dict[str, Any] = {}
 
     while pages_fetched < max_pages:
-        response = requests.get(url, headers=headers, params=params)
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            timeout=PYLON_REQUEST_TIMEOUT_SECONDS,
+        )
         response.raise_for_status()
         body = response.json()
 
@@ -118,8 +166,7 @@ def _fetch_all_articles() -> List[Dict[str, Any]]:
 
         params = {"cursor": next_cursor}
 
-    _articles_cache = all_articles
-    return _articles_cache
+    return all_articles
 
 
 # =============================================================================

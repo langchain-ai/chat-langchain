@@ -60,6 +60,7 @@ cp .env.example .env
 | `ANTHROPIC_API_KEY` | Anthropic API key (or use another provider)                                             |
 | `PYLON_API_KEY`     | Pylon API key for support KB                                                            |
 | `PYLON_KB_ID`       | Pylon knowledge base ID for support articles                                            |
+| `PYLON_CACHE_TTL_SECONDS` | Optional. Seconds to cache the Pylon KB article and collection lists (default `900`) |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
 
 ### Running Locally
