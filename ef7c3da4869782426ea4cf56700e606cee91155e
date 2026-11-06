@@ -1,0 +1,19 @@
+frontend/components/providers/segment-provider.tsx
+  s_9fa740135ca692::t_1f8cd1ca02bbb4 41-54,59-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "ef7c3da4869782426ea4cf56700e606cee91155e",
+  "prompts": {},
+  "sessions": {
+    "s_9fa740135ca692": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a262d7c3-970a-4163-bae3-b769803acd8d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Danny Lambert <danielrlambert3@gmail.com>"
+    }
+  }
+}
