@@ -120,7 +120,7 @@ export const Sidebar = memo(function Sidebar({
     <Input
       ref={mobile ? mobileSearchRef : desktopSearchRef}
       aria-label="Search conversations"
-      placeholder="Search conversations"
+      placeholder="Search"
       size="md"
       leftIcon={MagnifyingGlassRegularIcon}
       value={searchQuery}
@@ -259,10 +259,13 @@ export const Sidebar = memo(function Sidebar({
         // Width pushes the transcript, so it animates in place: ease-in-out,
         // faster when collapsing. Contents keep their expanded width and fade
         // so text never rewraps mid-animation.
-        className={`hidden shrink-0 flex-col overflow-hidden border-r border-subtle bg-surface-level-1 transition-[width] ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none md:flex ${isCollapsed ? "w-14 duration-[160ms]" : "w-64 duration-200"}`}
+        className={`hidden shrink-0 flex-col overflow-hidden border-r border-subtle bg-surface-level-1 transition-[width] ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none md:flex ${isCollapsed ? "w-17 duration-[160ms]" : "w-64 duration-200"}`}
       >
         <div className="flex min-h-0 w-64 flex-1 flex-col">
-          <div className="flex h-16 shrink-0 items-center gap-2 px-3">
+          {/* 18px puts the toggle glyph on the list's text edge (12px inset
+              + 14px row padding - 8px icon inset); the 68px rail keeps it
+              centered when collapsed, so it never moves. */}
+          <div className="flex h-16 shrink-0 items-center gap-2 pl-4.5 pr-3">
             <IconButton
               ref={toggleRef}
               icon={SidebarSimpleRightRegularIcon}
