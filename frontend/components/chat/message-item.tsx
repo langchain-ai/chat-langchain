@@ -20,6 +20,7 @@ import {
 } from "@langchain/macaw-components/Attachment"
 import { Button } from "@langchain/macaw-components/Button"
 import { IconButton } from "@langchain/macaw-components/IconButton"
+import { ImagePreviewBlock } from "@langchain/macaw-components/ImagePreviewBlock"
 import { Link } from "@langchain/macaw-components/Link"
 import { MarkdownDisplay } from "@langchain/macaw-components/MarkdownDisplay"
 import { Text } from "@langchain/macaw-components/Text"
@@ -178,45 +179,56 @@ export const MessageItem = memo(function MessageItem({
           ),
       })
     }
-    if (message.images?.length) {
+    const images: { id: string; name: string; src: string }[] = []
+    const files: NonNullable<Message["images"]> = []
+    for (const file of message.images ?? []) {
+      const src =
+        file.url ||
+        (file.base64 ? `data:${file.mimeType};base64,${file.base64}` : "")
+      if (file.mimeType.startsWith("image/") && src)
+        images.push({ id: file.id, name: file.name || "Attached image", src })
+      else files.push(file)
+    }
+    if (images.length) {
+      content.push({
+        id: `${message.id}-images`,
+        type: "custom",
+        content: (
+          <div className="flex flex-col items-end gap-2">
+            {images.map((image) => (
+              <ImagePreviewBlock
+                key={image.id}
+                src={image.src}
+                altText={image.name}
+                caption={image.name}
+                className="w-72 max-w-full"
+              />
+            ))}
+          </div>
+        ),
+      })
+    }
+    if (files.length) {
       content.push({
         id: `${message.id}-attachments`,
         type: "custom",
         content: (
           <AttachmentList layout="wrap">
-            {message.images.map((file) => {
-              const imageSource =
-                file.url ||
-                (file.base64
-                  ? `data:${file.mimeType};base64,${file.base64}`
-                  : undefined)
-              const isImage =
-                file.mimeType.startsWith("image/") && Boolean(imageSource)
-              return (
-                <li key={file.id}>
-                  <Attachment
-                    name={file.name || "File"}
-                    contentType={file.mimeType}
-                    size="lg"
-                    variant={isImage ? "thumbnail" : "file"}
-                    metadata={
-                      file.size
-                        ? `${Math.round(file.size / 1024)} KB`
-                        : undefined
-                    }
-                    preview={
-                      isImage ? (
-                        <img
-                          src={imageSource}
-                          alt={file.name || "Attached image"}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : undefined
-                    }
-                  />
-                </li>
-              )
-            })}
+            {files.map((file) => (
+              <li key={file.id}>
+                <Attachment
+                  name={file.name || "File"}
+                  contentType={file.mimeType}
+                  size="lg"
+                  variant="file"
+                  metadata={
+                    file.size
+                      ? `${Math.round(file.size / 1024)} KB`
+                      : undefined
+                  }
+                />
+              </li>
+            ))}
           </AttachmentList>
         ),
       })
