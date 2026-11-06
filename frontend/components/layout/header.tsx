@@ -85,7 +85,7 @@ export function Header({
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-subtle bg-background px-3 sm:px-6">
+      <header className="flex h-16 shrink-0 items-center justify-between gap-3 bg-background px-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
           {onOpenSidebar && (
             <IconButton

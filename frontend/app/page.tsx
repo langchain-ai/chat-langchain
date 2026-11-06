@@ -459,7 +459,6 @@ function DashboardContent() {
         onOpenChange={setShowShortcutsDialog}
       />
       <div
-        data-chat-shell
         className="flex h-dvh overflow-hidden bg-surface-level-1 text-primary"
       >
         <Sidebar

@@ -116,29 +116,31 @@ export const Sidebar = memo(function Sidebar({
     requestAnimationFrame(() => toggleRef.current?.focus())
   }
 
+  const search = (mobile: boolean) => (
+    <Input
+      ref={mobile ? mobileSearchRef : desktopSearchRef}
+      aria-label="Search conversations"
+      placeholder="Search conversations"
+      size="md"
+      leftIcon={MagnifyingGlassRegularIcon}
+      value={searchQuery}
+      onChange={setSearchQuery}
+      debounceMs={0}
+      rightAction={
+        searchQuery
+          ? {
+              icon: XIcon,
+              label: "Clear search",
+              onClick: () => setSearchQuery(""),
+            }
+          : undefined
+      }
+    />
+  )
+
   const navigation = (mobile: boolean) => (
     <>
-      <div className="px-3 pb-2">
-        <Input
-          ref={mobile ? mobileSearchRef : desktopSearchRef}
-          aria-label="Search conversations"
-          placeholder="Search conversations"
-          size="md"
-          leftIcon={MagnifyingGlassRegularIcon}
-          value={searchQuery}
-          onChange={setSearchQuery}
-          debounceMs={0}
-          rightAction={
-            searchQuery
-              ? {
-                  icon: XIcon,
-                  label: "Clear search",
-                  onClick: () => setSearchQuery(""),
-                }
-              : undefined
-          }
-        />
-      </div>
+      {mobile && <div className="px-3 pb-2">{search(true)}</div>}
       <nav
         aria-label={
           mobile ? "Mobile conversation history" : "Conversation history"
@@ -206,10 +208,7 @@ export const Sidebar = memo(function Sidebar({
           </ChatConversationList>
         )}
       </nav>
-      <div
-        className="flex shrink-0 flex-col justify-end px-3 py-3"
-        style={mobile ? undefined : { minHeight: "var(--chat-input-height)" }}
-      >
+      <div className="flex shrink-0 flex-col justify-end px-3 py-3">
         {resources.map(({ href, title, description, icon }) => (
           <Link
             key={href}
@@ -269,9 +268,7 @@ export const Sidebar = memo(function Sidebar({
             variant="plain"
           />
           {!isCollapsed && (
-            <Text variant="sm" weight="medium">
-              Conversations
-            </Text>
+            <div className="min-w-0 flex-1">{search(false)}</div>
           )}
         </div>
         {!isCollapsed && navigation(false)}
