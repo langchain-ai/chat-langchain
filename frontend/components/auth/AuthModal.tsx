@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import HCaptcha from "@hcaptcha/react-hcaptcha"
 import { ChevronDown, Eye, EyeOff } from "lucide-react"
 import {
   Dialog,
@@ -17,6 +18,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { trackEvent } from "@/components/providers/segment-provider"
 import { useAuth, type OAuthProvider } from "@/lib/auth"
+import {
+  CAPTCHA_LOADING_MESSAGE,
+  CAPTCHA_LOAD_FAILED_MESSAGE,
+  getCaptchaErrorMessage,
+  isCaptchaLoadError,
+} from "@/lib/auth/captcha"
 import type { AuthRegion } from "@/lib/auth/supabase"
 
 interface AuthModalProps {
@@ -46,6 +53,8 @@ const getLangSmithAuthUrl = (
 
 const SIGN_UP_CLICK_TRACKED_KEY = "chat-langchain-sign-up-click-tracked"
 
+const HCAPTCHA_SITEKEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY ?? ""
+
 function RegionIcon({ region }: { region: AuthRegion }) {
   if (region === "us" || region === "aws") return <span className="text-sm">🇺🇸</span>
   if (region === "eu") return <span className="text-sm">🇪🇺</span>
@@ -72,6 +81,9 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
   const [lastUsedProvider, setLastUsedProvider] =
     useState<OAuthProvider | null>(null)
   const [isEmailLoading, setIsEmailLoading] = useState(false)
+  const captchaRef = useRef<HCaptcha>(null)
+  const [captchaLoadFailed, setCaptchaLoadFailed] = useState(false)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -88,6 +100,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
       setEmail("")
       setPassword("")
       setShowPassword(false)
+      setCaptchaLoadFailed(false)
     }
   }, [open])
 
@@ -119,12 +132,46 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
     }
   }
 
+  // A widget that failed to load or initialize stays broken, and retrying it can
+  // hang, so each retry starts from a fresh one.
+  const restartCaptcha = () => {
+    setCaptchaLoadFailed(false)
+    setCaptchaWidgetKey((key) => key + 1)
+  }
+
   const handleEmailAuth = async () => {
     try {
       setIsEmailLoading(true)
       setError(null)
 
-      await signInWithEmail(email, password)
+      let captchaToken: string | undefined
+      if (HCAPTCHA_SITEKEY) {
+        // Before the script is ready, execute() never settles if the script is
+        // blocked, and rejects with a TypeError if it loads late.
+        if (!captchaRef.current?.isReady()) {
+          setError(
+            captchaLoadFailed
+              ? CAPTCHA_LOAD_FAILED_MESSAGE
+              : CAPTCHA_LOADING_MESSAGE
+          )
+          if (captchaLoadFailed) restartCaptcha()
+          return
+        }
+        try {
+          const { response } = await captchaRef.current.execute({ async: true })
+          captchaToken = response
+        } catch (captchaError) {
+          const message = getCaptchaErrorMessage(captchaError)
+          if (message) {
+            console.error("hCaptcha error:", captchaError)
+            restartCaptcha()
+          }
+          setError(message)
+          return
+        }
+      }
+
+      await signInWithEmail(email, password, captchaToken)
       onOpenChange(false)
     } catch (error) {
       console.error("Email auth error:", error)
@@ -134,6 +181,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
           : "Failed to authenticate. Please try again."
       )
     } finally {
+      captchaRef.current?.resetCaptcha()
       setIsEmailLoading(false)
     }
   }
@@ -148,7 +196,14 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[90vw] sm:min-w-[550px] sm:max-w-[600px] px-8 sm:px-12 py-8 rounded-3xl">
+      <DialogContent
+        className="min-w-[90vw] sm:min-w-[550px] sm:max-w-[600px] px-8 sm:px-12 py-8 rounded-3xl"
+        onInteractOutside={(event) => {
+          // hCaptcha renders its challenge and overlay outside the dialog, so
+          // keep the form open while a check runs.
+          if (isEmailLoading) event.preventDefault()
+        }}
+      >
         {Object.keys(REGION_OPTIONS).length > 1 && (
           <div className="flex justify-center mb-4">
             <DropdownMenu>
@@ -338,6 +393,18 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
             {isEmailLoading ? <Spinner /> : "Continue"}
           </button>
 
+          {HCAPTCHA_SITEKEY && (
+            <HCaptcha
+              key={captchaWidgetKey}
+              ref={captchaRef}
+              sitekey={HCAPTCHA_SITEKEY}
+              size="invisible"
+              onError={(code) => {
+                if (isCaptchaLoadError(code)) setCaptchaLoadFailed(true)
+              }}
+            />
+          )}
+
           <div className="flex items-center justify-center gap-1.5 text-xs">
             <span>Don't have an account?</span>
             <a
@@ -380,6 +447,30 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
             </a>
             .
           </p>
+
+          {HCAPTCHA_SITEKEY && (
+            <p className="text-center text-[10px] text-muted-foreground/80 leading-relaxed px-2">
+              This site is protected by hCaptcha and its{" "}
+              <a
+                href="https://www.hcaptcha.com/privacy"
+                className="underline hover:text-foreground/90 transition-colors"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Privacy Policy
+              </a>{" "}
+              and{" "}
+              <a
+                href="https://www.hcaptcha.com/terms"
+                className="underline hover:text-foreground/90 transition-colors"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Terms of Service
+              </a>{" "}
+              apply.
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>

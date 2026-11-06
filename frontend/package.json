@@ -12,6 +12,7 @@
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test __tests__/*.test.mts"
   },
   "dependencies": {
+    "@hcaptcha/react-hcaptcha": "2.1.0",
     "@hookform/resolvers": "^3.10.0",
     "@langchain/langgraph-sdk": "^1.9.18",
     "@radix-ui/react-accordion": "1.2.2",
