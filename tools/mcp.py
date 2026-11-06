@@ -7,6 +7,7 @@ mcp = define_mcp(
         "langchainDocs": {
             "transport": "http",
             "url": "https://docs.langchain.com/mcp",
+            "timeout": 10,
         },
     },
 )
