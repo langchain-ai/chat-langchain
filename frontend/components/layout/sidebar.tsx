@@ -265,7 +265,7 @@ export const Sidebar = memo(function Sidebar({
           {/* 18px puts the toggle glyph on the list's text edge (12px inset
               + 14px row padding - 8px icon inset); the 68px rail keeps it
               centered when collapsed, so it never moves. */}
-          <div className="flex h-12 shrink-0 items-center gap-2 pl-4.5 pr-3">
+          <div className="flex shrink-0 items-center gap-2 pb-2 pl-4.5 pr-3 pt-3">
             <IconButton
               ref={toggleRef}
               icon={SidebarSimpleRightRegularIcon}
