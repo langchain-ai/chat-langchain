@@ -18,6 +18,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { trackEvent } from "@/components/providers/segment-provider"
 import { useAuth, type OAuthProvider } from "@/lib/auth"
+import {
+  CAPTCHA_LOADING_MESSAGE,
+  CAPTCHA_LOAD_FAILED_MESSAGE,
+  getCaptchaErrorMessage,
+} from "@/lib/auth/captcha"
 import type { AuthRegion } from "@/lib/auth/supabase"
 
 interface AuthModalProps {
@@ -79,6 +84,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
     useState<OAuthProvider | null>(null)
   const [isEmailLoading, setIsEmailLoading] = useState(false)
   const captchaRef = useRef<HCaptcha>(null)
+  const [captchaLoadFailed, setCaptchaLoadFailed] = useState(false)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -95,6 +101,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
       setEmail("")
       setPassword("")
       setShowPassword(false)
+      setCaptchaLoadFailed(false)
     }
   }, [open])
 
@@ -133,11 +140,24 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
 
       let captchaToken: string | undefined
       if (HCAPTCHA_SITEKEY) {
-        if (!captchaRef.current) {
-          throw new Error("Verification is still loading. Please try again.")
+        // Before the script is ready, execute() never settles if the script is
+        // blocked, and rejects with a TypeError if it loads late.
+        if (!captchaRef.current?.isReady()) {
+          setError(
+            captchaLoadFailed
+              ? CAPTCHA_LOAD_FAILED_MESSAGE
+              : CAPTCHA_LOADING_MESSAGE
+          )
+          return
         }
-        const { response } = await captchaRef.current.execute({ async: true })
-        captchaToken = response
+        try {
+          const { response } = await captchaRef.current.execute({ async: true })
+          captchaToken = response
+        } catch (captchaError) {
+          console.error("hCaptcha error:", captchaError)
+          setError(getCaptchaErrorMessage(captchaError))
+          return
+        }
       }
 
       await signInWithEmail(email, password, captchaToken)
@@ -365,6 +385,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
               ref={captchaRef}
               sitekey={HCAPTCHA_SITEKEY}
               size="invisible"
+              onError={() => setCaptchaLoadFailed(true)}
             />
           )}
 
@@ -410,6 +431,30 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
             </a>
             .
           </p>
+
+          {HCAPTCHA_SITEKEY && (
+            <p className="text-center text-[10px] text-muted-foreground/80 leading-relaxed px-2">
+              This site is protected by hCaptcha and its{" "}
+              <a
+                href="https://www.hcaptcha.com/privacy"
+                className="underline hover:text-foreground/90 transition-colors"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Privacy Policy
+              </a>{" "}
+              and{" "}
+              <a
+                href="https://www.hcaptcha.com/terms"
+                className="underline hover:text-foreground/90 transition-colors"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Terms of Service
+              </a>{" "}
+              apply.
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>
