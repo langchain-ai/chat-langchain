@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import HCaptcha from "@hcaptcha/react-hcaptcha"
 import { ChevronDown, Eye, EyeOff } from "lucide-react"
 import {
   Dialog,
@@ -46,6 +47,8 @@ const getLangSmithAuthUrl = (
 
 const SIGN_UP_CLICK_TRACKED_KEY = "chat-langchain-sign-up-click-tracked"
 
+const HCAPTCHA_SITEKEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY ?? ""
+
 function RegionIcon({ region }: { region: AuthRegion }) {
   if (region === "us" || region === "aws") return <span className="text-sm">🇺🇸</span>
   if (region === "eu") return <span className="text-sm">🇪🇺</span>
@@ -72,6 +75,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
   const [lastUsedProvider, setLastUsedProvider] =
     useState<OAuthProvider | null>(null)
   const [isEmailLoading, setIsEmailLoading] = useState(false)
+  const captchaRef = useRef<HCaptcha>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -124,7 +128,16 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
       setIsEmailLoading(true)
       setError(null)
 
-      await signInWithEmail(email, password)
+      let captchaToken: string | undefined
+      if (HCAPTCHA_SITEKEY) {
+        if (!captchaRef.current) {
+          throw new Error("Verification is still loading. Please try again.")
+        }
+        const { response } = await captchaRef.current.execute({ async: true })
+        captchaToken = response
+      }
+
+      await signInWithEmail(email, password, captchaToken)
       onOpenChange(false)
     } catch (error) {
       console.error("Email auth error:", error)
@@ -134,6 +147,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
           : "Failed to authenticate. Please try again."
       )
     } finally {
+      captchaRef.current?.resetCaptcha()
       setIsEmailLoading(false)
     }
   }
@@ -337,6 +351,14 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
           >
             {isEmailLoading ? <Spinner /> : "Continue"}
           </button>
+
+          {HCAPTCHA_SITEKEY && (
+            <HCaptcha
+              ref={captchaRef}
+              sitekey={HCAPTCHA_SITEKEY}
+              size="invisible"
+            />
+          )}
 
           <div className="flex items-center justify-center gap-1.5 text-xs">
             <span>Don't have an account?</span>
