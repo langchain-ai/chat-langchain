@@ -1,6 +1,13 @@
 "use client"
 
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
 import {
   ChatMessage,
   ChatMessageActions,
@@ -100,6 +107,22 @@ export const MessageItem = memo(function MessageItem({
     isAssistant &&
     Boolean(message.runId && (message.shareUrl || message.usageMetadata))
   const steps = message.thinkingSteps ?? []
+  const metadata: { label: string; value: string }[] = []
+  if (isAssistant) {
+    if (message.thinkingDuration != null)
+      metadata.push({
+        label: "Duration",
+        value: `${(message.thinkingDuration / 1000).toFixed(1)}s`,
+      })
+    if (message.usageMetadata?.total_tokens != null)
+      metadata.push({
+        label: "Tokens",
+        value: `${(message.usageMetadata.total_tokens / 1000).toFixed(1)}k`,
+      })
+    const cost = message.usageMetadata?.total_cost
+    if (typeof cost === "number" && cost > 0)
+      metadata.push({ label: "Cost", value: `$${cost.toFixed(4)}` })
+  }
 
   useEffect(() => {
     if (!isEditing) setEditContent(message.content)
@@ -222,9 +245,7 @@ export const MessageItem = memo(function MessageItem({
                   size="lg"
                   variant="file"
                   metadata={
-                    file.size
-                      ? `${Math.round(file.size / 1024)} KB`
-                      : undefined
+                    file.size ? `${Math.round(file.size / 1024)} KB` : undefined
                   }
                 />
               </li>
@@ -254,56 +275,59 @@ export const MessageItem = memo(function MessageItem({
             }
       )
     }
-    if (showToolCalls && message.toolCalls?.length) {
+    const toolCalls = showToolCalls ? (message.toolCalls ?? []) : []
+    const subgraphs = message.subgraphOutputs ?? []
+    if (toolCalls.length || subgraphs.length) {
       content.push({
-        id: `${message.id}-tools`,
+        id: `${message.id}-activity`,
         type: "custom",
+        // One block keeps both groups on the row rhythm of a single
+        // ChatToolCallGroup instead of the larger gap between message blocks.
         content: (
-          <ChatToolCallGroup label={`Tool calls (${message.toolCalls.length})`}>
-            {message.toolCalls.map((tool) => (
-              <ChatToolCall
-                key={tool.id}
-                toolCall={{
-                  id: tool.id,
-                  name: tool.name,
-                  status: toolStatus(tool, message),
-                  args: tool.args,
-                  result: tool.output,
-                  error: tool.error,
-                }}
-              />
-            ))}
-          </ChatToolCallGroup>
-        ),
-      })
-    }
-    if (message.subgraphOutputs?.length) {
-      content.push({
-        id: `${message.id}-subagents`,
-        type: "custom",
-        content: (
-          <ChatToolCallGroup
-            label={`Subagent outputs (${message.subgraphOutputs.length})`}
-          >
-            {message.subgraphOutputs.map((subgraph) => {
-              const id =
-                subgraph.toolCallId ?? `${subgraph.name}-${subgraph.timestamp}`
-              return (
-                <ChatToolCall
-                  key={id}
-                  label={subgraph.name}
-                  summary={null}
-                  toolCall={{
-                    id,
-                    name: subgraph.name,
-                    status: subgraphStatus(subgraph, message),
-                    result: subgraph.output || undefined,
-                    error: subgraph.error,
-                  }}
-                />
-              )
-            })}
-          </ChatToolCallGroup>
+          <div className="flex min-w-0 flex-col">
+            {toolCalls.length > 0 && (
+              <ChatToolCallGroup label={`Tool calls (${toolCalls.length})`}>
+                {toolCalls.map((tool) => (
+                  <ChatToolCall
+                    key={tool.id}
+                    toolCall={{
+                      id: tool.id,
+                      name: tool.name,
+                      status: toolStatus(tool, message),
+                      args: tool.args,
+                      result: tool.output,
+                      error: tool.error,
+                    }}
+                  />
+                ))}
+              </ChatToolCallGroup>
+            )}
+            {subgraphs.length > 0 && (
+              <ChatToolCallGroup
+                label={`Subagent outputs (${subgraphs.length})`}
+              >
+                {subgraphs.map((subgraph) => {
+                  const id =
+                    subgraph.toolCallId ??
+                    `${subgraph.name}-${subgraph.timestamp}`
+                  return (
+                    <ChatToolCall
+                      key={id}
+                      label={subgraph.name}
+                      summary={null}
+                      toolCall={{
+                        id,
+                        name: subgraph.name,
+                        status: subgraphStatus(subgraph, message),
+                        result: subgraph.output || undefined,
+                        error: subgraph.error,
+                      }}
+                    />
+                  )
+                })}
+              </ChatToolCallGroup>
+            )}
+          </div>
         ),
       })
     }
@@ -324,6 +348,29 @@ export const MessageItem = memo(function MessageItem({
       isLatest={isLastAssistant || isEditing || showCommentInput === message.id}
       footer={
         <>
+          {metadata.map((item, index) => (
+            <Fragment key={item.label}>
+              {index > 0 && (
+                <span aria-hidden="true" className="text-xxs text-quaternary">
+                  /
+                </span>
+              )}
+              <Text as="span" variant="xs" color="quaternary">
+                <span className="sr-only">{item.label}: </span>
+                {item.value}
+              </Text>
+            </Fragment>
+          ))}
+          {message.shareUrl && (
+            <Link
+              href={message.shareUrl}
+              variant="xs"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View trace
+            </Link>
+          )}
           <ChatMessageActions
             status={status}
             actions={{
@@ -399,37 +446,14 @@ export const MessageItem = memo(function MessageItem({
               </>
             )}
           </ChatMessageActions>
-          {isAssistant && (
-            <div className="flex flex-wrap items-center gap-2 text-xs text-secondary">
-              {message.thinkingDuration != null && (
-                <span>{(message.thinkingDuration / 1000).toFixed(1)}s</span>
-              )}
-              {message.usageMetadata?.total_tokens != null && (
-                <span>
-                  {(message.usageMetadata.total_tokens / 1000).toFixed(1)}k
-                  tokens
-                </span>
-              )}
-              {typeof message.usageMetadata?.total_cost === "number" &&
-                message.usageMetadata.total_cost > 0 && (
-                  <span>${message.usageMetadata.total_cost.toFixed(4)}</span>
-                )}
-              {message.shareUrl && (
-                <Link
-                  href={message.shareUrl}
-                  variant="xs"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View trace
-                </Link>
-              )}
-            </div>
-          )}
         </>
       }
     >
-      <ChatMessageBody blocks={blocks} />
+      {/* ChatMessage only end-aligns the body it renders itself. */}
+      <ChatMessageBody
+        blocks={blocks}
+        className={isAssistant ? undefined : "items-end"}
+      />
       {isEditing && (
         <ChatRichContent
           title="Edit message"
