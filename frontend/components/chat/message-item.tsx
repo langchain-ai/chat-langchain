@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  Fragment,
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import {
   ChatMessage,
   ChatMessageActions,
@@ -26,6 +19,7 @@ import {
   AttachmentList,
 } from "@langchain/macaw-components/Attachment"
 import { Button } from "@langchain/macaw-components/Button"
+import { Icon, type IconComponent } from "@langchain/macaw-components/Icon"
 import { IconButton } from "@langchain/macaw-components/IconButton"
 import { ImagePreviewBlock } from "@langchain/macaw-components/ImagePreviewBlock"
 import { Link } from "@langchain/macaw-components/Link"
@@ -33,8 +27,10 @@ import { MarkdownDisplay } from "@langchain/macaw-components/MarkdownDisplay"
 import { Text } from "@langchain/macaw-components/Text"
 import { Textarea } from "@langchain/macaw-components/Textarea"
 import { ChatTextIcon } from "@phosphor-icons/react/dist/ssr/ChatText"
+import { CoinsIcon } from "@phosphor-icons/react/dist/ssr/Coins"
 import { ThumbsDownIcon } from "@phosphor-icons/react/dist/ssr/ThumbsDown"
 import { ThumbsUpIcon } from "@phosphor-icons/react/dist/ssr/ThumbsUp"
+import { TimerIcon } from "@phosphor-icons/react/dist/ssr/Timer"
 import type { Message } from "@/lib/types"
 import {
   INPUT_TOO_LONG_MESSAGE,
@@ -107,17 +103,20 @@ export const MessageItem = memo(function MessageItem({
     isAssistant &&
     Boolean(message.runId && (message.shareUrl || message.usageMetadata))
   const steps = message.thinkingSteps ?? []
-  const metadata: { label: string; value: string }[] = []
+  const metadata: { label: string; value: string; icon?: IconComponent }[] = []
   if (isAssistant) {
     if (message.thinkingDuration != null)
       metadata.push({
-        label: "Duration",
+        label: "Response time",
         value: `${(message.thinkingDuration / 1000).toFixed(1)}s`,
+        icon: TimerIcon,
       })
+    // The word "tokens" stays visible: a coin alone would read as cost.
     if (message.usageMetadata?.total_tokens != null)
       metadata.push({
-        label: "Tokens",
-        value: `${(message.usageMetadata.total_tokens / 1000).toFixed(1)}k`,
+        label: "Total tokens",
+        value: `${(message.usageMetadata.total_tokens / 1000).toFixed(1)}k tokens`,
+        icon: CoinsIcon,
       })
     const cost = message.usageMetadata?.total_cost
     if (typeof cost === "number" && cost > 0)
@@ -348,19 +347,24 @@ export const MessageItem = memo(function MessageItem({
       isLatest={isLastAssistant || isEditing || showCommentInput === message.id}
       footer={
         <>
-          {metadata.map((item, index) => (
-            <Fragment key={item.label}>
-              {index > 0 && (
-                <span aria-hidden="true" className="text-xxs text-quaternary">
-                  /
-                </span>
-              )}
-              <Text as="span" variant="xs" color="quaternary">
-                <span className="sr-only">{item.label}: </span>
-                {item.value}
-              </Text>
-            </Fragment>
-          ))}
+          {metadata.length > 0 && (
+            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+              {metadata.map((item) => (
+                <Text
+                  key={item.label}
+                  as="span"
+                  variant="xs"
+                  color="quaternary"
+                  title={item.label}
+                  className="inline-flex items-center gap-1 tabular-nums"
+                >
+                  {item.icon && <Icon icon={item.icon} size="xs" aria-hidden />}
+                  <span className="sr-only">{item.label}: </span>
+                  {item.value}
+                </Text>
+              ))}
+            </span>
+          )}
           {message.shareUrl && (
             <Link
               href={message.shareUrl}
