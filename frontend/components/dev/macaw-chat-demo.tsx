@@ -493,7 +493,7 @@ export function MacawChatDemo() {
           Local session · No model or tool calls · Refresh to reset
         </Text>
       </div>
-      <div className="flex min-h-0 flex-1">
+      <div data-chat-shell className="flex min-h-0 flex-1">
         <Sidebar
           isCollapsed={collapsed}
           onToggle={() => setCollapsed((value) => !value)}

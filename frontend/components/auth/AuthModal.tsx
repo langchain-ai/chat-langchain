@@ -290,6 +290,8 @@ export function AuthModal({
             </Link>
             <Button
               type="submit"
+              color="secondary"
+              size="md"
               loading={isEmailLoading}
               disabled={!isConfigured || !email || !password || isBusy}
             >
@@ -310,7 +312,12 @@ export function AuthModal({
               Sign up
             </Link>
           </div>
-          <Button variant="outlined" onClick={() => onOpenChange(false)}>
+          <Button
+            color="secondary"
+            variant="outlined"
+            size="md"
+            onClick={() => onOpenChange(false)}
+          >
             Continue as guest
           </Button>
           <Text variant="xs" color="tertiary" className="text-center">
@@ -362,6 +369,7 @@ function AuthProviderButton({
   return (
     <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1">
       <Button
+        color="secondary"
         variant="outlined"
         className="h-auto min-h-14"
         aria-label={`Continue with ${label}`}

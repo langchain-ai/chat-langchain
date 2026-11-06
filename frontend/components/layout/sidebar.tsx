@@ -197,7 +197,10 @@ export const Sidebar = memo(function Sidebar({
           </ChatConversationList>
         )}
       </nav>
-      <div className="shrink-0 border-t border-subtle p-2">
+      <div
+        className="flex shrink-0 flex-col justify-end border-t border-subtle p-2"
+        style={mobile ? undefined : { minHeight: "var(--chat-input-height)" }}
+      >
         {resources.map(({ href, title, description, icon }) => (
           <Link
             key={href}
