@@ -1,0 +1,21 @@
+agent.py
+  s_2215bc43fa30e7::t_4ef24baea31c69 30-46,52-54,66-81
+  s_2215bc43fa30e7::t_a831314b2e6b1f 4-6,9
+  s_2215bc43fa30e7::t_2e033112f8f2f0 82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "446254e7dcb1daa398f9967a0dc04b9ad193875d",
+  "prompts": {},
+  "sessions": {
+    "s_2215bc43fa30e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f5a0f8a-3c30-4d2d-959a-67e554e7e185",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "nick-hollon-lc <nick.hollon@langchain.dev>"
+    }
+  }
+}
