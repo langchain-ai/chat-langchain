@@ -49,6 +49,9 @@ const SIGN_UP_CLICK_TRACKED_KEY = "chat-langchain-sign-up-click-tracked"
 
 const HCAPTCHA_SITEKEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY ?? ""
 
+const isHCaptchaTarget = (target: EventTarget | null) =>
+  target instanceof Element && !!target.closest('iframe[src*="hcaptcha"]')
+
 function RegionIcon({ region }: { region: AuthRegion }) {
   if (region === "us" || region === "aws") return <span className="text-sm">🇺🇸</span>
   if (region === "eu") return <span className="text-sm">🇪🇺</span>
@@ -162,7 +165,12 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[90vw] sm:min-w-[550px] sm:max-w-[600px] px-8 sm:px-12 py-8 rounded-3xl">
+      <DialogContent
+        className="min-w-[90vw] sm:min-w-[550px] sm:max-w-[600px] px-8 sm:px-12 py-8 rounded-3xl"
+        onInteractOutside={(event) => {
+          if (isHCaptchaTarget(event.target)) event.preventDefault()
+        }}
+      >
         {Object.keys(REGION_OPTIONS).length > 1 && (
           <div className="flex justify-center mb-4">
             <DropdownMenu>
