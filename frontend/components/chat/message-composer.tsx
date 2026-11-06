@@ -261,8 +261,7 @@ export function MessageComposer({
         className={`flex flex-wrap items-center justify-between gap-2 px-1${isVoiceListening ? "" : " max-sm:hidden"}`}
       >
         <Text variant="xs" color="tertiary" className="max-sm:hidden">
-          <Kbd>Enter</Kbd> {isLoading ? "to queue" : "to send"}
-          <span className="mx-2">·</span>
+          <Kbd>Enter</Kbd> {isLoading ? "to queue" : "to send"},{" "}
           <Kbd>Shift Enter</Kbd> for a new line
         </Text>
         {isVoiceListening && (
