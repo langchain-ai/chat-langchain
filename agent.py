@@ -15,7 +15,7 @@ from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
-from src.tools.link_check_tools import check_links
+from src.tools.link_check_tools import LinkValidationMiddleware, check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_support_article_content, search_support_articles
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
@@ -49,6 +49,7 @@ docs_agent_middleware = [
         summary_prompt=context_summary_prompt,
         trim_tokens_to_summarize=None,
     ),
+    LinkValidationMiddleware(),
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,

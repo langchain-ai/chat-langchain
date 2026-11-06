@@ -9,7 +9,7 @@ fast, deterministic, and require no real network access or LangSmith credentials
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -17,11 +17,9 @@ import pytest
 # Helpers to build fake LinkCheckResult objects without importing the whole
 # module (which would trigger import-time side effects).
 # ---------------------------------------------------------------------------
-
 from src.tools.link_check_tools import (
     LinkCheckResult,
     _check_single_url,
-    _check_urls_async,
     _format_results,
     check_links,
 )
@@ -60,8 +58,10 @@ class _FakeStreamingClient:
 # Fixture: a canned async replacement for _check_urls_async
 # ---------------------------------------------------------------------------
 
+
 def _make_async_check_mock(results: list[LinkCheckResult]):
     """Return an async function that ignores its arguments and returns *results*."""
+
     async def _mock_check_urls_async(urls, timeout):  # noqa: ARG001
         return results
 
@@ -73,6 +73,7 @@ def _make_async_check_mock(results: list[LinkCheckResult]):
 #    (this is the regression test — it FAILS before the fix because the old
 #    code calls asyncio.run() inside an already-running event loop).
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 async def test_check_links_works_in_async_context():
@@ -131,12 +132,17 @@ async def test_check_links_async_context_does_not_raise_runtime_error():
 #     e.g. in plain scripts or sync test runners).
 # ===========================================================================
 
+
 def test_check_links_works_in_sync_context():
     """check_links.invoke() must work when called outside an async context."""
     fake_results = [
         LinkCheckResult(url="https://example.com", valid=True, status_code=200),
-        LinkCheckResult(url="https://bad.example.com", valid=False, status_code=404,
-                        error="HTTP 404"),
+        LinkCheckResult(
+            url="https://bad.example.com",
+            valid=False,
+            status_code=404,
+            error="HTTP 404",
+        ),
     ]
 
     with patch(
@@ -166,7 +172,13 @@ def test_check_links_sync_deduplicates_urls():
         new=_recording_mock,
     ):
         result = check_links.invoke(
-            {"urls": ["https://example.com", "https://example.com", "https://example.com"]}
+            {
+                "urls": [
+                    "https://example.com",
+                    "https://example.com",
+                    "https://example.com",
+                ]
+            }
         )
 
     # _check_urls_async should have been called with exactly ONE unique URL
@@ -178,6 +190,7 @@ def test_check_links_sync_deduplicates_urls():
 # ===========================================================================
 # 3. Edge cases
 # ===========================================================================
+
 
 def test_check_links_empty_list():
     """Passing an empty list should return the 'no URLs' message without error."""
@@ -217,7 +230,9 @@ def test_check_links_invalid_url_format():
 async def test_check_links_async_invalid_url_format():
     """Invalid URL in async context should also be reported correctly."""
     fake_results = [
-        LinkCheckResult(url="ftp://not-supported", valid=False, error="Invalid URL format"),
+        LinkCheckResult(
+            url="ftp://not-supported", valid=False, error="Invalid URL format"
+        ),
     ]
 
     with patch(
@@ -248,7 +263,9 @@ async def test_support_article_not_found_is_invalid_soft_404():
 async def test_support_article_normal_content_is_valid():
     """Normal support article content should still be treated as valid."""
     result = await _check_single_url(
-        _FakeStreamingClient("<html><body><div>Useful support article</div></body></html>"),
+        _FakeStreamingClient(
+            "<html><body><div>Useful support article</div></body></html>"
+        ),
         "https://support.langchain.com/hc/en-us/articles/existing-article",
         timeout=1.0,
     )
@@ -256,3 +273,167 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+async def _run_final_response(content, history, results, sync=False):
+    from langchain.agents import create_agent
+    from langchain_core.language_models import BaseChatModel
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, ChatResult
+
+    from agent import docs_agent_middleware
+    from src.tools.link_check_tools import LinkValidationMiddleware
+
+    class FinalResponseModel(BaseChatModel):
+        @property
+        def _llm_type(self):
+            return "final-response-test"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            return ChatResult(
+                generations=[ChatGeneration(message=AIMessage(content=content))]
+            )
+
+    middleware = next(
+        m for m in docs_agent_middleware if isinstance(m, LinkValidationMiddleware)
+    )
+    graph = create_agent(model=FinalResponseModel(), middleware=[middleware])
+    with patch(
+        "src.tools.link_check_tools._check_urls_async",
+        new=_make_async_check_mock(results),
+    ):
+        state = (
+            await asyncio.to_thread(graph.invoke, {"messages": history})
+            if sync
+            else await graph.ainvoke({"messages": history})
+        )
+    return state["messages"][-1]
+
+
+def _link_history(results):
+    from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+    return [
+        HumanMessage(content="Explain subagents"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "check_links",
+                    "args": {"urls": [r.url for r in results]},
+                    "id": "links",
+                }
+            ],
+        ),
+        ToolMessage(
+            content=_format_results(results), name="check_links", tool_call_id="links"
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sync", [False, True])
+async def test_final_response_corrects_validated_docs_host_in_text_blocks(sync):
+    bad = "https://docs.ai.com/oss/python/deepagents/subagents"
+    good = "https://docs.langchain.com/oss/python/deepagents/subagents"
+    valid = "https://example.com/valid"
+    history = _link_history(
+        [
+            LinkCheckResult(bad, False, error="Connection failed"),
+            LinkCheckResult(good, True),
+            LinkCheckResult(valid, True),
+        ]
+    )
+    content = [{"type": "text", "text": f"参见 [子代理]({bad})。 [Valid]({valid})"}]
+    response = await _run_final_response(content, history, [], sync=sync)
+    assert response.content == [
+        {"type": "text", "text": f"参见 [子代理]({good})。 [Valid]({valid})"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_final_response_validates_unchecked_links_and_preserves_text():
+    from langchain_core.messages import HumanMessage
+
+    bad = "https://bad.example.com/page"
+    good = "https://example.com/valid"
+    content = f"Keep this explanation. [Details]({bad}) still matter.\n- {bad}\n- [Useful description]({bad})\nValid: {good}."
+    response = await _run_final_response(
+        content,
+        [HumanMessage(content="Help")],
+        [
+            LinkCheckResult(bad, False),
+            LinkCheckResult(good, True),
+        ],
+    )
+    assert (
+        response.content
+        == f"Keep this explanation. Details still matter.\n\n- Useful description\nValid: {good}."
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("host", ["docs.ai.com", "unrelated.example.com"])
+async def test_final_response_does_not_reuse_prior_turn_or_arbitrary_host(host):
+    from langchain_core.messages import HumanMessage
+
+    bad = f"https://{host}/same-path"
+    good = "https://docs.langchain.com/same-path"
+    history = _link_history([LinkCheckResult(good, True)])
+    if host == "docs.ai.com":
+        history.append(HumanMessage(content="Next question"))
+    history += _link_history([LinkCheckResult(bad, False)])[1:]
+    response = await _run_final_response(f"[Description]({bad})", history, [])
+    assert response.content == "Description"
+
+
+@pytest.mark.asyncio
+async def test_final_response_keeps_valid_links_with_parentheses_and_fragments():
+    url = "https://example.com/page_(detail)#section"
+    content = f"[Details]({url}) and <{url}> and {url}."
+    response = await _run_final_response(
+        content, _link_history([LinkCheckResult(url, True)]), []
+    )
+    assert response.content == content
+
+
+@pytest.mark.asyncio
+async def test_final_response_uses_latest_check_and_preserves_nontext_blocks():
+    from langchain_core.messages import ToolMessage
+
+    url = "https://example.com/changed"
+    history = _link_history([LinkCheckResult(url, True)])
+    history.append(
+        ToolMessage(
+            content=_format_results([LinkCheckResult(url, False, error="HTTP 404")]),
+            name="check_links",
+            tool_call_id="recheck",
+        )
+    )
+    image = {"type": "image_url", "image_url": {"url": "https://example.com/image"}}
+    response = await _run_final_response(
+        [{"type": "text", "text": f"[Keep label]({url})"}, image], history, []
+    )
+    assert response.content == [{"type": "text", "text": "Keep label"}, image]
+
+
+@pytest.mark.asyncio
+async def test_link_validation_leaves_tool_call_response_untouched():
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from src.tools.link_check_tools import LinkValidationMiddleware
+
+    response = AIMessage(
+        content="https://example.com/pending",
+        tool_calls=[
+            {
+                "name": "check_links",
+                "args": {"urls": ["https://example.com/pending"]},
+                "id": "pending",
+            }
+        ],
+    )
+    result = await LinkValidationMiddleware().aafter_model(
+        {"messages": [HumanMessage(content="Help"), response]}, runtime=None
+    )
+    assert result is None
