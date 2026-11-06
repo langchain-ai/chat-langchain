@@ -64,7 +64,7 @@ MODELS: dict[str, ModelConfig] = {
     ),
     # Fireworks
     "glm-5.3-flash": ModelConfig(
-        id="fireworks:accounts/fireworks/models/glm-5p3-flash",
+        id="fireworks:accounts/langchain-fireworks/models/clc-glm53flash-sft-s51",
         name="GLM-5.3 Flash",
         provider="fireworks",
         api_key_env="FIREWORKS_API_KEY",
