@@ -59,7 +59,7 @@ agent = define_deep_agent(
     # A model object, so its reasoning effort is set; langchain-fireworks is a
     # declared dependency.
     model=ChatFireworks(
-        model="accounts/langchain-fireworks/models/clc-glm53flash-sft-s51#accounts/langchain-fireworks/deployments/clc-glm53flash-sft-multilora", reasoning_effort="high"
+        model="accounts/langchain-fireworks/models/clc-glm53flash-sft-s51#accounts/langchain-fireworks/deployments/clc-glm53flash-sft-s51", reasoning_effort="high"
     ),
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
