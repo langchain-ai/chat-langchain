@@ -10,6 +10,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.duplicate_search_middleware import DuplicateSearchMiddleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
@@ -49,6 +50,7 @@ docs_agent_middleware = [
         summary_prompt=context_summary_prompt,
         trim_tokens_to_summarize=None,
     ),
+    DuplicateSearchMiddleware(),
     tool_retry_middleware,
     model_retry_middleware,
     model_fallback_middleware,
