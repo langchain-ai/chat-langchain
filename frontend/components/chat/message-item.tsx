@@ -9,6 +9,7 @@ import {
 } from "@langchain/macaw-components/ChatMessage"
 import { ChatRichContent } from "@langchain/macaw-components/ChatRichContent"
 import { ChatState } from "@langchain/macaw-components/ChatState"
+import { ThinkingState } from "@langchain/macaw-components/ThinkingState"
 import {
   ChatToolCall,
   ChatToolCallGroup,
@@ -185,18 +186,19 @@ export const MessageItem = memo(function MessageItem({
                 ))}
               </ol>
             </ChatToolCallReasoning>
+          ) : isStreaming ? (
+            <ThinkingState
+              size="sm"
+              label="Working on your answer"
+              showElapsed
+              elapsedMs={message.thinkingDuration}
+            />
           ) : (
             <ChatState
               status={status}
               label={
-                isStreaming
-                  ? "Working on your answer"
-                  : status === "failed"
-                    ? "Response failed"
-                    : "Response stopped"
+                status === "failed" ? "Response failed" : "Response stopped"
               }
-              showElapsed={isStreaming}
-              elapsedMs={message.thinkingDuration}
             />
           ),
       })
