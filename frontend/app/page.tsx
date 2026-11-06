@@ -1,6 +1,8 @@
 "use client"
 
 import { Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { Button } from "@langchain/macaw-components/Button"
+import { ChatState } from "@langchain/macaw-components/ChatState"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
@@ -20,7 +22,8 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 
 function DashboardContent() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [showToolCalls, setShowToolCalls] = useState(false)
+  const showToolCalls = false
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
 
   // Track newly created threads that haven't been initialized in backend yet
@@ -41,6 +44,7 @@ function DashboardContent() {
     guestToken,
     loading: langGraphAuthLoading,
   } = useLangGraphAuth()
+  const sessionInitializationFailed = !langGraphAuthLoading && !userId
   const shouldLoadGuestThreads = Boolean(
     userId && guestUserId && guestToken && userId !== guestUserId
   )
@@ -454,8 +458,12 @@ function DashboardContent() {
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
-      <div className="flex h-screen bg-background">
+      <div
+        className="flex h-dvh overflow-hidden bg-surface-level-1 text-primary"
+      >
         <Sidebar
+          mobileOpen={mobileSidebarOpen}
+          onMobileOpenChange={setMobileSidebarOpen}
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           threads={threads}
@@ -464,10 +472,20 @@ function DashboardContent() {
           onDeleteThread={handleDeleteThread}
           isLoading={threadsLoading}
         />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Header
           onNewChat={handleNewChat}
+          onOpenSidebar={() => setMobileSidebarOpen(true)}
         />
+        {!threadId && (
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+            <ChatState
+              status={sessionInitializationFailed ? "failed" : "pending"}
+              label={sessionInitializationFailed ? "Unable to start your chat session" : "Starting your chat session"}
+            />
+            {sessionInitializationFailed && <><p className="text-secondary">Sign in or reload to try again.</p><Button color="secondary" onClick={() => window.location.reload()}>Reload</Button></>}
+          </div>
+        )}
         {threadId && (
           <ChatInterface
             key={`${threadId}:${currentThreadOwnerId || ""}`}
@@ -493,11 +511,8 @@ function DashboardContent() {
 export default function DashboardPage() {
   return (
     <Suspense fallback={
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
+      <div className="flex h-dvh items-center justify-center bg-surface-level-1">
+        <ChatState status="pending" label="Loading Chat LangChain" />
       </div>
     }>
       <DashboardContent />

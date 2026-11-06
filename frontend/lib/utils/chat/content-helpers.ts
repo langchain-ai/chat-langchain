@@ -24,3 +24,7 @@ export const extractTextFromContent = (content: any): string => {
   return ""
 }
 
+/** Base64 contains UTF-8 bytes; atob alone produces mojibake for non-ASCII files. */
+export const decodeTextAttachment = (base64: string): string =>
+  new TextDecoder().decode(Uint8Array.from(atob(base64), (character) => character.charCodeAt(0)))
+

@@ -1,38 +1,28 @@
 "use client"
 
-import { useState, useMemo, memo, useCallback } from "react"
-import { Trash2, PanelLeftClose, PanelLeft, BookOpen, Search, X, MessageSquare } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react"
+import {
+  ArticleRegularIcon,
+  ChatsFillIcon,
+  SidebarSimpleRightRegularIcon,
+  MagnifyingGlassRegularIcon,
+  XIcon,
+} from "@langchain/macaw-components/icons"
+import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash"
+import { Button } from "@langchain/macaw-components/Button"
+import {
+  ChatConversationList,
+  ChatConversationListItem,
+} from "@langchain/macaw-components/ChatConversationList"
+import { Dialog, DialogContent } from "@langchain/macaw-components/Dialog"
+import { DropdownMenuItem } from "@langchain/macaw-components/DropdownMenu"
+import { EmptyState } from "@langchain/macaw-components/EmptyState"
+import { IconButton } from "@langchain/macaw-components/IconButton"
+import { Input } from "@langchain/macaw-components/Input"
+import { Link } from "@langchain/macaw-components/Link"
+import { Logo } from "@langchain/macaw-components/Logo"
+import { Text } from "@langchain/macaw-components/Text"
 import type { Thread } from "@/lib/hooks/threads"
-import Image from "next/image"
-
-// Add custom scrollbar styles - overlay scrollbar that doesn't affect layout
-const scrollbarStyles = `
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-  }
-  .custom-scrollbar:hover {
-    scrollbar-color: var(--langchain-blue, #7FC8FF) transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: transparent;
-    border-radius: 3px;
-  }
-  .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background: var(--langchain-blue, #7FC8FF);
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: var(--langchain-blue, #99D3FF);
-  }
-`
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -42,55 +32,47 @@ interface SidebarProps {
   onSelectThread: (threadId: string) => void
   onDeleteThread: (threadId: string) => void
   isLoading?: boolean
+  mobileOpen?: boolean
+  onMobileOpenChange?: (open: boolean) => void
 }
 
-function getRelativeTime(date: Date): string {
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-
-  if (diffMins < 1) return "Just now"
-  if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`
-  if (diffDays === 1) return "Yesterday"
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) > 1 ? "s" : ""} ago`
-  return `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) > 1 ? "s" : ""} ago`
-}
+const resources = [
+  {
+    href: "https://smith.langchain.com",
+    title: "LangSmith",
+    description: "Monitoring & Tracing",
+    icon: <Logo brand="langsmith" variant="logomark" className="size-3" />,
+  },
+  {
+    href: "https://forum.langchain.com/",
+    title: "Community Forum",
+    description: "Join the Discussion",
+    icon: <ChatsFillIcon className="size-3" />,
+  },
+  {
+    href: "https://docs.langchain.com/oss/python/langchain/overview",
+    title: "Documentation",
+    description: "LangChain Docs",
+    icon: <ArticleRegularIcon className="size-3" />,
+  },
+]
 
 function groupThreads(threads: Thread[]) {
-  const now = new Date()
-  const today: Thread[] = []
-  const yesterday: Thread[] = []
-  const last7Days: Thread[] = []
-  const older: Thread[] = []
-
-  threads.forEach((thread) => {
-    // Use updated_at from LangGraph thread
-    const threadDate = new Date(thread.updated_at || thread.created_at)
-    const diffMs = now.getTime() - threadDate.getTime()
-    const diffHours = diffMs / 3600000
-    const diffDays = diffMs / 86400000
-
-    if (diffHours < 24) {
-      today.push(thread)
-    } else if (diffDays < 2) {
-      yesterday.push(thread)
-    } else if (diffDays < 7) {
-      last7Days.push(thread)
-    } else {
-      older.push(thread)
-    }
-  })
-
-  return { today, yesterday, last7Days, older }
+  const now = Date.now()
+  const groups: { title: string; threads: Thread[] }[] = [
+    { title: "Today", threads: [] },
+    { title: "Yesterday", threads: [] },
+    { title: "Previous 7 Days", threads: [] },
+    { title: "Older", threads: [] },
+  ]
+  for (const thread of threads) {
+    const age = now - new Date(thread.updated_at || thread.created_at).getTime()
+    const group =
+      age < 86_400_000 ? 0 : age < 172_800_000 ? 1 : age < 604_800_000 ? 2 : 3
+    groups[group].threads.push(thread)
+  }
+  return groups.filter((group) => group.threads.length > 0)
 }
-
-const UserProfileSection = memo(function UserProfileSection() {
-  return null
-})
 
 export const Sidebar = memo(function Sidebar({
   isCollapsed,
@@ -100,216 +82,278 @@ export const Sidebar = memo(function Sidebar({
   onSelectThread,
   onDeleteThread,
   isLoading = false,
+  mobileOpen = false,
+  onMobileOpenChange,
 }: SidebarProps) {
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState("")
+  const [pendingDelete, setPendingDelete] = useState<Thread | null>(null)
+  const desktopSearchRef = useRef<HTMLInputElement>(null)
+  const mobileSearchRef = useRef<HTMLInputElement>(null)
+  const mobileReturnFocusRef = useRef<HTMLElement | null>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const sidebarHasFocus = useRef(false)
+  const previousCollapsed = useRef(isCollapsed)
+  useEffect(() => {
+    if (previousCollapsed.current !== isCollapsed && sidebarHasFocus.current)
+      toggleRef.current?.focus()
+    previousCollapsed.current = isCollapsed
+  }, [isCollapsed])
 
-  // Filter threads based on search query
   const filteredThreads = useMemo(() => {
-    if (!searchQuery.trim()) return threads
-
-    const query = searchQuery.toLowerCase()
-    return threads.filter(thread => {
-      const title = thread.metadata?.title?.toLowerCase() || ''
-      const lastMessage = thread.metadata?.lastMessage?.toLowerCase() || ''
-      return title.includes(query) || lastMessage.includes(query)
-    })
+    const query = searchQuery.trim().toLowerCase()
+    return query
+      ? threads.filter(
+          (thread) =>
+            thread.metadata?.title?.toLowerCase().includes(query) ||
+            thread.metadata?.lastMessage?.toLowerCase().includes(query)
+        )
+      : threads
   }, [threads, searchQuery])
+  const groups = useMemo(() => groupThreads(filteredThreads), [filteredThreads])
 
-  // Memoize grouped threads to avoid recalculating on every render
-  const groupedThreads = useMemo(() => groupThreads(filteredThreads), [filteredThreads])
-  const { today, yesterday, last7Days, older } = groupedThreads
-
-  // Memoize event handlers to prevent unnecessary re-renders
-  const handleSelectThread = useCallback((threadId: string) => {
-    onSelectThread(threadId)
-  }, [onSelectThread])
-
-  const handleDeleteThread = useCallback((threadId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    onDeleteThread(threadId)
-  }, [onDeleteThread])
-
-  const handleClearSearch = useCallback(() => {
-    setSearchQuery('')
-  }, [])
-
-  // Memoize renderThreadGroup to prevent recreation on every render
-  // IMPORTANT: Must be defined before any conditional returns (Rules of Hooks)
-  const renderThreadGroup = useCallback((groupThreads: Thread[], label: string) => {
-    if (groupThreads.length === 0) return null
-
-    return (
-      <div className="mt-4 px-3 first:mt-0">
-        <h3 className="px-3 text-xs font-semibold text-sidebar-accent-foreground uppercase tracking-wider mb-2 shadow-inset-light">{label}</h3>
-        <div className="space-y-2">
-          {groupThreads.map((thread) => {
-            const threadDate = new Date(thread.updated_at || thread.created_at)
-            const title = thread.metadata?.title || "New conversation"
-
-            return (
-              <div
-                key={thread.thread_id}
-                className={`group flex items-center gap-3 px-3 py-2.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer shadow-depth-xs ${
-                  thread.thread_id === currentThreadId
-                    ? "bg-[#7FC8FF]/15 text-sidebar-foreground shadow-depth-sm border border-[#7FC8FF]/40"                    : "text-sidebar-foreground"
-                }`}
-                onClick={() => handleSelectThread(thread.thread_id)}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="truncate font-medium">{title}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {getRelativeTime(threadDate)}
-                  </div>
-                </div>
-                <button
-                  onClick={(e) => handleDeleteThread(thread.thread_id, e)}
-                  className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1 rounded-md hover:bg-destructive/10"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    )
-  }, [currentThreadId, handleSelectThread, handleDeleteThread])
-
-  // Early return for collapsed state (after all hooks)
-  if (isCollapsed) {
-    return (
-      <aside className="hidden md:flex w-16 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar border-r border-border/60 flex-col shadow-depth-sm">
-        <div className="px-3 py-4 border-b border-border/60 h-16 flex items-center justify-center">
-          <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
-            <PanelLeft className="w-5 h-5" />
-          </Button>
-        </div>
-      </aside>
-    )
+  const toggleSidebar = () => {
+    onToggle()
+    requestAnimationFrame(() => toggleRef.current?.focus())
   }
+
+  const search = (mobile: boolean) => (
+    <Input
+      ref={mobile ? mobileSearchRef : desktopSearchRef}
+      aria-label="Search conversations"
+      placeholder="Search"
+      size="md"
+      leftIcon={MagnifyingGlassRegularIcon}
+      value={searchQuery}
+      onChange={setSearchQuery}
+      debounceMs={0}
+      rightAction={
+        searchQuery
+          ? {
+              icon: XIcon,
+              label: "Clear search",
+              onClick: () => setSearchQuery(""),
+            }
+          : undefined
+      }
+    />
+  )
+
+  const navigation = (mobile: boolean) => (
+    <>
+      {mobile && <div className="px-3 pb-2">{search(true)}</div>}
+      <nav
+        aria-label={
+          mobile ? "Mobile conversation history" : "Conversation history"
+        }
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      >
+        {!isLoading && searchQuery.trim() && filteredThreads.length === 0 ? (
+          <div role="status">
+            <EmptyState
+              size="sm"
+              title="No conversations found"
+              description="Try a different search term."
+              action={
+                <Button variant="plain" onClick={() => setSearchQuery("")}>
+                  Clear search
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <ChatConversationList
+            aria-label="Conversations"
+            loading={isLoading}
+            className="px-3 pt-0"
+          >
+            {groups.map((group, index) => (
+              <Fragment key={group.title}>
+                {/* Date buckets are headings, not collapsible folders. One list
+                    keeps arrow-key navigation running across them. */}
+                <div
+                  role="listitem"
+                  className={`px-3.5 pb-1 ${index === 0 ? "pt-1" : "pt-4"}`}
+                >
+                  <Text as="span" variant="xs" weight="medium" color="tertiary">
+                    {group.title}
+                  </Text>
+                </div>
+                {group.threads.map((thread) => (
+                  <ChatConversationListItem
+                    key={thread.thread_id}
+                    title={thread.metadata?.title || "New conversation"}
+                    selected={thread.thread_id === currentThreadId}
+                    onClick={() => {
+                      onSelectThread(thread.thread_id)
+                      if (mobile) onMobileOpenChange?.(false)
+                    }}
+                    actions={{
+                      items: (
+                        <DropdownMenuItem
+                          onSelect={() => setPendingDelete(thread)}
+                          className="text-error-primary"
+                        >
+                          <TrashIcon
+                            className="mr-2 size-4"
+                            aria-hidden="true"
+                          />
+                          Delete conversation
+                        </DropdownMenuItem>
+                      ),
+                    }}
+                  />
+                ))}
+              </Fragment>
+            ))}
+          </ChatConversationList>
+        )}
+      </nav>
+      <div className="flex shrink-0 flex-col justify-end px-3 py-3">
+        {resources.map(({ href, title, description, icon }) => (
+          <Link
+            key={href}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full rounded-lg px-3 py-1.5 hover:bg-surface-level-2 [&>span]:w-full [&>span]:no-underline"
+          >
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="flex size-6 shrink-0 items-center justify-center rounded-full bg-langchain-brand/15 text-langchain-brand"
+              >
+                {icon}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <Text as="span" variant="sm" weight="medium" color="primary">
+                  {title}
+                </Text>
+                <Text as="span" variant="xs" color="quaternary">
+                  {description}
+                </Text>
+              </span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </>
+  )
+
+  // Paired with the sidebar width: same easing, same per-direction duration.
+  const fade = `transition-opacity ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none ${isCollapsed ? "opacity-0 duration-[160ms]" : "opacity-100 duration-200"}`
 
   return (
     <>
-      <style>{scrollbarStyles}</style>
-      <aside className="hidden md:flex w-56 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter border-r border-border/60 flex-col shadow-depth-md">
-        <div className="px-3 pt-[13px] pb-[14px] border-b border-border/60 bg-gradient-to-r from-sidebar-accent/20 via-sidebar-accent/10 to-transparent">
-          <div className="flex items-center justify-between">
-            <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
-              <PanelLeftClose className="w-5 h-5" />
-            </Button>
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Threads
-            </span>
-          </div>
-        </div>
-
-      {/* Search Bar */}
-      <div className="px-3 py-2 bg-gradient-to-r from-sidebar-accent/5 via-transparent to-transparent">
-        <div className="relative group">
-          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 z-10">
-            <Search className="w-4 h-4 text-muted-foreground/70 group-focus-within:text-primary transition-all duration-200" />
-          </div>
-          <Input
-            type="text"
-            placeholder="Search threads..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 pr-8 h-10 text-sm bg-background/80 backdrop-blur-sm border-border/40 focus:border-primary/60 focus:bg-background/90 focus:shadow-sm transition-all duration-200 shadow-sm hover:shadow-md hover:bg-background/90 rounded-lg"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={handleClearSearch}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 z-10 text-muted-foreground/60 hover:text-foreground transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 rounded-full p-0.5 hover:bg-muted/50"
-              aria-label="Clear search"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto py-2 bg-gradient-to-b from-sidebar-accent/5 via-transparent to-sidebar-accent/10 custom-scrollbar">
-        {isLoading ? (
-          <div className="px-6 py-8 text-center">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-xs text-muted-foreground">Loading conversations...</p>
-          </div>
-        ) : searchQuery && filteredThreads.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-muted-foreground bg-gradient-to-br from-card/10 via-card/5 to-transparent rounded-lg mx-3 shadow-depth-xs">
-            <div className="font-medium mb-1">No results found</div>
-            <div className="text-xs">Try a different search term</div>
-          </div>
-        ) : filteredThreads.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-muted-foreground bg-gradient-to-br from-card/10 via-card/5 to-transparent rounded-lg mx-3 shadow-depth-xs">
-            <div className="font-medium mb-1">No conversations yet</div>
-            <div className="text-xs">Start chatting to see your threads here!</div>
-          </div>
-        ) : (
-          <>
-            {renderThreadGroup(today, "Today")}
-            {renderThreadGroup(yesterday, "Yesterday")}
-            {renderThreadGroup(last7Days, "Previous 7 Days")}
-            {renderThreadGroup(older, "Older")}
-          </>
-        )}
-      </nav>
-
-      <div className="bg-gradient-to-t from-sidebar-accent/10 via-sidebar-accent/5 to-transparent pt-2 pb-0 space-y-0">
-        <a
-          href="https://smith.langchain.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 text-sm text-sidebar-foreground transition-all duration-300 ease-out hover:bg-sidebar-accent/10 group"
-        >
-          <div className="h-6 w-6 flex items-center justify-center shrink-0">
-            <Image
-              src="/assets/images/Assistant Icon.png"
-              alt="LangSmith"
-              width={24}
-              height={24}
-              className="object-contain"
+      <aside
+        aria-label="Conversation sidebar"
+        onFocusCapture={() => {
+          sidebarHasFocus.current = true
+        }}
+        onBlurCapture={(event) => {
+          if (
+            event.relatedTarget &&
+            !event.currentTarget.contains(event.relatedTarget as Node)
+          )
+            sidebarHasFocus.current = false
+        }}
+        // Width pushes the transcript, so it animates in place: ease-in-out,
+        // faster when collapsing. Contents keep their expanded width and fade
+        // so text never rewraps mid-animation.
+        className={`hidden shrink-0 flex-col overflow-hidden border-r border-subtle bg-surface-level-1 transition-[width] ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none md:flex ${isCollapsed ? "w-17 duration-[160ms]" : "w-64 duration-200"}`}
+      >
+        <div className="flex min-h-0 w-64 flex-1 flex-col">
+          {/* 18px puts the toggle glyph on the list's text edge (12px inset
+              + 14px row padding - 8px icon inset); the 68px rail keeps it
+              centered when collapsed, so it never moves. */}
+          <div className="flex shrink-0 items-center gap-2 pb-2 pl-4.5 pr-3 pt-3">
+            <IconButton
+              ref={toggleRef}
+              icon={SidebarSimpleRightRegularIcon}
+              label={
+                isCollapsed
+                  ? "Expand conversation sidebar"
+                  : "Collapse conversation sidebar"
+              }
+              onClick={toggleSidebar}
+              variant="plain"
+              color="secondary"
+              size="md"
             />
+            <div inert={isCollapsed} className={`min-w-0 flex-1 ${fade}`}>
+              {search(false)}
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium leading-tight transition-colors duration-300 group-hover:text-sidebar-primary/90">LangSmith</div>
-            <div className="text-[10px] text-muted-foreground leading-tight transition-colors duration-300 group-hover:text-muted-foreground/80">Monitoring & Tracing</div>
+          <div
+            inert={isCollapsed}
+            className={`flex min-h-0 flex-1 flex-col ${fade}`}
+          >
+            {navigation(false)}
           </div>
-        </a>
-
-        <a
-          href="https://forum.langchain.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 text-sm text-sidebar-foreground transition-all duration-300 ease-out hover:bg-sidebar-accent/10 group"
+        </div>
+      </aside>
+      <Dialog
+        open={mobileOpen}
+        onOpenChange={(open) => onMobileOpenChange?.(open)}
+      >
+        <DialogContent
+          title="Conversations"
+          description="Search and open your conversation history."
+          className="w-[calc(100vw-2rem)] max-w-md"
+          childrenClassName="flex min-h-0 flex-col p-0"
+          onOpenAutoFocus={() => {
+            mobileReturnFocusRef.current =
+              document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null
+          }}
+          onCloseAutoFocus={(event) => {
+            if (mobileReturnFocusRef.current?.isConnected) {
+              event.preventDefault()
+              mobileReturnFocusRef.current.focus()
+            }
+          }}
         >
-          <div className="h-6 w-6 rounded-full bg-sidebar-primary/20 flex items-center justify-center shadow-sm shrink-0">
-            <MessageSquare className="w-3 h-3 text-sidebar-primary" />
+          <div className="flex h-[65dvh] min-h-0 flex-col">
+            {navigation(true)}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium leading-tight transition-colors duration-300 group-hover:text-sidebar-primary/90">Community Forum</div>
-            <div className="text-[10px] text-muted-foreground leading-tight transition-colors duration-300 group-hover:text-muted-foreground/80">Join the Discussion</div>
-          </div>
-        </a>
-
-        <a
-          href="https://docs.langchain.com/oss/python/langchain/overview"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 text-sm text-sidebar-foreground transition-all duration-300 ease-out hover:bg-sidebar-accent/10 group"
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+      >
+        <DialogContent
+          title="Delete conversation?"
+          description={`“${pendingDelete?.metadata?.title || "New conversation"}” will be removed from your history.`}
+          className="w-[calc(100vw-2rem)] max-w-md"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            requestAnimationFrame(() =>
+              (
+                (mobileOpen ? mobileSearchRef : desktopSearchRef).current ??
+                toggleRef.current
+              )?.focus()
+            )
+          }}
         >
-          <div className="h-6 w-6 rounded-full bg-sidebar-primary/20 flex items-center justify-center shadow-sm shrink-0">
-            <BookOpen className="w-3 h-3 text-sidebar-primary" />
+          <div className="flex justify-end gap-2">
+            <Button variant="outlined" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="error"
+              onClick={() => {
+                if (pendingDelete) onDeleteThread(pendingDelete.thread_id)
+                setPendingDelete(null)
+              }}
+            >
+              Delete conversation
+            </Button>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium leading-tight transition-colors duration-300 group-hover:text-sidebar-primary/90">Documentation</div>
-            <div className="text-[10px] text-muted-foreground leading-tight transition-colors duration-300 group-hover:text-muted-foreground/80">LangChain Docs</div>
-          </div>
-        </a>
-
-        <UserProfileSection />
-      </div>
-    </aside>
+        </DialogContent>
+      </Dialog>
     </>
   )
 })

@@ -1,10 +1,15 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import type { ChatComposerInputHandle } from "@langchain/macaw-components/ChatComposer"
+import { ChatState } from "@langchain/macaw-components/ChatState"
 import type { ClientProfile } from "@/lib/hooks"
 import { readRun, shareRun, type LangSmithAuth } from "@/lib/api/langsmith"
 import type { Message, ImageAttachment } from "@/lib/types"
-import { createUserMessage, generateMessageId, extractTextFromContent } from "@/lib/utils/chat"
+import { createUserMessage, generateMessageId } from "@/lib/utils/chat"
+import { restoreThreadMessages } from "@/lib/utils/chat/history"
+import { failActiveRun, settleInterruptedMessages } from "@/lib/utils/chat/presentation"
+import { claimInitialPrompt, getAttachedTextLength, limitComposerInput } from "@/lib/utils/chat/composer-state"
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
 import { useAuth } from "@/lib/auth"
@@ -20,31 +25,6 @@ import {
   INPUT_TOO_LONG_MESSAGE,
   MAX_INPUT_CHARS,
 } from "@/lib/constants/features"
-
-// Enhanced scrollbar styles with smooth transitions
-const scrollbarStyles = `
-  .custom-scrollbar {
-    scroll-behavior: smooth;
-    will-change: scroll-position;
-  }
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #7FC8FF;
-    border-radius: 3px;
-    transition: background 0.2s ease;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #7FC8FF;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:active {
-    background: #7FC8FF;
-  }
-`
 
 interface ChatInterfaceProps {
   showToolCalls?: boolean
@@ -116,10 +96,7 @@ export function ChatInterface({
   } = useFileUpload({
     getInputLength: () => inputLengthRef.current,
   })
-  const attachedTextLength = attachedFiles.reduce((total, file) => {
-    if (file.mimeType?.startsWith('image/')) return total
-    return total + (file.textLength ?? 0)
-  }, 0)
+  const attachedTextLength = getAttachedTextLength(attachedFiles)
   const attachedTextLengthRef = useRef(attachedTextLength)
   attachedTextLengthRef.current = attachedTextLength
 
@@ -132,15 +109,11 @@ export function ChatInterface({
   const baseInputRef = useRef(uiState.input)
 
   const setLimitedInput = useCallback((value: string) => {
-    const maxInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLengthRef.current)
-    if (value.length > maxInputLength) {
-      setInputError(INPUT_TOO_LONG_MESSAGE)
-      setInput(value.slice(0, maxInputLength))
-      return
-    }
-
-    setInputError(null)
-    setInput(value)
+    const limited = limitComposerInput(value, attachedTextLengthRef.current, MAX_INPUT_CHARS)
+    // Upload completion can occur before the next render, so expose typed input immediately.
+    inputLengthRef.current = limited.value.length
+    setInputError(limited.overLimit ? INPUT_TOO_LONG_MESSAGE : null)
+    setInput(limited.value)
   }, [setInput])
 
   // Voice input - append transcribed text to current input
@@ -202,7 +175,7 @@ export function ChatInterface({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Textarea ref for auto-focus
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const textareaRef = useRef<ChatComposerInputHandle>(null)
 
   // Track previous loading state to detect completion of AI response
   const prevIsLoadingRef = useRef(false)
@@ -318,18 +291,16 @@ export function ChatInterface({
     const currentThreadId = threadId
 
     const loadThreadHistory = async () => {
-      // Skip loading for new threads - they don't exist in backend yet
-      if (isNewThread) {
-        console.log('New thread detected - skipping backend load')
-        setMessages([])
+      // Effect replay must not erase a prompt already auto-sent on a new thread.
+      if (hasSentMessageRef.current === currentThreadId) {
         uiDispatch({ type: 'SET_LOADING_THREAD', payload: false })
         return
       }
 
-      // Skip reload if we just sent a message on this thread - client state is authoritative
-      // This prevents race conditions where history reload overwrites trace URLs
-      if (hasSentMessageRef.current === currentThreadId) {
-        console.log('Skipping reload - we just sent a message on this thread')
+      // Skip loading for new threads - they don't exist in backend yet
+      if (isNewThread) {
+        console.log('New thread detected - skipping backend load')
+        setMessages([])
         uiDispatch({ type: 'SET_LOADING_THREAD', payload: false })
         return
       }
@@ -388,42 +359,7 @@ export function ChatInterface({
           return
         }
 
-        const convertedMessages: Message[] = threadMessages
-          .filter((msg: any) => {
-            const msgType = msg.type || msg.role
-            return ["human", "user", "ai", "assistant"].includes(msgType)
-          })
-          .map((msg: any, idx: number) => {
-            // Create a stable ID for historical messages
-            const messageId = msg.id || `history-${threadId}-${idx}-${msg.content?.slice(0, 20)}`
-
-            const role = (msg.type === "ai" || msg.role === "assistant") ? "assistant" : "user"
-
-            return {
-              id: messageId,
-              role,
-              content: extractTextFromContent(msg.content),
-              timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
-              toolCalls: msg.tool_calls,
-              runId: msg.run_id,
-              thinkingDuration: msg.response_metadata?.thinking_duration,
-              usageMetadata: msg.usage_metadata,
-              shareUrl: msg.response_metadata?.share_url,
-              // Preserve images/attachments
-              images: msg.images,
-            }
-          })
-          .filter((msg: Message) => msg.content.trim().length > 0)
-          .reduce((acc: Message[], msg: Message, idx: number, arr: Message[]) => {
-            // For consecutive AI messages, only keep the LAST one in the group
-            if (msg.role === "assistant") {
-              const nextMsg = arr[idx + 1]
-              if (nextMsg && nextMsg.role === "assistant") {
-                return acc
-              }
-            }
-            return [...acc, msg]
-          }, [])
+        const convertedMessages = restoreThreadMessages(threadMessages, threadId)
 
         console.log(`SUCCESS: Loaded ${convertedMessages.length} messages from thread history`)
 
@@ -435,10 +371,10 @@ export function ChatInterface({
             // Build lookup maps by message ID, runId, and content hash (for matching when IDs differ)
             // Client-generated IDs differ from backend IDs, and backend doesn't always have runId
             const existingById = new Map(
-              prev.map(m => [m.id, { shareUrl: m.shareUrl, usageMetadata: m.usageMetadata, thinkingDuration: m.thinkingDuration, runId: m.runId }])
+              prev.map(m => [m.id, m])
             )
             const existingByRunId = new Map(
-              prev.filter(m => m.runId).map(m => [m.runId!, { shareUrl: m.shareUrl, usageMetadata: m.usageMetadata, thinkingDuration: m.thinkingDuration, runId: m.runId }])
+              prev.filter(m => m.runId).map(m => [m.runId!, m])
             )
             // Match by role + content prefix (first 100 chars) as fallback when IDs don't match
             const existingByContent = new Map(
@@ -448,13 +384,14 @@ export function ChatInterface({
               ])
             )
 
-            return convertedMessages.map((msg, idx) => {
+            return convertedMessages.map((msg) => {
               // Try to find existing metadata by ID first, then by runId, then by content
               const existingByIdMatch = existingById.get(msg.id)
               const existingByRunIdMatch = msg.runId ? existingByRunId.get(msg.runId) : undefined
               const contentKey = `${msg.role}:${msg.content.slice(0, 100)}`
               const existingByContentMatch = msg.role === 'assistant' ? existingByContent.get(contentKey) : undefined
-              const existing = existingByIdMatch || existingByRunIdMatch || existingByContentMatch
+              const exactMatch = existingByIdMatch || existingByRunIdMatch
+              const existing = exactMatch || existingByContentMatch
 
               if (existing) {
                 return {
@@ -463,7 +400,17 @@ export function ChatInterface({
                   runId: msg.runId || existing.runId,
                   shareUrl: msg.shareUrl || existing.shareUrl,
                   usageMetadata: msg.usageMetadata || existing.usageMetadata,
-                  thinkingDuration: msg.thinkingDuration || existing.thinkingDuration,
+                  thinkingDuration: msg.thinkingDuration ?? existing.thinkingDuration,
+                  // Execution/attachment state needs an exact identity match;
+                  // a repeated answer prefix is only a trace-metadata fallback.
+                  ...(exactMatch ? {
+                    toolCalls: msg.toolCalls?.length ? msg.toolCalls : exactMatch.toolCalls,
+                    subgraphOutputs: msg.subgraphOutputs?.length ? msg.subgraphOutputs : exactMatch.subgraphOutputs,
+                    thinkingSteps: msg.thinkingSteps?.length ? msg.thinkingSteps : exactMatch.thinkingSteps,
+                    images: msg.images?.length ? msg.images : exactMatch.images,
+                    status: msg.status ?? exactMatch.status,
+                    wasInterrupted: msg.wasInterrupted ?? exactMatch.wasInterrupted,
+                  } : {}),
                 }
               }
               return msg
@@ -629,16 +576,18 @@ export function ChatInterface({
       }
     } catch (error) {
       if (activeRunRef.current?.cancelRequested) {
+        const interruptedId = activeRunRef.current.assistantMessageId
+        setMessages((previous) => settleInterruptedMessages(previous, interruptedId))
         return
       }
       console.error("Error streaming from LangGraph:", error)
-      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to connect to the agent"}`)
-      errorMessage.role = "assistant"
-      setMessages((prev) => [...prev, errorMessage])
+      const errorText = `Error: ${error instanceof Error ? error.message : "Failed to connect to the agent"}`
+      const failedId = activeRunRef.current?.assistantMessageId ?? generateMessageId()
+      setMessages((prev) => failActiveRun(prev, failedId, errorText))
 
       if (onThreadUpdate) {
         const messageCount = messages.length + 2
-        onThreadUpdate(threadId, customTitle || truncate(userMessage.content, 60) || "New conversation", truncate(errorMessage.content, 100), undefined, messageCount)
+        onThreadUpdate(threadId, customTitle || truncate(userMessage.content, 60) || "New conversation", truncate(errorText, 100), undefined, messageCount)
       }
     } finally {
       activeRunRef.current = null
@@ -648,7 +597,7 @@ export function ChatInterface({
 
   // Process queued messages one by one
   const processQueue = useCallback(async () => {
-    if (isProcessingQueueRef.current || messageQueueRef.current.length === 0) return
+    if (isProcessingQueueRef.current || activeRunRef.current || messageQueueRef.current.length === 0) return
 
     isProcessingQueueRef.current = true
     const nextMessage = messageQueueRef.current.shift()!
@@ -657,9 +606,11 @@ export function ChatInterface({
     setQueuedMessagesDisplay(prev => prev.filter(m => m.id !== nextMessage.userMessage.id))
     setMessages((prev) => [...prev, nextMessage.userMessage])
 
-    await processMessage(nextMessage.content, nextMessage.files, nextMessage.userMessage)
-
-    isProcessingQueueRef.current = false
+    try {
+      await processMessage(nextMessage.content, nextMessage.files, nextMessage.userMessage)
+    } finally {
+      isProcessingQueueRef.current = false
+    }
 
     // Process next in queue if any
     if (messageQueueRef.current.length > 0) {
@@ -667,10 +618,13 @@ export function ChatInterface({
     }
   }, [processMessage])
 
-  // Process queue when AI finishes responding
+  // Queue completion has its own transition ref: focus restoration updates its ref first.
+  const previousQueueLoadingRef = useRef(false)
   useEffect(() => {
-    const wasLoading = prevIsLoadingRef.current
+    const wasLoading = previousQueueLoadingRef.current
     const isCurrentlyLoading = uiState.isLoading || uiState.isRegenerating
+
+    previousQueueLoadingRef.current = isCurrentlyLoading
 
     // When loading finishes and there are queued messages, process them
     if (wasLoading && !isCurrentlyLoading && messageQueueRef.current.length > 0) {
@@ -678,12 +632,17 @@ export function ChatInterface({
     }
   }, [uiState.isLoading, uiState.isRegenerating, processQueue])
 
-  // Auto-send initial message (for ?q= URL param)
+  // Auto-send initial message (for ?q= URL param). The claim is synchronous so
+  // React StrictMode replay cannot start a second run before SET_AUTO_SENT renders.
+  const claimedInitialThreadsRef = useRef(new Set<string>())
   useEffect(() => {
-    const trimmedMessage = initialMessage?.trim()
-    if (!trimmedMessage || uiState.hasAutoSent || uiState.isLoadingThread || !userId || !client) {
-      return
-    }
+    const trimmedMessage = claimInitialPrompt(
+      claimedInitialThreadsRef.current,
+      threadId,
+      initialMessage,
+      !uiState.hasAutoSent && !uiState.isLoadingThread && Boolean(userId && client),
+    )
+    if (!trimmedMessage) return
 
     uiDispatch({ type: 'SET_AUTO_SENT', payload: true })
     const cappedMessage = trimmedMessage.slice(0, MAX_INPUT_CHARS)
@@ -720,6 +679,11 @@ export function ChatInterface({
       return
     }
 
+    if (limitComposerInput(uiState.input, getAttachedTextLength(attachedFiles), MAX_INPUT_CHARS).overLimit) {
+      setInputError(INPUT_TOO_LONG_MESSAGE)
+      return
+    }
+
     trackEvent("Chat Message Sent", {
       threadId,
       messageCount: messages.length + messageQueueRef.current.length + 1,
@@ -736,11 +700,12 @@ export function ChatInterface({
 
     // Clear input and files immediately
     setInput("")
+    inputLengthRef.current = 0
     setInputError(null)
     clearFiles()
 
     // If currently loading, queue the message (don't show in chat yet)
-    if (uiState.isLoading || uiState.isRegenerating) {
+    if (activeRunRef.current || uiState.isLoading || uiState.isRegenerating) {
       const queuedItem = {
         content: currentInput,
         files: currentFiles,
@@ -761,12 +726,22 @@ export function ChatInterface({
     }
   }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, setInput, clearFiles, processMessage, processQueue, threadId, messages])
 
+  const removeQueuedMessage = useCallback((id: string) => {
+    messageQueueRef.current = messageQueueRef.current.filter(
+      (item) => item.userMessage.id !== id
+    )
+    setQueuedMessagesDisplay((prev) => prev.filter((m) => m.id !== id))
+  }, [])
+
   const handleStop = useCallback(async () => {
     console.log('User requested stop')
     uiDispatch({ type: 'SET_STOPPING', payload: true })
     shouldInterruptRef.current = true
     const activeRun = activeRunRef.current
-    if (!activeRun) return
+    if (!activeRun) {
+      uiDispatch({ type: "SET_STOPPING", payload: false })
+      return
+    }
 
     activeRun.cancelRequested = true
 
@@ -780,7 +755,7 @@ export function ChatInterface({
   }, [client, threadId, uiDispatch])
 
   const handleRegenerate = useCallback(async () => {
-    if (uiState.isLoading || uiState.isRegenerating) return
+    if (activeRunRef.current || uiState.isLoading || uiState.isRegenerating) return
 
     const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")
     if (!lastUserMessage) return
@@ -793,7 +768,7 @@ export function ChatInterface({
     try {
       const assistantMessageId = generateMessageId()
       activeRunRef.current = { assistantMessageId }
-      const { assistantContent } = await processStream(lastUserMessage.content, assistantMessageId)
+      const { assistantContent } = await processStream(lastUserMessage.content, assistantMessageId, lastUserMessage.images)
 
       if (onThreadUpdate && assistantContent) {
         const firstUserMsg = messagesUpToLastUser.find((m) => m.role === "user")
@@ -803,12 +778,14 @@ export function ChatInterface({
       }
     } catch (error) {
       if (activeRunRef.current?.cancelRequested) {
+        const interruptedId = activeRunRef.current.assistantMessageId
+        setMessages((previous) => settleInterruptedMessages(previous, interruptedId))
         return
       }
       console.error("Error regenerating:", error)
-      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to regenerate response"}`)
-      errorMessage.role = "assistant"
-      setMessages((prev) => [...prev, errorMessage])
+      const errorText = `Error: ${error instanceof Error ? error.message : "Failed to regenerate response"}`
+      const failedId = activeRunRef.current?.assistantMessageId ?? generateMessageId()
+      setMessages((prev) => failActiveRun(prev, failedId, errorText))
     } finally {
       activeRunRef.current = null
       uiDispatch({ type: 'FINISH_REGENERATE' })
@@ -818,7 +795,7 @@ export function ChatInterface({
   const handleEditAndRerun = useCallback(async (messageId: string, newContent: string) => {
     console.log('Edit and rerun from message:', messageId, 'new content:', newContent.slice(0, 50))
 
-    if (uiState.isLoading || uiState.isRegenerating) return
+    if (activeRunRef.current || uiState.isLoading || uiState.isRegenerating) return
 
     const messageIndex = messages.findIndex((m) => m.id === messageId)
     if (messageIndex === -1) return
@@ -837,7 +814,7 @@ export function ChatInterface({
       const assistantMessageId = generateMessageId()
       console.log('Rerunning from edited message with assistantMessageId:', assistantMessageId)
       activeRunRef.current = { assistantMessageId }
-      const { assistantContent } = await processStream(newContent, assistantMessageId)
+      const { assistantContent } = await processStream(newContent, assistantMessageId, updatedMessage.images)
 
       if (onThreadUpdate && assistantContent) {
         const firstUserMsg = messagesUpToEdit.find((m) => m.role === "user") || updatedMessage
@@ -847,12 +824,14 @@ export function ChatInterface({
       }
     } catch (error) {
       if (activeRunRef.current?.cancelRequested) {
+        const interruptedId = activeRunRef.current.assistantMessageId
+        setMessages((previous) => settleInterruptedMessages(previous, interruptedId))
         return
       }
       console.error("Error rerunning from edit:", error)
-      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to rerun from edit"}`)
-      errorMessage.role = "assistant"
-      setMessages((prev) => [...prev, errorMessage])
+      const errorText = `Error: ${error instanceof Error ? error.message : "Failed to rerun from edit"}`
+      const failedId = activeRunRef.current?.assistantMessageId ?? generateMessageId()
+      setMessages((prev) => failActiveRun(prev, failedId, errorText))
     } finally {
       activeRunRef.current = null
       uiDispatch({ type: 'SET_LOADING', payload: false })
@@ -866,15 +845,6 @@ export function ChatInterface({
     setTimeout(() => uiDispatch({ type: 'SET_COPIED_ID', payload: null }), 2000)
   }
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      if (userId) {
-        handleSend()
-      }
-    }
-  }, [userId, handleSend])
-
   const handleFileButtonClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -882,38 +852,6 @@ export function ChatInterface({
       fileInputRef.current.click()
     }
   }, [])
-
-  const handleInputBeforeInput = useCallback((e: React.FormEvent<HTMLTextAreaElement>) => {
-    const nativeEvent = e.nativeEvent as InputEvent
-    const insertedText = nativeEvent.data
-    if (!insertedText) return
-
-    const target = e.currentTarget
-    const selectionLength = target.selectionEnd - target.selectionStart
-    const nextLength = target.value.length - selectionLength + insertedText.length
-
-    if (nextLength + attachedTextLength > MAX_INPUT_CHARS) {
-      e.preventDefault()
-      setInputError(INPUT_TOO_LONG_MESSAGE)
-    }
-  }, [attachedTextLength])
-
-  const handleInputPaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const pastedText = e.clipboardData?.getData("text") ?? ""
-    if (pastedText) {
-      const target = e.currentTarget
-      const selectionLength = target.selectionEnd - target.selectionStart
-      const nextLength = target.value.length - selectionLength + pastedText.length
-
-      if (nextLength + attachedTextLength > MAX_INPUT_CHARS) {
-        e.preventDefault()
-        setInputError(INPUT_TOO_LONG_MESSAGE)
-        return
-      }
-    }
-
-    await handlePaste(e)
-  }, [attachedTextLength, handlePaste])
 
   // ============================================================================
   // Computed Values
@@ -928,12 +866,13 @@ export function ChatInterface({
 
   return (
     <>
-      <style>{scrollbarStyles}</style>
-      <main className="flex-1 flex flex-col overflow-hidden relative">
-        <MessageList
+      <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-level-1">
+        {uiState.isLoadingThread && <div className="flex flex-1 items-center justify-center"><ChatState status="pending" label="Loading conversation" /></div>}
+        {!isNewChat && !uiState.isLoadingThread && <MessageList
+          key={threadId}
           messages={messages}
           showToolCalls={showToolCalls}
-          isRegenerating={uiState.isRegenerating}
+          isRegenerating={uiState.isLoading || uiState.isRegenerating}
           copiedId={uiState.copiedId}
           onCopy={handleCopy}
           onRegenerate={handleRegenerate}
@@ -945,16 +884,14 @@ export function ChatInterface({
           onCancelComment={handleCancelComment}
           onToggleComment={handleToggleComment}
           setFeedbackComment={setFeedbackComment}
-        />
+        />}
 
         {isNewChat ? (
           <WelcomeScreen
             input={cappedDisplayInput}
             onInputChange={setLimitedInput}
-            onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
-            onKeyDown={handleKeyDown}
-            isLoading={uiState.isLoading}
+            isLoading={uiState.isLoading || uiState.isRegenerating}
             isStopping={uiState.isStopping}
             onStop={handleStop}
             userId={userId}
@@ -965,7 +902,7 @@ export function ChatInterface({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onPaste={handleInputPaste}
+            onPaste={handlePaste}
             onRemoveFile={removeFile}
             onFileButtonClick={handleFileButtonClick}
             fileInputRef={fileInputRef}
@@ -980,10 +917,8 @@ export function ChatInterface({
           <ChatInput
             input={cappedDisplayInput}
             onInputChange={setLimitedInput}
-            onBeforeInput={handleInputBeforeInput}
             onSend={handleSend}
-            onKeyDown={handleKeyDown}
-            isLoading={uiState.isLoading}
+            isLoading={uiState.isLoading || uiState.isRegenerating}
             isStopping={uiState.isStopping}
             onStop={handleStop}
             userId={userId}
@@ -994,7 +929,7 @@ export function ChatInterface({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onPaste={handleInputPaste}
+            onPaste={handlePaste}
             onRemoveFile={removeFile}
             onFileButtonClick={handleFileButtonClick}
             fileInputRef={fileInputRef}
@@ -1005,6 +940,7 @@ export function ChatInterface({
             onVoiceToggle={toggleVoiceListening}
             voiceError={voiceError}
             queuedMessages={queuedMessagesDisplay}
+            onRemoveQueuedMessage={removeQueuedMessage}
           />
         )}
       </main>

@@ -1,193 +1,49 @@
-import { Copy, Check, Settings, RefreshCw, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { ThinkingTimer } from "./animations/thinking-timer"
-import { AnimatedThinking } from "./animations/animated-thinking"
+"use client"
+
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import {
+  ChatMessage,
+  ChatMessageActions,
+  ChatMessageBody,
+  type ChatMessageContentBlock,
+} from "@langchain/macaw-components/ChatMessage"
+import { ChatRichContent } from "@langchain/macaw-components/ChatRichContent"
+import { ChatState } from "@langchain/macaw-components/ChatState"
+import { ThinkingState } from "@langchain/macaw-components/ThinkingState"
+import {
+  ChatToolCall,
+  ChatToolCallGroup,
+  ChatToolCallReasoning,
+} from "@langchain/macaw-components/ChatToolCall"
+import {
+  Attachment,
+  AttachmentList,
+} from "@langchain/macaw-components/Attachment"
+import { Button } from "@langchain/macaw-components/Button"
+import { Icon, type IconComponent } from "@langchain/macaw-components/Icon"
+import { IconButton } from "@langchain/macaw-components/IconButton"
+import { ImagePreviewBlock } from "@langchain/macaw-components/ImagePreviewBlock"
+import { Link } from "@langchain/macaw-components/Link"
+import { MarkdownDisplay } from "@langchain/macaw-components/MarkdownDisplay"
+import { Text } from "@langchain/macaw-components/Text"
+import { Textarea } from "@langchain/macaw-components/Textarea"
+import { ChatTextIcon } from "@phosphor-icons/react/dist/ssr/ChatText"
+import { CoinsIcon } from "@phosphor-icons/react/dist/ssr/Coins"
+import { ThumbsDownIcon } from "@phosphor-icons/react/dist/ssr/ThumbsDown"
+import { ThumbsUpIcon } from "@phosphor-icons/react/dist/ssr/ThumbsUp"
+import { TimerIcon } from "@phosphor-icons/react/dist/ssr/Timer"
 import type { Message } from "@/lib/types"
-import { INPUT_TOO_LONG_MESSAGE, MAX_INPUT_CHARS } from "@/lib/constants/features"
-import { useState, useMemo, useEffect, useCallback, memo, useRef } from "react"
-import Image from "next/image"
+import {
+  INPUT_TOO_LONG_MESSAGE,
+  MAX_INPUT_CHARS,
+} from "@/lib/constants/features"
+import {
+  messageStatus,
+  subgraphStatus,
+  toolStatus,
+} from "@/lib/utils/chat/presentation"
 
-// ============================================================================
-// Constants
-// ============================================================================
-
-const COPY_FEEDBACK_DURATION = 2000
-
-// Color palette for code highlighting
-const CODE_COLORS = {
-  // Background & borders
-  blockBackground: 'oklch(0.16 0 0)',
-  blockBorder: 'oklch(0.30 0 0)',
-  inlineBackground: 'oklch(0.22 0 0)',
-  inlineBorder: 'oklch(0.32 0 0)',
-
-  // Primary theme colors
-  primary: '#7FC8FF',      // Blue - used for properties, operators, tags
-  primaryLight: '#99D3FF',  // Light blue - strings, attributes
-  primaryDark: '#B2DEFF',  // Lighter blue - keywords, built-ins
-
-  // Accent colors
-  blue: '#60a5fa',         // Functions
-  yellow: '#fbbf24',       // Classes
-  orange: '#f59e0b',       // Numbers, booleans
-  green: '#10b981',        // Selectors, inserted
-  red: '#ef4444',          // Important, deleted
-
-  // Neutral colors
-  text: '#e4e4e7',         // Main text
-  comment: '#6b7280',      // Comments, docstrings
-  punctuation: '#a1a1aa',  // Punctuation
-} as const
-
-// ============================================================================
-// Syntax Highlighting Theme
-// ============================================================================
-
-const customTheme = {
-  ...vscDarkPlus,
-  'pre[class*="language-"]': {
-    ...vscDarkPlus['pre[class*="language-"]'],
-    background: CODE_COLORS.blockBackground,
-    border: `1px solid ${CODE_COLORS.blockBorder}`,
-    borderRadius: '8px',
-    padding: '1rem',
-    margin: '0.75rem 0',
-  },
-  'code[class*="language-"]': {
-    ...vscDarkPlus['code[class*="language-"]'],
-    background: 'transparent',
-    color: CODE_COLORS.text,
-    fontSize: '13px',
-    lineHeight: '1.6',
-  },
-  // Token colors - grouped by theme color
-  'comment': { color: CODE_COLORS.comment },
-  'prolog': { color: CODE_COLORS.comment },
-  'doctype': { color: CODE_COLORS.comment },
-  'cdata': { color: CODE_COLORS.comment },
-  'punctuation': { color: CODE_COLORS.punctuation },
-
-  'property': { color: CODE_COLORS.primary },
-  'tag': { color: CODE_COLORS.primary },
-  'operator': { color: CODE_COLORS.primary },
-  'entity': { color: CODE_COLORS.primary },
-  'url': { color: CODE_COLORS.primary },
-  'attr-name': { color: CODE_COLORS.primary },
-
-  'string': { color: CODE_COLORS.primaryLight },
-  'char': { color: CODE_COLORS.primaryLight },
-  'attr-value': { color: CODE_COLORS.primaryLight },
-
-  'builtin': { color: CODE_COLORS.primaryDark },
-  'atrule': { color: CODE_COLORS.primaryDark },
-  'keyword': { color: CODE_COLORS.primaryDark },
-
-  'boolean': { color: CODE_COLORS.orange },
-  'number': { color: CODE_COLORS.orange },
-  'constant': { color: CODE_COLORS.orange },
-  'symbol': { color: CODE_COLORS.orange },
-  'regex': { color: CODE_COLORS.orange },
-
-  'selector': { color: CODE_COLORS.green },
-  'inserted': { color: CODE_COLORS.green },
-
-  'function': { color: CODE_COLORS.blue },
-  'class-name': { color: CODE_COLORS.yellow },
-  'variable': { color: CODE_COLORS.text },
-
-  'important': { color: CODE_COLORS.red, fontWeight: 'bold' },
-  'deleted': { color: CODE_COLORS.red },
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Recursively extract text content from ReactMarkdown nodes
- * Used for extracting code from markdown code blocks for copy functionality
- */
-const extractTextFromNode = (node: any): string => {
-  if (typeof node === 'string') return node
-  if (node?.props?.children) {
-    if (typeof node.props.children === 'string') {
-      return node.props.children
-    }
-    if (Array.isArray(node.props.children)) {
-      return node.props.children.map(extractTextFromNode).join('')
-    }
-    return extractTextFromNode(node.props.children)
-  }
-  return ''
-}
-
-/**
- * Individual code block component with its own copy state
- * This prevents the copy button from flickering during streaming
- */
-const CodeBlock = memo(({ codeString, language }: { codeString: string; language: string }) => {
-  const [isCopied, setIsCopied] = useState(false)
-
-  const handleCopyCode = useCallback(() => {
-    navigator.clipboard.writeText(codeString)
-    setIsCopied(true)
-    setTimeout(() => setIsCopied(false), COPY_FEEDBACK_DURATION)
-  }, [codeString])
-
-  return (
-    <div className="relative group my-4">
-      <SyntaxHighlighter
-        language={language}
-        style={customTheme}
-        customStyle={{
-          margin: '0.75rem 0',
-          background: CODE_COLORS.blockBackground,
-          border: `1px solid ${CODE_COLORS.blockBorder}`,
-          borderRadius: '8px',
-          padding: '1rem',
-        }}
-        codeTagProps={{
-          style: {
-            fontSize: '13px',
-            fontFamily: 'var(--font-mono), ui-monospace, monospace',
-          }
-        }}
-      >
-        {codeString}
-      </SyntaxHighlighter>
-      <button
-        onClick={handleCopyCode}
-        className="absolute top-2 right-2 sm:top-3 sm:right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-xs flex items-center gap-1 sm:gap-1.5 backdrop-blur-sm"
-        style={{
-          background: 'rgba(0, 0, 0, 0.7)',
-          color: CODE_COLORS.text,
-          border: `1px solid ${CODE_COLORS.blockBorder}`,
-          willChange: 'opacity',
-        }}
-        aria-label="Copy code to clipboard"
-      >
-        {isCopied ? (
-          <>
-            <Check className="w-3.5 h-3.5" />
-            Copied
-          </>
-        ) : (
-          <>
-            <Copy className="w-3.5 h-3.5" />
-            Copy
-          </>
-        )}
-      </button>
-    </div>
-  )
-})
-
-interface MessageItemProps {
+export interface MessageItemProps {
   message: Message
   showToolCalls?: boolean
   isLastAssistant: boolean
@@ -198,11 +54,17 @@ interface MessageItemProps {
   onEditAndRerun?: (messageId: string, newContent: string) => void
   feedbackComment: { [messageId: string]: string }
   showCommentInput: string | null
-  onFeedback: (messageId: string, feedbackType: "positive" | "negative", comment?: string) => void
+  onFeedback: (
+    messageId: string,
+    feedbackType: "positive" | "negative",
+    comment?: string
+  ) => void
   onSubmitComment: (messageId: string) => void
   onCancelComment: (messageId: string) => void
   onToggleComment: (messageId: string) => void
-  setFeedbackComment: React.Dispatch<React.SetStateAction<{ [messageId: string]: string }>>
+  setFeedbackComment: React.Dispatch<
+    React.SetStateAction<{ [messageId: string]: string }>
+  >
 }
 
 export const MessageItem = memo(function MessageItem({
@@ -223,683 +85,516 @@ export const MessageItem = memo(function MessageItem({
   setFeedbackComment,
 }: MessageItemProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const [editContent, setEditContent] = useState(message.content.slice(0, MAX_INPUT_CHARS))
+  const editLimit = Math.max(
+    0,
+    MAX_INPUT_CHARS -
+      (message.images ?? []).reduce(
+        (length, file) =>
+          length +
+          (file.mimeType.startsWith("image/") ? 0 : (file.textLength ?? 0)),
+        0
+      )
+  )
+  const [editContent, setEditContent] = useState(message.content)
   const [editError, setEditError] = useState<string | null>(null)
-  const prevContentRef = useRef(message.content)
+  const status = messageStatus(message)
+  const isAssistant = message.role === "assistant"
+  const isStreaming = status === "streaming"
+  const hasFeedback =
+    isAssistant &&
+    Boolean(message.runId && (message.shareUrl || message.usageMetadata))
+  const steps = message.thinkingSteps ?? []
+  const metadata: { label: string; value: string; icon?: IconComponent }[] = []
+  if (isAssistant) {
+    if (message.thinkingDuration != null)
+      metadata.push({
+        label: "Response time",
+        value: `${(message.thinkingDuration / 1000).toFixed(1)}s`,
+        icon: TimerIcon,
+      })
+    // The word "tokens" stays visible: a coin alone would read as cost.
+    if (message.usageMetadata?.total_tokens != null)
+      metadata.push({
+        label: "Total tokens",
+        value: `${(message.usageMetadata.total_tokens / 1000).toFixed(1)}k tokens`,
+        icon: CoinsIcon,
+      })
+    const cost = message.usageMetadata?.total_cost
+    if (typeof cost === "number" && cost > 0)
+      metadata.push({ label: "Cost", value: `$${cost.toFixed(4)}` })
+  }
 
-  // Sync editContent when message.content changes (e.g., during streaming)
   useEffect(() => {
-    if (!isEditing && message.content !== prevContentRef.current) {
-      setEditContent(message.content.slice(0, MAX_INPUT_CHARS))
-      prevContentRef.current = message.content
-    }
+    if (!isEditing) setEditContent(message.content)
   }, [message.content, isEditing])
 
-  const setLimitedEditContent = useCallback((value: string) => {
-    if (value.length > MAX_INPUT_CHARS) {
-      setEditError(INPUT_TOO_LONG_MESSAGE)
-      setEditContent(value.slice(0, MAX_INPUT_CHARS))
-      return
-    }
-
-    setEditError(null)
-    setEditContent(value)
-  }, [])
-
-  const handleStartEdit = useCallback(() => {
-    const cappedContent = message.content.slice(0, MAX_INPUT_CHARS)
-    setEditContent(cappedContent)
-    setEditError(message.content.length > MAX_INPUT_CHARS ? INPUT_TOO_LONG_MESSAGE : null)
+  const startEdit = useCallback(() => {
+    setEditContent(message.content)
+    setEditError(
+      message.content.length > editLimit ? INPUT_TOO_LONG_MESSAGE : null
+    )
     setIsEditing(true)
-  }, [message.content])
+  }, [message.content, editLimit])
 
-  const handleSaveEdit = useCallback(() => {
-    if (editContent.trim() && onEditAndRerun) {
-      onEditAndRerun(message.id, editContent.trim())
-      setIsEditing(false)
-      setEditError(null)
+  const saveEdit = useCallback(() => {
+    if (
+      !editContent.trim() ||
+      isRegenerating ||
+      editContent.length > editLimit
+    ) {
+      setEditError(
+        isRegenerating
+          ? "Wait for the current response to finish."
+          : editContent.length > editLimit
+            ? INPUT_TOO_LONG_MESSAGE
+            : "Enter a message before sending."
+      )
+      return false
     }
-  }, [editContent, onEditAndRerun, message.id])
-
-  const handleCancelEdit = useCallback(() => {
-    setEditContent(message.content.slice(0, MAX_INPUT_CHARS))
-    setEditError(null)
+    onEditAndRerun?.(message.id, editContent.trim())
     setIsEditing(false)
-  }, [message.content])
+    setEditError(null)
+    return true
+  }, [editContent, editLimit, isRegenerating, message.id, onEditAndRerun])
 
-  const handleEditBeforeInput = useCallback((e: React.FormEvent<HTMLTextAreaElement>) => {
-    const nativeEvent = e.nativeEvent as InputEvent
-    const insertedText = nativeEvent.data
-    if (!insertedText) return
-
-    const target = e.currentTarget
-    const selectionLength = target.selectionEnd - target.selectionStart
-    const nextLength = target.value.length - selectionLength + insertedText.length
-
-    if (nextLength > MAX_INPUT_CHARS) {
-      e.preventDefault()
-      setEditError(INPUT_TOO_LONG_MESSAGE)
+  const blocks = useMemo<ChatMessageContentBlock[]>(() => {
+    const content: ChatMessageContentBlock[] = []
+    if (
+      isAssistant &&
+      (isStreaming ||
+        status === "failed" ||
+        status === "interrupted" ||
+        steps.length > 0)
+    ) {
+      content.push({
+        id: `${message.id}-progress`,
+        type: "custom",
+        content:
+          steps.length > 0 ? (
+            <ChatToolCallReasoning
+              label={`Agent steps (${steps.length})`}
+              status={status}
+              elapsedMs={message.thinkingDuration}
+            >
+              <ol className="list-decimal space-y-1 pl-4 text-xs text-tertiary">
+                {steps.map((step, index) => (
+                  <li key={`${message.id}-step-${index}`}>
+                    <Text variant="xs" color="tertiary">
+                      {step}
+                    </Text>
+                  </li>
+                ))}
+              </ol>
+            </ChatToolCallReasoning>
+          ) : isStreaming ? (
+            <ThinkingState
+              size="sm"
+              label="Working on your answer"
+              showElapsed
+              elapsedMs={message.thinkingDuration}
+            />
+          ) : (
+            <ChatState
+              status={status}
+              label={
+                status === "failed" ? "Response failed" : "Response stopped"
+              }
+            />
+          ),
+      })
     }
-  }, [])
-
-  const handleEditPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const pastedText = e.clipboardData?.getData("text") ?? ""
-    if (!pastedText) return
-
-    const target = e.currentTarget
-    const selectionLength = target.selectionEnd - target.selectionStart
-    const nextLength = target.value.length - selectionLength + pastedText.length
-
-    if (nextLength > MAX_INPUT_CHARS) {
-      e.preventDefault()
-      setEditError(INPUT_TOO_LONG_MESSAGE)
+    const images: { id: string; name: string; src: string }[] = []
+    const files: NonNullable<Message["images"]> = []
+    for (const file of message.images ?? []) {
+      const src =
+        file.url ||
+        (file.base64 ? `data:${file.mimeType};base64,${file.base64}` : "")
+      if (file.mimeType.startsWith("image/") && src)
+        images.push({ id: file.id, name: file.name || "Attached image", src })
+      else files.push(file)
     }
-  }, [])
-
-  // Track code block index to generate stable IDs during streaming
-  const codeBlockIndexRef = useRef(0)
-
-  // Reset counter before each render so code blocks get consistent indices
-  codeBlockIndexRef.current = 0
-
-  // Memoize markdown components to prevent button remounting during streaming
-  const markdownComponents = useMemo(() => ({
-    // Custom link renderer - opens in new tab
-    a: ({ children, ...props }: any) => (
-      <a
-        {...props}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          color: CODE_COLORS.primary,
-          textDecorationColor: CODE_COLORS.primary
-        }}
-      >
-        {children}
-      </a>
-    ),
-
-    // Custom code renderer - handles both inline code and code blocks
-    code: ({ node, inline, className, children, ...props }: any) => {
-      const match = /language-(\w+)/.exec(className || '')
-      const language = match ? match[1] : 'text'
-      const codeString = String(children).replace(/\n$/, '')
-
-      // Check if it's inline code: single backticks or no newlines
-      const isInlineCode = inline === true || (!className && !codeString.includes('\n'))
-
-      // Inline code (single backticks) - Slack-style highlighting
-      if (isInlineCode) {
-        return (
-          <code
-            className="px-1.5 py-0.5 text-[13px] font-mono"
-            style={{
-              backgroundColor: CODE_COLORS.inlineBackground,
-              color: CODE_COLORS.primary,
-              border: `1px solid ${CODE_COLORS.inlineBorder}`,
-              borderRadius: '5px',
-            }}
-            {...props}
-          >
-            {children}
-          </code>
-        )
-      }
-
-      // Code blocks (triple backticks) - use stable ID based on position, not content
-      // This prevents flickering during streaming when code content changes
-      const blockIndex = codeBlockIndexRef.current++
-      const codeBlockId = `${message.id}-code-${blockIndex}`
-
-      // Render a separate component for the code block with copy functionality
-      return <CodeBlock key={codeBlockId} codeString={codeString} language={language} />
-    },
-  }), [message.id])
-
-  return (
-    <>
-      <style jsx>{`
-        @keyframes dance {
-          0% { transform: rotate(-30deg) scale(1); }
-          25% { transform: rotate(0deg) scale(1.05); }
-          50% { transform: rotate(30deg) scale(1); }
-          75% { transform: rotate(0deg) scale(1.05); }
-          100% { transform: rotate(-30deg) scale(1); }
-        }
-        @keyframes spin360 {
-          0%, 90% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(5px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .dance-wrapper {
-          animation: spin360 6s linear infinite;
-        }
-        .dancing {
-          animation: dance 0.8s ease-in-out infinite;
-        }
-
-        /* Smooth text rendering optimizations */
-        .prose {
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
-          text-rendering: optimizeLegibility;
-        }
-
-        /* Optimize layout performance during streaming */
-        .prose > * {
-          transition: opacity 0.1s ease-out;
-        }
-      `}</style>
-      <div className="flex gap-3 sm:gap-4 items-start group/message">
-        <div
-          className={`w-8 h-8 flex items-center justify-center flex-shrink-0 ${
-            message.role === "assistant" && message.isThinking ? "dance-wrapper" : ""
-          }`}
-        >
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center"
-          >
-            {message.role === "assistant" ? (
-              <Image
-                src="/assets/images/Assistant Icon.png"
-                alt="Assistant Logo"
-                width={32}
-                height={32}
-                className="object-contain"
+    if (images.length) {
+      content.push({
+        id: `${message.id}-images`,
+        type: "custom",
+        content: (
+          <div className="flex flex-col items-end gap-2">
+            {images.map((image) => (
+              <ImagePreviewBlock
+                key={image.id}
+                src={image.src}
+                altText={image.name}
+                caption={image.name}
+                className="w-72 max-w-full"
               />
-            ) : (
-              <Image
-                src="/assets/images/User icon.png"
-                alt="User"
-                width={32}
-                height={32}
-                className="object-contain"
-              />
+            ))}
+          </div>
+        ),
+      })
+    }
+    if (files.length) {
+      content.push({
+        id: `${message.id}-attachments`,
+        type: "custom",
+        content: (
+          <AttachmentList layout="wrap">
+            {files.map((file) => (
+              <li key={file.id}>
+                <Attachment
+                  name={file.name || "File"}
+                  contentType={file.mimeType}
+                  size="lg"
+                  variant="file"
+                  metadata={
+                    file.size ? `${Math.round(file.size / 1024)} KB` : undefined
+                  }
+                />
+              </li>
+            ))}
+          </AttachmentList>
+        ),
+      })
+    }
+    if (message.content && !isEditing) {
+      content.push(
+        isAssistant
+          ? {
+              id: `${message.id}-content`,
+              type: "custom",
+              content: (
+                // Past MarkdownDisplay's 20k-char limit, answers fall back to
+                // plain text; fullLength keeps that text from hiding behind
+                // "Show more".
+                <MarkdownDisplay
+                  content={message.content}
+                  isStreaming={isStreaming}
+                  fullLength
+                />
+              ),
+            }
+          : {
+              id: `${message.id}-content`,
+              type: "text",
+              text: message.content,
+              appearance: "bubble",
+            }
+      )
+    }
+    const toolCalls = showToolCalls ? (message.toolCalls ?? []) : []
+    const subgraphs = message.subgraphOutputs ?? []
+    if (toolCalls.length || subgraphs.length) {
+      content.push({
+        id: `${message.id}-activity`,
+        type: "custom",
+        // One block keeps both groups on the row rhythm of a single
+        // ChatToolCallGroup instead of the larger gap between message blocks.
+        content: (
+          <div className="flex min-w-0 flex-col">
+            {toolCalls.length > 0 && (
+              <ChatToolCallGroup label={`Tool calls (${toolCalls.length})`}>
+                {toolCalls.map((tool) => (
+                  <ChatToolCall
+                    key={tool.id}
+                    toolCall={{
+                      id: tool.id,
+                      name: tool.name,
+                      status: toolStatus(tool, message),
+                      args: tool.args,
+                      result: tool.output,
+                      error: tool.error,
+                    }}
+                  />
+                ))}
+              </ChatToolCallGroup>
+            )}
+            {subgraphs.length > 0 && (
+              <ChatToolCallGroup
+                label={`Subagent outputs (${subgraphs.length})`}
+              >
+                {subgraphs.map((subgraph) => {
+                  const id =
+                    subgraph.toolCallId ??
+                    `${subgraph.name}-${subgraph.timestamp}`
+                  return (
+                    <ChatToolCall
+                      key={id}
+                      label={subgraph.name}
+                      summary={null}
+                      toolCall={{
+                        id,
+                        name: subgraph.name,
+                        status: subgraphStatus(subgraph, message),
+                        result: subgraph.output || undefined,
+                        error: subgraph.error,
+                      }}
+                    />
+                  )
+                })}
+              </ChatToolCallGroup>
             )}
           </div>
-        </div>
-      <div className="flex-1 min-w-0 space-y-2">
-        <div
-          className={`rounded-lg px-4 py-3 transition-all duration-150 ease-out ${
-            message.role === "user" ? "bg-muted/50 text-foreground" : "bg-muted text-foreground"
-          }`}
-          style={{
-            willChange: message.isThinking ? 'contents' : 'auto',
-            contain: 'layout style paint',
-          }}
-        >
-          {/* Thinking indicator - only for assistant messages */}
-          {message.role === "assistant" && (message.isThinking || message.thinkingStartTime || (message.thinkingSteps && message.thinkingSteps.length > 0)) && (
-            <details open className="mb-3 text-xs">
-              <summary className="cursor-pointer flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-                {message.isThinking && <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />}
-                <span>
-                  {message.isThinking ? <AnimatedThinking /> : <span className="font-medium">Agent steps</span>} ({message.thinkingSteps?.length || 0})
-                </span>
-                <span className="ml-1">•</span>
-                <ThinkingTimer
-                  startTime={message.thinkingStartTime}
-                  duration={message.thinkingDuration}
-                  isThinking={!!message.isThinking}
+        ),
+      })
+    }
+    return content
+  }, [
+    message,
+    status,
+    isAssistant,
+    isStreaming,
+    isEditing,
+    showToolCalls,
+    steps,
+  ])
+
+  return (
+    <ChatMessage
+      message={{ id: message.id, role: message.role, status, content: blocks }}
+      isLatest={isLastAssistant || isEditing || showCommentInput === message.id}
+      footer={
+        <>
+          <ChatMessageActions
+            status={status}
+            actions={{
+              copy: message.content
+                ? {
+                    onClick: () => onCopy(message.content, message.id),
+                    label: copiedId === message.id ? "Copied" : "Copy message",
+                  }
+                : undefined,
+              edit:
+                !isAssistant && onEditAndRerun && !isRegenerating
+                  ? { onClick: startEdit, label: "Edit and rerun" }
+                  : undefined,
+              retry:
+                isAssistant && isLastAssistant && !isRegenerating
+                  ? { onClick: onRegenerate, label: "Regenerate response" }
+                  : undefined,
+            }}
+          >
+            {/* Match ChatMessageActions' built-in xs icon actions. */}
+            {hasFeedback && (
+              <>
+                <IconButton
+                  icon={ThumbsUpIcon}
+                  label="Helpful"
+                  size="xs"
+                  variant="plain"
+                  color={
+                    message.feedback === "positive" ? "primary" : "secondary"
+                  }
+                  iconWeight={
+                    message.feedback === "positive" ? "fill" : "regular"
+                  }
+                  aria-pressed={message.feedback === "positive"}
+                  onClick={() =>
+                    onFeedback(
+                      message.id,
+                      "positive",
+                      feedbackComment[message.id]
+                    )
+                  }
                 />
-              </summary>
-              {message.thinkingSteps && message.thinkingSteps.length > 0 && (
-                <div className="mt-2 pl-4 space-y-1 text-muted-foreground font-mono text-[11px]">
-                  {message.thinkingSteps.map((step, idx) => (
-                    <div key={`${message.id}-step-${idx}`} className="flex items-start gap-2">
-                      <span className="text-primary opacity-50">{(idx + 1).toString().padStart(2, '0')}</span>
-                      <span>{step}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </details>
-          )}
-
-          {message.role === "user" ? (
-            isEditing ? (
-              <div>
-                <Textarea
-                  value={editContent}
-                  onChange={(e) => setLimitedEditContent(e.target.value)}
-                  onBeforeInput={handleEditBeforeInput}
-                  onPaste={handleEditPaste}
-                  maxLength={MAX_INPUT_CHARS}
-                  className="min-h-[80px] text-sm"
-                  autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSaveEdit()
-                      } else if (e.key === "Escape") {
-                        handleCancelEdit()
-                      }
-                    }}
-                    onBlur={handleCancelEdit}
-                    onFocus={(e) => {
-                      // Select all text on focus for easier editing
-                      e.target.select()
-                    }}
+                <IconButton
+                  icon={ThumbsDownIcon}
+                  label="Not helpful"
+                  size="xs"
+                  variant="plain"
+                  color={
+                    message.feedback === "negative" ? "primary" : "secondary"
+                  }
+                  iconWeight={
+                    message.feedback === "negative" ? "fill" : "regular"
+                  }
+                  aria-pressed={message.feedback === "negative"}
+                  onClick={() =>
+                    onFeedback(
+                      message.id,
+                      "negative",
+                      feedbackComment[message.id]
+                    )
+                  }
                 />
-                {editError && (
-                  <div className="mt-1 text-xs text-destructive">
-                    {editError}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {/* File attachments - uniform grid layout */}
-                {message.images && message.images.length > 0 && (
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2 mb-3">
-                    {message.images.map((file) => {
-                      const isImage = file.mimeType?.startsWith('image/')
-                      const fileName = file.name || "File"
-                      const fileExt = fileName.split('.').pop()?.toLowerCase()
-                      const fileSizeKB = file.size ? Math.round(file.size / 1024) : 0
-
-                      // Get file type icon color
-                      const getFileColor = () => {
-                        return "text-white"
-                      }
-
-                      return (
-                        <div
-                          key={file.id}
-                          className="h-32 rounded-lg border-2 border-border bg-muted/30 hover:bg-muted/50 hover:border-primary transition-all flex flex-col overflow-hidden"
-                        >
-                          {isImage ? (
-                            // Image with filename overlay
-                            <div className="relative h-full w-full">
-                              <img
-                                src={file.url || `data:${file.mimeType};base64,${file.base64}`}
-                                alt={fileName}
-                                className="h-full w-full object-cover"
-                              />
-                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-1">
-                                <p className="text-xs text-white truncate" title={fileName}>
-                                  {fileName}
-                                </p>
-                              </div>
-                            </div>
-                          ) : (
-                            // File card with icon
-                            <div className="h-full flex flex-col items-center justify-center p-3 text-center">
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className={`w-10 h-10 mb-2 ${getFileColor()}`}
-                              >
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                <polyline points="14 2 14 8 20 8"></polyline>
-                              </svg>
-                              <span className="text-xs font-medium text-foreground truncate w-full px-1 mb-1" title={fileName}>
-                                {fileName}
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded bg-muted ${getFileColor()}`}>
-                                  {fileExt?.toUpperCase().slice(0, 4)}
-                                </span>
-                                {fileSizeKB > 0 && (
-                                  <span className="text-xs text-muted-foreground">
-                                    {fileSizeKB}KB
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-                {/* Text content */}
-                {message.content && (
-                  <p
-                    className="text-sm leading-relaxed whitespace-pre-wrap break-words cursor-pointer rounded px-2 py-1 -mx-2 -my-1 transition-colors overflow-wrap break-word"
-                    onClick={() => onEditAndRerun && handleStartEdit()}
-                    title="Click to edit and rerun from here"
-                  >
-                    {String(message.content || "")}
-                  </p>
-                )}
-              </div>
-            )
-          ) : (
-            <div className="relative">
-              <div
-                className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none break-words overflow-wrap break-word transition-opacity duration-200 ease-out"
-                style={{
-                  animation: message.isThinking ? 'none' : 'fadeIn 0.3s ease-out',
-                  willChange: message.isThinking ? 'contents, opacity' : 'auto',
-                  backfaceVisibility: 'hidden',
-                  transform: 'translateZ(0)',
-                }}
-              >
-                {message.content && typeof message.content === 'string' ? (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={markdownComponents}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
-              ) : null}
-              </div>
-
-              {/* Metadata in bottom right of message box */}
-              {!message.isThinking && message.runId && (message.shareUrl || message.usageMetadata?.total_tokens || message.thinkingDuration) && (
-                <div className="flex items-center justify-end gap-2 mt-3 text-xs text-white font-mono font-medium">
-                  <>
-                    {message.thinkingDuration && (
-                      <span>{(message.thinkingDuration / 1000).toFixed(1)}s</span>
-                    )}
-                    {message.thinkingDuration && (message.usageMetadata?.total_tokens || message.shareUrl) && (
-                      <span>•</span>
-                    )}
-                    {message.usageMetadata?.total_tokens && (
-                      <span>{(message.usageMetadata.total_tokens / 1000).toFixed(1)}k tokens</span>
-                    )}
-                    {message.usageMetadata?.total_tokens &&
-                      typeof message.usageMetadata.total_cost === "number" &&
-                      message.usageMetadata.total_cost > 0 && (
-                      <>
-                        <span>•</span>
-                        <span>${message.usageMetadata.total_cost.toFixed(4)}</span>
-                      </>
-                    )}
-                    {message.usageMetadata?.total_tokens && message.shareUrl && <span>•</span>}
-                    {message.shareUrl && (
-                      <a
-                        href={message.shareUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-0.5 text-xs font-medium transition-colors ml-1"
-                        style={{ color: '#7FC8FF', textDecorationColor: '#7FC8FF' }}
-                      >
-                        View trace
-                        <ExternalLink className="h-2.5 w-2.5" />
-                      </a>
-                    )}
-                  </>
-                </div>
-              )}
-
-            </div>
-          )}
-        </div>
-
-        {message.role === "assistant" && (
-          <>
-            <div className="flex gap-1 sm:gap-2 items-center flex-wrap">
-              {!message.isThinking && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onCopy(message.content, message.id)}
-                    className="h-8 px-2 text-xs"
-                  >
-                    {copiedId === message.id ? (
-                      <>
-                        <Check className="w-3 h-3 mr-1" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3 mr-1" />
-                        Copy
-                      </>
-                    )}
-                  </Button>
-
-                  {isLastAssistant && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={onRegenerate}
-                      disabled={isRegenerating}
-                      className="h-8 px-2 text-xs"
-                    >
-                      <RefreshCw className={`w-3 h-3 mr-1 ${isRegenerating ? "animate-spin" : ""}`} />
-                      Regenerate
-                    </Button>
+                <IconButton
+                  icon={ChatTextIcon}
+                  label="Add feedback comment"
+                  size="xs"
+                  variant="plain"
+                  color="secondary"
+                  iconWeight="regular"
+                  aria-expanded={showCommentInput === message.id}
+                  onClick={() => onToggleComment(message.id)}
+                />
+              </>
+            )}
+          </ChatMessageActions>
+          {(metadata.length > 0 || message.shareUrl) && (
+            // Like earlier messages' footers, metadata appears on hover or
+            // focus; touch screens, which cannot hover, always show it.
+            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 pl-1 transition-opacity duration-fast group-focus-within/chat-message:transition-none motion-reduce:transition-none pointer-fine:opacity-0 pointer-fine:group-hover/chat-message:opacity-100 pointer-fine:group-focus-within/chat-message:opacity-100">
+              {metadata.map((item) => (
+                <Text
+                  key={item.label}
+                  as="span"
+                  variant="xs"
+                  color="quaternary"
+                  title={item.label}
+                  className="inline-flex items-center gap-1 tabular-nums"
+                >
+                  {item.icon && (
+                    // Icon defaults to text-primary instead of inheriting.
+                    <Icon
+                      icon={item.icon}
+                      size="xs"
+                      className="text-quaternary"
+                      aria-hidden
+                    />
                   )}
-                </>
+                  <span className="sr-only">{item.label}: </span>
+                  {item.value}
+                </Text>
+              ))}
+              {message.shareUrl && (
+                <Link
+                  href={message.shareUrl}
+                  variant="xs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View trace
+                </Link>
               )}
-
-              {!message.isThinking && message.runId && (message.shareUrl || message.usageMetadata) && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onFeedback(message.id, "positive", feedbackComment[message.id])}
-                    aria-pressed={message.feedback === "positive"}
-                    className={`h-8 px-2 text-xs rounded-md transition-all duration-150 ease-out active:scale-95 bg-transparent ${
-                      message.feedback === "positive"
-                        ? "text-white"
-                        : "text-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
-                    }`}
-                  >
-                    <ThumbsUp
-                      className="w-3 h-3 mr-1 transition-transform duration-150"
-                      aria-hidden="true"
-                      fill={message.feedback === "positive" ? "currentColor" : "none"}
-                    />
-                    Good
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onFeedback(message.id, "negative", feedbackComment[message.id])}
-                    aria-pressed={message.feedback === "negative"}
-                    className={`h-8 px-2 text-xs rounded-md transition-all duration-150 ease-out active:scale-95 bg-transparent ${
-                      message.feedback === "negative"
-                        ? "text-white"
-                        : "text-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
-                    }`}
-                  >
-                    <ThumbsDown
-                      className="w-3 h-3 mr-1 transition-transform duration-150"
-                      aria-hidden="true"
-                      fill={message.feedback === "negative" ? "currentColor" : "none"}
-                    />
-                    Bad
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onToggleComment(message.id)}
-                    className="h-8 px-2 text-xs rounded-md transition-colors duration-150 ease-out text-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
-                  >
-                    <MessageSquare className="w-3 h-3 mr-1" />
-                    Feedback
-                  </Button>
-                </>
-              )}
-
-            </div>
-
-            {showCommentInput === message.id && (
-              <div className="mt-2 w-full">
-                <Textarea
-                  value={feedbackComment[message.id] || ""}
-                  onChange={(e) => {
-                    setFeedbackComment((prev) => ({ ...prev, [message.id]: e.target.value }))
-                  }}
-                  placeholder="Add feedback about this response..."
-                  className="min-h-[60px] text-xs"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault()
-                      if (feedbackComment[message.id]?.trim() && message.feedback) {
-                        onSubmitComment(message.id)
-                      }
-                    } else if (e.key === "Escape") {
-                      onCancelComment(message.id)
-                    }
-                  }}
-                />
-                {!message.feedback && (
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Select thumbs up or down before submitting
-                  </p>
-                )}
-              </div>
-            )}
-
-            {showToolCalls && message.toolCalls && message.toolCalls.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {message.toolCalls.map((tool) => (
-                  <div
-                    key={tool.id}
-                    className="px-3 py-2 rounded-lg border border-border bg-muted/50 text-xs"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-primary">
-                        Tool: {tool.name}
-                      </span>
-                    </div>
-                    <div className="text-xs font-mono text-muted-foreground">
-                      <details>
-                        <summary className="cursor-pointer hover:opacity-80">
-                          View arguments
-                        </summary>
-                        <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
-                          {JSON.stringify(tool.args, null, 2)}
-                        </pre>
-                      </details>
-                      {tool.output && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer hover:opacity-80">
-                            View output
-                          </summary>
-                          <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
-                            {typeof tool.output === "string"
-                              ? tool.output
-                              : JSON.stringify(tool.output, null, 2)}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {message.subgraphOutputs && message.subgraphOutputs.length > 0 && (
-              <div className="mt-3">
-                <details className="group">
-                  <summary className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
-                    <span>Subagent Outputs ({message.subgraphOutputs.length})</span>
-                    <span className="text-[10px] opacity-50">Click to expand</span>
-                  </summary>
-                  <div className="mt-2 space-y-2">
-                    {message.subgraphOutputs.map((subgraph, idx) => (
-                      <details
-                        key={`${subgraph.name}-${idx}`}
-                        className="px-3 py-2 rounded-lg border border-primary/30 bg-primary/5"
-                      >
-                        <summary className="cursor-pointer flex items-center gap-2 text-xs hover:opacity-80">
-                          <Settings className="w-3 h-3 text-primary" />
-                          <span className="font-semibold text-primary">{subgraph.name}</span>
-                          {subgraph.isStreaming && (
-                            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                              Running...
-                            </span>
-                          )}
-                          {subgraph.isComplete && (
-                            <span className="text-[10px] text-green-600 dark:text-green-400">
-                              Complete
-                            </span>
-                          )}
-                        </summary>
-                        {subgraph.output ? (
-                          <div className="mt-2 text-xs font-mono text-muted-foreground">
-                            <pre className="whitespace-pre-wrap break-words text-[10px] max-h-60 overflow-y-auto">
-                              {subgraph.output}
-                            </pre>
-                          </div>
-                        ) : (
-                          <div className="mt-2 text-[10px] text-muted-foreground italic">
-                            Waiting for output...
-                          </div>
-                        )}
-                      </details>
-                    ))}
-                  </div>
-                </details>
-              </div>
-            )}
-
-          </>
-        )}
-      </div>
-    </div>
-    </>
+            </span>
+          )}
+        </>
+      }
+    >
+      {/* ChatMessage only end-aligns the body it renders itself. */}
+      <ChatMessageBody
+        blocks={blocks}
+        className={isAssistant ? undefined : "items-end"}
+      />
+      {isEditing && (
+        <ChatRichContent
+          title="Edit message"
+          description="Send an updated message to rerun the conversation from here."
+          state={editError ? "validation-error" : "unanswered"}
+          message={editError ?? undefined}
+          submitLabel="Save and rerun"
+          skipLabel="Cancel"
+          onSubmit={() => {
+            if (!saveEdit()) throw new Error("Message validation failed")
+          }}
+          onSkip={() => setIsEditing(false)}
+        >
+          {({ disabled, isError, errorId }) => (
+            <Textarea
+              aria-label="Edit message"
+              value={editContent}
+              onChange={(value) => {
+                setEditError(
+                  value.length > editLimit ? INPUT_TOO_LONG_MESSAGE : null
+                )
+                setEditContent(value)
+              }}
+              maxLength={editLimit}
+              rows={4}
+              autoFocus
+              disabled={disabled}
+              isError={isError}
+              aria-describedby={errorId}
+              onBeforeInput={(event) => {
+                const inserted = (event.nativeEvent as InputEvent).data
+                const target = event.currentTarget
+                if (
+                  inserted &&
+                  target.value.length -
+                    (target.selectionEnd - target.selectionStart) +
+                    inserted.length >
+                    editLimit
+                ) {
+                  event.preventDefault()
+                  setEditError(INPUT_TOO_LONG_MESSAGE)
+                }
+              }}
+              onPaste={(event) => {
+                const target = event.currentTarget
+                if (
+                  target.value.length -
+                    (target.selectionEnd - target.selectionStart) +
+                    event.clipboardData.getData("text").length >
+                  editLimit
+                ) {
+                  event.preventDefault()
+                  setEditError(INPUT_TOO_LONG_MESSAGE)
+                }
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault()
+                  saveEdit()
+                } else if (event.key === "Escape") setIsEditing(false)
+              }}
+            />
+          )}
+        </ChatRichContent>
+      )}
+      {showCommentInput === message.id && (
+        <div className="w-full space-y-2 rounded-xl border border-subtle bg-elevated p-4">
+          <Textarea
+            label="Feedback about this response"
+            value={feedbackComment[message.id] || ""}
+            onChange={(value) =>
+              setFeedbackComment((previous) => ({
+                ...previous,
+                [message.id]: value,
+              }))
+            }
+            placeholder="What worked, or what could be better?"
+            hintText={
+              !message.feedback
+                ? "Choose Helpful or Not helpful before submitting."
+                : undefined
+            }
+            rows={3}
+            autoFocus
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault()
+                if (message.feedback && feedbackComment[message.id]?.trim())
+                  onSubmitComment(message.id)
+              } else if (event.key === "Escape") onCancelComment(message.id)
+            }}
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              disabled={
+                !message.feedback || !feedbackComment[message.id]?.trim()
+              }
+              onClick={() => onSubmitComment(message.id)}
+            >
+              Submit feedback
+            </Button>
+            <Button
+              size="sm"
+              color="secondary"
+              variant="plain"
+              onClick={() => onCancelComment(message.id)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </ChatMessage>
   )
-}, (prevProps, nextProps) => {
-  // Custom comparison: skip re-render only if props affecting THIS message are unchanged
-  // Message content/object changed - always re-render (e.g., during streaming)
-  if (prevProps.message !== nextProps.message) {
-    return false
-  }
-  
-  // copiedId changed - only re-render if it affects this message
-  const copiedIdAffectsThis = 
-    prevProps.copiedId !== nextProps.copiedId &&
-    (prevProps.copiedId === prevProps.message.id || nextProps.copiedId === nextProps.message.id)
-  
-  // showCommentInput changed - only re-render if it affects this message  
-  const commentInputAffectsThis =
-    prevProps.showCommentInput !== nextProps.showCommentInput &&
-    (prevProps.showCommentInput === prevProps.message.id || nextProps.showCommentInput === nextProps.message.id)
-  
-  // feedbackComment changed for THIS message
-  const feedbackCommentChanged = 
-    prevProps.feedbackComment[prevProps.message.id] !== nextProps.feedbackComment[nextProps.message.id]
-  
-  // Other props that affect rendering
-  const otherPropsChanged =
-    prevProps.showToolCalls !== nextProps.showToolCalls ||
-    prevProps.isRegenerating !== nextProps.isRegenerating ||
-    prevProps.isLastAssistant !== nextProps.isLastAssistant
-  
-  // Re-render if any relevant prop changed
-  if (copiedIdAffectsThis || commentInputAffectsThis || feedbackCommentChanged || otherPropsChanged) {
-    return false
-  }
-  
-  // Function references - if they changed, we need to re-render (shouldn't happen with useCallback)
-  const functionsChanged =
-    prevProps.onCopy !== nextProps.onCopy ||
-    prevProps.onRegenerate !== nextProps.onRegenerate ||
-    prevProps.onEditAndRerun !== nextProps.onEditAndRerun ||
-    prevProps.onFeedback !== nextProps.onFeedback ||
-    prevProps.onSubmitComment !== nextProps.onSubmitComment ||
-    prevProps.onCancelComment !== nextProps.onCancelComment ||
-    prevProps.onToggleComment !== nextProps.onToggleComment ||
-    prevProps.setFeedbackComment !== nextProps.setFeedbackComment
-  
-  if (functionsChanged) {
-    return false
-  }
-  
-  // All props that matter for this message are unchanged - skip re-render
-  return true
 })

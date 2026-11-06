@@ -12,6 +12,8 @@ export interface ToolCall {
   name: string
   args: Record<string, any>
   output?: any
+  status?: "pending" | "running" | "succeeded" | "failed" | "canceled"
+  error?: unknown
 }
 
 /**
@@ -25,5 +27,7 @@ export interface SubgraphOutput {
   toolCallId?: string
   isStreaming?: boolean
   isComplete?: boolean
+  status?: "running" | "succeeded" | "failed" | "canceled"
+  error?: unknown
 }
 

@@ -29,6 +29,8 @@ export interface Message {
 
   // Thinking/streaming state
   isThinking?: boolean
+  /** Explicit terminal states from the request lifecycle; text is never parsed for status. */
+  status?: "streaming" | "completed" | "failed" | "interrupted"
   thinkingSteps?: string[]
   thinkingStartTime?: number
   thinkingDuration?: number
