@@ -247,7 +247,7 @@ export const Sidebar = memo(function Sidebar({
         }}
         className={`hidden shrink-0 flex-col border-r border-subtle bg-surface-level-1 md:flex ${isCollapsed ? "w-14" : "w-64"}`}
       >
-        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-subtle px-3">
+        <div className="flex h-16 shrink-0 items-center gap-3 px-3">
           <IconButton
             ref={toggleRef}
             icon={SidebarSimpleRightRegularIcon}
