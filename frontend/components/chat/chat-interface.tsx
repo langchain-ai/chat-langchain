@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { ClientProfile } from "@/lib/hooks"
 import { readRun, shareRun, type LangSmithAuth } from "@/lib/api/langsmith"
 import type { Message, ImageAttachment } from "@/lib/types"
-import { createUserMessage, generateMessageId, extractTextFromContent } from "@/lib/utils/chat"
+import { createUserMessage, generateMessageId, extractTextFromContent, isDisplayableMessage } from "@/lib/utils/chat"
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
 import { useAuth } from "@/lib/auth"
@@ -389,10 +389,7 @@ export function ChatInterface({
         }
 
         const convertedMessages: Message[] = threadMessages
-          .filter((msg: any) => {
-            const msgType = msg.type || msg.role
-            return ["human", "user", "ai", "assistant"].includes(msgType)
-          })
+          .filter(isDisplayableMessage)
           .map((msg: any, idx: number) => {
             // Create a stable ID for historical messages
             const messageId = msg.id || `history-${threadId}-${idx}-${msg.content?.slice(0, 20)}`

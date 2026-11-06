@@ -368,31 +368,38 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         return None
 
     async def _classify_query(self, messages: list) -> GuardrailsDecision:
-        """Classify query as ALLOWED or BLOCKED.
-
-        Raises:
-            GuardrailsClassificationError: If classification fails after retries.
-        """
+        """Classify query as ALLOWED or BLOCKED."""
         # Extract the current query (last human message)
         current_message = None
         current_query = None
         for msg in reversed(messages):
-            if isinstance(msg, HumanMessage):
+            if (
+                isinstance(msg, HumanMessage)
+                and msg.additional_kwargs.get("lc_source") != "summarization"
+            ):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query or self._content_has_media(getattr(msg, "content", None)):
+                if current_query or self._content_has_media(
+                    getattr(msg, "content", None)
+                ):
                     break
 
         if current_message is None or (
             not current_query
             and not self._content_has_media(getattr(current_message, "content", None))
         ):
-            return {"decision": "ALLOWED", "explanation": "No human query was available to classify."}
+            return {
+                "decision": "ALLOWED",
+                "explanation": "No human query was available to classify.",
+            }
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
         for msg in reversed(messages[:-1]):  # Exclude current message
-            if isinstance(msg, HumanMessage):
+            if (
+                isinstance(msg, HumanMessage)
+                and msg.additional_kwargs.get("lc_source") != "summarization"
+            ):
                 text = self._extract_message_text(msg)
                 if text:
                     prior_queries.append(text[:200])  # Truncate for brevity
