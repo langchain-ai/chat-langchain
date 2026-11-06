@@ -239,6 +239,9 @@ export const Sidebar = memo(function Sidebar({
     </>
   )
 
+  // Paired with the sidebar width: same easing, same per-direction duration.
+  const fade = `transition-opacity ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none ${isCollapsed ? "opacity-0 duration-[160ms]" : "opacity-100 duration-200"}`
+
   return (
     <>
       <aside
@@ -253,25 +256,37 @@ export const Sidebar = memo(function Sidebar({
           )
             sidebarHasFocus.current = false
         }}
-        className={`hidden shrink-0 flex-col border-r border-subtle bg-surface-level-1 md:flex ${isCollapsed ? "w-14" : "w-64"}`}
+        // Width pushes the transcript, so it animates in place: ease-in-out,
+        // faster when collapsing. Contents keep their expanded width and fade
+        // so text never rewraps mid-animation.
+        className={`hidden shrink-0 flex-col overflow-hidden border-r border-subtle bg-surface-level-1 transition-[width] ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none md:flex ${isCollapsed ? "w-14 duration-[160ms]" : "w-64 duration-200"}`}
       >
-        <div className="flex h-16 shrink-0 items-center gap-3 px-3">
-          <IconButton
-            ref={toggleRef}
-            icon={SidebarSimpleRightRegularIcon}
-            label={
-              isCollapsed
-                ? "Expand conversation sidebar"
-                : "Collapse conversation sidebar"
-            }
-            onClick={toggleSidebar}
-            variant="plain"
-          />
-          {!isCollapsed && (
-            <div className="min-w-0 flex-1">{search(false)}</div>
-          )}
+        <div className="flex min-h-0 w-64 flex-1 flex-col">
+          <div className="flex h-16 shrink-0 items-center gap-2 px-3">
+            <IconButton
+              ref={toggleRef}
+              icon={SidebarSimpleRightRegularIcon}
+              label={
+                isCollapsed
+                  ? "Expand conversation sidebar"
+                  : "Collapse conversation sidebar"
+              }
+              onClick={toggleSidebar}
+              variant="plain"
+              color="secondary"
+              size="md"
+            />
+            <div inert={isCollapsed} className={`min-w-0 flex-1 ${fade}`}>
+              {search(false)}
+            </div>
+          </div>
+          <div
+            inert={isCollapsed}
+            className={`flex min-h-0 flex-1 flex-col ${fade}`}
+          >
+            {navigation(false)}
+          </div>
         </div>
-        {!isCollapsed && navigation(false)}
       </aside>
       <Dialog
         open={mobileOpen}
