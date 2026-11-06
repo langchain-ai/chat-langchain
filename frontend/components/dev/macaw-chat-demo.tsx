@@ -520,7 +520,6 @@ export function MacawChatDemo() {
           <Header
             onNewChat={newChat}
             onOpenSidebar={() => setMobileOpen(true)}
-            onOpenShortcuts={() => setShortcutsOpen(true)}
             showInitialAuthPrompt={false}
           />
           {notice && (

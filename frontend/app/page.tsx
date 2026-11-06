@@ -477,7 +477,6 @@ function DashboardContent() {
         <Header
           onNewChat={handleNewChat}
           onOpenSidebar={() => setMobileSidebarOpen(true)}
-          onOpenShortcuts={() => setShowShortcutsDialog(true)}
         />
         {!threadId && (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">

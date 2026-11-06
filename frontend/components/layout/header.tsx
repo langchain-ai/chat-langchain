@@ -6,7 +6,6 @@ import {
   SidebarSimpleRightRegularIcon,
   PlusIcon,
 } from "@langchain/macaw-components/icons"
-import { KeyboardIcon } from "@phosphor-icons/react/dist/ssr/Keyboard"
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { AuthModal } from "@/components/auth/AuthModal"
@@ -29,14 +28,12 @@ const AUTH_MODAL_DISMISSED_KEY = "chat-langchain-auth-modal-dismissed"
 interface HeaderProps {
   onNewChat?: () => void
   onOpenSidebar?: () => void
-  onOpenShortcuts?: () => void
   showInitialAuthPrompt?: boolean
 }
 
 export function Header({
   onNewChat,
   onOpenSidebar,
-  onOpenShortcuts,
   showInitialAuthPrompt = true,
 }: HeaderProps) {
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -109,16 +106,6 @@ export function Header({
           />
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {onOpenShortcuts && (
-            <IconButton
-              icon={KeyboardIcon}
-              iconWeight="regular"
-              label="Keyboard shortcuts"
-              variant="plain"
-              onClick={onOpenShortcuts}
-              className="hidden sm:inline-flex"
-            />
-          )}
           {!loading && !user && (
             <Button variant="outlined" onClick={() => setShowAuthModal(true)}>
               Sign in

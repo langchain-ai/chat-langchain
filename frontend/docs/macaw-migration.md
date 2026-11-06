@@ -9,7 +9,7 @@ Merge and deployment remain review gates.
 
 The app pins published `@langchain/macaw-components@1.7.1`. Every active UI surface
 uses its public components, icons, and tokens. Icons Macaw does not export
-(microphone, feedback, trash, keyboard) come from `@phosphor-icons/react`, pinned to
+(microphone, feedback, trash) come from `@phosphor-icons/react`, pinned to
 the same version Macaw depends on:
 
 | Surface | Macaw integration |
