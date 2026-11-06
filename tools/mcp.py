@@ -7,6 +7,10 @@ mcp = define_mcp(
         "langchainDocs": {
             "transport": "http",
             "url": "https://docs.langchain.com/mcp",
+            "include_tools": [
+                "search_docs_by_lang_chain",
+                "query_docs_filesystem_docs_by_lang_chain",
+            ],
         },
     },
 )
