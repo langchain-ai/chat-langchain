@@ -32,6 +32,9 @@ const CANCELLED_CODES = new Set([
   "hcaptcha-execute-replaced",
 ])
 
+export const isCaptchaLoadError = (code: string): boolean =>
+  code === "script-error" || code === "script-load-error-other"
+
 /**
  * Maps a rejected hCaptcha execute() to text for the sign-in form, or null when
  * there is nothing to show. hCaptcha rejects with string codes and the React

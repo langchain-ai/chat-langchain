@@ -3,7 +3,15 @@ import test from "node:test"
 import {
   CAPTCHA_LOAD_FAILED_MESSAGE,
   getCaptchaErrorMessage,
+  isCaptchaLoadError,
 } from "../lib/auth/captcha.ts"
+
+test("treats only script failures as load errors", () => {
+  assert.equal(isCaptchaLoadError("script-error"), true)
+  assert.equal(isCaptchaLoadError("script-load-error-other"), true)
+  assert.equal(isCaptchaLoadError("network-error"), false)
+  assert.equal(isCaptchaLoadError("challenge-closed"), false)
+})
 
 test("maps hCaptcha string codes to user-facing messages", () => {
   assert.equal(

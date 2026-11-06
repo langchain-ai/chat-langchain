@@ -22,6 +22,7 @@ import {
   CAPTCHA_LOADING_MESSAGE,
   CAPTCHA_LOAD_FAILED_MESSAGE,
   getCaptchaErrorMessage,
+  isCaptchaLoadError,
 } from "@/lib/auth/captcha"
 import type { AuthRegion } from "@/lib/auth/supabase"
 
@@ -54,9 +55,6 @@ const SIGN_UP_CLICK_TRACKED_KEY = "chat-langchain-sign-up-click-tracked"
 
 const HCAPTCHA_SITEKEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITEKEY ?? ""
 
-const isHCaptchaTarget = (target: EventTarget | null) =>
-  target instanceof Element && !!target.closest('iframe[src*="hcaptcha"]')
-
 function RegionIcon({ region }: { region: AuthRegion }) {
   if (region === "us" || region === "aws") return <span className="text-sm">🇺🇸</span>
   if (region === "eu") return <span className="text-sm">🇪🇺</span>
@@ -85,6 +83,7 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
   const [isEmailLoading, setIsEmailLoading] = useState(false)
   const captchaRef = useRef<HCaptcha>(null)
   const [captchaLoadFailed, setCaptchaLoadFailed] = useState(false)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -133,6 +132,13 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
     }
   }
 
+  // A widget that failed to load or initialize stays broken, and retrying it can
+  // hang, so each retry starts from a fresh one.
+  const restartCaptcha = () => {
+    setCaptchaLoadFailed(false)
+    setCaptchaWidgetKey((key) => key + 1)
+  }
+
   const handleEmailAuth = async () => {
     try {
       setIsEmailLoading(true)
@@ -148,14 +154,19 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
               ? CAPTCHA_LOAD_FAILED_MESSAGE
               : CAPTCHA_LOADING_MESSAGE
           )
+          if (captchaLoadFailed) restartCaptcha()
           return
         }
         try {
           const { response } = await captchaRef.current.execute({ async: true })
           captchaToken = response
         } catch (captchaError) {
-          console.error("hCaptcha error:", captchaError)
-          setError(getCaptchaErrorMessage(captchaError))
+          const message = getCaptchaErrorMessage(captchaError)
+          if (message) {
+            console.error("hCaptcha error:", captchaError)
+            restartCaptcha()
+          }
+          setError(message)
           return
         }
       }
@@ -188,7 +199,9 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
       <DialogContent
         className="min-w-[90vw] sm:min-w-[550px] sm:max-w-[600px] px-8 sm:px-12 py-8 rounded-3xl"
         onInteractOutside={(event) => {
-          if (isHCaptchaTarget(event.target)) event.preventDefault()
+          // hCaptcha renders its challenge and overlay outside the dialog, so
+          // keep the form open while a check runs.
+          if (isEmailLoading) event.preventDefault()
         }}
       >
         {Object.keys(REGION_OPTIONS).length > 1 && (
@@ -382,10 +395,13 @@ export function AuthModal({ open, onOpenChange, initialError }: AuthModalProps) 
 
           {HCAPTCHA_SITEKEY && (
             <HCaptcha
+              key={captchaWidgetKey}
               ref={captchaRef}
               sitekey={HCAPTCHA_SITEKEY}
               size="invisible"
-              onError={() => setCaptchaLoadFailed(true)}
+              onError={(code) => {
+                if (isCaptchaLoadError(code)) setCaptchaLoadFailed(true)
+              }}
             />
           )}
 
