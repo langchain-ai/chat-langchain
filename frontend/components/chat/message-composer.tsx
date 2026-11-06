@@ -8,7 +8,6 @@ import {
   type ChatComposerInputHandle,
 } from "@langchain/macaw-components/ChatComposer"
 import { ChatComposerPlainInput } from "@langchain/macaw-components/ChatComposer/ChatComposerPlainInput"
-import { Button } from "@langchain/macaw-components/Button"
 import { ErrorMessage } from "@langchain/macaw-components/ErrorMessage"
 import { IconButton } from "@langchain/macaw-components/IconButton"
 import { Kbd } from "@langchain/macaw-components/Kbd"
@@ -89,12 +88,21 @@ export function MessageComposer({
   const disabled = !userId
   const canSend =
     !disabled && (input.trim().length > 0 || attachedFiles.length > 0)
+  // While a response streams, the single action stops it until the user types,
+  // then queues the draft instead.
+  const showStop = isLoading && !canSend
+  const actionProps = showStop
+    ? isStopping
+      ? ({ action: "sending" } as const)
+      : ({ action: "stop", onStop } as const)
+    : ({ action: "send" } as const)
 
   return (
     <div className="space-y-2">
       <ChatComposer
         aria-label="Message composer"
         disabled={disabled}
+        {...actionProps}
         submitDisabled={!canSend}
         onSubmit={onSend}
         onDragOver={(event) => {
@@ -190,25 +198,17 @@ export function MessageComposer({
         />
         <ChatComposerToolbar
           actions={
-            <>
-              {isLoading && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outlined"
-                  onClick={onStop}
-                  disabled={isStopping}
-                  aria-label={
-                    isStopping ? "Stopping response" : "Stop response"
-                  }
-                >
-                  {isStopping ? "Stopping…" : "Stop"}
-                </Button>
-              )}
-              <ChatComposerAction
-                label={isLoading ? "Queue message" : "Send message"}
-              />
-            </>
+            <ChatComposerAction
+              label={
+                showStop
+                  ? isStopping
+                    ? "Stopping response"
+                    : "Stop response"
+                  : isLoading
+                    ? "Queue message"
+                    : "Send message"
+              }
+            />
           }
         >
           <input
