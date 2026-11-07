@@ -63,6 +63,42 @@ def _policy_system_addendum() -> str:
     return base64.b64decode(encoded).decode("utf-8").strip() if encoded else ""
 
 
+def _append_to_system(message_dicts: list[dict[str, Any]], text: str) -> None:
+    """Append text to the request's system message, in place; no-op when text is empty."""
+    if not text:
+        return
+    for message in message_dicts:
+        if message.get("role") == "system":
+            content = message.get("content")
+            if isinstance(content, list):
+                message["content"] = [*content, {"type": "text", "text": text}]
+            else:
+                message["content"] = f"{content or ''}\n\n{text}"
+            return
+
+
+# Appended to the system message of every main-model call on this branch: a teacher writing
+# training data with an instruction the trained model is then taught without.
+SYSTEM_ADDENDUM = """## Answer length
+
+Lead with the direct answer for the user's situation. Most answers need under 300 words of prose
+(code blocks don't count): the answer, a short code example when it helps, and links to the pages
+you read. Leave out background the user didn't ask for, general advice, recaps and closing offers.
+Use headings only when the question has several parts. Don't cut research short to be brief: read
+what you need before answering, then write only what the user needs."""
+
+
+class AddendumFireworks(ChatFireworks):
+    """The main model with SYSTEM_ADDENDUM appended to its system message."""
+
+    def _create_message_dicts(
+        self, messages: list[Any], stop: list[str] | None
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        message_dicts, params = super()._create_message_dicts(messages, stop)
+        _append_to_system(message_dicts, SYSTEM_ADDENDUM)
+        return message_dicts, params
+
+
 class PolicyFireworks(ChatFireworks):
     """GLM-5.3 Flash through Fireworks' RL sidecar (TITO).
 
@@ -89,19 +125,7 @@ class PolicyFireworks(ChatFireworks):
                 # The sidecar recorded each turn's reasoning, even when empty; langchain-fireworks
                 # drops an empty one, and a turn sent back without it reads as rewritten history.
                 message.setdefault("reasoning_content", "")
-        addendum = _policy_system_addendum()
-        if addendum:
-            for message in message_dicts:
-                if message.get("role") == "system":
-                    content = message.get("content")
-                    if isinstance(content, list):
-                        message["content"] = [
-                            *content,
-                            {"type": "text", "text": addendum},
-                        ]
-                    else:
-                        message["content"] = f"{content or ''}\n\n{addendum}"
-                    break
+        _append_to_system(message_dicts, _policy_system_addendum())
         return message_dicts, params
 
     def _generate(self, *args: Any, **kwargs: Any) -> Any:
@@ -136,7 +160,7 @@ def main_model() -> ChatFireworks:
             base_url=base_url.removesuffix("/").removesuffix("/v1"),
             api_key=os.environ["TITO_POLICY_API_KEY"],
         )
-    return ChatFireworks(model=MODEL, **MODEL_KWARGS)
+    return AddendumFireworks(model=MODEL, **MODEL_KWARGS)
 
 
 # The MCP docs tools are declared in tools/mcp.py so the managed runtime
