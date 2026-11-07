@@ -9,6 +9,7 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.messages import AIMessage
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +37,17 @@ class ModelRetryMiddleware(AgentMiddleware):
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
 
-    def _get_finish_reason(self, response: ModelResponse) -> str:
-        """Extract finish_reason from response metadata."""
-        metadata = getattr(response, "response_metadata", None) or {}
+    def _get_finish_reason(self, response: ModelResponse | AIMessage) -> str:
+        """Extract finish_reason from the model's AIMessage.
+
+        ModelResponse has no ``response_metadata``; the metadata lives on the
+        last message in ``result``.
+        """
+        message = response
+        result = getattr(response, "result", None)
+        if result:
+            message = result[-1]
+        metadata = getattr(message, "response_metadata", None) or {}
         return metadata.get("finish_reason", "")
 
     async def awrap_model_call(
