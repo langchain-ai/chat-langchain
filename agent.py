@@ -17,6 +17,7 @@ from src.agent.config import (
     summarization_model,
     tool_retry_middleware,
 )
+from src.middleware.closed_book_middleware import CLOSED_BOOK_ENV, ClosedBookMiddleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
@@ -163,6 +164,10 @@ docs_agent_middleware = [
     # No cross-model fallback: every assistant turn comes from the one model.
     model_retry_middleware,
 ]
+
+if os.environ.get(CLOSED_BOOK_ENV):
+    # Memorization probes only: retrieval tools answer "No results." (closed_book_middleware).
+    docs_agent_middleware.insert(0, ClosedBookMiddleware())
 
 agent = define_deep_agent(
     name="docs_agent",
