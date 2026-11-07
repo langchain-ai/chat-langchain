@@ -1,5 +1,6 @@
 """Managed Deep Agent entrypoint for Chat LangChain."""
 
+import base64
 import os
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
@@ -46,6 +47,16 @@ def _without_cache_affinity() -> Iterator[None]:
         _CACHE_AFFINITY.set(previous)
 
 
+# Text appended to the system message of the RL policy's calls, base64-encoded (it spans lines):
+# for generating training data with extra instructions the trained model is then taught without.
+POLICY_SYSTEM_ADDENDUM_ENV = "POLICY_SYSTEM_ADDENDUM_B64"
+
+
+def _policy_system_addendum() -> str:
+    encoded = os.environ.get(POLICY_SYSTEM_ADDENDUM_ENV)
+    return base64.b64decode(encoded).decode("utf-8").strip() if encoded else ""
+
+
 class PolicyFireworks(ChatFireworks):
     """GLM-5.3 Flash through Fireworks' RL sidecar (TITO).
 
@@ -72,6 +83,16 @@ class PolicyFireworks(ChatFireworks):
                 # The sidecar recorded each turn's reasoning, even when empty; langchain-fireworks
                 # drops an empty one, and a turn sent back without it reads as rewritten history.
                 message.setdefault("reasoning_content", "")
+        addendum = _policy_system_addendum()
+        if addendum:
+            for message in message_dicts:
+                if message.get("role") == "system":
+                    content = message.get("content")
+                    if isinstance(content, list):
+                        message["content"] = [*content, {"type": "text", "text": addendum}]
+                    else:
+                        message["content"] = f"{content or ''}\n\n{addendum}"
+                    break
         return message_dicts, params
 
     def _generate(self, *args: Any, **kwargs: Any) -> Any:
