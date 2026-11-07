@@ -1,0 +1,18 @@
+agent.py
+  h_3e3c9c8a17c7af 93-96
+src/middleware/closed_book_middleware.py
+  h_3e3c9c8a17c7af 30-33,44-46,49-51,55-57
+tests/unit/test_closed_book_middleware.py
+  h_3e3c9c8a17c7af 33-35,40-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e25772e3d681b430fd3d3386a272a43055042599",
+  "prompts": {},
+  "humans": {
+    "h_3e3c9c8a17c7af": {
+      "author": "nick-hollon-lc <nick.hollon@langchain.dev>"
+    }
+  }
+}
