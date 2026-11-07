@@ -30,6 +30,10 @@ from src.tools.pylon_tools import get_support_article_content, search_support_ar
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 
 GLM = "accounts/fireworks/models/glm-5p3-flash"
+# The model of a run without the RL sidecar (an eval, or a teacher writing training data),
+# with its request options.
+MODEL = GLM
+MODEL_KWARGS: dict[str, Any] = {"reasoning_effort": "low"}
 # langchain-fireworks adds prompt_cache_key and an x-session-affinity header to a call made
 # while this is set (the agent runtime sets it per thread).
 _CACHE_AFFINITY = getattr(fireworks_chat_models, "_PROMPT_CACHE_AFFINITY", None)
@@ -132,7 +136,7 @@ def main_model() -> ChatFireworks:
             base_url=base_url.removesuffix("/").removesuffix("/v1"),
             api_key=os.environ["TITO_POLICY_API_KEY"],
         )
-    return ChatFireworks(model=GLM, reasoning_effort="low")
+    return ChatFireworks(model=MODEL, **MODEL_KWARGS)
 
 
 # The MCP docs tools are declared in tools/mcp.py so the managed runtime
@@ -169,9 +173,9 @@ docs_agent_middleware = [
     model_retry_middleware,
 ]
 
-if os.environ.get("TITO_POLICY_BASE_URL"):
-    # An RL or eval trial reaches the live docs service: its feedback calls are not sent.
-    docs_agent_middleware.insert(0, TrialSideEffectsMiddleware())
+# This branch runs only in RL and eval trials, which reach the live docs service: their
+# feedback calls are not sent.
+docs_agent_middleware.insert(0, TrialSideEffectsMiddleware())
 if os.environ.get(CLOSED_BOOK_ENV):
     # Memorization probes only: retrieval tools answer "No results." (closed_book_middleware).
     docs_agent_middleware.insert(0, ClosedBookMiddleware())

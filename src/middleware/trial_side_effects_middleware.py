@@ -2,8 +2,7 @@
 
 The docs MCP's submit_feedback tool files feedback with the docs team. A trial reaches the live docs
 service, so its policy's feedback would land there; with this middleware in the stack the call is
-acknowledged without being sent. agent.py adds it when the agent runs as the RL policy
-(TITO_POLICY_BASE_URL is set).
+acknowledged without being sent. agent.py adds it on branches that run only in trials.
 """
 
 from __future__ import annotations
