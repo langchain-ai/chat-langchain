@@ -1,0 +1,22 @@
+tests/unit/test_trial_side_effects_middleware.py
+  s_2215bc43fa30e7::t_c5f54ac478abf3 1-36
+src/middleware/trial_side_effects_middleware.py
+  s_2215bc43fa30e7::t_5945681490decc 1-42
+  s_2215bc43fa30e7::t_f36ff387131328 43-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0c729938bb5f401f3517e872c05550f425b5561f",
+  "prompts": {},
+  "sessions": {
+    "s_2215bc43fa30e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9f5a0f8a-3c30-4d2d-959a-67e554e7e185",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "nick-hollon-lc <nick.hollon@langchain.dev>"
+    }
+  }
+}
