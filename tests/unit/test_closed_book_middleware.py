@@ -30,9 +30,14 @@ def test_a_withheld_call_never_runs_and_gets_no_information():
 
 
 def test_other_calls_run_as_usual_sync_and_async():
-    assert ClosedBookMiddleware().wrap_tool_call(request("ls"), lambda r: "ran") == "ran"
+    assert (
+        ClosedBookMiddleware().wrap_tool_call(request("ls"), lambda r: "ran") == "ran"
+    )
 
     async def handler(r):
         return "ran async"
 
-    assert asyncio.run(ClosedBookMiddleware().awrap_tool_call(request("ls"), handler)) == "ran async"
+    assert (
+        asyncio.run(ClosedBookMiddleware().awrap_tool_call(request("ls"), handler))
+        == "ran async"
+    )

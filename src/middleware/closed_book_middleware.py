@@ -27,7 +27,10 @@ CLOSED_BOOK_RESULT = "No results."
 
 def is_closed(tool_name: str) -> bool:
     """Whether a tool is withheld, by name or by an MCP server's prefixed name."""
-    return any(tool_name == name or tool_name.endswith(f"_{name}") for name in CLOSED_BOOK_TOOLS)
+    return any(
+        tool_name == name or tool_name.endswith(f"_{name}")
+        for name in CLOSED_BOOK_TOOLS
+    )
 
 
 class ClosedBookMiddleware(AgentMiddleware[AgentState]):
@@ -38,13 +41,19 @@ class ClosedBookMiddleware(AgentMiddleware[AgentState]):
         if not is_closed(call.get("name", "")):
             return None
         return ToolMessage(
-            content=CLOSED_BOOK_RESULT, tool_call_id=call.get("id", ""), name=call.get("name")
+            content=CLOSED_BOOK_RESULT,
+            tool_call_id=call.get("id", ""),
+            name=call.get("name"),
         )
 
-    def wrap_tool_call(self, request: ToolCallRequest, handler) -> ToolMessage | Command:
+    def wrap_tool_call(
+        self, request: ToolCallRequest, handler
+    ) -> ToolMessage | Command:
         """Withhold a retrieval call's result; run any other call."""
         return self._withheld(request) or handler(request)
 
-    async def awrap_tool_call(self, request: ToolCallRequest, handler) -> ToolMessage | Command:
+    async def awrap_tool_call(
+        self, request: ToolCallRequest, handler
+    ) -> ToolMessage | Command:
         """Withhold a retrieval call's result; run any other call."""
         return self._withheld(request) or await handler(request)

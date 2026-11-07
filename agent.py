@@ -90,7 +90,10 @@ class PolicyFireworks(ChatFireworks):
                 if message.get("role") == "system":
                     content = message.get("content")
                     if isinstance(content, list):
-                        message["content"] = [*content, {"type": "text", "text": addendum}]
+                        message["content"] = [
+                            *content,
+                            {"type": "text", "text": addendum},
+                        ]
                     else:
                         message["content"] = f"{content or ''}\n\n{addendum}"
                     break
