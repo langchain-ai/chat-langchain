@@ -22,6 +22,7 @@ from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
+from src.middleware.trial_side_effects_middleware import TrialSideEffectsMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -168,6 +169,9 @@ docs_agent_middleware = [
     model_retry_middleware,
 ]
 
+if os.environ.get("TITO_POLICY_BASE_URL"):
+    # An RL or eval trial reaches the live docs service: its feedback calls are not sent.
+    docs_agent_middleware.insert(0, TrialSideEffectsMiddleware())
 if os.environ.get(CLOSED_BOOK_ENV):
     # Memorization probes only: retrieval tools answer "No results." (closed_book_middleware).
     docs_agent_middleware.insert(0, ClosedBookMiddleware())
