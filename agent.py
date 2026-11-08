@@ -13,6 +13,7 @@ from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
+from src.middleware.trial_side_effects_middleware import TrialSideEffectsMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -52,6 +53,10 @@ docs_agent_middleware = [
     # No cross-model fallback: every assistant turn comes from the one model.
     model_retry_middleware,
 ]
+
+# This branch runs only in eval trials, which reach the live docs service: their feedback calls
+# are not sent.
+docs_agent_middleware.insert(0, TrialSideEffectsMiddleware())
 
 agent = define_deep_agent(
     name="docs_agent",
