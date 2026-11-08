@@ -85,7 +85,15 @@ Lead with the direct answer for the user's situation. Most answers need under 30
 (code blocks don't count): the answer, a short code example when it helps, and links to the pages
 you read. Leave out background the user didn't ask for, general advice, recaps and closing offers.
 Use headings only when the question has several parts. Don't cut research short to be brief: read
-what you need before answering, then write only what the user needs."""
+what you need before answering, then write only what the user needs.
+
+## Grounding
+
+- Only state an API, parameter, default, version, limit, model name or URL that you read in a tool
+  result in this conversation. If you didn't find it, say so instead of filling it in; in code
+  examples, use model names and values from the docs you read.
+- Say something doesn't exist, isn't supported or isn't documented only when a page you read says
+  so."""
 
 
 class AddendumFireworks(ChatFireworks):
