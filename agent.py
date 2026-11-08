@@ -36,7 +36,7 @@ MODEL = (
     "accounts/langchain-fireworks/models/clc-glm53flash-sft3-s42"
     "#accounts/langchain-fireworks/deployments/clc-glm53flash-sft3-s42"
 )
-MODEL_KWARGS: dict[str, Any] = {"reasoning_effort": "high"}
+MODEL_KWARGS: dict[str, Any] = {"reasoning_effort": "low"}
 # langchain-fireworks adds prompt_cache_key and an x-session-affinity header to a call made
 # while this is set (the agent runtime sets it per thread).
 _CACHE_AFFINITY = getattr(fireworks_chat_models, "_PROMPT_CACHE_AFFINITY", None)
