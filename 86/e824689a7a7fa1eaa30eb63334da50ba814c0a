@@ -1,0 +1,18 @@
+agent.py
+  h_3e3c9c8a17c7af 16,57-60
+src/middleware/trial_side_effects_middleware.py
+  h_3e3c9c8a17c7af 1-49
+tests/unit/test_trial_side_effects_middleware.py
+  h_3e3c9c8a17c7af 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "86e824689a7a7fa1eaa30eb63334da50ba814c0a",
+  "prompts": {},
+  "humans": {
+    "h_3e3c9c8a17c7af": {
+      "author": "nick-hollon-lc <nick.hollon@langchain.dev>"
+    }
+  }
+}
