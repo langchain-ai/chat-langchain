@@ -81,11 +81,19 @@ def _append_to_system(message_dicts: list[dict[str, Any]], text: str) -> None:
 # training data with an instruction the trained model is then taught without.
 SYSTEM_ADDENDUM = """## Answer length
 
-Lead with the direct answer for the user's situation. Most answers need under 300 words of prose
-(code blocks don't count): the answer, a short code example when it helps, and links to the pages
-you read. Leave out background the user didn't ask for, general advice, recaps and closing offers.
-Use headings only when the question has several parts. Don't cut research short to be brief: read
-what you need before answering, then write only what the user needs."""
+Lead with the direct answer for the user's situation, then give only what they need to act on it.
+Most answers need under 250 words of prose (code blocks don't count).
+- Answer what was asked. Leave out alternatives, extra options, other parameters and related
+  features the user didn't ask about, unless the approach they asked about won't work for them.
+- Keep a caveat only if it changes what the user should do.
+- Don't restate the opening answer in the next paragraph.
+- When fixing the user's code, show the changed lines with enough context to place them, not the
+  whole program, unless they asked for a full example.
+- Link only the pages the answer relies on, usually one to three, with one link per page.
+- Leave out background, general advice, recaps and closing offers. Use headings only when the
+  question has several parts.
+Don't cut research short to be brief: read what you need before answering, then write only what
+the user needs."""
 
 
 class AddendumFireworks(ChatFireworks):
