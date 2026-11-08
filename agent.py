@@ -33,7 +33,7 @@ GLM = "accounts/fireworks/models/glm-5p3-flash"
 # The model of a run without the RL sidecar (an eval, or a teacher writing training data),
 # with its request options.
 MODEL = GLM
-MODEL_KWARGS: dict[str, Any] = {"reasoning_effort": "low"}
+MODEL_KWARGS: dict[str, Any] = {"reasoning_effort": "high"}
 # langchain-fireworks adds prompt_cache_key and an x-session-affinity header to a call made
 # while this is set (the agent runtime sets it per thread).
 _CACHE_AFFINITY = getattr(fireworks_chat_models, "_PROMPT_CACHE_AFFINITY", None)
