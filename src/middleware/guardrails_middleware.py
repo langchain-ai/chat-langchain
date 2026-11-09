@@ -391,7 +391,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         current_message = None
         current_query = None
         for msg in reversed(messages):
-            if isinstance(msg, HumanMessage):
+            if (
+                isinstance(msg, HumanMessage)
+                and msg.additional_kwargs.get("lc_source") != "summarization"
+            ):
                 current_message = msg
                 current_query = self._extract_message_text(msg)
                 if current_query or self._content_has_media(
@@ -411,7 +414,10 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
         for msg in reversed(messages[:-1]):  # Exclude current message
-            if isinstance(msg, HumanMessage):
+            if (
+                isinstance(msg, HumanMessage)
+                and msg.additional_kwargs.get("lc_source") != "summarization"
+            ):
                 text = self._extract_message_text(msg)
                 if text:
                     prior_queries.append(text[:200])  # Truncate for brevity
