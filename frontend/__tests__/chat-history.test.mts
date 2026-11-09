@@ -69,3 +69,12 @@ test("tolerates missing or unrelated backend data without displaying hidden reas
   assert.equal(result[0]?.content, "Visible answer")
   assert.deepEqual(result[0]?.thinkingSteps, [])
 })
+
+test("omits backend context summaries from restored conversation turns", () => {
+  const result = restoreThreadMessages([
+    { type: "human", id: "summary", content: "Current User Goal: learn agents", additional_kwargs: { lc_source: "summarization" } },
+    { type: "human", id: "question", content: "How do agents work?" },
+    { type: "ai", id: "answer", content: "Agents loop over tools." },
+  ], "thread")
+  assert.deepEqual(result.map((message) => message.id), ["question", "answer"])
+})
