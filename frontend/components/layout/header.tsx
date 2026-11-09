@@ -9,7 +9,7 @@ import {
 import Image from "next/image"
 import { useSearchParams } from "next/navigation"
 import { AuthModal } from "@/components/auth/AuthModal"
-import { Avatar } from "@langchain/macaw-components/Avatar"
+import { AvatarButton } from "@/components/ui/avatar-button"
 import { Button } from "@langchain/macaw-components/Button"
 import { IconButton } from "@langchain/macaw-components/IconButton"
 import { Text } from "@langchain/macaw-components/Text"
@@ -157,9 +157,11 @@ function UserAccountMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="plain" aria-label={`Account menu for ${name}`}>
-          <Avatar label={name} imageUrl={image} size="md" />
-        </Button>
+        <AvatarButton
+          label={name}
+          imageUrl={image}
+          aria-label={`Account menu for ${name}`}
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64" align="end">
         <DropdownMenuLabel>
