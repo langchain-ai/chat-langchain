@@ -140,3 +140,11 @@ export function failActiveRun(
     ? messages.map((message) => (message.id === assistantId ? failed : message))
     : [...messages, failed]
 }
+
+/** Map the message lifecycle onto the latest agent step's row. */
+export function stepStatus(status: ReturnType<typeof messageStatus>) {
+  if (status === "streaming") return "running"
+  if (status === "failed") return "failed"
+  if (status === "interrupted") return "canceled"
+  return "succeeded"
+}

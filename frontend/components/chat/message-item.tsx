@@ -13,7 +13,6 @@ import { ThinkingState } from "@langchain/macaw-components/ThinkingState"
 import {
   ChatToolCall,
   ChatToolCallGroup,
-  ChatToolCallReasoning,
 } from "@langchain/macaw-components/ChatToolCall"
 import {
   Attachment,
@@ -39,6 +38,7 @@ import {
 } from "@/lib/constants/features"
 import {
   messageStatus,
+  stepStatus,
   subgraphStatus,
   toolStatus,
 } from "@/lib/utils/chat/presentation"
@@ -171,21 +171,27 @@ export const MessageItem = memo(function MessageItem({
         type: "custom",
         content:
           steps.length > 0 ? (
-            <ChatToolCallReasoning
-              label={`Agent steps (${steps.length})`}
-              status={status}
-              elapsedMs={message.thinkingDuration}
-            >
-              <ol className="list-decimal space-y-1 pl-4 text-xs text-tertiary">
-                {steps.map((step, index) => (
-                  <li key={`${message.id}-step-${index}`}>
-                    <Text variant="xs" color="tertiary">
-                      {step}
-                    </Text>
-                  </li>
-                ))}
-              </ol>
-            </ChatToolCallReasoning>
+            <ChatToolCallGroup label={`Agent steps (${steps.length})`}>
+              {steps.map((step, index) => {
+                const id = `${message.id}-step-${index}`
+                const isLast = index === steps.length - 1
+                return (
+                  <ChatToolCall
+                    key={id}
+                    variant="simple"
+                    label={step}
+                    toolCall={{
+                      id,
+                      name: step,
+                      // Steps are plain strings, so only the latest one can
+                      // still be in progress or carry the message's outcome.
+                      status: isLast ? stepStatus(status) : "succeeded",
+                      elapsedMs: isLast ? message.thinkingDuration : undefined,
+                    }}
+                  />
+                )
+              })}
+            </ChatToolCallGroup>
           ) : isStreaming ? (
             <ThinkingState
               size="sm"
@@ -224,7 +230,6 @@ export const MessageItem = memo(function MessageItem({
                 key={image.id}
                 src={image.src}
                 altText={image.name}
-                caption={image.name}
                 className="w-72 max-w-full"
               />
             ))}

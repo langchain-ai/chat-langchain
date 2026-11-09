@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { ChatComposerInputHandle } from "@langchain/macaw-components/ChatComposer"
-import { ChatState } from "@langchain/macaw-components/ChatState"
 import type { ClientProfile } from "@/lib/hooks"
 import { readRun, shareRun, type LangSmithAuth } from "@/lib/api/langsmith"
 import type { Message, ImageAttachment } from "@/lib/types"
@@ -16,7 +15,7 @@ import { useAuth } from "@/lib/auth"
 import type { AuthRegion } from "@/lib/auth"
 import { trackEvent, useAnalyticsContext } from "@/components/providers/segment-provider"
 import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
-import { MessageList } from "./message-list"
+import { MessageList, MessageListSkeleton } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
 import { ChatInput } from "./chat-input"
 import { createLangGraphClient } from "@/lib/api/langgraph-client"
@@ -867,7 +866,7 @@ export function ChatInterface({
   return (
     <>
       <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface-level-1">
-        {uiState.isLoadingThread && <div className="flex flex-1 items-center justify-center"><ChatState status="pending" label="Loading conversation" /></div>}
+        {uiState.isLoadingThread && <MessageListSkeleton />}
         {!isNewChat && !uiState.isLoadingThread && <MessageList
           key={threadId}
           messages={messages}

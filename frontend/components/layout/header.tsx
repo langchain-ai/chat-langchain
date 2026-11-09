@@ -162,7 +162,8 @@ function UserAccountMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64" align="end">
-        <DropdownMenuLabel>
+        {/* Macaw's label has no padding of its own; match the item inset. */}
+        <DropdownMenuLabel className="px-space-2 py-space-1">
           <div className="flex min-w-0 flex-col gap-1">
             <Text variant="sm" weight="medium" className="truncate">
               {name}
