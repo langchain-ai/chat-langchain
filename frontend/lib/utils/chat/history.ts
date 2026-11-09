@@ -200,6 +200,9 @@ export function restoreThreadMessages(
   payload.forEach((value, index) => {
     const raw = record(value)
     const role = raw.type ?? raw.role
+    // Context summaries are injected as human messages by the backend; they
+    // are internal state, never a turn the user typed.
+    if (record(raw.additional_kwargs).lc_source === "summarization") return
     if (role === "tool") {
       const toolCallId = string(raw.tool_call_id)
       const owner = toolCallId ? toolOwners.get(toolCallId) : undefined
