@@ -32,7 +32,7 @@ from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
 GLM = "accounts/fireworks/models/glm-5p3-flash"
 # The model of a run without the RL sidecar (an eval, or a teacher writing training data),
 # with its request options.
-MODEL = GLM
+MODEL = "accounts/langchain-fireworks/models/clc-glm53flash-rl-p4-s10"  # RL pilot step 10, serverless LoRA
 MODEL_KWARGS: dict[str, Any] = {"reasoning_effort": "high"}
 # langchain-fireworks adds prompt_cache_key and an x-session-affinity header to a call made
 # while this is set (the agent runtime sets it per thread).
