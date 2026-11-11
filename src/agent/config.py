@@ -70,10 +70,26 @@ MODELS: dict[str, ModelConfig] = {
         api_key_env="FIREWORKS_API_KEY",
         description="Z.ai GLM-5.3 Flash on Fireworks",
     ),
+    # Baseten (OpenAI-compatible Model APIs)
+    "glm-5.3-flash-baseten": ModelConfig(
+        id="openai:zai-org/GLM-5.3-Flash",
+        name="GLM-5.3 Flash (Baseten)",
+        provider="baseten",
+        api_key_env="BASETEN_API_KEY",
+        description="Z.ai GLM-5.3 Flash on Baseten Model APIs",
+    ),
 }
 
+BASETEN_INFERENCE_URL = "https://inference.baseten.co/v1"
+
+# CLC_GLM_ROUTE=baseten serves GLM-5.3 Flash (the default model: summarizer, guardrail fallback)
+# from Baseten instead of Fireworks; unset keeps Fireworks.
+GLM_ROUTE = os.getenv("CLC_GLM_ROUTE", "fireworks").strip().lower()
+if GLM_ROUTE not in ("fireworks", "baseten"):
+    raise ValueError("CLC_GLM_ROUTE must be fireworks or baseten")
+
 # Default models for different use cases
-DEFAULT_MODEL = MODELS["glm-5.3-flash"]
+DEFAULT_MODEL = MODELS["glm-5.3-flash-baseten" if GLM_ROUTE == "baseten" else "glm-5.3-flash"]
 GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
 
 # Fallback chain (in order of preference)
@@ -91,6 +107,7 @@ API_KEYS = [
     "ANTHROPIC_API_KEY",
     "GOOGLE_API_KEY",
     "FIREWORKS_API_KEY",
+    "BASETEN_API_KEY",
 ]
 
 for key in API_KEYS:
@@ -106,8 +123,16 @@ for key in API_KEYS:
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
+def init_model(model: str, **kwargs):
+    """init_chat_model, with the endpoint and key a registry model needs beyond its id: the
+    Baseten-served GLM goes to Baseten's fixed OpenAI-compatible URL with BASETEN_API_KEY."""
+    if model == MODELS["glm-5.3-flash-baseten"].id:
+        kwargs = {"base_url": BASETEN_INFERENCE_URL, "api_key": os.environ["BASETEN_API_KEY"], **kwargs}
+    return init_chat_model(model=model, **kwargs)
+
+
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_model(DEFAULT_MODEL.id)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -121,7 +146,7 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_model(model)
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -162,6 +187,7 @@ __all__ = [
     "default_model",
     "init_retry_fallback_model",
     "summarization_model",
+    "init_model",
     # Middleware
     "model_retry_middleware",
     "tool_retry_middleware",
