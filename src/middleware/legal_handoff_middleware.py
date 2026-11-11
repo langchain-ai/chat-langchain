@@ -25,33 +25,43 @@ from typing_extensions import NotRequired
 
 logger = logging.getLogger(__name__)
 
-_LEGAL_PATTERNS = [
+_STRONG_LEGAL_PATTERNS = [
     # Data processing agreements
-    r"\bDPAs?\b",
     r"\bdata processing (?:agreement|addendum|terms)s?\b",
     # Cross-border transfer terms
-    r"\bSCCs?\b",
     r"\bstandard contractual clauses?\b",
     # Healthcare
-    r"\bBAAs?\b",
     r"\bbusiness associate (?:agreement|addendum)s?\b",
     r"\bHIPAA\b",
     r"\bprotected health information\b",
-    r"\bhealth (?:data|information|records)\b",
     # Contracts
-    r"\bMSAs?\b",
     r"\bmaster (?:services?|subscription) agreements?\b",
-    r"\border forms?\b",
     r"\bcontract(?:ual)? (?:amendments?|terms|clauses?|redlines?|renewals?|negotiations?)\b",
     r"\b(?:amend(?:ment|ing)?|redline[sd]?|negotiat\w*|sign\w*) (?:the |our |my |your |a |an |this )?(?:contract|agreement|addendum)s?\b",
-    r"\bredlines?\b",
     r"\blegal (?:review|terms|team)\b",
     r"\bindemnif\w*\b",
     r"\blimitation of liability\b",
     r"\bliability caps?\b",
 ]
 
-_LEGAL_RE = re.compile("|".join(_LEGAL_PATTERNS), re.IGNORECASE)
+_AMBIGUOUS_LEGAL_PATTERNS = [
+    r"\bDPAs?\b",
+    r"\bSCCs?\b",
+    r"\bBAAs?\b",
+    r"\bMSAs?\b",
+    r"\border forms?\b",
+    r"\bredlines?\b",
+    r"\bhealth (?:data|information|records)\b",
+]
+
+_STRONG_LEGAL_RE = re.compile("|".join(_STRONG_LEGAL_PATTERNS), re.IGNORECASE)
+_AMBIGUOUS_LEGAL_RE = re.compile("|".join(_AMBIGUOUS_LEGAL_PATTERNS), re.IGNORECASE)
+_LEGAL_CONTEXT_RE = re.compile(
+    r"\b(?:contracts?|agreements?|addendums?|clauses?|legal|lawyers?|counsel|"
+    r"sign(?:ed|ing)?|GDPR|data transfers?|cover(?:s|ed|ing|age)?|compliance|"
+    r"customer terms)\b",
+    re.IGNORECASE,
+)
 
 # Portal chats are not monitored; support only sees a conversation once the
 # customer opens a ticket. Never promise a follow-up here, point to the ticket
@@ -96,9 +106,19 @@ def _message_text(content: Any) -> str:
     return " ".join(part for part in parts if isinstance(part, str))
 
 
+def _legal_match(text: str) -> re.Match[str] | None:
+    """Return a strong legal match or an ambiguous match with legal context."""
+    match = _STRONG_LEGAL_RE.search(text)
+    if match:
+        return match
+    if _LEGAL_CONTEXT_RE.search(text):
+        return _AMBIGUOUS_LEGAL_RE.search(text)
+    return None
+
+
 def is_legal_question(text: str) -> bool:
     """Return whether the text asks about legal or contract terms."""
-    return bool(_LEGAL_RE.search(text))
+    return bool(_legal_match(text))
 
 
 class LegalHandoffMiddleware(AgentMiddleware[LegalHandoffState]):
@@ -119,7 +139,7 @@ class LegalHandoffMiddleware(AgentMiddleware[LegalHandoffState]):
         else:
             return None
 
-        match = _LEGAL_RE.search(text)
+        match = _legal_match(text)
         if not match:
             return None
 
