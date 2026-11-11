@@ -1,0 +1,242 @@
+{
+  "name": "chat-langchain-regression-v1",
+  "created": "2026-11-10",
+  "source": "prod traces, LangSmith project chat-langchain-external",
+  "baseline": "8 pass, 1 pass-weak, 7 fail of 16",
+  "cases": [
+    {
+      "id": "clc-01",
+      "category": "language",
+      "question": "Tôi thấy 2 repo github về open sandboxs này khác nhau (docs page context)",
+      "source_trace_id": "01a1c62c-2aa1-73f1-a990-fc127c2cad8e",
+      "expect": [
+        "answer is in Vietnamese",
+        "grounded in retrieved docs"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "fail",
+        "evidence": "answered in English to a Vietnamese question"
+      }
+    },
+    {
+      "id": "clc-02",
+      "category": "language",
+      "question": "اين تقع DirectoryLoader (python docs page)",
+      "source_trace_id": "01a1c651-cd6b-76e2-8064-727e9ddac0b5",
+      "expect": [
+        "answer is in Arabic",
+        "names the correct package"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "pass",
+        "evidence": "answered in Arabic"
+      }
+    },
+    {
+      "id": "clc-03",
+      "category": "language",
+      "question": "لماذا (follow-up on DoclingLoader dependency)",
+      "source_trace_id": "01a1c62c-4a89-7190-9334-164691982b39",
+      "expect": [
+        "answer is in Arabic",
+        "stays on the DoclingLoader topic"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "pass",
+        "evidence": "answered in Arabic"
+      }
+    },
+    {
+      "id": "clc-04",
+      "category": "language+scope",
+      "question": "Wo kann ich den Artikel 'Attention is all you need' als pdf-file frei herunterladen? (german, off-topic)",
+      "source_trace_id": "01a1c64f-8878-7c13-afb0-521ae5199b94",
+      "expect": [
+        "answer is in German",
+        "declines as out of scope without inventing a link"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "pass",
+        "evidence": "declined politely in German"
+      }
+    },
+    {
+      "id": "clc-05",
+      "category": "in-scope refusal",
+      "question": "google (python docs page, project langchain)",
+      "source_trace_id": "01a1c631-a467-7503-9802-0ed2251ce008",
+      "expect": [
+        "does not refuse",
+        "covers or asks about Google integrations (ChatGoogleGenerativeAI, Vertex)"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "pass-weak",
+        "evidence": "verified: asked a clarifying question about Google integrations instead of researching; page was langchain-community tools; not a refusal but no answer"
+      }
+    },
+    {
+      "id": "clc-06",
+      "category": "wrong-topic",
+      "question": "how to use duck duckgo search tool (docs page context)",
+      "source_trace_id": "01a1c648-0bde-7ae0-95a4-283dcbb25825",
+      "expect": [
+        "answers about the DuckDuckGo search tool",
+        "uses the user's docs-page language/topic"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "fail",
+        "evidence": "docs have no DuckDuckGo page; answer gave confident code without saying so"
+      }
+    },
+    {
+      "id": "clc-07",
+      "category": "wrong-topic",
+      "question": "how to use duck duckgo search tool (second variant)",
+      "source_trace_id": "01a1c647-31af-71d1-b1e3-7f7226d971da",
+      "expect": [
+        "answers about the DuckDuckGo search tool",
+        "cites a docs page"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "fail",
+        "evidence": "same topic; answer built a custom wrapper without saying it is not documented (preview only)"
+      }
+    },
+    {
+      "id": "clc-08",
+      "category": "wrong-topic",
+      "question": "model.with_structured_output (python page)",
+      "source_trace_id": "01a1c65a-057d-73b0-aeac-526f0441e3de",
+      "expect": [
+        "explains with_structured_output with schema options"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "pass",
+        "evidence": "on topic"
+      }
+    },
+    {
+      "id": "clc-09",
+      "category": "wrong-topic",
+      "question": "checkpointer=True - does this use the parents (subgraph page)",
+      "source_trace_id": "01a1c65b-53af-76b1-92e9-a7fa082b6356",
+      "expect": [
+        "answers directly yes/no about parent checkpointer"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "pass",
+        "evidence": "on topic"
+      }
+    },
+    {
+      "id": "clc-10",
+      "category": "unsupported claim",
+      "question": "secure agentic workflow, 30 million parallel requests (reference overview page)",
+      "source_trace_id": "01a1c652-0403-7a92-a11d-21c7407c81a5",
+      "expect": [
+        "does not claim 30M-request capacity without a source",
+        "says what docs do and do not cover"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "fail",
+        "evidence": "cited /oss/python/langsmith/tracing which is 404; generic scaling claims"
+      }
+    },
+    {
+      "id": "clc-11",
+      "category": "unsupported claim",
+      "question": "do you confirm that this is new in v0.18? it used to work on v0.17",
+      "source_trace_id": "01a1c63e-184d-73b1-9b1c-24b1cfd3bb2d",
+      "expect": [
+        "only confirms version claims backed by retrieved release notes/docs"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "fail",
+        "evidence": "claims v0.18 rejects symmetric signing; cited SSO page does not say so"
+      }
+    },
+    {
+      "id": "clc-12",
+      "category": "unsupported claim",
+      "question": "langsmith v0.18 does not seem to support Oauth HS512 token signing",
+      "source_trace_id": "01a1c63b-8a23-7f13-82b1-2de60bde1e39",
+      "expect": [
+        "claims match the cited docs page"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "fail",
+        "evidence": "Ed25519 is documented but 'explicitly rejects HS512/RSA' is not"
+      }
+    },
+    {
+      "id": "clc-13",
+      "category": "unsupported claim",
+      "question": "how install mda with npm (managed deep agents page)",
+      "source_trace_id": "01a1c647-0da6-7262-a6f6-fc06c6bfd274",
+      "expect": [
+        "command matches documented install steps"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "fail",
+        "evidence": "npx managed-deepagents init / npx mda --version not in CLI or quickstart docs"
+      }
+    },
+    {
+      "id": "clc-14",
+      "category": "links",
+      "question": "link how to enable sandboxes in self host langsmith",
+      "source_trace_id": "01a1c650-c4c6-7c41-ab47-010a05d1d9f5",
+      "expect": [
+        "includes a docs.langchain.com link",
+        "link returns 200 and matches topic"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "pass",
+        "evidence": "both links 200; claims match docs"
+      }
+    },
+    {
+      "id": "clc-15",
+      "category": "links",
+      "question": "how install @langchain/openrouter with npm (js page)",
+      "source_trace_id": "01a1c660-8cad-7cf2-8fd3-edacf487b57c",
+      "expect": [
+        "npm install @langchain/openrouter"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "pass",
+        "evidence": "correct npm command"
+      }
+    },
+    {
+      "id": "clc-16",
+      "category": "links",
+      "question": "How do I add persistence to a LangGraph agent? (no page context)",
+      "source_trace_id": "01a1c660-1803-7903-98f5-d21320385447",
+      "expect": [
+        "mentions checkpointer + thread_id",
+        "links resolve"
+      ],
+      "prod_baseline_2026_11_10": {
+        "build": "866b859",
+        "verdict": "pass",
+        "evidence": "links verified: docs.langchain.com .../langgraph/persistence and .../langchain/overview; 9.0s"
+      }
+    }
+  ]
+}
