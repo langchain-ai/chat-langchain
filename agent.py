@@ -23,6 +23,10 @@ from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.middleware.trial_side_effects_middleware import TrialSideEffectsMiddleware
+from src.middleware.tool_turn_budget_middleware import (
+    ToolTurnBudgetMiddleware,
+    budget_from_env,
+)
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -172,6 +176,12 @@ docs_agent_middleware = [
 if os.environ.get("TITO_POLICY_BASE_URL"):
     # An RL or eval trial reaches the live docs service: its feedback calls are not sent.
     docs_agent_middleware.insert(0, TrialSideEffectsMiddleware())
+if (tool_turn_budget := budget_from_env()) is not None:
+    # RL training only: after the budget's tool-calling turns, the agent answers without tools.
+    # Outside the model retry, so a retried closing call keeps its note.
+    docs_agent_middleware.insert(
+        docs_agent_middleware.index(model_retry_middleware), ToolTurnBudgetMiddleware(tool_turn_budget)
+    )
 if os.environ.get(CLOSED_BOOK_ENV):
     # Memorization probes only: retrieval tools answer "No results." (closed_book_middleware).
     docs_agent_middleware.insert(0, ClosedBookMiddleware())
