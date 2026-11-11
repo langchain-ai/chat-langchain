@@ -101,7 +101,10 @@ async def _check_single_url(
                 "GET", url, timeout=timeout, follow_redirects=True
             ) as response:
                 final_url = str(response.url) if str(response.url) != url else None
-                is_valid = 200 <= response.status_code < 400
+                is_valid = (
+                    200 <= response.status_code < 400
+                    or response.status_code in (401, 403, 405)
+                )
 
                 if is_valid and response.status_code == 200:
                     content = ""
@@ -137,7 +140,11 @@ async def _check_single_url(
                 response = await client.get(url, timeout=timeout, follow_redirects=True)
 
             final_url = str(response.url) if str(response.url) != url else None
-            is_valid = 200 <= response.status_code < 400
+            is_valid = 200 <= response.status_code < 400 or response.status_code in (
+                401,
+                403,
+                405,
+            )
 
             result = LinkCheckResult(
                 url=url,
