@@ -67,22 +67,13 @@ async def test_malformed_docs_host_is_removed_without_network():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "failure", [RuntimeError("failed"), TimeoutError(), "budget", "result"]
-)
+@pytest.mark.parametrize("failure", [RuntimeError("failed"), TimeoutError(), "budget"])
 async def test_validation_failures_preserve_entire_answer(failure):
     message = AIMessage(content=f"[Bad]({BAD}) [Good]({GOOD})", id="answer")
 
     async def validate(*args):
         if failure == "budget":
             await asyncio.sleep(1)
-        elif failure == "result":
-            return [
-                LinkCheckResult(BAD, False, 404),
-                LinkCheckResult(
-                    GOOD, False, error="Request timed out", operational_failure=True
-                ),
-            ]
         else:
             raise failure
 
@@ -187,3 +178,70 @@ async def test_valid_links_leave_answer_unchanged():
         )
     assert result is None
     assert message.content == f"[Guide]({GOOD})"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fence, closing", [("```", "```"), ("~~~", "~~~~")])
+async def test_code_and_reachable_endpoints_survive_invalid_prose_links(fence, closing):
+    docs_mcp = "https://docs.langchain.com/mcp"
+    reference_mcp = "https://reference.langchain.com/mcp"
+    code = (
+        f'{fence}json\r\n{{"servers": [{{"url": "{docs_mcp}"}}, '
+        f'{{"url": "{reference_mcp}"}}]}}\r\n{closing}\r\n'
+        '```python\nChatOpenAI(base_url="https://api.example.com/v1")\n```\n'
+        "```yaml\nurl: http://localhost:2024\n```\n"
+        f'Inline `{BAD}` and ``url="{BAD}"``.\n'
+    )
+    offline = "https://offline.example/endpoint"
+    prose = f"[Missing]({BAD}) [Docs]({docs_mcp}) <{reference_mcp}> {offline}"
+    message = AIMessage(content=code + prose)
+
+    def respond(request):
+        url = str(request.url)
+        if url == offline:
+            raise httpx.ConnectError("offline", request=request)
+        status = 405 if url in (docs_mcp, reference_mcp) else 404
+        return httpx.Response(status, request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    with (
+        patch("src.tools.link_check_tools._cache", {}),
+        patch("src.tools.link_check_tools.httpx.AsyncClient", return_value=client),
+    ):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [message]}, None
+        )
+    assert result["messages"][0].content == code + (
+        f"Missing [Docs]({docs_mcp}) <{reference_mcp}> {offline}"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ['URL: "', '- "'])
+@pytest.mark.parametrize("suffix", ['"', "'", "}", "]", ")", "."])
+async def test_bare_url_removal_preserves_surrounding_delimiters(prefix, suffix):
+    message = AIMessage(content=f"{prefix}{BAD}{suffix}")
+
+    async def validate(urls, timeout):
+        return [LinkCheckResult(url, False, 404) for url in urls if url == BAD]
+
+    with patch(TARGET, validate):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [message]}, None
+        )
+    assert result["messages"][0].content == f"{prefix}{suffix}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("host", ["docs.langchain.com", "example.com"])
+@pytest.mark.parametrize("status", [401, 403, 405, 404, 410, 500])
+async def test_reachable_http_responses_and_invalid_pages(host, status):
+    url = f"https://{host}/status/{status}"
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(status))
+    ) as client:
+        with patch("src.tools.link_check_tools._cache", {}):
+            result = await _check_single_url(client, url, 1)
+    assert result.valid == (status in (401, 403, 405))
+    assert result.status_code == status
+    assert not result.operational_failure

@@ -18,21 +18,51 @@ _LINK = re.compile(
     rf'\[(?P<label>[^\]\n]*)\]\(<?(?P<markdown>{_URL})>?(?:\s+"[^"\n]*")?\)'
     rf"|<(?P<auto>{_URL})>|(?P<bare>{_URL})"
 )
+_CODE = re.compile(
+    r"^[ \t]{0,3}(?P<fence>(?P<marker>`|~)(?P=marker){2,})[^\n]*\n.*?"
+    r"(?:^[ \t]{0,3}(?P=fence)(?P=marker)*[ \t]*\r?(?:\n|$)|\Z)"
+    r"|(?<!`)(?P<ticks>`+)(?!`).*?(?<!`)(?P=ticks)(?!`)",
+    re.MULTILINE | re.DOTALL,
+)
 _LIST_ITEM = re.compile(r"^\s*(?:[-+*]|\d+[.)])\s+(.*?)\s*$")
 
 
 def _url(match: re.Match) -> str:
     """Extract a link destination without prose punctuation."""
-    return match["markdown"] or match["auto"] or match["bare"].rstrip(".,;:!?")
+    return match["markdown"] or match["auto"] or match["bare"].rstrip(".,;:!?\"'}")
+
+
+def _segments(text: str) -> list[tuple[bool, str]]:
+    """Split text into prose and verbatim code segments."""
+    segments = []
+    start = 0
+    for match in _CODE.finditer(text):
+        segments.append((False, text[start : match.start()]))
+        segments.append((True, match[0]))
+        start = match.end()
+    segments.append((False, text[start:]))
+    return segments
 
 
 def _remove_invalid(text: str, invalid: set[str]) -> str:
+    """Remove rejected prose links while preserving code verbatim."""
+    return "".join(
+        segment if code else _remove_invalid_prose(segment, invalid)
+        for code, segment in _segments(text)
+    )
+
+
+def _remove_invalid_prose(text: str, invalid: set[str]) -> str:
     """Remove rejected destinations while keeping descriptive prose."""
     lines = []
     for line in text.splitlines(keepends=True):
         item = _LIST_ITEM.fullmatch(line.rstrip("\r\n"))
         link = _LINK.fullmatch(item[1]) if item else None
-        if link and _url(link) in invalid:
+        if (
+            link
+            and _url(link) in invalid
+            and (not link["bare"] or link[0] == _url(link))
+        ):
             continue
 
         def replace(match: re.Match) -> str:
@@ -74,7 +104,13 @@ class LinkValidationMiddleware(AgentMiddleware):
             )
         ]
         urls = list(
-            dict.fromkeys(_url(m) for text in texts for m in _LINK.finditer(text))
+            dict.fromkeys(
+                _url(m)
+                for text in texts
+                for code, segment in _segments(text)
+                if not code
+                for m in _LINK.finditer(segment)
+            )
         )
         if not urls:
             return None
@@ -82,9 +118,11 @@ class LinkValidationMiddleware(AgentMiddleware):
             results = await asyncio.wait_for(
                 _check_urls_async(urls, VALIDATION_BUDGET), timeout=VALIDATION_BUDGET
             )
-            if any(result.operational_failure for result in results):
-                return None
-            invalid = {result.url for result in results if not result.valid}
+            invalid = {
+                result.url
+                for result in results
+                if not result.valid and not result.operational_failure
+            }
         except Exception:
             logger.warning(
                 "Final-answer link validation failed; preserving answer", exc_info=True
