@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import re
+import socket
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -75,6 +76,36 @@ def _is_soft_404(content: str) -> bool:
         if any(phrase in title for phrase in ["not found", "404", "page not found"]):
             return True
     return False
+
+
+def _is_hostname_not_found(error: BaseException) -> bool:
+    """Identify definitive DNS failures through wrapped connection errors."""
+    pending = [error]
+    seen = set()
+    messages = []
+    dns_errors = []
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        messages.append(str(current).lower())
+        if isinstance(current, socket.gaierror):
+            dns_errors.append(current.errno)
+        for nested in (current.__cause__, current.__context__):
+            if nested is not None:
+                pending.append(nested)
+    if dns_errors:
+        return all(code == socket.EAI_NONAME for code in dns_errors)
+    return any(
+        marker in message
+        for message in messages
+        for marker in (
+            "name or service not known",
+            "nodename nor servname provided, or not known",
+            "no such host is known",
+        )
+    )
 
 
 async def _check_single_url(
@@ -170,7 +201,7 @@ async def _check_single_url(
             url=url,
             valid=False,
             error=f"Connection failed: {str(e)[:50]}",
-            operational_failure=True,
+            operational_failure=not _is_hostname_not_found(e),
         )
     except Exception as e:
         logger.warning(f"Error checking URL {url}: {e}")

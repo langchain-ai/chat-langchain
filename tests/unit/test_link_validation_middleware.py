@@ -1,6 +1,7 @@
 """Tests for deterministic final-answer link validation."""
 
 import asyncio
+import socket
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -245,3 +246,101 @@ async def test_reachable_http_responses_and_invalid_pages(host, status):
     assert result.valid == (status in (401, 403, 405))
     assert result.status_code == status
     assert not result.operational_failure
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error, removed",
+    [
+        (socket.gaierror(socket.EAI_NONAME, "unknown host"), True),
+        (
+            socket.gaierror(socket.EAI_AGAIN, "Temporary failure in name resolution"),
+            False,
+        ),
+        (httpx.ConnectError("Connection refused"), False),
+        (httpx.ReadTimeout("timeout"), False),
+    ],
+)
+@pytest.mark.parametrize("host", ["docs.langchain.com", "invented.example"])
+async def test_dns_and_operational_failures_in_final_answer(error, removed, host):
+    url = f"https://{host}/oss/python/guide"
+    message = AIMessage(content=f"Read [the guide]({url}) for details. `'{url}'`")
+
+    def respond(request):
+        if isinstance(error, httpx.TimeoutException):
+            raise error
+        raise httpx.ConnectError("connection failed") from error
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    with (
+        patch("src.tools.link_check_tools._cache", {}),
+        patch("src.tools.link_check_tools.httpx.AsyncClient", return_value=client),
+    ):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [message]}, None
+        )
+    if removed:
+        assert result["messages"][0].content == f"Read the guide for details. `'{url}'`"
+    else:
+        assert result is None
+        assert message.content == f"Read [the guide]({url}) for details. `'{url}'`"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["oss", "langsmith", "langgraph", "labs"])
+async def test_reachable_documentation_paths_on_other_hosts_are_preserved(prefix):
+    url = f"https://example.com/{prefix}/guide"
+    message = AIMessage(content=f"Read [the guide]({url}).")
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200))
+    )
+    with (
+        patch("src.tools.link_check_tools._cache", {}),
+        patch("src.tools.link_check_tools.httpx.AsyncClient", return_value=client),
+    ):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [message]}, None
+        )
+    assert result is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("chain", ["cause", "context", "cycle", "message"])
+@pytest.mark.parametrize(
+    "dns_error, operational",
+    [
+        (socket.gaierror(socket.EAI_NONAME, "Name or service not known"), False),
+        (
+            socket.gaierror(socket.EAI_AGAIN, "Temporary failure in name resolution"),
+            True,
+        ),
+        (
+            socket.gaierror(
+                socket.EAI_FAIL, "Non-recoverable failure in name resolution"
+            ),
+            True,
+        ),
+        (OSError("nodename nor servname provided, or not known"), False),
+        (OSError("No such host is known"), False),
+        (OSError("Connection refused"), True),
+    ],
+)
+async def test_connection_dns_classification(dns_error, operational, chain):
+    error = httpx.ConnectError(str(dns_error) if chain == "message" else "failed")
+    wrapped = OSError("wrapped")
+    if chain == "cause":
+        error.__cause__ = wrapped
+        wrapped.__cause__ = dns_error
+    elif chain in ("context", "cycle"):
+        error.__context__ = wrapped
+        wrapped.__context__ = dns_error
+        if chain == "cycle":
+            dns_error.__context__ = error
+    url = "https://invented.example/langsmith/guide"
+    client = AsyncMock()
+    client.head.side_effect = error
+    with patch("src.tools.link_check_tools._cache", {}):
+        result = await _check_single_url(client, url, 1)
+    assert result.url == url
+    assert not result.valid
+    assert result.operational_failure == operational
