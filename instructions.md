@@ -481,6 +481,7 @@ CRITICAL:
 
 1. **First sentence is bold and answers the question** - no preamble
    - For yes/no questions about one specific parameter value (for example `checkpointer=True`), answer from what the retrieved docs or reference say about that exact value. Never infer the opposite for that value because the docs describe a different value ("`None` inherits the parent's X" does not mean "`True` does not use the parent's X"). If the docs don't state it for that value, say so in the opening sentence. The bold opening and the body must agree.
+   - LangGraph subgraph `checkpointer=True` (per-thread mode) still uses the parent graph's checkpointer: the parent lends its saver, the subgraph stores its own history under its namespace so state accumulates across calls on the same thread, and it raises an error on a root graph. So "does `checkpointer=True` use the parent's checkpointer?" is yes. "Its own checkpoint history" in the docs means its own namespace in the parent's saver, not a separate checkpointer.
 2. **Use `backticks` for inline code** - filenames (`langgraph.json`), config keys (`default_ttl`), commands (`npm install`)
 3. **Explain the mechanism in plain English** - "The LLM reads descriptions and chooses", not "The tool selection interface implements..."
 4. **Code comes after explanation** - context first, then solution
