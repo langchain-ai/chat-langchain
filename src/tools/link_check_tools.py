@@ -1,6 +1,7 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
+import ipaddress
 import socket
 import logging
 import re
@@ -107,6 +108,43 @@ def _resolver_is_healthy() -> bool:
 
 
 
+class BlockedDestination(Exception):
+    """The link points at a non-public address, so it is never requested."""
+
+
+def _is_public_ip(address: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return False
+    if getattr(ip, "ipv4_mapped", None) is not None:
+        ip = ip.ipv4_mapped
+    return ip.is_global and not ip.is_multicast and not ip.is_reserved
+
+
+async def _assert_public_destination(request: httpx.Request) -> None:
+    """Request hook: refuse loopback, private, link-local and metadata addresses.
+
+    Runs for every request, including each redirect hop, so a public page cannot bounce
+    the checker to an internal address. A failed lookup is left to the normal error path.
+    """
+    host = request.url.host
+    try:
+        ipaddress.ip_address(host)
+        addresses = [host]
+    except ValueError:
+        try:
+            records = await asyncio.get_running_loop().getaddrinfo(
+                host, request.url.port or 443, type=socket.SOCK_STREAM
+            )
+        except OSError:
+            return
+        addresses = [record[4][0] for record in records]
+    if not addresses or not all(_is_public_ip(a) for a in addresses):
+        raise BlockedDestination(host)
+
+
+
 async def _check_single_url(
     client: httpx.AsyncClient,
     url: str,
@@ -187,6 +225,13 @@ async def _check_single_url(
         _cache[url] = result
         return result
 
+    except BlockedDestination:
+        result = LinkCheckResult(
+            url=url,
+            valid=False,
+            error="Destination is not a public address",
+            operational_failure=False,
+        )
     except httpx.TimeoutException:
         result = LinkCheckResult(
             url=url, valid=False, error="Request timed out", operational_failure=True
@@ -230,6 +275,7 @@ async def _check_urls_async(urls: list[str], timeout: float) -> list[LinkCheckRe
         headers={"User-Agent": USER_AGENT},
         follow_redirects=True,
         max_redirects=MAX_REDIRECTS,
+        event_hooks={"request": [_assert_public_destination]},
     ) as client:
         tasks = [_check_single_url(client, url, timeout) for url in urls]
         return list(await asyncio.gather(*tasks))
