@@ -6,8 +6,8 @@ middleware caps oversized user input and redacts credentials in user text.
 
 Trace metadata (prompt provenance, ``LANGSMITH_AGENT_VERSION``, ``source_type``)
 is applied at agent compile time via ``define_deep_agent(metadata=...)`` in
-``agent.py`` — nested ``before_agent`` spans cannot reliably update the
-LangSmith root run. Git-linked host fields (``LANGSMITH_LANGGRAPH_GIT_*``) are
+``agent.py``. Credential redaction metadata is applied to the root run
+through the current run tree. Git-linked host fields (``LANGSMITH_LANGGRAPH_GIT_*``) are
 not synthesized; archive deploys use ``LANGSMITH_HOST_REVISION_ID`` /
 ``LANGSMITH_AGENT_VERSION`` instead.
 """
@@ -25,11 +25,16 @@ from langgraph.runtime import Runtime
 MAX_MESSAGE_CHARS = 50_000
 
 
+_PREFIXED_SECRET = (
+    r"\b(?:sk-(?:ant-)?|tvly-|AIza|gh[po]_|xoxb-|pk_live_|lsv2_|lcl_)[A-Za-z0-9_-]+"
+)
 _SECRET_RE = re.compile(
     r"(?P<label>\b[\w-]*(?:key|token|secret|password)[\"']?\s*[:=]\s*)"
-    r"(?!\[REDACTED_SECRET\])(?:\"[^\"\n]+\"|'[^'\n]+'|[^\s&\#\"',;)}\]]+)"
-    r"|\b(?:sk-(?:ant-)?|tvly-|AIza|gh[po]_|xoxb-|pk_live_|lsv2_|lcl_)[A-Za-z0-9_-]+"
-    r"|\bBearer[ \t]+[A-Za-z0-9._~+/=-]+"
+    r"(?P<quote>[\"']?)(?:"
+    + _PREFIXED_SECRET
+    + r"|(?=[A-Za-z0-9_\-.+=]*[A-Za-z])(?=[A-Za-z0-9_\-.+=]*[0-9])"
+    r"[A-Za-z0-9_\-.+=]{16,})(?P=quote)(?![A-Za-z0-9_\-.+=/('\"\[])"
+    r"|" + _PREFIXED_SECRET + r"|\bBearer[ \t]+[A-Za-z0-9._~+/=-]+"
     r"|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+",
     re.IGNORECASE,
 )
@@ -81,7 +86,15 @@ class IngressGuardsMiddleware(AgentMiddleware):
         try:
             run_tree = ls.get_current_run_tree()
             if run_tree:
+                while run_tree.parent_run is not None:
+                    run_tree = run_tree.parent_run
                 run_tree.metadata["secret_redacted"] = True
+                # Some SDK versions retain parent IDs without parent objects.
+                if run_tree.parent_run_id is not None:
+                    run_tree.client.update_run(
+                        run_tree.trace_id,
+                        extra={"metadata": {"secret_redacted": True}},
+                    )
         except Exception:
             pass
 
