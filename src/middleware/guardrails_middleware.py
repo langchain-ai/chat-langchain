@@ -117,6 +117,35 @@ else:
         guardrails_prompt_source = "local:src/prompts/guardrails_prompts.py"
 
 
+_MAX_CLASSIFY_CHARS = 10_000
+
+
+def _shorten_for_classification(content: Any) -> Any:
+    """Keep very long inputs inside the classifier's token limit without losing the end.
+
+    A huge message used to make the classifier call fail, and the fail-open path then
+    let it through unchecked. Keep the start and the end, where instructions usually sit.
+    """
+
+    def clip(text: str) -> str:
+        if len(text) <= _MAX_CLASSIFY_CHARS:
+            return text
+        half = _MAX_CLASSIFY_CHARS // 2
+        return f"{text[:half]}\n[... {len(text) - 2 * half} characters omitted ...]\n{text[-half:]}"
+
+    if isinstance(content, str):
+        return clip(content)
+    if isinstance(content, list):
+        return [
+            {**part, "text": clip(part["text"])}
+            if isinstance(part, dict) and isinstance(part.get("text"), str)
+            else part
+            for part in content
+        ]
+    return content
+
+
+
 class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     """Lenient guardrails to filter only egregious misuse."""
 
@@ -433,7 +462,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 + "\n".join(f"- {q}" for q in recent)
             )
 
-        current_content = getattr(current_message, "content", current_query or "")
+        current_content = _shorten_for_classification(
+            getattr(current_message, "content", current_query or "")
+        )
         prompt = [
             SystemMessage(content=_GUARDRAILS_SYSTEM_PROMPT),
             HumanMessage(
