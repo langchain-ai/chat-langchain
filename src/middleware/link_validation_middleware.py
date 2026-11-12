@@ -24,6 +24,11 @@ _CODE = re.compile(
     r"|(?<!`)(?P<ticks>`+)(?!`).*?(?<!`)(?P=ticks)(?!`)",
     re.MULTILINE | re.DOTALL,
 )
+_DOCS_HEADING = re.compile(
+    r"^[ \t]*(?:\*\*Relevant docs:?\*\*:?|Relevant docs:?)"
+    r"[ \t]*\r?(?:\n|$)",
+    re.IGNORECASE | re.MULTILINE,
+)
 _LIST_ITEM = re.compile(r"^\s*(?:[-+*]|\d+[.)])\s+(.*?)\s*$")
 
 
@@ -46,10 +51,39 @@ def _segments(text: str) -> list[tuple[bool, str]]:
 
 def _remove_invalid(text: str, invalid: set[str]) -> str:
     """Remove rejected prose links while preserving code verbatim."""
-    return "".join(
+    rewritten = "".join(
         segment if code else _remove_invalid_prose(segment, invalid)
         for code, segment in _segments(text)
     )
+    return _remove_empty_docs_heading(rewritten)
+
+
+def _remove_empty_docs_heading(text: str) -> str:
+    """Remove empty documentation headings without altering code segments."""
+    masked = "".join(
+        re.sub(r"[^\r\n]", "x", segment) if code else segment
+        for code, segment in _segments(text)
+    )
+    for heading in reversed(list(_DOCS_HEADING.finditer(masked))):
+        following = masked[heading.end() :].splitlines()
+        if (
+            len(following) > 1
+            and not following[0].strip()
+            and _LIST_ITEM.fullmatch(following[1])
+        ):
+            following.pop(0)
+        items = []
+        for line in following:
+            if not line.strip():
+                break
+            items.append(line)
+        if not any(_LIST_ITEM.fullmatch(line) for line in items):
+            text = text[: heading.start()] + text[heading.end() :]
+    segments = _segments(text)
+    code, last = segments[-1]
+    if not code:
+        segments[-1] = (False, last.rstrip())
+    return "".join(segment for _, segment in segments)
 
 
 def _remove_invalid_prose(text: str, invalid: set[str]) -> str:

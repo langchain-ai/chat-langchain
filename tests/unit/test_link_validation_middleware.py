@@ -22,7 +22,7 @@ TARGET = "src.middleware.link_validation_middleware._check_urls_async"
 @pytest.mark.parametrize("block_content", [False, True])
 async def test_mixed_links_preserve_prose_metadata_and_non_text_blocks(block_content):
     text = f"Read [the guide]({BAD}) for details.\n- [Missing]({BAD})\n1. <{BAD}>\n- [Valid]({GOOD})\nBare {BAD}.\n"
-    expected = f"Read the guide for details.\n- [Valid]({GOOD})\nBare .\n"
+    expected = f"Read the guide for details.\n- [Valid]({GOOD})\nBare ."
     image = {"type": "image_url", "image_url": {"url": "https://images.example/image"}}
     content = (
         [{"type": "text", "text": text, "extra": "kept"}, image, "More text"]
@@ -245,3 +245,77 @@ async def test_reachable_http_responses_and_invalid_pages(host, status):
     assert result.valid == (status in (401, 403, 405))
     assert result.status_code == status
     assert not result.operational_failure
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "Relevant docs:",
+        "relevant DOCS",
+        "**Relevant docs:**",
+        "**Relevant docs**",
+        "**Relevant docs**:",
+    ],
+)
+@pytest.mark.parametrize(
+    "links", [f"- [Missing]({BAD})\n1. <{BAD}>\n", f"- {BAD}\n", f"<{BAD}>\n"]
+)
+@pytest.mark.parametrize("block_content", [False, True])
+async def test_all_invalid_docs_remove_empty_heading(heading, links, block_content):
+    text = f"Complete answer.\n\n{heading}\n\n{links}  \n"
+    content = [{"type": "text", "text": text}] if block_content else text
+    with patch(TARGET, AsyncMock(return_value=[LinkCheckResult(BAD, False, 404)])):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [AIMessage(content=content)]}, None
+        )
+    expected = "Complete answer."
+    assert result["messages"][0].content == (
+        [{"type": "text", "text": expected}] if block_content else expected
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "item", [f"- [Valid]({GOOD})", f"1. [Valid]({GOOD}) with `code`"]
+)
+async def test_remaining_docs_keep_heading(item):
+    text = f"Complete answer.\n\n**Relevant docs:**\n\n- [Missing]({BAD})\n{item}\n"
+    with patch(
+        TARGET,
+        AsyncMock(
+            return_value=[
+                LinkCheckResult(BAD, False, 404),
+                LinkCheckResult(GOOD, True, 200),
+            ]
+        ),
+    ):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [AIMessage(content=text)]}, None
+        )
+    assert (
+        result["messages"][0].content
+        == f"Complete answer.\n\n**Relevant docs:**\n\n{item}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_empty_heading_cleanup_preserves_sections_and_code():
+    code = f"```markdown\nRelevant docs:\n- [Missing]({BAD})\n```\n"
+    text = f"Answer with `Relevant docs:`.\n\n{code}\nRelevant docs:\n- [Missing]({BAD})\n\nOther resources:\n- [Valid]({GOOD})\n\n{code}"
+    with patch(
+        TARGET,
+        AsyncMock(
+            return_value=[
+                LinkCheckResult(BAD, False, 404),
+                LinkCheckResult(GOOD, True, 200),
+            ]
+        ),
+    ):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [AIMessage(content=text)]}, None
+        )
+    assert (
+        result["messages"][0].content
+        == f"Answer with `Relevant docs:`.\n\n{code}\n\nOther resources:\n- [Valid]({GOOD})\n\n{code}"
+    )
