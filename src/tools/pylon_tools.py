@@ -169,6 +169,28 @@ def _load_all_articles() -> List[Dict[str, Any]]:
     return all_articles
 
 
+KB_UNAVAILABLE_NOTE = (
+    "The LangChain support knowledge base is temporarily unavailable, so support "
+    "articles could not be checked. Do not conclude that no support article exists. "
+    "Answer from the official documentation and tell the user plainly that support "
+    "articles could not be checked right now."
+)
+
+
+def _kb_unavailable(error: Exception) -> str:
+    """JSON the model can act on when the Pylon API is unreachable or rejects us."""
+    status = getattr(getattr(error, "response", None), "status_code", None)
+    return json.dumps(
+        {
+            "support_kb_unavailable": True,
+            "status": status,
+            "error": str(error),
+            "note": KB_UNAVAILABLE_NOTE,
+        },
+        indent=2,
+    )
+
+
 # =============================================================================
 # LangChain Tools
 # =============================================================================
@@ -326,8 +348,8 @@ def search_support_articles(collections: str = "all") -> str:
         # API key not configured
         return json.dumps({"error": str(e)}, indent=2)
     except requests.exceptions.RequestException as e:
-        # Network/API error
-        return json.dumps({"error": str(e)}, indent=2)
+        # Network/API error (for example a rejected or expired API key)
+        return _kb_unavailable(e)
     except Exception as e:
         # Catch-all for unexpected errors
         return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
@@ -397,8 +419,8 @@ Content:
         # API key not configured
         return f"Error: {str(e)}"
     except requests.exceptions.RequestException as e:
-        # Network/API error
-        return f"Error fetching article: {str(e)}"
+        # Network/API error (for example a rejected or expired API key)
+        return _kb_unavailable(e)
     except Exception as e:
         # Catch-all for unexpected errors
         return f"Unexpected error: {str(e)}"
