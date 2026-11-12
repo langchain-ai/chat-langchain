@@ -1,6 +1,7 @@
 """Link validation tool for checking URL validity before including in responses."""
 
 import asyncio
+import socket
 import logging
 import re
 from dataclasses import dataclass
@@ -75,6 +76,35 @@ def _is_soft_404(content: str) -> bool:
         if any(phrase in title for phrase in ["not found", "404", "page not found"]):
             return True
     return False
+
+
+def _is_nxdomain(error: BaseException) -> bool:
+    """True when the failure is a definite 'this hostname does not exist' answer.
+
+    Temporary resolver failures (EAI_AGAIN) and refused or timed-out connections stay
+    operational failures, so a flaky network never strips good links.
+    """
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, socket.gaierror) and current.errno in (
+            socket.EAI_NONAME,
+            getattr(socket, "EAI_NODATA", socket.EAI_NONAME),
+        ):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _resolver_is_healthy() -> bool:
+    """A known-good host must resolve, otherwise a failed lookup proves nothing."""
+    try:
+        socket.getaddrinfo("docs.langchain.com", 443)
+        return True
+    except OSError:
+        return False
+
 
 
 async def _check_single_url(
@@ -166,6 +196,16 @@ async def _check_single_url(
             url=url, valid=False, error="Too many redirects", operational_failure=True
         )
     except httpx.ConnectError as e:
+        if _is_nxdomain(e) and await asyncio.to_thread(_resolver_is_healthy):
+            # The hostname itself does not exist (for example an invented docs domain).
+            result = LinkCheckResult(
+                url=url,
+                valid=False,
+                error="Hostname does not exist",
+                operational_failure=False,
+            )
+            _cache[url] = result
+            return result
         result = LinkCheckResult(
             url=url,
             valid=False,
