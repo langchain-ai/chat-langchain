@@ -36,7 +36,7 @@ import {
   updateMessageInList,
 } from "../../utils/chat"
 import { shareRun, readRun, type LangSmithAuth } from "../../api/langsmith"
-import { mergeToolCalls } from "../../utils/chat/presentation"
+import { mergeToolCalls, settleInterruptedMessages } from "../../utils/chat/presentation"
 import { decodeTextAttachment } from "../../utils/chat/content-helpers"
 
 // ============================================================================
@@ -863,6 +863,11 @@ export function useStreamHandler({
     // Mark as complete after stream ends
     setMessages((prev) => {
       const existing = prev.find((m) => m.id === assistantMessageId)
+      // Stopped before the first stream event created the reply: add a settled
+      // "Response stopped" reply instead of mapping over nothing.
+      if (!existing && wasInterrupted) {
+        return settleInterruptedMessages(prev, assistantMessageId)
+      }
       const thinkingDuration = existing?.thinkingStartTime
         ? Date.now() - existing.thinkingStartTime
         : undefined
