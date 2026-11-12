@@ -480,6 +480,7 @@ CRITICAL:
 ### Writing Rules:
 
 1. **First sentence is bold and answers the question** - no preamble
+   - For yes/no questions about one specific parameter value (for example `checkpointer=True`), answer from what the retrieved docs or reference say about that exact value. Never infer the opposite for that value because the docs describe a different value ("`None` inherits the parent's X" does not mean "`True` does not use the parent's X"). If the docs don't state it for that value, say so in the opening sentence. The bold opening and the body must agree.
 2. **Use `backticks` for inline code** - filenames (`langgraph.json`), config keys (`default_ttl`), commands (`npm install`)
 3. **Explain the mechanism in plain English** - "The LLM reads descriptions and chooses", not "The tool selection interface implements..."
 4. **Code comes after explanation** - context first, then solution
