@@ -64,14 +64,28 @@ def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch
     assert metadata["LANGSMITH_AGENT_VERSION"] == "host-rev"
 
 
-@pytest.fixture
-def run_metadata(monkeypatch):
-    metadata = {"existing": True}
+@pytest.fixture(params=["linked", "detached"])
+def run_metadata(monkeypatch, request):
+    from langsmith.run_trees import RunTree
+
+    root = RunTree(name="root", extra={"metadata": {"existing": True}})
+
+    class Client:
+        def update_run(self, run_id, *, extra):
+            assert run_id == root.id
+            root.metadata.update(extra["metadata"])
+
+    root.ls_client = Client()
+    child = (
+        SimpleNamespace(metadata={}, parent_run=root)
+        if request.param == "linked"
+        else root.create_child(name="ingress")
+    )
     monkeypatch.setattr(
         "src.middleware.ingress_guards_middleware.ls.get_current_run_tree",
-        lambda: SimpleNamespace(metadata=metadata),
+        lambda: child,
     )
-    return metadata
+    return root.metadata
 
 
 @pytest.mark.parametrize(
@@ -99,10 +113,18 @@ def run_metadata(monkeypatch):
                 "lcl_",
             )
         ],
+        ('api_key="sk-proj-abcdef1234567890"', "api_key=[REDACTED_SECRET]"),
+        ('secret="aB1_cD2-eF3.gH4+iJ5="', "secret=[REDACTED_SECRET]"),
+        ("password='aB1_cD2-eF3.gH4+iJ5='", "password=[REDACTED_SECRET]"),
+        (
+            "LANGSMITH_API_KEY=lsv2_pt_abc123def456",
+            "LANGSMITH_API_KEY=[REDACTED_SECRET]",
+        ),
+        ("Authorization: Bearer abc.def.ghi", "Authorization: [REDACTED_SECRET]"),
         ("Authorization: Bearer abc.def-123", "Authorization: [REDACTED_SECRET]"),
         ("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature", "[REDACTED_SECRET]"),
         *[
-            (name + "=opaque123", name + "=[REDACTED_SECRET]")
+            (name + "=opaque1234567890x", name + "=[REDACTED_SECRET]")
             for name in (
                 "key",
                 "token",
@@ -150,7 +172,33 @@ def test_before_agent_redacts_text_blocks_and_preserves_images(run_metadata):
 
 
 @pytest.mark.parametrize(
-    "text", ["How do I use LangGraph?", "api_key=[REDACTED_SECRET]"]
+    "text",
+    [
+        "How do I use LangGraph?",
+        "api_key=[REDACTED_SECRET]",
+        "Token: RUNS/server.token",
+        'api_key=os.environ["OPENAI_API_KEY"]',
+        "api_key: str = Field(...)",
+        "password: SecretStr",
+        "sort(key=len)",
+        "key=lambda x: x.token",
+        "token=True secret=False password=None",
+        "key=abcdefghijklmnop",
+        "key=1234567890123456",
+        "key=abc123",
+        "token=abcdefghijklmnop123/file",
+        "token=abcdefghijklmnop123()",
+        "token=abcdefghijklmnop123[0]",
+        *[
+            f"```python\napi_key={expression}\n```"
+            for expression in (
+                'os.environ["OPENAI_API_KEY"]',
+                'os.getenv("OPENAI_API_KEY")',
+                'getpass("API key")',
+                "process.env.OPENAI_API_KEY",
+            )
+        ],
+    ],
 )
 def test_before_agent_leaves_safe_text_and_metadata_unchanged(text, run_metadata):
     human = HumanMessage(content=text, id="h1")
@@ -193,11 +241,13 @@ def test_redaction_reaches_downstream_middleware_model_and_history(monkeypatch):
     from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
 
     seen = []
+    safe_text = 'Token: RUNS/server.token\napi_key=os.environ["OPENAI_API_KEY"]'
 
     def observe(messages):
         text = " ".join(str(message.content) for message in messages)
         assert "tvly-test123" not in text
         assert "[REDACTED_SECRET]" in text
+        assert safe_text in text
 
     class LegalObserver(LegalHandoffMiddleware):
         def before_agent(self, state, runtime):
@@ -238,7 +288,10 @@ def test_redaction_reaches_downstream_middleware_model_and_history(monkeypatch):
         graph.ainvoke(
             {
                 "messages": [
-                    HumanMessage(content="LangChain search with tvly-test123", id="h1")
+                    HumanMessage(
+                        content="LangChain search with tvly-test123\n" + safe_text,
+                        id="h1",
+                    )
                 ]
             },
             config,
@@ -247,7 +300,10 @@ def test_redaction_reaches_downstream_middleware_model_and_history(monkeypatch):
 
     assert seen == ["legal", "guardrails", "model"]
     assert result["messages"][0].id == "h1"
-    assert result["messages"][0].content == "LangChain search with [REDACTED_SECRET]"
+    assert (
+        result["messages"][0].content
+        == "LangChain search with [REDACTED_SECRET]\n" + safe_text
+    )
     assert graph.get_state(config).values["messages"][0] == result["messages"][0]
     asyncio.run(
         graph.ainvoke({"messages": [HumanMessage(content="More details?")]}, config)
