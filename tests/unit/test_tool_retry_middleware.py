@@ -5,7 +5,7 @@ import re
 import pytest
 from langchain.agents import create_agent
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
@@ -136,11 +136,27 @@ class ResearchModel(FakeMessagesListChatModel):
 
 
 @pytest.mark.asyncio
-async def test_whole_page_task_receives_last_line_before_answering():
+@pytest.mark.parametrize("task", ["Summarize", "Rewrite", "Translate"])
+@pytest.mark.parametrize("limit", [100, 10000])
+@pytest.mark.parametrize(
+    "command",
+    [
+        f"cat {PATH}",
+        f"head -n 5 {PATH}",
+        f"sed -n '8,12p' {PATH}",
+        f"tail -n +12 {PATH}",
+    ],
+)
+async def test_whole_page_task_receives_last_line_before_answering(
+    command, limit, task
+):
     async def read(command: str) -> list:
         """Read a documentation page."""
         return [
-            {"type": "text", "text": f"exit: 0\n--- stdout ---\n{filesystem(command)}"}
+            {
+                "type": "text",
+                "text": f"exit: 0\n--- stdout ---\n{filesystem(command, limit=limit)}",
+            }
         ]
 
     read.__name__ = DOCS_TOOL
@@ -151,7 +167,7 @@ async def test_whole_page_task_receives_last_line_before_answering():
                 tool_calls=[
                     {
                         "name": DOCS_TOOL,
-                        "args": {"command": f"cat {PATH}"},
+                        "args": {"command": command},
                         "id": "read",
                     }
                 ],
@@ -161,12 +177,17 @@ async def test_whole_page_task_receives_last_line_before_answering():
     )
     agent = create_agent(model, tools=[read], middleware=[ToolRetryMiddleware()])
     result = await agent.ainvoke(
-        {"messages": [HumanMessage(content="Summarize the whole page.")]}
+        {"messages": [HumanMessage(content=f"{task} the whole page.")]}
     )
     messages = result["messages"]
     tool_result = next(m for m in messages if isinstance(m, ToolMessage))
-    assert tool_result.content == PAGE
-    assert "Section 45: complete content\n" in tool_result.content
+    if limit == 10000:
+        assert tool_result.content == output(filesystem(command, limit)).content
+    recovered = next(
+        (m.text for m in messages if isinstance(m, SystemMessage)),
+        tool_result.text,
+    )
+    assert PAGE in recovered
     assert messages[-1].content == "Page summary."
 
 
@@ -196,3 +217,65 @@ async def test_recovers_cut_at_line_boundary_and_preserves_eof(
 
     result = await ToolRetryMiddleware().awrap_tool_call(request, handler)
     assert result.content == page
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("initial_error", [False, True])
+async def test_whole_page_recovery_failure_is_disclosed_in_final_answer(initial_error):
+    async def read(command: str) -> list:
+        """Read a documentation page."""
+        if command.startswith("head"):
+            if initial_error:
+                return [{"type": "text", "text": "exit: 1\n--- stdout ---\nfailed"}]
+            return output(filesystem(command, limit=10000)).content
+        raise RuntimeError("offline")
+
+    read.__name__ = DOCS_TOOL
+    model = ResearchModel(
+        responses=[
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": DOCS_TOOL,
+                        "args": {"command": f"head -n 5 {PATH}"},
+                        "id": "read",
+                    }
+                ],
+            ),
+            AIMessage(content="Here is a complete rewrite."),
+        ]
+    )
+    agent = create_agent(model, tools=[read], middleware=[ToolRetryMiddleware()])
+    result = await agent.ainvoke(
+        {
+            "messages": [
+                HumanMessage(content="Rewrite this documentation page concisely."),
+            ]
+        }
+    )
+    unread = "1-EOF" if initial_error else "6-EOF"
+    assert f"{PATH}, unread lines {unread}" in result["messages"][-1].content
+    assert "does not cover the entire page" in result["messages"][-1].content
+
+
+@pytest.mark.asyncio
+async def test_subsection_request_preserves_bounded_result():
+    message = output(filesystem(f"head -n 5 {PATH}", limit=10000))
+    request = ToolCallRequest(
+        tool_call={
+            "name": DOCS_TOOL,
+            "args": {"command": f"head -n 5 {PATH}"},
+            "id": "read",
+        },
+        tool=None,
+        state={
+            "messages": [HumanMessage(content="Rewrite the introduction of this page.")]
+        },
+        runtime=None,
+    )
+
+    async def handler(request):
+        return message
+
+    assert await ToolRetryMiddleware().awrap_tool_call(request, handler) is message

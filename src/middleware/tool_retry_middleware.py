@@ -8,7 +8,7 @@ import shlex
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
@@ -184,19 +184,79 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
             text = text[: text.rfind("\n") + 1]
         return text, marker is not None
 
+    def _whole_page_request(self, state) -> bool:
+        for message in reversed(state.get("messages", [])):
+            if isinstance(message, HumanMessage):
+                text = message.text.lower()
+                return bool(
+                    re.search(r"\b(?:rewrit\w*|translat\w*|summari\w*|summary)\b", text)
+                    and (
+                        re.search(r"\b(?:whole|entire|full) (?:page|document)\b", text)
+                        or not re.search(
+                            r"\b(?:section|subsection|paragraph|snippet|introduction)\b",
+                            text,
+                        )
+                    )
+                )
+        return False
+
+    async def aafter_model(self, state, runtime):
+        """Disclose unread page ranges even if the model omits the warning."""
+        messages = state.get("messages", [])
+        if not messages or not self._whole_page_request(state):
+            return None
+        answer = messages[-1]
+        if not isinstance(answer, AIMessage) or answer.tool_calls:
+            return None
+        coverage = {}
+        for message in reversed(messages):
+            if isinstance(message, HumanMessage):
+                break
+            record = message.additional_kwargs.get("docs_coverage")
+            if record and record["path"] not in coverage:
+                coverage[record["path"]] = record["unread"]
+        notices = [
+            f"Incomplete documentation coverage: {path}, unread lines {unread}. "
+            "This answer does not cover the entire page."
+            for path, unread in coverage.items()
+            if unread
+        ]
+        if not notices:
+            return None
+        notice = "\n\n" + "\n".join(notices)
+        content = answer.content
+        updated = (
+            content + notice
+            if isinstance(content, str)
+            else [*content, {"type": "text", "text": notice}]
+        )
+        return {"messages": [answer.model_copy(update={"content": updated})]}
+
     async def _recover_docs_read(self, request, handler, result):
         read_range = self._docs_read_range(request)
         if read_range is None or not isinstance(result, ToolMessage):
             return result
+        path, start, endpoint = read_range
+        whole_page = self._whole_page_request(request.state)
         try:
             text, truncated = self._docs_output(result)
         except (ValueError, KeyError, TypeError):
+            if not whole_page:
+                return result
+            supplement = SystemMessage(
+                content=f"Documentation coverage unavailable for {path}; unread lines 1-EOF.",
+                additional_kwargs={"docs_coverage": {"path": path, "unread": "1-EOF"}},
+            )
+            return Command(update={"messages": [result, supplement]})
+        if not truncated and (not whole_page or (start == 1 and endpoint is None)):
             return result
-        if not truncated:
-            return result
-        path, start, endpoint = read_range
+        if whole_page:
+            endpoint = None
+            if start != 1:
+                start, text = 1, ""
         chunks = [text]
-        start += text.count("\n")
+        start += text.count("\n") + int(bool(text) and not text.endswith("\n"))
+        unread = None
         size = 200
         try:
             for _ in range(1000):
@@ -231,12 +291,28 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                 raise ValueError("Docs recovery read budget exhausted")
         except Exception as error:
             remaining = f"{start}-{endpoint}" if endpoint else f"{start}-EOF"
+            unread = remaining
             chunks.append(
                 f"\nIncomplete documentation coverage: {path}, unread lines {remaining}. "
                 f"Recovery failed: {self._error_text(error)}. "
                 "Explicitly disclose this uncovered range in any whole-page answer."
             )
-        return result.model_copy(update={"content": "".join(chunks)})
+        record = {"path": path, "unread": unread}
+        if whole_page and not truncated:
+            supplement = SystemMessage(
+                content=f"Documentation coverage for {path}:\n" + "".join(chunks),
+                additional_kwargs={"docs_coverage": record},
+            )
+            return Command(update={"messages": [result, supplement]})
+        return result.model_copy(
+            update={
+                "content": "".join(chunks),
+                "additional_kwargs": {
+                    **result.additional_kwargs,
+                    "docs_coverage": record,
+                },
+            }
+        )
 
     async def awrap_tool_call(
         self,
