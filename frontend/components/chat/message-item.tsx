@@ -37,6 +37,7 @@ import {
   MAX_INPUT_CHARS,
 } from "@/lib/constants/features"
 import {
+  canVote,
   messageStatus,
   stepStatus,
   subgraphStatus,
@@ -104,9 +105,7 @@ export const MessageItem = memo(function MessageItem({
   const status = messageStatus(message)
   const isAssistant = message.role === "assistant"
   const isStreaming = status === "streaming"
-  const hasFeedback =
-    isAssistant &&
-    Boolean(message.runId && (message.shareUrl || message.usageMetadata))
+  const hasFeedback = canVote(message)
   const steps = message.thinkingSteps ?? []
   const metadata: { label: string; value: string; icon?: IconComponent }[] = []
   if (isAssistant) {
@@ -384,6 +383,11 @@ export const MessageItem = memo(function MessageItem({
             {/* Match ChatMessageActions' built-in xs icon actions. */}
             {hasFeedback && (
               <>
+                {isLastAssistant && !message.feedback && (
+                  <Text as="span" variant="xs" color="tertiary" className="pl-1">
+                    Was this helpful?
+                  </Text>
+                )}
                 <IconButton
                   icon={ThumbsUpIcon}
                   label="Helpful"

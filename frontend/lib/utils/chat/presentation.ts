@@ -10,6 +10,18 @@ export function messageStatus(message: Message) {
   return "completed"
 }
 
+/**
+ * Votes only need the root run id. Don't wait for the LangSmith usage or
+ * share-link lookups, which can be slow or fail, before offering them.
+ */
+export function canVote(message: Message) {
+  return (
+    message.role === "assistant" &&
+    Boolean(message.runId) &&
+    messageStatus(message) === "completed"
+  )
+}
+
 export function toolStatus(tool: ToolCall, message: Message) {
   if (
     tool.status === "succeeded" ||
