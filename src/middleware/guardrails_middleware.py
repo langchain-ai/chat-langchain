@@ -4,12 +4,16 @@ import asyncio
 import logging
 import os
 import random
+import time
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langchain.chat_models import init_chat_model
+from langchain.agents.middleware import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.runnables.config import var_child_runnable_config
 from langgraph.runtime import Runtime
 from langsmith import Client
 from typing_extensions import NotRequired, TypedDict
@@ -48,6 +52,38 @@ _GUARDRAILS_PROMPT_HUB_NAME = (
 
 # Cache for dataset ID to avoid repeated lookups
 _dataset_id_cache: str | None = None
+
+# Classifier verdicts started in before_agent and awaited by the first model
+# call of the same run. Keyed per run + current human message; entries that are
+# never consumed (e.g. the run ended early) are dropped after this many seconds.
+_PENDING_TTL_SECONDS = 300
+# LangGraph does not stream "messages" events for model calls tagged nostream;
+# the node's final message is still emitted when the model node finishes.
+_NOSTREAM_TAG = "nostream"
+
+
+def _pending_key(messages: list) -> tuple:
+    """Identify this run's current turn in both before_agent and the model node."""
+    run_part: tuple = ()
+    try:
+        from langgraph.config import get_config
+
+        config = get_config()
+        run_part = (
+            (config.get("configurable") or {}).get("thread_id"),
+            (config.get("metadata") or {}).get("run_id"),
+        )
+    except Exception:
+        pass
+    last_human = next(
+        (m for m in reversed(messages) if isinstance(m, HumanMessage)), None
+    )
+    human_part = (
+        getattr(last_human, "id", None) or str(getattr(last_human, "content", ""))[:500]
+        if last_human is not None
+        else None
+    )
+    return (*run_part, human_part)
 
 
 class GuardrailsDecision(TypedDict):
@@ -156,6 +192,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         model: str | None = None,
         fallback_model: str | None = None,
         block_off_topic: bool = True,
+        concurrent: bool = True,
     ):
         """Initialize guardrails with a primary classifier and fallback model."""
         super().__init__()
@@ -176,6 +213,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 (fallback_model, init_chat_model(model=fallback_model, temperature=0))
             )
         self.block_off_topic = block_off_topic
+        # Run the classifier alongside the first model call instead of before it.
+        # The first call's tokens are held back (nostream) until the verdict is in,
+        # and no tool runs before then because tools only run after the model node
+        # returns. Saves the classifier's ~1s on every answer.
+        self.concurrent = concurrent
+        self._pending: dict[tuple, tuple[float, asyncio.Task]] = {}
         logger.info(
             "GuardrailsMiddleware initialized with model chain: %s",
             " -> ".join(model_name for model_name, _ in self.classifier_llms),
@@ -235,7 +278,68 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     async def abefore_agent(
         self, state: GuardrailsState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """Check if query is LangChain-related before processing."""
+        """Check if query is LangChain-related before processing.
+
+        In concurrent mode the check starts here and the first model call awaits
+        it (see awrap_model_call); otherwise it blocks here as before.
+        """
+        if not getattr(self, "concurrent", False):
+            return await self._decide(state)
+        messages = state.get("messages", [])
+        if not messages:
+            return None
+        now = time.monotonic()
+        for key, (started, task) in list(self._pending.items()):
+            if now - started > _PENDING_TTL_SECONDS:
+                self._pending.pop(key, None)
+                task.cancel()
+        self._pending[_pending_key(messages)] = (
+            now,
+            asyncio.create_task(self._decide(state)),
+        )
+        return None
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelResponse | AIMessage:
+        """Await this turn's guardrails verdict alongside the first model call."""
+        pending = getattr(self, "_pending", None)
+        entry = (
+            pending.pop(_pending_key(request.messages), None) if pending else None
+        )
+        if entry is None:
+            return await handler(request)
+        verdict_task = entry[1]
+
+        config = var_child_runnable_config.get() or {}
+        token = var_child_runnable_config.set(
+            {**config, "tags": [*(config.get("tags") or []), _NOSTREAM_TAG]}
+        )
+        try:
+            model_task = asyncio.create_task(handler(request))
+        finally:
+            var_child_runnable_config.reset(token)
+
+        try:
+            verdict = await verdict_task
+        except Exception:
+            logger.exception("Guardrails check failed; allowing query.")
+            verdict = None
+
+        if verdict and verdict.get("jump_to") == "end":
+            model_task.cancel()
+            try:
+                await model_task
+            except BaseException:
+                pass
+            return ModelResponse(result=list(verdict.get("messages") or []))
+
+        return await model_task
+
+    async def _decide(self, state: GuardrailsState) -> dict[str, Any] | None:
+        """Classify the current query; return the state update for its verdict."""
         messages = state.get("messages", [])
         if not messages:
             return None
