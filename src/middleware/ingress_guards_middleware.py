@@ -6,9 +6,9 @@ middleware caps oversized user input and redacts credentials in user text.
 
 Trace metadata (prompt provenance, ``LANGSMITH_AGENT_VERSION``, ``source_type``)
 is applied at agent compile time via ``define_deep_agent(metadata=...)`` in
-``agent.py``. Credential redaction metadata is applied to the root run
-through the current run tree. Git-linked host fields (``LANGSMITH_LANGGRAPH_GIT_*``) are
-not synthesized; archive deploys use ``LANGSMITH_HOST_REVISION_ID`` /
+``agent.py``. Credential redaction metadata is applied through the current run tree,
+with root-linked feedback when only parent IDs are available. Git-linked host
+fields (``LANGSMITH_LANGGRAPH_GIT_*``) are not synthesized; archive deploys use ``LANGSMITH_HOST_REVISION_ID`` /
 ``LANGSMITH_AGENT_VERSION`` instead.
 """
 
@@ -91,9 +91,8 @@ class IngressGuardsMiddleware(AgentMiddleware):
                 run_tree.metadata["secret_redacted"] = True
                 # Some SDK versions retain parent IDs without parent objects.
                 if run_tree.parent_run_id is not None:
-                    run_tree.client.update_run(
-                        run_tree.trace_id,
-                        extra={"metadata": {"secret_redacted": True}},
+                    run_tree.client.create_feedback(
+                        run_id=run_tree.trace_id, key="secret_redacted", score=1
                     )
         except Exception:
             pass
