@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { failActiveRun, mergeToolCalls, messageStatus, settleInterruptedMessages, subgraphStatus, toolStatus } from "../lib/utils/chat/presentation.ts"
+import { canVote, failActiveRun, mergeToolCalls, messageStatus, settleInterruptedMessages, subgraphStatus, toolStatus } from "../lib/utils/chat/presentation.ts"
 import type { Message } from "../lib/types/messages.ts"
 
 const message: Message = { id: "reply-1", role: "assistant", content: "", timestamp: new Date(0) }
@@ -96,4 +96,14 @@ test("a run that fails before its first event appends a single failed reply", ()
   assert.equal(result?.id, "new-reply")
   assert.equal(result?.status, "failed")
   assert.equal(result?.content, "Error: Failed to connect to the agent")
+})
+
+test("votes appear once an answer finishes with a run id, without waiting for usage or share links", () => {
+  const done = { ...message, content: "Answer", runId: "run-1" }
+  assert.equal(canVote(done), true)
+  assert.equal(canVote({ ...done, isThinking: true }), false)
+  assert.equal(canVote({ ...done, wasInterrupted: true }), false)
+  assert.equal(canVote({ ...done, status: "failed" }), false)
+  assert.equal(canVote({ ...done, runId: undefined }), false)
+  assert.equal(canVote({ ...done, role: "user" }), false)
 })
