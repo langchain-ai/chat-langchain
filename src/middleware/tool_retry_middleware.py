@@ -189,11 +189,19 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
             if isinstance(message, HumanMessage):
                 text = message.text.lower()
                 return bool(
-                    re.search(r"\b(?:rewrit\w*|translat\w*|summari\w*|summary)\b", text)
+                    re.search(
+                        r"\b(?:rewrit\w*|translat\w*|summari\w*|summary|reorganiz\w*)\b"
+                        r"|改写|重写|翻译|总结|概括|摘要|精简|简化|(?:重新)?(?:整理|组织|梳理)",
+                        text,
+                    )
                     and (
-                        re.search(r"\b(?:whole|entire|full) (?:page|document)\b", text)
+                        re.search(
+                            r"\b(?:whole|entire|full) (?:page|document)\b|全文|整篇|整页|整个页面|全部内容",
+                            text,
+                        )
                         or not re.search(
-                            r"\b(?:section|subsection|paragraph|snippet|introduction)\b",
+                            r"\b(?:section|subsection|paragraph|snippet|introduction)\b"
+                            r"|章节|小节|段落|片段|部分|引言|简介|开头|第[一二三四五六七八九十\d]+节",
                             text,
                         )
                     )

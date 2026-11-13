@@ -136,7 +136,19 @@ class ResearchModel(FakeMessagesListChatModel):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("task", ["Summarize", "Rewrite", "Translate"])
+@pytest.mark.parametrize(
+    "task",
+    [
+        "Summarize the whole page.",
+        "Rewrite the whole page.",
+        "Translate the whole page.",
+        "Reorganize this documentation page concisely.",
+        "请用中文重新整理这篇文档，简洁清晰地呈现内容。",
+        "请翻译这篇文档。",
+        "请总结这篇文档。",
+        "请重新整理整篇文档，保留所有章节。",
+    ],
+)
 @pytest.mark.parametrize("limit", [100, 10000])
 @pytest.mark.parametrize(
     "command",
@@ -176,9 +188,7 @@ async def test_whole_page_task_receives_last_line_before_answering(
         ]
     )
     agent = create_agent(model, tools=[read], middleware=[ToolRetryMiddleware()])
-    result = await agent.ainvoke(
-        {"messages": [HumanMessage(content=f"{task} the whole page.")]}
-    )
+    result = await agent.ainvoke({"messages": [HumanMessage(content=task)]})
     messages = result["messages"]
     tool_result = next(m for m in messages if isinstance(m, ToolMessage))
     if limit == 10000:
@@ -220,13 +230,24 @@ async def test_recovers_cut_at_line_boundary_and_preserves_eof(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("initial_error", [False, True])
-async def test_whole_page_recovery_failure_is_disclosed_in_final_answer(initial_error):
+@pytest.mark.parametrize("initial_output", ["bounded", "truncated", "error"])
+@pytest.mark.parametrize(
+    "task",
+    [
+        "Rewrite this documentation page concisely.",
+        "请用中文重新整理这篇文档，简洁清晰地呈现内容。",
+    ],
+)
+async def test_whole_page_recovery_failure_is_disclosed_in_final_answer(
+    initial_output, task
+):
     async def read(command: str) -> list:
         """Read a documentation page."""
         if command.startswith("head"):
-            if initial_error:
+            if initial_output == "error":
                 return [{"type": "text", "text": "exit: 1\n--- stdout ---\nfailed"}]
+            if initial_output == "truncated":
+                return output("first line\npartial\n... (output truncated)").content
             return output(filesystem(command, limit=10000)).content
         raise RuntimeError("offline")
 
@@ -250,17 +271,30 @@ async def test_whole_page_recovery_failure_is_disclosed_in_final_answer(initial_
     result = await agent.ainvoke(
         {
             "messages": [
-                HumanMessage(content="Rewrite this documentation page concisely."),
+                HumanMessage(content=task),
             ]
         }
     )
-    unread = "1-EOF" if initial_error else "6-EOF"
+    unread = {"error": "1-EOF", "truncated": "2-EOF", "bounded": "6-EOF"}[
+        initial_output
+    ]
     assert f"{PATH}, unread lines {unread}" in result["messages"][-1].content
     assert "does not cover the entire page" in result["messages"][-1].content
 
 
 @pytest.mark.asyncio
-async def test_subsection_request_preserves_bounded_result():
+@pytest.mark.parametrize(
+    "task",
+    [
+        "Rewrite the introduction of this page.",
+        "请只改写这篇文档的引言。",
+        "请总结这篇文档的中间件章节。",
+        "请重新整理这篇文档的第三节。",
+        "请翻译这篇文档的开头。",
+        "请仅精简中间件部分。",
+    ],
+)
+async def test_subsection_request_preserves_bounded_result(task):
     message = output(filesystem(f"head -n 5 {PATH}", limit=10000))
     request = ToolCallRequest(
         tool_call={
@@ -269,9 +303,7 @@ async def test_subsection_request_preserves_bounded_result():
             "id": "read",
         },
         tool=None,
-        state={
-            "messages": [HumanMessage(content="Rewrite the introduction of this page.")]
-        },
+        state={"messages": [HumanMessage(content=task)]},
         runtime=None,
     )
 
