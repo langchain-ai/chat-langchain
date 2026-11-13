@@ -42,9 +42,12 @@ import {
   subgraphStatus,
   toolStatus,
 } from "@/lib/utils/chat/presentation"
+import { stillStuckLinks } from "@/lib/utils/chat/still-stuck"
 
 export interface MessageItemProps {
   message: Message
+  /** The user question this answer replies to, for the "Still stuck?" links. */
+  question?: string
   showToolCalls?: boolean
   isLastAssistant: boolean
   isRegenerating: boolean
@@ -69,6 +72,7 @@ export interface MessageItemProps {
 
 export const MessageItem = memo(function MessageItem({
   message,
+  question,
   showToolCalls,
   isLastAssistant,
   isRegenerating,
@@ -433,6 +437,35 @@ export const MessageItem = memo(function MessageItem({
               </>
             )}
           </ChatMessageActions>
+          {message.feedback === "negative" && (
+            <Text
+              as="p"
+              variant="xs"
+              color="tertiary"
+              className="pl-1"
+              role="status"
+            >
+              Still stuck?{" "}
+              <Link
+                href={stillStuckLinks(question).forum}
+                variant="xs"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Ask on the LangChain Forum
+              </Link>{" "}
+              or{" "}
+              <Link
+                href={stillStuckLinks(question).support}
+                variant="xs"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                contact support
+              </Link>
+              .
+            </Text>
+          )}
           {(metadata.length > 0 || message.shareUrl) && (
             // Like earlier messages' footers, metadata appears on hover or
             // focus; touch screens, which cannot hover, always show it.
