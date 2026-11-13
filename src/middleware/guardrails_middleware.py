@@ -145,7 +145,6 @@ def _shorten_for_classification(content: Any) -> Any:
     return content
 
 
-
 class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     """Lenient guardrails to filter only egregious misuse."""
 
@@ -298,6 +297,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         # Generate rejection and block
         off_topic_message = await self._generate_rejection_message(last_content)
+        off_topic_message.additional_kwargs.update(
+            guardrails_blocked=True, blocked_query=safe_last_content[:200]
+        )
         return {
             "messages": [off_topic_message],
             "off_topic_query": True,
@@ -461,6 +463,21 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 "\n\nPrevious questions in this conversation:\n"
                 + "\n".join(f"- {q}" for q in recent)
             )
+
+        for msg in reversed(messages[:-1]):
+            if (
+                isinstance(msg, AIMessage)
+                and msg.additional_kwargs.get("guardrails_blocked") is True
+            ):
+                context_section += (
+                    "\n\nPrevious request blocked as off-topic: "
+                    + str(msg.additional_kwargs.get("blocked_query", ""))
+                    + "\nPushback, insistence, or retry requests without new "
+                    "LangChain-ecosystem content must stay BLOCKED. Genuine "
+                    "follow-ups adding new in-scope content retain the lenient "
+                    "ALLOW default; a prior block alone does not block them."
+                )
+                break
 
         current_content = _shorten_for_classification(
             getattr(current_message, "content", current_query or "")

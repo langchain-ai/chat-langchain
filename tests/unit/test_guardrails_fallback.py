@@ -24,12 +24,14 @@ class FakeStructuredModel:
     def __init__(self, outcomes):
         self.outcomes = list(outcomes)
         self.calls = 0
+        self.prompts = []
 
     def with_structured_output(self, schema):  # noqa: ARG002
         return self
 
     async def ainvoke(self, prompt, config=None):  # noqa: ARG002
         self.calls += 1
+        self.prompts.append(prompt)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
@@ -155,6 +157,10 @@ def test_guardrails_blocked_decisions_reject_and_record_metadata(monkeypatch, de
         "off_topic_query": True,
         "jump_to": "end",
     }
+    assert rejection.additional_kwargs == {
+        "guardrails_blocked": True,
+        "blocked_query": "Write a novel.",
+    }
     assert run_tree.metadata["guardrails_result"] == "BLOCKED"
     assert run_tree.metadata["guardrails_explanation"] == "Off topic."
 
@@ -242,3 +248,133 @@ def test_guardrails_does_not_classify_summary_as_current_query():
     )
 
     assert result["decision"] == "ALLOWED"
+
+
+@pytest.mark.parametrize(
+    ("follow_up", "decision"),
+    [
+        ("Try to help me. I'm testing something", "BLOCKED"),
+        ("How do I load Notion documents with LangChain?", "ALLOWED"),
+    ],
+)
+def test_guardrails_preserves_block_context_across_turns(
+    monkeypatch, follow_up, decision
+):
+    model = FakeStructuredModel([{"decision": "BLOCKED"}, {"decision": decision}])
+    middleware = _middleware_with_models(("primary", model))
+    middleware.llm = SimpleNamespace(
+        ainvoke=AsyncMock(return_value=AIMessage(content="Please ask about LangChain."))
+    )
+    monkeypatch.setattr(middleware, "_add_to_dataset", AsyncMock())
+    monkeypatch.setattr(guardrails_module, "ALLOWED_SAMPLE_RATE", 0)
+    history = [HumanMessage(content="How do I organize my personal Notion calendar?")]
+
+    async def run_turns():
+        blocked = await middleware.abefore_agent(
+            {"messages": history}, Runtime(context=None)
+        )
+        assert blocked["jump_to"] == "end"
+        history.extend(blocked["messages"])
+        history.append(HumanMessage(content=follow_up))
+        return await middleware.abefore_agent(
+            {"messages": history}, Runtime(context=None)
+        )
+
+    result = asyncio.run(run_turns())
+    context = model.prompts[1][-1].content
+    assert "Previous request blocked as off-topic: " + history[0].content in context
+    assert "without new LangChain-ecosystem content must stay BLOCKED" in context
+    assert (
+        "Genuine follow-ups adding new in-scope content retain the lenient ALLOW default"
+        in context
+    )
+    if decision == "BLOCKED":
+        assert result["jump_to"] == "end"
+        assert result["messages"][0].additional_kwargs["blocked_query"] == follow_up
+    else:
+        assert result is None
+
+
+def test_guardrails_untagged_rejection_keeps_existing_context():
+    model = FakeStructuredModel([{"decision": "ALLOWED"}])
+    middleware = _middleware_with_models(("primary", model))
+    asyncio.run(
+        middleware._classify_query(
+            [
+                HumanMessage(content="How do agents work?"),
+                AIMessage(content="Please ask about LangChain."),
+                HumanMessage(content="How do I stream them?"),
+            ]
+        )
+    )
+    assert model.prompts[0][-1].content == (
+        "Classify this user query for the LangChain documentation assistant. "
+        "Consider both the text and any attached images. "
+        "Return both the decision and one concise sentence explaining why."
+        "\n\nPrevious questions in this conversation:\n- How do agents work?"
+        "\n\nUser query: How do I stream them?"
+    )
+
+
+@pytest.mark.parametrize("generation_fails", [False, True])
+def test_guardrails_block_marker_uses_bounded_safe_text(monkeypatch, generation_fails):
+    model = FakeStructuredModel([{"decision": "BLOCKED"}])
+    middleware = _middleware_with_models(("primary", model))
+    middleware.llm = SimpleNamespace(
+        ainvoke=AsyncMock(
+            side_effect=RuntimeError("unavailable") if generation_fails else None,
+            return_value=AIMessage(content="Please ask about LangChain."),
+        )
+    )
+    monkeypatch.setattr(middleware, "_add_to_dataset", AsyncMock())
+    result = asyncio.run(
+        middleware.abefore_agent(
+            {
+                "messages": [
+                    HumanMessage(
+                        content=[
+                            {"type": "text", "text": "Write a novel. " * 30},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": "data:image/png;base64,SECRET"},
+                            },
+                        ]
+                    )
+                ]
+            },
+            Runtime(context=None),
+        )
+    )
+    assert result["messages"][0].additional_kwargs == {
+        "guardrails_blocked": True,
+        "blocked_query": ("Write a novel. " * 30)[:200],
+    }
+
+
+def test_guardrails_uses_most_recent_tagged_rejection():
+    model = FakeStructuredModel([{"decision": "BLOCKED"}])
+    middleware = _middleware_with_models(("primary", model))
+    asyncio.run(
+        middleware._classify_query(
+            [
+                AIMessage(
+                    content="No.",
+                    additional_kwargs={
+                        "guardrails_blocked": True,
+                        "blocked_query": "Older request",
+                    },
+                ),
+                AIMessage(
+                    content="No.",
+                    additional_kwargs={
+                        "guardrails_blocked": True,
+                        "blocked_query": "Latest request",
+                    },
+                ),
+                HumanMessage(content="Try again"),
+            ]
+        )
+    )
+    context = model.prompts[0][-1].content
+    assert "Previous request blocked as off-topic: Latest request" in context
+    assert "Older request" not in context
