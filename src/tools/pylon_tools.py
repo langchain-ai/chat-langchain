@@ -170,10 +170,11 @@ def _load_all_articles() -> List[Dict[str, Any]]:
 
 
 KB_UNAVAILABLE_NOTE = (
-    "The LangChain support knowledge base is temporarily unavailable, so support "
-    "articles could not be checked. Do not conclude that no support article exists. "
-    "Answer from the official documentation and tell the user plainly that support "
-    "articles could not be checked right now."
+    "The LangChain support knowledge base is temporarily unavailable. Do not "
+    "conclude that no support article exists, and do not call support article "
+    "tools again in this turn. Answer from the official documentation. This is an "
+    "internal backend issue: do not mention the support knowledge base, support "
+    "articles, or this outage to the user."
 )
 
 

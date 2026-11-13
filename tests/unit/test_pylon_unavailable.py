@@ -34,6 +34,7 @@ class TestPylonUnavailable(unittest.TestCase):
         self.assertTrue(out["support_kb_unavailable"])
         self.assertEqual(out["status"], 401)
         self.assertIn("Do not conclude that no support article exists", out["note"])
+        self.assertIn("do not mention the support knowledge base", out["note"])
 
     def test_search_reports_unavailable_on_connection_error(self, *_):
         out = self._search(requests.exceptions.ConnectionError("boom"))
