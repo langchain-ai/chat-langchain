@@ -1,8 +1,10 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
 import re
+import shlex
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
@@ -42,6 +44,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
     ):
+        """Configure transient tool retries."""
         super().__init__()
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
@@ -119,16 +122,134 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         }
         return json.dumps(payload)
 
+    def _docs_read_range(
+        self, request: ToolCallRequest
+    ) -> tuple[str, int, int | None] | None:
+        if (
+            self._tool_name(request)
+            != "langchainDocs_query_docs_filesystem_docs_by_lang_chain"
+        ):
+            return None
+        command = request.tool_call.get("args", {}).get("command", "")
+        if not isinstance(command, str):
+            return None
+        try:
+            parts = shlex.split(command)
+        except ValueError:
+            return None
+        if not parts or not re.fullmatch(r"[\w/.-]+\.mdx", parts[-1]):
+            return None
+        path = parts[-1]
+        if parts[:-1] == ["cat"]:
+            return path, 1, None
+        if parts[0] == "head":
+            count = None
+            if len(parts) == 3 and re.fullmatch(r"-\d+", parts[1]):
+                count = int(parts[1][1:])
+            elif len(parts) == 4 and parts[1] == "-n" and parts[2].isdigit():
+                count = int(parts[2])
+            if count:
+                return path, 1, count
+        if len(parts) == 4 and parts[:2] == ["sed", "-n"]:
+            match = re.fullmatch(r"([1-9]\d*),([1-9]\d*)p", parts[2])
+            if match and int(match[1]) <= int(match[2]):
+                return path, int(match[1]), int(match[2])
+        if len(parts) == 4 and parts[:2] == ["tail", "-n"]:
+            if re.fullmatch(r"\+[1-9]\d*", parts[2]):
+                return path, int(parts[2][1:]), None
+        return None
+
+    def _docs_output(self, result) -> tuple[str, bool]:
+        if not isinstance(result, ToolMessage) or result.status == "error":
+            raise ValueError("Docs read did not return a successful tool message")
+        content = result.content
+        if isinstance(content, list):
+            texts = []
+            for block in content:
+                if not isinstance(block, dict) or block.get("type") != "text":
+                    raise ValueError("Unexpected docs content blocks")
+                texts.append(block["text"])
+            text = "".join(texts)
+        else:
+            text = content
+        header = re.match(r"exit: (\d+)\n--- stdout ---\n", text, re.IGNORECASE)
+        if header:
+            if header[1] != "0":
+                raise ValueError("Docs command failed")
+            text = text[header.end() :]
+        marker = re.search(r"\n?\.\.\. \(output truncated\)\s*$", text)
+        if marker:
+            text = text[: marker.start()]
+            # Only newline-terminated source lines can safely advance the offset.
+            text = text[: text.rfind("\n") + 1]
+        return text, marker is not None
+
+    async def _recover_docs_read(self, request, handler, result):
+        read_range = self._docs_read_range(request)
+        if read_range is None or not isinstance(result, ToolMessage):
+            return result
+        try:
+            text, truncated = self._docs_output(result)
+        except (ValueError, KeyError, TypeError):
+            return result
+        if not truncated:
+            return result
+        path, start, endpoint = read_range
+        chunks = [text]
+        start += text.count("\n")
+        size = 200
+        try:
+            for _ in range(1000):
+                if endpoint is not None and start > endpoint:
+                    break
+                end = min(start + size - 1, endpoint) if endpoint else start + size - 1
+                call = {
+                    **request.tool_call,
+                    "args": {
+                        **request.tool_call["args"],
+                        "command": f"sed -n '{start},{end}p' {shlex.quote(path)}",
+                    },
+                }
+                continuation = await handler(request.override(tool_call=call))
+                chunk, cut = self._docs_output(continuation)
+                if cut:
+                    if size == 1:
+                        raise ValueError(
+                            "A single source line exceeds the tool output limit"
+                        )
+                    size = max(1, size // 2)
+                    continue
+                chunks.append(chunk)
+                lines = chunk.count("\n") + int(
+                    bool(chunk) and not chunk.endswith("\n")
+                )
+                requested_lines = end - start + 1
+                start += lines
+                if lines < requested_lines:
+                    break
+            else:
+                raise ValueError("Docs recovery read budget exhausted")
+        except Exception as error:
+            remaining = f"{start}-{endpoint}" if endpoint else f"{start}-EOF"
+            chunks.append(
+                f"\nIncomplete documentation coverage: {path}, unread lines {remaining}. "
+                f"Recovery failed: {self._error_text(error)}. "
+                "Explicitly disclose this uncovered range in any whole-page answer."
+            )
+        return result.model_copy(update={"content": "".join(chunks)})
+
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
+        """Retry failures and recover truncated single-page docs reads."""
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                result = await handler(request)
+                return await self._recover_docs_read(request, handler, result)
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
@@ -141,9 +262,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     return self._tool_message(request, "No results found.")
 
                 if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
-                    )
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -169,7 +288,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]

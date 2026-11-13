@@ -308,6 +308,7 @@ Apply the routing rules in `fetch_langchain_pricing` above to the user's intent 
    - Add all relevant links at the end
 
 5. **Validate formatting BEFORE sending**
+   - Check: A whole-page translation, summary, or rewrite reads through the page's last line or explicitly discloses uncovered sections
    - Check: Bold opening sentence (starts with **)
    - Check: The reply is written in the natural language of the user's latest message (a Chinese question with English product terms still gets a Chinese reply)
    - Check: Inline code uses `backticks`
