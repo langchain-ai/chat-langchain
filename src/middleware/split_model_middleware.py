@@ -2,8 +2,10 @@
 
 Tool-calling rounds run on the agent's default (cheap) model. When that model
 returns a reply with no tool calls (i.e. it is ready to answer), the same request
-is re-run on a stronger model with tool_choice="none", so it must write the final
-answer from the context gathered so far. The cheap draft is discarded.
+is re-run on a stronger model with no tools bound, so it must write the final
+answer from the context gathered so far (gemini-3.8-flash ignored tool_choice="none"
+and kept calling tools). If the strong reply still has tool calls or fails, the
+cheap draft is kept. The cheap draft is discarded.
 (Letting the strong model call tools made it re-open the search loop: 18 model
 calls on one smoke question.)
 """
@@ -50,10 +52,14 @@ class SplitModelMiddleware(AgentMiddleware):
             return response
         logger.info("split-model: final turn -> %s", type(self.final_model).__name__)
         try:
-            return handler(request.override(model=self.final_model, tool_choice="none"))
+            final = handler(request.override(model=self.final_model, tools=[], tool_choice=None))
         except Exception:
             logger.exception("split-model: final model failed, keeping draft")
             return response
+        if not _is_final(final):
+            logger.warning("split-model: final model still called tools, keeping draft")
+            return response
+        return final
 
     async def awrap_model_call(
         self,
@@ -65,10 +71,14 @@ class SplitModelMiddleware(AgentMiddleware):
             return response
         logger.info("split-model: final turn -> %s", type(self.final_model).__name__)
         try:
-            return await handler(request.override(model=self.final_model, tool_choice="none"))
+            final = await handler(request.override(model=self.final_model, tools=[], tool_choice=None))
         except Exception:
             logger.exception("split-model: final model failed, keeping draft")
             return response
+        if not _is_final(final):
+            logger.warning("split-model: final model still called tools, keeping draft")
+            return response
+        return final
 
 
 def build_final_model() -> Any:
