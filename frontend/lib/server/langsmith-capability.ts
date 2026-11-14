@@ -370,7 +370,16 @@ export async function handleLangSmithCapability(
     if (error instanceof CapabilityError) {
       return json({ error: error.message }, error.status)
     }
-    const status = upstreamStatus(error) === 404 ? 404 : 502
+    const upstream = upstreamStatus(error)
+    const status = upstream === 404 ? 404 : 502
+    if (status === 502) {
+      // Without this the real LangSmith error (401, 403, 429, 5xx...) is invisible.
+      console.error("[LangSmithCapability] upstream request failed", {
+        capability: capabilityId,
+        upstreamStatus: upstream,
+        message: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300),
+      })
+    }
     return json(
       { error: status === 404 ? "Resource not found" : "LangSmith request failed" },
       status

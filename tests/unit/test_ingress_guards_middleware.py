@@ -65,15 +65,29 @@ def test_build_docs_agent_trace_metadata_falls_back_to_host_revision(monkeypatch
 
 
 @pytest.fixture(params=["linked", "detached"])
-def run_metadata(monkeypatch, request):
+def redaction_run(monkeypatch, request):
     from langsmith.run_trees import RunTree
 
     root = RunTree(name="root", extra={"metadata": {"existing": True}})
 
     class Client:
-        def update_run(self, run_id, *, extra):
+        def __init__(self):
+            self.updates = []
+            self.feedback = []
+            self.fail_feedback = False
+
+        def update_run(self, run_id, *, extra, end_time=None):
+            from datetime import datetime, timezone
+
+            self.updates.append((run_id, extra, end_time))
             assert run_id == root.id
+            root.end_time = end_time or datetime.now(timezone.utc)
             root.metadata.update(extra["metadata"])
+
+        def create_feedback(self, *, run_id, key, score):
+            if self.fail_feedback:
+                raise RuntimeError("Feedback unavailable")
+            self.feedback.append((run_id, key, score))
 
     root.ls_client = Client()
     child = (
@@ -85,7 +99,50 @@ def run_metadata(monkeypatch, request):
         "src.middleware.ingress_guards_middleware.ls.get_current_run_tree",
         lambda: child,
     )
-    return root.metadata
+    return SimpleNamespace(root=root, child=child, detached=request.param == "detached")
+
+
+@pytest.fixture
+def run_metadata(redaction_run):
+    return (
+        redaction_run.child.metadata
+        if redaction_run.detached
+        else redaction_run.root.metadata
+    )
+
+
+def test_redaction_keeps_root_open(redaction_run, run_metadata):
+    root = redaction_run.root
+    human = HumanMessage(content="LangChain with tvly-test123", id="h1")
+
+    update = IngressGuardsMiddleware().before_agent(
+        {"messages": [human]}, runtime=SimpleNamespace()
+    )
+
+    assert update["messages"][0].content == "LangChain with [REDACTED_SECRET]"
+    assert root.end_time is None
+    assert root.outputs == {}
+    assert root.client.updates == []
+    assert run_metadata["secret_redacted"] is True
+    assert root.client.feedback == (
+        [(root.id, "secret_redacted", 1)] if redaction_run.detached else []
+    )
+
+
+def test_redaction_feedback_failure_keeps_root_open(redaction_run, run_metadata):
+    redaction_run.root.client.fail_feedback = True
+    human = HumanMessage(content="tvly-test123")
+
+    update = IngressGuardsMiddleware().before_agent(
+        {"messages": [human]}, runtime=SimpleNamespace()
+    )
+
+    assert update["messages"][0].content == "[REDACTED_SECRET]"
+    assert redaction_run.root.end_time is None
+    assert redaction_run.root.outputs == {}
+    assert redaction_run.root.client.updates == []
+    assert redaction_run.root.client.feedback == []
+    assert run_metadata["secret_redacted"] is True
 
 
 @pytest.mark.parametrize(
@@ -200,7 +257,9 @@ def test_before_agent_redacts_text_blocks_and_preserves_images(run_metadata):
         ],
     ],
 )
-def test_before_agent_leaves_safe_text_and_metadata_unchanged(text, run_metadata):
+def test_before_agent_leaves_safe_text_and_metadata_unchanged(
+    text, run_metadata, redaction_run
+):
     human = HumanMessage(content=text, id="h1")
     assert (
         IngressGuardsMiddleware().before_agent(
@@ -210,6 +269,9 @@ def test_before_agent_leaves_safe_text_and_metadata_unchanged(text, run_metadata
     )
     assert human.content == text
     assert run_metadata == {"existing": True}
+    assert redaction_run.root.client.feedback == []
+    assert redaction_run.root.client.updates == []
+    assert redaction_run.root.end_time is None
 
 
 def test_before_agent_caps_before_redacting(run_metadata):
@@ -227,7 +289,9 @@ def test_before_agent_caps_before_redacting(run_metadata):
     assert run_metadata["secret_redacted"] is True
 
 
-def test_redaction_reaches_downstream_middleware_model_and_history(monkeypatch):
+def test_redaction_reaches_downstream_middleware_model_and_history(
+    monkeypatch, redaction_run
+):
     import asyncio
 
     from langchain.agents import create_agent
@@ -268,6 +332,8 @@ def test_redaction_reaches_downstream_middleware_model_and_history(monkeypatch):
         raise_error = True
 
         def on_chat_model_start(self, serialized, messages, **kwargs):
+            assert redaction_run.root.end_time is None
+            assert redaction_run.root.client.updates == []
             observe(messages[0])
             seen.append("model")
 
@@ -309,6 +375,10 @@ def test_redaction_reaches_downstream_middleware_model_and_history(monkeypatch):
         graph.ainvoke({"messages": [HumanMessage(content="More details?")]}, config)
     )
     assert seen == ["legal", "guardrails", "model"] * 2
+    assert redaction_run.root.end_time is None
+    redaction_run.root.end(outputs={"answer": result["messages"][-1].content})
+    assert redaction_run.root.end_time is not None
+    assert redaction_run.root.outputs == {"answer": "Help"}
 
 
 def test_list_content_keeps_shared_truncation_budget(run_metadata):
