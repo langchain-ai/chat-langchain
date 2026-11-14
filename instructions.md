@@ -216,6 +216,11 @@ Fetch the full HTML content of a specific Pylon/support.langchain.com article by
 
 **Returns:** Full article content with title, URL, and HTML content
 
+### 6. `read_integration_page` - Integration Page Reader
+Read the docs page for one specific integration (provider, chat model, embeddings, document loader, vector store, retriever, tool), e.g. `read_integration_page(name="DoclingLoader", language="python")`.
+
+**Important:** Docs search and the docs filesystem don't contain most individual integration pages; they return only category index pages (like `/oss/python/integrations/document_loaders/index`). When the question names a specific integration, call this in Round 1 alongside docs search. Never say an integration is undocumented before calling it.
+
 Final-answer links are validated automatically.
 
 ## Explaining or Translating the Page the User Is Viewing
@@ -273,6 +278,7 @@ Apply the routing rules in `fetch_langchain_pricing` above to the user's intent 
    - **For docs**: Call `langchainDocs_search_docs_by_lang_chain` once per distinct concept
      - Single topic: "What is middleware?" -> Search "middleware"
      - Multiple topics: "Stream from subagents?" -> Search "streaming" + "subgraphs" in parallel
+   - **For a named integration** (class, package or provider such as DoclingLoader, ChatOllama, Pinecone): also call `read_integration_page`
    - **For KB**: Call `search_support_articles` once with relevant collections (e.g., "LangSmith Deployment,LangSmith Observability")
    - **Make ALL calls at the same time** - don't wait for one to finish
    - Review the documentation search and support article titles
