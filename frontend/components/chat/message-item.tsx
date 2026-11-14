@@ -37,14 +37,18 @@ import {
   MAX_INPUT_CHARS,
 } from "@/lib/constants/features"
 import {
+  canVote,
   messageStatus,
   stepStatus,
   subgraphStatus,
   toolStatus,
 } from "@/lib/utils/chat/presentation"
+import { stillStuckLinks } from "@/lib/utils/chat/still-stuck"
 
 export interface MessageItemProps {
   message: Message
+  /** The user question this answer replies to, for the "Still stuck?" links. */
+  question?: string
   showToolCalls?: boolean
   isLastAssistant: boolean
   isRegenerating: boolean
@@ -69,6 +73,7 @@ export interface MessageItemProps {
 
 export const MessageItem = memo(function MessageItem({
   message,
+  question,
   showToolCalls,
   isLastAssistant,
   isRegenerating,
@@ -100,9 +105,7 @@ export const MessageItem = memo(function MessageItem({
   const status = messageStatus(message)
   const isAssistant = message.role === "assistant"
   const isStreaming = status === "streaming"
-  const hasFeedback =
-    isAssistant &&
-    Boolean(message.runId && (message.shareUrl || message.usageMetadata))
+  const hasFeedback = canVote(message)
   const steps = message.thinkingSteps ?? []
   const metadata: { label: string; value: string; icon?: IconComponent }[] = []
   if (isAssistant) {
@@ -380,6 +383,11 @@ export const MessageItem = memo(function MessageItem({
             {/* Match ChatMessageActions' built-in xs icon actions. */}
             {hasFeedback && (
               <>
+                {isLastAssistant && !message.feedback && (
+                  <Text as="span" variant="xs" color="tertiary" className="pl-1">
+                    Was this helpful?
+                  </Text>
+                )}
                 <IconButton
                   icon={ThumbsUpIcon}
                   label="Helpful"
@@ -433,6 +441,35 @@ export const MessageItem = memo(function MessageItem({
               </>
             )}
           </ChatMessageActions>
+          {message.feedback === "negative" && (
+            <Text
+              as="p"
+              variant="xs"
+              color="tertiary"
+              className="pl-1"
+              role="status"
+            >
+              Still stuck?{" "}
+              <Link
+                href={stillStuckLinks(question).forum}
+                variant="xs"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Ask on the LangChain Forum
+              </Link>{" "}
+              or{" "}
+              <Link
+                href={stillStuckLinks(question).support}
+                variant="xs"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                contact support
+              </Link>
+              .
+            </Text>
+          )}
           {(metadata.length > 0 || message.shareUrl) && (
             // Like earlier messages' footers, metadata appears on hover or
             // focus; touch screens, which cannot hover, always show it.

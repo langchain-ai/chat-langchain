@@ -52,10 +52,18 @@ export const MessageList = memo(function MessageList({
         label="Conversation"
         className="min-h-0 flex-1"
       >
-        {messages.map((message) => (
+        {messages.map((message, index) => (
           <MessageItem
             key={message.id}
             message={message}
+            question={
+              message.role === "assistant"
+                ? messages
+                    .slice(0, index)
+                    .reverse()
+                    .find((m) => m.role === "user")?.content
+                : undefined
+            }
             isLastAssistant={message.id === lastAssistant?.id}
             {...props}
           />

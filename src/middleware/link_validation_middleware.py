@@ -24,6 +24,7 @@ _CODE = re.compile(
     r"|(?<!`)(?P<ticks>`+)(?!`).*?(?<!`)(?P=ticks)(?!`)",
     re.MULTILINE | re.DOTALL,
 )
+_CODE_OR_LINK = re.compile(rf"(?:{_CODE.pattern})|(?:{_LINK.pattern})", _CODE.flags)
 _DOCS_HEADING = re.compile(
     r"^[ \t]*(?:\*\*Relevant docs:?\*\*:?|Relevant docs:?)"
     r"[ \t]*\r?(?:\n|$)",
@@ -38,10 +39,12 @@ def _url(match: re.Match) -> str:
 
 
 def _segments(text: str) -> list[tuple[bool, str]]:
-    """Split text into prose and verbatim code segments."""
+    """Split prose and verbatim code while keeping markdown links intact."""
     segments = []
     start = 0
-    for match in _CODE.finditer(text):
+    for match in _CODE_OR_LINK.finditer(text):
+        if not (match["fence"] or match["ticks"]):
+            continue
         segments.append((False, text[start : match.start()]))
         segments.append((True, match[0]))
         start = match.end()

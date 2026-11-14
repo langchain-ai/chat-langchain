@@ -170,14 +170,15 @@ async def test_agent_answers_directly_after_research_and_validates_final_message
 
 
 @pytest.mark.asyncio
-async def test_valid_links_leave_answer_unchanged():
-    message = AIMessage(content=f"[Guide]({GOOD})", id="answer")
+@pytest.mark.parametrize("label", ["Guide", "`Guide`"])
+async def test_valid_links_leave_answer_unchanged(label):
+    message = AIMessage(content=f"[{label}]({GOOD})", id="answer")
     with patch(TARGET, AsyncMock(return_value=[LinkCheckResult(GOOD, True, 200)])):
         result = await LinkValidationMiddleware().aafter_model(
             {"messages": [message]}, None
         )
     assert result is None
-    assert message.content == f"[Guide]({GOOD})"
+    assert message.content == f"[{label}]({GOOD})"
 
 
 @pytest.mark.asyncio
@@ -259,7 +260,13 @@ async def test_reachable_http_responses_and_invalid_pages(host, status):
     ],
 )
 @pytest.mark.parametrize(
-    "links", [f"- [Missing]({BAD})\n1. <{BAD}>\n", f"- {BAD}\n", f"<{BAD}>\n"]
+    "links",
+    [
+        f"- [Missing]({BAD})\n1. <{BAD}>\n",
+        f"- {BAD}\n",
+        f"<{BAD}>\n",
+        f"- [`Missing`]({BAD})\n",
+    ],
 )
 @pytest.mark.parametrize("block_content", [False, True])
 async def test_all_invalid_docs_remove_empty_heading(heading, links, block_content):
@@ -319,3 +326,38 @@ async def test_empty_heading_cleanup_preserves_sections_and_code():
         result["messages"][0].content
         == f"Answer with `Relevant docs:`.\n\n{code}\n\nOther resources:\n- [Valid]({GOOD})\n\n{code}"
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("label", ["`Missing`", "Guide to `Missing`", "``Missing``"])
+async def test_code_labelled_links_preserve_standalone_code(label):
+    code = (
+        f"```markdown\n[{label}]({BAD})\n```\n"
+        f"Standalone ```[{label}]({BAD})``` and `{BAD}`.\n"
+    )
+    text = code + f"Read [{label}]({BAD}) and [`Valid`]({GOOD})."
+    with patch(
+        TARGET,
+        AsyncMock(
+            return_value=[
+                LinkCheckResult(BAD, False, 404),
+                LinkCheckResult(GOOD, True, 200),
+            ]
+        ),
+    ):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [AIMessage(content=text)]}, None
+        )
+    assert result["messages"][0].content == (
+        code + f"Read {label} and [`Valid`]({GOOD})."
+    )
+
+
+@pytest.mark.asyncio
+async def test_code_only_urls_are_not_validated():
+    text = f"```markdown\n[`Missing`]({BAD})\n```\nStandalone `{BAD}`."
+    with patch(TARGET, AsyncMock(return_value=[LinkCheckResult(BAD, False, 404)])):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [AIMessage(content=text)]}, None
+        )
+    assert result is None
