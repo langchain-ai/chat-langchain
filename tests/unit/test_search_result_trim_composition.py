@@ -126,3 +126,81 @@ def test_large_tool_results_reach_model_after_filesystem_processing(
         assert "/large_tool_results/call-1" in state["files"]
         assert "Title: Result 0" in tool_messages[1].content
         assert "No such file" not in tool_messages[1].content
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("read_first", [False, True])
+@pytest.mark.parametrize("heed_reminder", [False, True])
+def test_search_answer_reads_page_or_receives_only_one_reminder(
+    asynchronous, read_first, heed_reminder
+):
+    row = "| langchain-tavily | Official integration package |"
+
+    def search(query: str) -> str:
+        return "Title: Integrations\nContent: " + "| Header |\n" * 40 + row
+
+    def read_page(path: str) -> str:
+        return "Install the official integration with pip install langchain-tavily."
+
+    search_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "langchainDocs_search_docs_by_lang_chain",
+                "args": {"query": "langchain_tavily python package"},
+                "id": "search",
+            }
+        ],
+    )
+    read_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "langchainDocs_query_docs_filesystem_docs_by_lang_chain",
+                "args": {"path": "/integrations.mdx"},
+                "id": "read",
+            }
+        ],
+    )
+    responses = [search_call]
+    if read_first:
+        responses += [read_call, AIMessage(content="Install langchain-tavily.")]
+    else:
+        responses += [AIMessage(content="The official package does not exist.")]
+        if heed_reminder:
+            responses += [read_call]
+        responses += [AIMessage(content="Install langchain-tavily.")]
+    model = RecordingModel(responses=responses)
+    graph = create_deep_agent(
+        model=model,
+        tools=[
+            StructuredTool.from_function(
+                search,
+                name="langchainDocs_search_docs_by_lang_chain",
+                description="Search",
+            ),
+            StructuredTool.from_function(
+                read_page,
+                name="langchainDocs_query_docs_filesystem_docs_by_lang_chain",
+                description="Read",
+            ),
+        ],
+        middleware=[SearchResultTrimMiddleware()],
+        backend=StateBackend(),
+    )
+    inputs = {"messages": [{"role": "user", "content": "Does langchain_tavily exist?"}]}
+    state = asyncio.run(graph.ainvoke(inputs)) if asynchronous else graph.invoke(inputs)
+    assert row in next(
+        m.content for m in model.model_inputs[1] if isinstance(m, ToolMessage)
+    )
+    reminders = [m for m in state["messages"] if m.name == "docs_page_read_reminder"]
+    assert len(reminders) == (0 if read_first else 1)
+    assert state["messages"][-1].content == "Install langchain-tavily."
+    assert all(
+        m.content != "The official package does not exist." for m in state["messages"]
+    )
+    if read_first or heed_reminder:
+        assert any(
+            isinstance(m, ToolMessage) and "pip install langchain-tavily" in m.content
+            for m in model.model_inputs[-1]
+        )

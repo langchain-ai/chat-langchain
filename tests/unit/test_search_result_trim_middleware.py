@@ -4,10 +4,13 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.types import Command
 
-from src.middleware.search_result_trim_middleware import SearchResultTrimMiddleware
+from src.middleware.search_result_trim_middleware import (
+    TRUNCATION_NOTICE,
+    SearchResultTrimMiddleware,
+)
 
 
 @pytest.fixture
@@ -22,9 +25,9 @@ def search_payload():
 
 
 def invoke_middleware(
-    message, tool_name="search_docs_by_lang_chain", asynchronous=False
+    message, tool_name="search_docs_by_lang_chain", asynchronous=False, query=""
 ):
-    request = SimpleNamespace(tool_call={"name": tool_name})
+    request = SimpleNamespace(tool_call={"name": tool_name, "args": {"query": query}})
     middleware = SearchResultTrimMiddleware()
     calls = []
 
@@ -45,6 +48,7 @@ def invoke_middleware(
 
 def assert_trimmed(text):
     assert len(text) < 5000
+    text = text.removesuffix("\n" + TRUNCATION_NOTICE)
     sections = text.split("Title: ")[1:]
     assert len(sections) == 10
     for index, section in enumerate(sections):
@@ -118,6 +122,7 @@ def test_metadata_after_content_and_following_results_survives():
     assert result.content == (
         f"Title: First\nContent: {'x' * 300}...\nLink: first\nPage: /first\n"
         "Title: Second\nLink: second\nPage: /second\nContent: short"
+        "\n" + TRUNCATION_NOTICE
     )
 
 
@@ -128,7 +133,8 @@ def test_large_whitespace_content_is_also_bounded(leading_whitespace):
     result = invoke_middleware(ToolMessage(content=content, tool_call_id="search-1"))
     snippet = "..." if leading_whitespace else "short..."
     assert (
-        result.content == f"Title: Result\nLink: link\nPage: /page\nContent: {snippet}"
+        result.content
+        == f"Title: Result\nLink: link\nPage: /page\nContent: {snippet}\n{TRUNCATION_NOTICE}"
     )
 
 
@@ -165,3 +171,122 @@ def test_ignores_tools_that_only_contain_the_name(search_payload):
     message = ToolMessage(content=search_payload, tool_call_id="call-1")
     result = invoke_middleware(message, tool_name="search_docs_by_lang_chainx")
     assert result.content == message.content
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    "query", ["langchain_tavily python package", "LANGCHAIN-TAVILY"]
+)
+def test_query_preserves_late_table_row(query, asynchronous):
+    row = "| langchain-tavily | Official Tavily integration |"
+    body = "| Provider | Package |\n" + "| --- | --- |\n" * 30 + row
+    result = invoke_middleware(
+        ToolMessage(content=f"Title: Integrations\nContent: {body}", tool_call_id="s"),
+        query=query,
+        asynchronous=asynchronous,
+    )
+    assert row in result.content
+    assert result.content.endswith(TRUNCATION_NOTICE)
+
+
+@pytest.mark.parametrize("query", ["", "how the python langchain package", "unmatched"])
+def test_no_matching_lines_preserve_original_snippet(query):
+    body = "x" * 320 + "\nother information"
+    result = invoke_middleware(
+        ToolMessage(content=f"Title: Docs\nContent: {body}", tool_call_id="s"),
+        query=query,
+    )
+    assert (
+        result.content == f"Title: Docs\nContent: {'x' * 300}...\n{TRUNCATION_NOTICE}"
+    )
+
+
+def test_matching_sections_are_capped_and_each_text_block_is_marked():
+    body = "x" * 320 + "\n" + "tavily " * 1000
+    content = [{"type": "text", "text": f"Title: Docs\nContent: {body}"}] * 2
+    result = invoke_middleware(
+        ToolMessage(content=content, tool_call_id="s"), query="tavily"
+    )
+    for block in result.content:
+        snippet, notice = (
+            block["text"].split("\n", 1)[1].removeprefix("Content: ").split("\n", 1)
+        )
+        assert len(snippet) == 1500
+        assert notice == TRUNCATION_NOTICE
+
+
+@pytest.mark.parametrize(
+    "reader",
+    [
+        "read_integration_page",
+        "query_docs_filesystem_docs_by_lang_chain",
+        "langchainDocs_query_docs_filesystem_docs_by_lang_chain",
+    ],
+)
+@pytest.mark.parametrize("status", ["success", "error"])
+def test_only_successful_page_reads_satisfy_current_turn(reader, status):
+    middleware = SearchResultTrimMiddleware()
+    messages = [
+        HumanMessage(content="Does the package exist?"),
+        ToolMessage(
+            content="Search", name="search_docs_by_lang_chain", tool_call_id="s"
+        ),
+        ToolMessage(content="Page", name=reader, tool_call_id="r", status=status),
+        AIMessage(content="It exists", id="answer"),
+    ]
+    result = middleware.after_model({"messages": messages}, None)
+    assert (result is None) == (status == "success")
+
+
+@pytest.mark.parametrize(
+    "old_message",
+    [
+        ToolMessage(content="Old page", name="read_integration_page", tool_call_id="r"),
+        SystemMessage(content="Read a page", name="docs_page_read_reminder"),
+    ],
+)
+def test_previous_turn_read_or_reminder_does_not_skip_current_turn(old_message):
+    messages = [
+        old_message,
+        HumanMessage(content="New question"),
+        ToolMessage(
+            content="Search", name="search_docs_by_lang_chain", tool_call_id="s"
+        ),
+        AIMessage(content="No package exists", id="answer"),
+    ]
+    assert (
+        SearchResultTrimMiddleware().after_model({"messages": messages}, None)[
+            "jump_to"
+        ]
+        == "model"
+    )
+
+
+@pytest.mark.parametrize("searched", [False, True])
+def test_tool_call_response_is_not_redirected(searched):
+    messages = [HumanMessage(content="Question")]
+    if searched:
+        messages.append(
+            ToolMessage(
+                content="Search", name="search_docs_by_lang_chain", tool_call_id="s"
+            )
+        )
+    messages.append(
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "read_integration_page", "args": {}, "id": "r"}],
+        )
+    )
+    assert (
+        SearchResultTrimMiddleware().after_model({"messages": messages}, None) is None
+    )
+
+
+def test_query_fact_later_on_first_line_is_retained():
+    result = invoke_middleware(
+        ToolMessage(
+            content="Title: Docs\nContent: " + "x" * 320 + " tavily", tool_call_id="s"
+        ),
+        query="tavily",
+    )
+    assert "tavily" in result.content

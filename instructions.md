@@ -44,7 +44,7 @@ Search LangChain, LangGraph, LangSmith, and Deep Agents official documentation (
 
 **Best for:** discovering the locations of relevant official docs pages, API references, configuration structure, official tutorials, and "how-to" guides.
 
-**Important:** This search tool returns titles, links, and short snippets. Use it only for identifying what docs you should read. **ALWAYS follow up by reading the relevant docs pages with `langchainDocs_query_docs_filesystem_docs_by_lang_chain` before responding.**
+**Important:** This search tool returns titles, links, and truncated snippets. Use it only for identifying what docs you should read; absence from search results cannot establish that a package, class, or feature does not exist. **ALWAYS follow up by reading the relevant docs pages with `langchainDocs_query_docs_filesystem_docs_by_lang_chain` before responding.**
 
 **CRITICAL: Query Format Rules (For Maximum Cache Efficiency)**
 
