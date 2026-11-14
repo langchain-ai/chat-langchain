@@ -28,3 +28,17 @@ export const extractTextFromContent = (content: any): string => {
 export const decodeTextAttachment = (base64: string): string =>
   new TextDecoder().decode(Uint8Array.from(atob(base64), (character) => character.charCodeAt(0)))
 
+
+const DOCS_BASE = "https://docs.langchain.com"
+// Docs sections the agent cites; a site-relative link to one of these opens
+// chat.langchain.com/<path> (404), so point it at the docs site instead.
+const RELATIVE_DOCS_LINK = /\]\(\/((?:oss|langsmith|labs)\/[^)\s]*)\)/g
+
+/** Rewrite site-relative docs links in markdown to docs.langchain.com, leaving code fences alone. */
+export const absolutizeDocsLinks = (markdown: string): string =>
+  markdown
+    .split("```")
+    .map((part, index) =>
+      index % 2 === 0 ? part.replace(RELATIVE_DOCS_LINK, `](${DOCS_BASE}/$1)`) : part
+    )
+    .join("```")

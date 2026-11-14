@@ -24,6 +24,7 @@ import { IconButton } from "@langchain/macaw-components/IconButton"
 import { ImagePreviewBlock } from "@langchain/macaw-components/ImagePreviewBlock"
 import { Link } from "@langchain/macaw-components/Link"
 import { MarkdownDisplay } from "@langchain/macaw-components/MarkdownDisplay"
+import { absolutizeDocsLinks } from "@/lib/utils/chat/content-helpers"
 import { Text } from "@langchain/macaw-components/Text"
 import { Textarea } from "@langchain/macaw-components/Textarea"
 import { ChatTextIcon } from "@phosphor-icons/react/dist/ssr/ChatText"
@@ -274,7 +275,7 @@ export const MessageItem = memo(function MessageItem({
                 // plain text; fullLength keeps that text from hiding behind
                 // "Show more".
                 <MarkdownDisplay
-                  content={message.content}
+                  content={absolutizeDocsLinks(message.content)}
                   isStreaming={isStreaming}
                   fullLength
                 />
