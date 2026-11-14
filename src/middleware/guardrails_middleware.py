@@ -9,9 +9,14 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 import langsmith as ls
-from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
+from langchain.agents.middleware import (
+    AgentMiddleware,
+    AgentState,
+    ModelRequest,
+    ModelResponse,
+    hook_config,
+)
 from langchain.chat_models import init_chat_model
-from langchain.agents.middleware import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables.config import var_child_runnable_config
 from langgraph.runtime import Runtime
@@ -181,7 +186,6 @@ def _shorten_for_classification(content: Any) -> Any:
     return content
 
 
-
 class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     """Lenient guardrails to filter only egregious misuse."""
 
@@ -278,11 +282,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     async def abefore_agent(
         self, state: GuardrailsState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """Check if query is LangChain-related before processing.
-
-        In concurrent mode the check starts here and the first model call awaits
-        it (see awrap_model_call); otherwise it blocks here as before.
-        """
+        """Start the concurrent guardrails check or await it before processing."""
         if not getattr(self, "concurrent", False):
             return await self._decide(state)
         messages = state.get("messages", [])
@@ -295,7 +295,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 task.cancel()
         self._pending[_pending_key(messages)] = (
             now,
-            asyncio.create_task(self._decide(state)),
+            asyncio.create_task(self._decide_concurrently(state)),
         )
         return None
 
@@ -306,9 +306,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
     ) -> ModelResponse | AIMessage:
         """Await this turn's guardrails verdict alongside the first model call."""
         pending = getattr(self, "_pending", None)
-        entry = (
-            pending.pop(_pending_key(request.messages), None) if pending else None
-        )
+        entry = pending.pop(_pending_key(request.messages), None) if pending else None
         if entry is None:
             return await handler(request)
         verdict_task = entry[1]
@@ -323,7 +321,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             var_child_runnable_config.reset(token)
 
         try:
-            verdict = await verdict_task
+            verdict, decision = await verdict_task
+            if decision is not None:
+                self._track_decision_metadata(decision)
         except Exception:
             logger.exception("Guardrails check failed; allowing query.")
             verdict = None
@@ -337,6 +337,20 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             return ModelResponse(result=list(verdict.get("messages") or []))
 
         return await model_task
+
+    async def _decide_concurrently(
+        self, state: GuardrailsState
+    ) -> tuple[dict[str, Any] | None, GuardrailsDecision | None]:
+        """Keep classification and its metadata inside an open trace span."""
+        with ls.trace("GuardrailsClassifier", run_type="chain") as run:
+            verdict = await self._decide(state)
+            decision: GuardrailsDecision | None = None
+            if "guardrails_result" in run.metadata:
+                decision = {
+                    "decision": run.metadata["guardrails_result"],
+                    "explanation": run.metadata["guardrails_explanation"],
+                }
+            return verdict, decision
 
     async def _decide(self, state: GuardrailsState) -> dict[str, Any] | None:
         """Classify the current query; return the state update for its verdict."""
