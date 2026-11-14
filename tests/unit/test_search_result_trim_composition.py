@@ -50,6 +50,8 @@ def test_trimming_is_wired_inside_tool_retry_wrapper():
 
 
 @pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("text_blocks", [False, True])
+@pytest.mark.parametrize("body_repeats", [2000, 20000])
 @pytest.mark.parametrize(
     "tool_name, malformed",
     [
@@ -60,19 +62,27 @@ def test_trimming_is_wired_inside_tool_retry_wrapper():
     ],
 )
 def test_large_tool_results_reach_model_after_filesystem_processing(
-    asynchronous, tool_name, malformed
+    asynchronous, text_blocks, body_repeats, tool_name, malformed
 ):
     payload = "\n\n".join(
         f"Title: Result {index}\nLink: https://docs.langchain.com/{index}\n"
-        f"Page: /{index}\nContent: {'documentation ' * 2000}"
+        f"Page: /{index}\nContent: {'documentation ' * body_repeats}"
         for index in range(10)
     )
     if malformed:
         payload = payload.replace("Content:", "Content without colon:")
     trimmed_search = tool_name.endswith("search_docs_by_lang_chain") and not malformed
 
-    def search(query: str) -> str:
-        return payload
+    def search(query: str) -> ToolMessage:
+        content = (
+            [
+                {"type": "text", "text": "Title: " + section}
+                for section in payload.split("Title: ")[1:]
+            ]
+            if text_blocks
+            else payload
+        )
+        return ToolMessage(content=content, tool_call_id="call-1")
 
     responses = [
         AIMessage(
@@ -110,13 +120,22 @@ def test_large_tool_results_reach_model_after_filesystem_processing(
     ]
     assert "read_file" in model.bound_tool_names
     if trimmed_search:
-        result = tool_messages[0].content
-        assert len(result) < 5000
+        content = tool_messages[0].content
+        result = (
+            "\n".join(block["text"] for block in content)
+            if isinstance(content, list)
+            else content
+        )
+        assert len(result) < 80_000
         for index in range(10):
             assert f"Title: Result {index}\n" in result
             assert f"Link: https://docs.langchain.com/{index}\n" in result
             assert f"Page: /{index}\n" in result
-        assert result.count("...") == 10
+        assert result.count("...") == (8 if body_repeats == 2000 else 10)
+        if body_repeats == 2000:
+            assert ("documentation " * body_repeats) in result
+        else:
+            assert len(result) > 79000
         assert "/large_tool_results/" not in result
         assert not state.get("files")
         assert tool_messages[0] in model.model_inputs[1]
