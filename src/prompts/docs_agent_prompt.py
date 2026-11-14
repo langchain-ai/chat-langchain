@@ -284,6 +284,8 @@ Apply the routing rules in `fetch_langchain_pricing` above to the user's intent 
    - Append `.mdx` to each path and read them with `langchainDocs_query_docs_filesystem_docs_by_lang_chain` before giving a final technical answer
    - Prefer one batched command, e.g. `head -200 /path-one.mdx /path-two.mdx`
    - Use `rg -C 3 "keyword" /path.mdx` instead of `head` when the answer is likely in a specific subsection or the page is large
+   - **Named integration (a provider, loader, embedding, vector store, retriever or tool class)**: its page is a leaf under `/oss/<python|javascript>/integrations/<category>/`, and search often returns only the category index. If the leaf page is not in the results, find it in the same call instead of searching again, e.g. `ls /oss/python/integrations/document_loaders/ | rg -i "pdf"`, then read it. Use the language directory the user is working in
+   - **Read in large ranges**: when you need more of a page than your first read showed, read the rest in one range (e.g. `sed -n '201,600p' /path.mdx`), not in 100-line slices across several turns
    - Search results are only for discovery; they are NOT sufficient grounding for ANY answer
    - From support article results, select 1-3 relevant article IDs and call `get_support_article_content` for them in parallel
 
