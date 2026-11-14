@@ -1,0 +1,4316 @@
+[
+{
+"path": "/oss/javascript/integrations/agents/sap_hana_sparql_qa_agent",
+"title": "Question Answering with HanaSparqlQAAgent",
+"name": "HanaSparqlQAAgent",
+"classes": [
+"AzureOpenAiChatClient",
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/chains/sap_hana_sparql_qa_chain",
+"title": "Question Answering with `HanaSparqlQAChain`",
+"name": "Question Answering with `HanaSparqlQAChain`",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "(MODULE_NAME)",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/chat/anthropic",
+"title": "ChatAnthropic integration",
+"name": "ChatAnthropic",
+"classes": [
+"ChatAnthropic",
+"ChatModel",
+"ChatModels",
+"ChatPromptTemplate",
+"ChatPromptTemplates",
+"MarkdownTextSplitter"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/azure",
+"title": "AzureChatOpenAI integration",
+"name": "AzureChatOpenAI",
+"classes": [
+"AzureChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/baidu_qianfan",
+"title": "ChatBaiduQianfan integration",
+"name": "ChatBaiduQianfan",
+"classes": [
+"ChatBaiduQianfan"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/bedrock_converse",
+"title": "ChatBedrockConverse integration",
+"name": "ChatBedrockConverse",
+"classes": [
+"ChatBedrockConverse"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/cerebras",
+"title": "ChatCerebras integration",
+"name": "ChatCerebras",
+"classes": [
+"ChatCerebras"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/cloudflare_workersai",
+"title": "ChatCloudflareWorkersAI integration",
+"name": "ChatCloudflareWorkersAI",
+"classes": [
+"ChatCloudflareWorkersAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/cohere",
+"title": "ChatCohere integration",
+"name": "ChatCohere",
+"classes": [
+"ChatCohere"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/deepseek",
+"title": "ChatDeepSeek integration",
+"name": "ChatDeepSeek",
+"classes": [
+"ChatDeepSeek"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/fake",
+"title": "Fake integration",
+"name": "FakeListChatModel",
+"classes": [
+"FakeListChatModel"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/fireworks",
+"title": "ChatFireworks integration",
+"name": "ChatFireworks",
+"classes": [
+"ChatFireworks"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/google",
+"title": "ChatGoogle integration",
+"name": "ChatGoogle",
+"classes": [
+"ChatGoogle"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/google_generative_ai",
+"title": "ChatGoogleGenerativeAI integration",
+"name": "ChatGoogleGenerativeAI",
+"classes": [
+"ChatGoogle",
+"ChatGoogleGenerativeAI",
+"ChatGoogleGenerativeAIModel",
+"CodeExecutionTool",
+"GoogleSearchRetrievalTool"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/google_vertex_ai",
+"title": "ChatVertexAI integration",
+"name": "ChatVertexAI",
+"classes": [
+"ChatGoogle",
+"ChatVertexAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/groq",
+"title": "ChatGroq integration",
+"name": "ChatGroq",
+"classes": [
+"ChatGroq"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/ibm",
+"title": "IBM watsonx.ai integration",
+"name": "ChatWatsonx",
+"classes": [
+"ChatWatsonx"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/mistral",
+"title": "ChatMistralAI integration",
+"name": "ChatMistralAI",
+"classes": [
+"ChatMistralAI",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/ollama",
+"title": "ChatOllama integration",
+"name": "ChatOllama",
+"classes": [
+"ChatOllama"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/openai",
+"title": "ChatOpenAI integration",
+"name": "ChatOpenAI",
+"classes": [
+"ChatModel",
+"ChatModels",
+"ChatOpenAI",
+"ChatPromptTemplate",
+"ChatPromptTemplates"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/openrouter",
+"title": "ChatOpenRouter integration",
+"name": "ChatOpenRouter",
+"classes": [
+"ChatOpenRouter"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/perplexity",
+"title": "ChatPerplexity integration",
+"name": "ChatPerplexity",
+"classes": [
+"ChatOpenAI",
+"ChatPerplexity",
+"PerplexitySearchRetriever"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/togetherai",
+"title": "ChatTogetherAI integration",
+"name": "ChatTogetherAI",
+"classes": [
+"ChatTogetherAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/xai",
+"title": "ChatXAI integration",
+"name": "ChatXAI",
+"classes": [
+"ChatXAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/chat/yandex",
+"title": "ChatYandexGPT integration",
+"name": "ChatYandexGPT",
+"classes": [
+"ChatYandexGPT"
+]
+},
+{
+"path": "/oss/javascript/integrations/decision_models/openai",
+"title": "OpenAI Decisions integration",
+"name": "delete_all_backups\",",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/document_compressors/cohere_rerank",
+"title": "Cohere rerank integration",
+"name": "Cohere rerank",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/document_compressors/ibm",
+"title": "IBM watsonx.ai integration",
+"name": "WatsonxRerank",
+"classes": [
+"CharacterTextSplitter",
+"MemoryVectorStore",
+"WatsonxEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/document_compressors/mixedbread_ai",
+"title": "Mixedbread AI reranking integration",
+"name": "Mixedbread AI reranking",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/document_transformers/openai_metadata_tagger",
+"title": "OpenAI functions metadata tagger - integration",
+"name": "OpenAI functions metadata tagger -",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/embeddings/azure_openai",
+"title": "AzureOpenAIEmbeddings integration",
+"name": "AzureOpenAIEmbeddings",
+"classes": [
+"AzureOpenAIEmbeddings",
+"MemoryVectorStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/baidu_qianfan",
+"title": "Baidu qianfan integration",
+"name": "Baidu qianfan",
+"classes": [
+"BaiduQianfanEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/bedrock",
+"title": "BedrockEmbeddings integration",
+"name": "Bedrock",
+"classes": [
+"BedrockEmbeddings",
+"MemoryVectorStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/cloudflare_ai",
+"title": "CloudflareWorkersAIEmbeddings integration",
+"name": "CloudflareWorkersAIEmbeddings",
+"classes": [
+"CloudflareWorkersAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/cohere",
+"title": "CohereEmbeddings integration",
+"name": "CohereEmbeddings",
+"classes": [
+"CohereEmbeddings",
+"MemoryVectorStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/fireworks",
+"title": "FireworksEmbeddings integration",
+"name": "FireworksEmbeddings",
+"classes": [
+"FireworksEmbeddings",
+"MemoryVectorStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/google_generative_ai",
+"title": "GoogleGenerativeAIEmbeddings integration",
+"name": "GoogleGenerativeAIEmbeddings",
+"classes": [
+"GoogleGenerativeAIEmbeddings",
+"MemoryVectorStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/google_vertex_ai",
+"title": "VertexAIEmbeddings integration",
+"name": "VertexAIEmbeddings",
+"classes": [
+"MemoryVectorStore",
+"VertexAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/ibm",
+"title": "IBM watsonx.ai integration",
+"name": "WatsonxEmbeddings",
+"classes": [
+"MemoryVectorStore",
+"WatsonxEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/minimax",
+"title": "Minimax integration",
+"name": "Minimax",
+"classes": [
+"MinimaxEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/mistralai",
+"title": "MistralAIEmbeddings integration",
+"name": "MistralAIEmbeddings",
+"classes": [
+"MemoryVectorStore",
+"MistralAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/mixedbread_ai",
+"title": "Mixedbread AI integration",
+"name": "Mixedbread AI",
+"classes": [
+"MixedbreadAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/nomic",
+"title": "Nomic integration",
+"name": "Nomic",
+"classes": [
+"NomicEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/ollama",
+"title": "OllamaEmbeddings integration",
+"name": "OllamaEmbeddings",
+"classes": [
+"MemoryVectorStore",
+"OllamaEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/openai",
+"title": "OpenAIEmbeddings integration",
+"name": "OpenAIEmbeddings",
+"classes": [
+"MemoryVectorStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/oracleai",
+"title": "OracleEmbeddings integration",
+"name": "OracleEmbeddings",
+"classes": [
+"OracleDocLoader",
+"OracleEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/pinecone",
+"title": "PineconeEmbeddings integration",
+"name": "PineconeEmbeddings",
+"classes": [
+"MemoryVectorStore",
+"PineconeEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/togetherai",
+"title": "TogetherAIEmbeddings integration",
+"name": "TogetherAIEmbeddings",
+"classes": [
+"MemoryVectorStore",
+"TogetherAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/embeddings/voyageai",
+"title": "VoyageEmbeddings integration",
+"name": "VoyageEmbeddings",
+"classes": [
+"MemoryVectorStore",
+"VoyageEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/graphs/sap_hana_rdf_graph",
+"title": "SAP HANA Cloud Knowledge Graph Engine",
+"name": "SAP HANA Cloud Knowledge Graph Engine",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/llm_caching/azure_cosmosdb_nosql",
+"title": "Azure Cosmos DB NoSQL semantic integration",
+"name": "Azure Cosmos DB NoSQL semantic",
+"classes": [
+"AzureCosmosDBNoSQLVectorStore",
+"ChatOpenAI",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/llms/azure",
+"title": "Azure OpenAI integration",
+"name": "AzureOpenAI",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/llms/cloudflare_workersai",
+"title": "CloudflareWorkersAI integration",
+"name": "CloudflareWorkersAI",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/llms/cohere",
+"title": "Cohere integration",
+"name": "Cohere",
+"classes": [
+"ChatCohere"
+]
+},
+{
+"path": "/oss/javascript/integrations/llms/fireworks",
+"title": "Fireworks integration",
+"name": "Fireworks",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/llms/google_vertex_ai",
+"title": "Gemini Enterprise Agent Platform integration",
+"name": "VertexAI",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/llms/ibm",
+"title": "IBM watsonx.ai integration",
+"name": "WatsonxLLM",
+"classes": [
+"WatsonxLLM"
+]
+},
+{
+"path": "/oss/javascript/integrations/llms/jigsawstack",
+"title": "Jigsawstack prompt engine integration",
+"name": "Jigsawstack prompt engine",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/llms/mistral",
+"title": "MistralAI integration",
+"name": "MistralAI",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/llms/ollama",
+"title": "Ollama integration",
+"name": "Ollama",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/llms/openai",
+"title": "OpenAI integration",
+"name": "OpenAI",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/llms/together",
+"title": "TogetherAI integration",
+"name": "TogetherAI",
+"classes": [
+"ChatTogetherAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/llms/yandex",
+"title": "Yandexgpt integration",
+"name": "Yandexgpt",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/memory/mongodb-long-term-memory",
+"title": "Long-term memory with MongoDB Atlas",
+"name": "store_vector_index\",",
+"classes": [
+"MongoDBStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/memory/mongodb-short-term-memory",
+"title": "Short-term memory with MongoDB Atlas",
+"name": "get_user_info\",",
+"classes": [
+"MongoDBSaver"
+]
+},
+{
+"path": "/oss/javascript/integrations/middleware/anthropic",
+"title": "Anthropic integration",
+"name": "Anthropic",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/middleware/aws",
+"title": "AWS middleware integration",
+"name": "AWS middleware",
+"classes": [
+"ChatBedrockConverse"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/all_providers",
+"title": "All LangChain JavaScript integration providers",
+"name": "",
+"classes": [
+"ChatExaone",
+"ChatWebLLM",
+"RecallRetriever",
+"RushDBVectorStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/anthropic",
+"title": "Anthropic integrations",
+"name": "",
+"classes": [
+"ChatAnthropic",
+"ChatModel",
+"ChatModels",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/aws",
+"title": "AWS integrations",
+"name": "",
+"classes": [
+"AmazonKnowledgeBaseRetriever",
+"BedrockEmbeddings",
+"ChatBedrockConverse"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/daytona",
+"title": "Daytona",
+"name": "",
+"classes": [
+"ChatAnthropic",
+"DaytonaSandbox"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/deno",
+"title": "Deno",
+"name": "",
+"classes": [
+"ChatAnthropic",
+"DenoSandbox"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/google",
+"title": "Google integrations",
+"name": "",
+"classes": [
+"ChatGoogle",
+"ChatGoogleGenerativeAI",
+"ChatVertexAI",
+"GoogleGenerativeAIEmbeddings",
+"PostgresLoader",
+"PostgresVectorStore",
+"VertexAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/microsoft",
+"title": "Microsoft integrations",
+"name": "",
+"classes": [
+"AzureChatOpenAI",
+"AzureCosmosDBNoSQLVectorStore",
+"AzureDocumentDBVectorStore",
+"AzureOpenAIEmbeddings",
+"SessionsPythonREPLTool"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/modal",
+"title": "Modal",
+"name": "",
+"classes": [
+"ChatAnthropic",
+"ModalSandbox"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/node-vfs",
+"title": "Node VFS",
+"name": "",
+"classes": [
+"ChatAnthropic",
+"VfsSandbox"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/openai",
+"title": "OpenAI integrations",
+"name": "",
+"classes": [
+"ChatGPT",
+"ChatOpenAI",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/openrouter",
+"title": "OpenRouter integrations",
+"name": "",
+"classes": [
+"ChatOpenRouter"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/overview",
+"title": "LangChain JavaScript integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/providers/perplexity",
+"title": "Perplexity integrations",
+"name": "",
+"classes": [
+"ChatPerplexity",
+"PerplexitySearchRetriever"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/sap",
+"title": "Sap integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/providers/sourcey",
+"title": "Sourcey integrations",
+"name": "",
+"classes": [
+"SourceyRetriever"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/supadata",
+"title": "",
+"name": "",
+"classes": [
+"SupadataLoader"
+]
+},
+{
+"path": "/oss/javascript/integrations/providers/tavily",
+"title": "Tavily integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/providers/typesafe",
+"title": "TypeSafe integrations",
+"name": "delete_all_backups\",",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/retrievers/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/retrievers/bedrock-knowledge-bases",
+"title": "Knowledge bases for Amazon Bedrock integration",
+"name": "Knowledge bases for Amazon Bedrock",
+"classes": [
+"AmazonKnowledgeBaseRetriever"
+]
+},
+{
+"path": "/oss/javascript/integrations/retrievers/exa",
+"title": "ExaRetriever integration",
+"name": "ExaRetriever",
+"classes": [
+"ExaRetriever"
+]
+},
+{
+"path": "/oss/javascript/integrations/retrievers/hyde",
+"title": "Hyde integration",
+"name": "Hyde",
+"classes": [
+"HydeRetriever",
+"MemoryVectorStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/retrievers/kendra-retriever",
+"title": "AWSKendraRetriever integration",
+"name": "AWSKendraRetriever",
+"classes": [
+"AWSKendraRetriever",
+"AmazonKendraRetriever"
+]
+},
+{
+"path": "/oss/javascript/integrations/retrievers/perplexity_search",
+"title": "PerplexitySearchRetriever integration",
+"name": "PerplexitySearchRetriever",
+"classes": [
+"ChatAnthropic",
+"ChatPromptTemplate",
+"PerplexitySearchRetriever"
+]
+},
+{
+"path": "/oss/javascript/integrations/retrievers/sourcey",
+"title": "SourceyRetriever integration",
+"name": "SourceyRetriever",
+"classes": [
+"ChatOpenAI",
+"ChatPromptTemplate",
+"SourceyRetriever"
+]
+},
+{
+"path": "/oss/javascript/integrations/retrievers/time-weighted-retriever",
+"title": "Time-weighted integration",
+"name": "Time-weighted",
+"classes": [
+"MemoryVectorStore",
+"OpenAIEmbeddings",
+"TimeWeightedVectorStoreRetriever"
+]
+},
+{
+"path": "/oss/javascript/integrations/stores/file_system",
+"title": "LocalFileStore integration",
+"name": "LocalFileStore",
+"classes": [
+"LocalFileStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/stores/in_memory",
+"title": "InMemoryStore integration",
+"name": "InMemoryStore",
+"classes": [
+"InMemoryStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/tools/anthropic",
+"title": "Anthropic integration",
+"name": "Anthropic",
+"classes": [
+"ChatAnthropic"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/azure_dynamic_sessions",
+"title": "Azure container apps dynamic sessions integration",
+"name": "Azure container apps dynamic sessions",
+"classes": [
+"AzureChatOpenAI",
+"ChatPromptTemplate",
+"SessionsPythonREPLTool"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/clicksend",
+"title": "ClickSend integration",
+"name": "ClickSend",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/composio",
+"title": "Composio integration",
+"name": "Composio",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/dalle",
+"title": "Dall-e integration",
+"name": "Dall-e",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/tools/decodo",
+"title": "Decodo integration",
+"name": "Decodo",
+"classes": [
+"ChatOpenAI",
+"DecodoUniversalTool"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/exa_search",
+"title": "ExaSearchResults integration",
+"name": "ExaSearchResults",
+"classes": [
+"ChatOpenAI",
+"ChatPromptTemplate",
+"ExaRetriever"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/falkordb",
+"title": "Falkordb integration",
+"name": "Falkordb",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/google",
+"title": "Google integration",
+"name": "Google",
+"classes": [
+"ChatGoogle"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/ibm",
+"title": "WatsonxToolkit integration",
+"name": "WatsonxToolkit",
+"classes": [
+"ChatWatsonx",
+"WatsonxToolkit"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/jigsawstack",
+"title": "Jigsawstack integration",
+"name": "Jigsawstack",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/json",
+"title": "JSON agent toolkit integration",
+"name": "JSON agent toolkit",
+"classes": [
+"JsonToolkit"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/lambda_agent",
+"title": "Agent with AWS lambda integration",
+"name": "Agent with AWS lambda",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/tools/mcp_toolbox",
+"title": "Mcp toolbox for databases integration",
+"name": "Mcp toolbox for databases",
+"classes": [
+"ChatGoogle"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/nia",
+"title": "Nia Toolkit integration",
+"name": "NiaToolkit",
+"classes": [
+"ChatOpenAI",
+"NiaToolkit"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/openai",
+"title": "OpenAI integration",
+"name": "OpenAI",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/openapi",
+"title": "OpenAPI toolkit integration",
+"name": "OpenAPI toolkit",
+"classes": [
+"ChatOpenAI",
+"OpenApiToolkit"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/oracleai",
+"title": "OracleSummary integration",
+"name": "OracleSummary",
+"classes": [
+"OracleDocLoader",
+"OracleEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/perplexity_search",
+"title": "PerplexitySearchResults integration",
+"name": "PerplexitySearchResults",
+"classes": [
+"ChatAnthropic"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/sql",
+"title": "SQLToolkit integration",
+"name": "SQLToolkit",
+"classes": [
+"ChatOpenAI",
+"SqlToolkit"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/tavily_crawl",
+"title": "Tavily crawl integration",
+"name": "TavilyCrawl",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/tavily_extract",
+"title": "Tavily extract integration",
+"name": "TavilyExtract",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/tavily_get_research",
+"title": "Tavily get research integration",
+"name": "TavilyGetResearch",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/tavily_map",
+"title": "Tavily map integration",
+"name": "TavilyMap",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/tavily_research",
+"title": "Tavily research integration",
+"name": "TavilyResearch",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/tavily_search",
+"title": "Tavily search integration",
+"name": "TavilySearch",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/vectorstore",
+"title": "VectorStoreToolkit integration",
+"name": "VectorStoreToolkit",
+"classes": [
+"ChatOpenAI",
+"MemoryVectorStore",
+"OpenAIEmbeddings",
+"RecursiveCharacterTextSplitter",
+"VectorStoreToolkit"
+]
+},
+{
+"path": "/oss/javascript/integrations/tools/webbrowser",
+"title": "Web browser integration",
+"name": "Web browser",
+"classes": [
+"ChatOpenAI",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/azure_cosmosdb_mongodb",
+"title": "Azure Cosmos DB for MongoDB vCore (deprecated)",
+"name": "Azure Cosmos DB for MongoDB vCore (deprecated)",
+"classes": [
+"AzureCosmosDBMongoDBVectorStore",
+"AzureDocumentDBVectorStore",
+"ChatOpenAI",
+"ChatPromptTemplate",
+"OpenAIEmbeddings",
+"RecursiveCharacterTextSplitter",
+"TextLoader"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/azure_cosmosdb_nosql",
+"title": "Azure Cosmos DB for NoSQL integration",
+"name": "Azure Cosmos DB for NoSQL",
+"classes": [
+"AzureCosmosDBNoSQLVectorStore",
+"ChatOpenAI",
+"ChatPromptTemplate",
+"OpenAIEmbeddings",
+"RecursiveCharacterTextSplitter",
+"TextLoader"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/azure_documentdb",
+"title": "Azure DocumentDB",
+"name": "Azure DocumentDB",
+"classes": [
+"AzureDocumentDBVectorStore",
+"ChatOpenAI",
+"ChatPromptTemplate",
+"OpenAIEmbeddings",
+"RecursiveCharacterTextSplitter",
+"TextLoader"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/cloudflare_vectorize",
+"title": "Cloudflare vectorize integration",
+"name": "Cloudflare vectorize",
+"classes": [
+"CloudflareWorkersAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/google_cloudsql_pg",
+"title": "Google cloud SQL for postgresql integration",
+"name": "Google cloud SQL for postgresql",
+"classes": [
+"PostgresVectorStore",
+"SyntheticEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/memory",
+"title": "MemoryVectorStore integration",
+"name": "langchain",
+"classes": [
+"MemoryVectorStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/mongodb_atlas",
+"title": "MongoDB Atlas integration",
+"name": "MongoDBAtlasVectorSearch",
+"classes": [
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/neo4jvector",
+"title": "Neo4j vector index integration",
+"name": "Neo4jVectorStore",
+"classes": [
+"Neo4jVectorStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/oracleai",
+"title": "OracleVS integration",
+"name": "OracleVS",
+"classes": [
+"OracleDocLoader",
+"OracleEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/pgvector",
+"title": "PGVectorStore integration",
+"name": "PGVectorStore",
+"classes": [
+"OpenAIEmbeddings",
+"PGVectorStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/pinecone",
+"title": "PineconeStore integration",
+"name": "PineconeStore",
+"classes": [
+"OpenAIEmbeddings",
+"PineconeStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/qdrant",
+"title": "QdrantVectorStore integration",
+"name": "QdrantVectorStore",
+"classes": [
+"OpenAIEmbeddings",
+"QdrantVectorStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/redis",
+"title": "RedisVectorStore integration",
+"name": "RedisVectorStore",
+"classes": [
+"FluentRedisVectorStore",
+"OpenAIEmbeddings",
+"RedisVectorStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/sap_hanavector",
+"title": "SAP HANA Cloud Vector Engine",
+"name": "SAP HANA Cloud Vector Engine",
+"classes": [
+"CharacterTextSplitter",
+"HanaInternalEmbeddings",
+"OpenAIEmbeddings",
+"TextLoader"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/turbopuffer",
+"title": "TurbopufferVectorStore integration",
+"name": "TurbopufferVectorStore",
+"classes": [
+"OpenAIEmbeddings",
+"TurbopufferVectorStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/weaviate",
+"title": "WeaviateStore integration",
+"name": "WeaviateStore",
+"classes": [
+"OpenAIEmbeddings",
+"WeaviateStore"
+]
+},
+{
+"path": "/oss/javascript/integrations/vectorstores/ydb",
+"title": "YDB integration",
+"name": "YDB",
+"classes": [
+"OpenAIEmbeddings",
+"YDBVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/agents/sap_hana_sparql_qa_agent",
+"title": "Question Answering with HanaSparqlQAAgent",
+"name": "HanaSparqlQAAgent",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/caches/redis_llm_caching",
+"title": "Redis cache for LangChain integration",
+"name": "Redis cache for LangChain",
+"classes": [
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/callbacks/agentsystems_notary",
+"title": "AgentSystems Notary",
+"name": "AgentSystems Notary",
+"classes": [
+"ChatAnthropic"
+]
+},
+{
+"path": "/oss/python/integrations/callbacks/google_bigquery",
+"title": "Bigquery callback handler integration",
+"name": "Bigquery callback handler",
+"classes": [
+"ChatGoogleGenerativeAI"
+]
+},
+{
+"path": "/oss/python/integrations/callbacks/openinference",
+"title": "OpenInference",
+"name": "OpenInference",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/chains/sap_hana_sparql_qa_chain",
+"title": "Question Answering with `HanaSparqlQAChain`",
+"name": "Question Answering with `HanaSparqlQAChain`",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/chat/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "(MODULE_NAME)",
+"classes": [
+"ChatAnthropic",
+"ChatGenAI",
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/chat/amazon_nova",
+"title": "ChatAmazonNova integration",
+"name": "ChatAmazonNova",
+"classes": [
+"ChatAmazonNova",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/chat/anthropic",
+"title": "ChatAnthropic integration",
+"name": "ChatAnthropic",
+"classes": [
+"ChatAnthropic",
+"ChatAnthropicBedrock",
+"ChatBedrock",
+"ChatVertexAI",
+"InMemorySaver",
+"InMemoryVectorStore",
+"MarkdownTextSplitter",
+"MemorySaver"
+]
+},
+{
+"path": "/oss/python/integrations/chat/anthropic_functions",
+"title": "(Deprecated) experimental Anthropic tools wrapper integration",
+"name": "ChatAnthropicTools",
+"classes": [
+"ChatAnthropic",
+"ChatAnthropicTools"
+]
+},
+{
+"path": "/oss/python/integrations/chat/azure_ai",
+"title": "Microsoft Foundry Chat Models integration",
+"name": "AzureAIOpenAIApiChatModel",
+"classes": [
+"AzureAIOpenAIApiChatModel",
+"ChatAnthropic",
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/chat/azure_chat_openai",
+"title": "AzureChatOpenAI integration",
+"name": "AzureChatOpenAI",
+"classes": [
+"AzureChatOpenAI",
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/chat/baseten",
+"title": "ChatBaseten integration",
+"name": "ChatBaseten",
+"classes": [
+"ChatBaseten"
+]
+},
+{
+"path": "/oss/python/integrations/chat/bedrock",
+"title": "ChatBedrock integration",
+"name": "ChatBedrock",
+"classes": [
+"ChatAnthropic",
+"ChatAnthropicBedrock",
+"ChatBedrock",
+"ChatBedrockConverse"
+]
+},
+{
+"path": "/oss/python/integrations/chat/cerebras",
+"title": "ChatCerebras integration",
+"name": "ChatCerebras",
+"classes": [
+"ChatCerebras",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/chat/cohere",
+"title": "ChatCohere integration",
+"name": "ChatCohere",
+"classes": [
+"ChatCitation",
+"ChatCohere",
+"ChatModel"
+]
+},
+{
+"path": "/oss/python/integrations/chat/crusoe",
+"title": "ChatCrusoe integration",
+"name": "ChatCrusoe",
+"classes": [
+"ChatCrusoe",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/chat/databricks",
+"title": "ChatDatabricks integration",
+"name": "ChatDatabricks",
+"classes": [
+"ChatDatabricks",
+"ChatModel",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/chat/deepseek",
+"title": "ChatDeepSeek integration",
+"name": "ChatDeepSeek",
+"classes": [
+"ChatDeepSeek"
+]
+},
+{
+"path": "/oss/python/integrations/chat/fireworks",
+"title": "ChatFireworks integration",
+"name": "ChatFireworks",
+"classes": [
+"ChatFireworks"
+]
+},
+{
+"path": "/oss/python/integrations/chat/google_anthropic_vertex",
+"title": "ChatAnthropicVertex integration",
+"name": "ChatAnthropicVertex",
+"classes": [
+"ChatAnthropicVertex"
+]
+},
+{
+"path": "/oss/python/integrations/chat/google_generative_ai",
+"title": "ChatGoogleGenerativeAI integration",
+"name": "ChatGoogleGenerativeAI",
+"classes": [
+"ChatGoogleGenerativeAI",
+"ChatVertexAI"
+]
+},
+{
+"path": "/oss/python/integrations/chat/google_vertex_ai",
+"title": "ChatVertexAI integration",
+"name": "ChatVertexAI",
+"classes": [
+"ChatGoogleGenerativeAI",
+"ChatVertexAI"
+]
+},
+{
+"path": "/oss/python/integrations/chat/groq",
+"title": "ChatGroq integration",
+"name": "ChatGroq",
+"classes": [
+"ChatGroq"
+]
+},
+{
+"path": "/oss/python/integrations/chat/huggingface",
+"title": "ChatHuggingFace integration",
+"name": "ChatHuggingFace",
+"classes": [
+"ChatHuggingFace"
+]
+},
+{
+"path": "/oss/python/integrations/chat/ibm_watsonx",
+"title": "ChatWatsonx integration",
+"name": "ChatWatsonx",
+"classes": [
+"ChatPromptTemplate",
+"ChatWatsonx"
+]
+},
+{
+"path": "/oss/python/integrations/chat/litellm",
+"title": "ChatLiteLLM and ChatLiteLLMRouter integration",
+"name": "ChatLiteLLM",
+"classes": [
+"ChatLiteLLM",
+"ChatLiteLLMRouter",
+"ChatModel",
+"LiteLLMEmbeddings",
+"LiteLLMOCRLoader"
+]
+},
+{
+"path": "/oss/python/integrations/chat/mistralai",
+"title": "ChatMistralAI integration",
+"name": "ChatMistralAI",
+"classes": [
+"ChatMistralAI"
+]
+},
+{
+"path": "/oss/python/integrations/chat/nvidia_ai_endpoints",
+"title": "ChatNVIDIA integration",
+"name": "ChatNVIDIA",
+"classes": [
+"ChatNVIDIA",
+"ChatNVIDIADynamo",
+"ChatPromptTemplate",
+"InMemoryChatMessageHistory",
+"NVIDIAEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/chat/oci_data_science",
+"title": "ChatOCIModelDeployment integration",
+"name": "ChatOCIModelDeployment",
+"classes": [
+"ChatOCIModelDeployment",
+"ChatOCIModelDeploymentTGI",
+"ChatOCIModelDeploymentVLLM",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/chat/oci_generative_ai",
+"title": "OCI Generative AI Integration for LangChain",
+"name": "ChatOCIGenerativeAI",
+"classes": [
+"ChatOCIGenAI",
+"ChatOCIGenerativeAI"
+]
+},
+{
+"path": "/oss/python/integrations/chat/ollama",
+"title": "ChatOllama integration",
+"name": "ChatOllama",
+"classes": [
+"ChatMessage",
+"ChatOllama"
+]
+},
+{
+"path": "/oss/python/integrations/chat/openai",
+"title": "ChatOpenAI integration",
+"name": "ChatOpenAI",
+"classes": [
+"ChatOpenAI",
+"LiteLLM",
+"OpenaiPromptCacheBreakpointChatCompletionsPy"
+]
+},
+{
+"path": "/oss/python/integrations/chat/openrouter",
+"title": "ChatOpenRouter integration",
+"name": "ChatOpenRouter",
+"classes": [
+"ChatOpenRouter"
+]
+},
+{
+"path": "/oss/python/integrations/chat/parallel",
+"title": "ChatParallel integration",
+"name": "ChatParallel",
+"classes": [
+"ChatParallel",
+"ChatParallelWeb",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/chat/perplexity",
+"title": "ChatPerplexity integration",
+"name": "ChatPerplexity",
+"classes": [
+"ChatOpenAI",
+"ChatPerplexity",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/chat/qwen",
+"title": "ChatQwen integration",
+"name": "ChatQwen",
+"classes": [
+"ChatQwen"
+]
+},
+{
+"path": "/oss/python/integrations/chat/qwq",
+"title": "ChatQwQ integration",
+"name": "ChatQwQ",
+"classes": [
+"ChatQwQ",
+"ChatQwen"
+]
+},
+{
+"path": "/oss/python/integrations/chat/sambanova",
+"title": "ChatSambanova integration",
+"name": "ChatSambaNova",
+"classes": [
+"ChatPromptTemplate",
+"ChatSambaNova",
+"ChatSambanova"
+]
+},
+{
+"path": "/oss/python/integrations/chat/together",
+"title": "ChatTogether integration",
+"name": "ChatTogether",
+"classes": [
+"ChatTogether"
+]
+},
+{
+"path": "/oss/python/integrations/chat/upstage",
+"title": "ChatUpstage integration",
+"name": "ChatUpstage",
+"classes": [
+"ChatPromptTemplate",
+"ChatUpstage"
+]
+},
+{
+"path": "/oss/python/integrations/chat/vllm",
+"title": "vLLM integration",
+"name": "vLLM",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/chat/xai",
+"title": "ChatXAI integration",
+"name": "ChatXAI",
+"classes": [
+"ChatXAI"
+]
+},
+{
+"path": "/oss/python/integrations/chat_message_histories/cockroachdb",
+"title": "CockroachDB chat message history",
+"name": "CockroachDB chat message history",
+"classes": [
+"CockroachDBChatMessageHistory"
+]
+},
+{
+"path": "/oss/python/integrations/decision_models/google_generative_ai",
+"title": "Google Gemini Decisions integration",
+"name": "",
+"classes": [
+"AutoModeMiddleware",
+"ChatGoogleGenerativeAI",
+"ModelRouterMiddleware"
+]
+},
+{
+"path": "/oss/python/integrations/decision_models/openai",
+"title": "OpenAI Decisions integration",
+"name": "",
+"classes": [
+"AgentMiddleware",
+"OpenAIAutoModeMiddleware",
+"OpenAIModelRouterMiddleware"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/astradb",
+"title": "AstraDB integration",
+"name": "AstraDB",
+"classes": [
+"AstraDBLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/azure_blob_storage",
+"title": "Azure blob storage loader integration",
+"name": "Azure blob storage loader",
+"classes": [
+"AzureBlobStorageContainerLoader",
+"AzureBlobStorageFileLoader",
+"AzureBlobStorageLoader",
+"CSVLoader",
+"PyPDFLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/docling",
+"title": "Docling integration",
+"name": "Docling",
+"classes": [
+"DoclingLoader",
+"HuggingFaceEmbeddings",
+"MarkdownHeaderTextSplitter"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/docugami",
+"title": "Docugami integration",
+"name": "Docugami",
+"classes": [
+"DocugamiLoader",
+"InMemoryStore",
+"MultiVectorRetriever",
+"OpenAIEmbeddings",
+"SelfQueryRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_alloydb",
+"title": "Google alloydb for postgresql integration",
+"name": "Google alloydb for postgresql",
+"classes": [
+"AlloyDBLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_bigquery",
+"title": "Google bigquery integration",
+"name": "Google bigquery",
+"classes": [
+"BigQueryLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_bigtable",
+"title": "Google bigtable integration",
+"name": "Google bigtable",
+"classes": [
+"BigtableLoader",
+"BigtableSaver"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_classroom",
+"title": "Google Classroom integration",
+"name": "Google Classroom",
+"classes": [
+"ChatGoogleGenerativeAI",
+"GoogleClassroomLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_cloud_sql_mssql",
+"title": "Google cloud SQL for SQL server integration",
+"name": "Google cloud SQL for SQL server",
+"classes": [
+"MSSQLDocumentSaver",
+"MSSQLLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_cloud_sql_mysql",
+"title": "Google cloud SQL for mysql integration",
+"name": "Google cloud SQL for mysql",
+"classes": [
+"MySQLDocumentSaver",
+"MySQLLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_cloud_storage_directory",
+"title": "Google cloud storage directory integration",
+"name": "Google cloud storage directory",
+"classes": [
+"GCSDirectoryLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_cloud_storage_file",
+"title": "Google cloud storage file integration",
+"name": "Google cloud storage file",
+"classes": [
+"GCSFileLoader",
+"PyPDFLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_datastore",
+"title": "Google firestore in datastore mode integration",
+"name": "Google firestore in datastore mode",
+"classes": [
+"DatastoreLoader",
+"DatastoreSaver"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_drive",
+"title": "Google drive integration",
+"name": "Google drive",
+"classes": [
+"GDriveLoader",
+"GoogleDriveLoader",
+"UnstructuredFileIOLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_firestore",
+"title": "Google firestore (native mode) integration",
+"name": "Google firestore (native mode)",
+"classes": [
+"FirestoreLoader",
+"FirestoreSaver"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_memorystore_redis",
+"title": "Google memorystore for Redis integration",
+"name": "Google memorystore for Redis",
+"classes": [
+"MemorystoreDocumentLoader",
+"MemorystoreDocumentSaver"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_spanner",
+"title": "Google spanner integration",
+"name": "Google spanner",
+"classes": [
+"SpannerDocumentSaver",
+"SpannerLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/google_speech_to_text",
+"title": "Google speech-to-text audio transcripts integration",
+"name": "Google speech-to-text audio transcripts",
+"classes": [
+"SpeechToTextLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/langsmith",
+"title": "LangSmithLoader integration",
+"name": "LangSmithLoader",
+"classes": [
+"LangSmithLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/oracleadb_loader",
+"title": "Oracle autonomous database integration",
+"name": "Oracle autonomous database",
+"classes": [
+"OracleAutonomousDatabaseLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/oracleai",
+"title": "Oracle AI vector search document processing integration",
+"name": "Oracle AI vector search document processing",
+"classes": [
+"OracleDocLoader",
+"OracleTextSplitter"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/powerscale",
+"title": "Dell powerscale integration",
+"name": "PowerScaleDocumentLoader",
+"classes": [
+"PowerScaleDocumentLoader",
+"PowerScaleUnstructuredLoader",
+"UnstructuredLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/unstructured_file",
+"title": "Unstructured integration",
+"name": "UnstructuredLoader",
+"classes": [
+"UnstructuredFileLoader",
+"UnstructuredLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_loaders/upstage",
+"title": "Upstage integration",
+"name": "Upstage",
+"classes": [
+"UpstageDocumentParseLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_transformers/ai21_semantic_text_splitter",
+"title": "AI21SemanticTextSplitter integration",
+"name": "AI21SemanticTextSplitter",
+"classes": [
+"AI21SemanticTextSplitter"
+]
+},
+{
+"path": "/oss/python/integrations/document_transformers/cross_encoder_reranker",
+"title": "Cross encoder reranker integration",
+"name": "Cross encoder reranker",
+"classes": [
+"ContextualCompressionRetriever",
+"HuggingFaceEmbeddings",
+"RecursiveCharacterTextSplitter",
+"TextLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_transformers/google_cloud_vertexai_rerank",
+"title": "Gemini Enterprise Agent Platform reranker integration",
+"name": "Gemini Enterprise Agent Platform reranker",
+"classes": [
+"ContextualCompressionRetriever",
+"RecursiveCharacterTextSplitter",
+"VertexAIEmbeddings",
+"WebBaseLoader"
+]
+},
+{
+"path": "/oss/python/integrations/document_transformers/google_docai",
+"title": "Google cloud document AI integration",
+"name": "Google cloud document AI",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/document_transformers/google_translate",
+"title": "Google translate integration",
+"name": "Google translate",
+"classes": [
+"GoogleTranslateTransformer"
+]
+},
+{
+"path": "/oss/python/integrations/document_transformers/localai_rerank",
+"title": "Localai reranker integration",
+"name": "Localai reranker",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/document_transformers/voyageai-reranker",
+"title": "VoyageAI by MongoDB reranker integration",
+"name": "VoyageAI reranker",
+"classes": [
+"ContextualCompressionRetriever",
+"RecursiveCharacterTextSplitter",
+"TextLoader",
+"VoyageAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/embeddings/azure_openai",
+"title": "AzureOpenAIEmbeddings integration",
+"name": "AzureOpenAIEmbeddings",
+"classes": [
+"AzureOpenAIEmbeddings",
+"InMemoryVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/baseten",
+"title": "BasetenEmbeddings integration",
+"name": "BasetenEmbeddings",
+"classes": [
+"BasetenEmbeddings",
+"InMemoryVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/bedrock",
+"title": "BedrockEmbeddings integration",
+"name": "BedrockEmbeddings",
+"classes": [
+"BedrockEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/bge_huggingface",
+"title": "BGE on Hugging Face integration",
+"name": "BGE on Hugging Face",
+"classes": [
+"HuggingFaceEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/cohere",
+"title": "CohereEmbeddings integration",
+"name": "CohereEmbeddings",
+"classes": [
+"CohereEmbeddings",
+"InMemoryVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/databricks",
+"title": "DatabricksEmbeddings integration",
+"name": "DatabricksEmbeddings",
+"classes": [
+"DatabricksEmbeddings",
+"InMemoryVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/elasticsearch",
+"title": "Elasticsearch integration",
+"name": "Elasticsearch",
+"classes": [
+"ElasticsearchEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/fireworks",
+"title": "FireworksEmbeddings integration",
+"name": "FireworksEmbeddings",
+"classes": [
+"FireworksEmbeddings",
+"InMemoryVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/google_generative_ai",
+"title": "GoogleGenerativeAIEmbeddings integration",
+"name": "GoogleGenerativeAIEmbeddings",
+"classes": [
+"GoogleGenerativeAIEmbeddings",
+"InMemoryVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/google_vertex_ai",
+"title": "Gemini Enterprise Agent Platform integration",
+"name": "Gemini Enterprise Agent Platform",
+"classes": [
+"GoogleGenerativeAIEmbeddings",
+"InMemoryVectorStore",
+"VertexAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/huggingfacehub",
+"title": "Hugging Face integration",
+"name": "Hugging Face",
+"classes": [
+"HuggingFaceEmbeddings",
+"HuggingFaceEndpointEmbeddings",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/ibm_watsonx",
+"title": "WatsonxEmbeddings integration",
+"name": "WatsonxEmbeddings",
+"classes": [
+"InMemoryVectorStore",
+"WatsonxEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/instruct_embeddings",
+"title": "Instructor embeddings on Hugging Face integration",
+"name": "Instructor embeddings on Hugging Face",
+"classes": [
+"HuggingFaceEmbeddings",
+"HuggingFaceInstructEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/mistralai",
+"title": "MistralAIEmbeddings integration",
+"name": "MistralAIEmbeddings",
+"classes": [
+"InMemoryVectorStore",
+"MistralAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/nvidia_ai_endpoints",
+"title": "NVIDIAEmbeddings integration",
+"name": "NVIDIAEmbeddings",
+"classes": [
+"ChatNVIDIA",
+"ChatPromptTemplate",
+"NVIDIAEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/oci_generative_ai",
+"title": "OCI Generative AI Integration for LangChain",
+"name": "OCIGenAIEmbeddings",
+"classes": [
+"ChatOCIGenAI",
+"OCIGenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/ollama",
+"title": "OllamaEmbeddings integration",
+"name": "OllamaEmbeddings",
+"classes": [
+"InMemoryVectorStore",
+"OllamaEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/openai",
+"title": "OpenAIEmbeddings integration",
+"name": "OpenAIEmbeddings",
+"classes": [
+"AzureOpenAIEmbeddings",
+"InMemoryVectorStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/oracleai",
+"title": "Oracle AI vector search generate integration",
+"name": "Oracle AI vector search generate",
+"classes": [
+"OracleEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/perplexity",
+"title": "PerplexityEmbeddings integration",
+"name": "PerplexityEmbeddings",
+"classes": [
+"InMemoryVectorStore",
+"PerplexityEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/pinecone",
+"title": "Pinecone integration",
+"name": "Pinecone",
+"classes": [
+"PineconeEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/sambanova",
+"title": "SambanovaEmbeddings integration",
+"name": "SambanovaEmbeddings",
+"classes": [
+"InMemoryVectorStore",
+"SambaNovaEmbeddings",
+"SambanovaEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/sentence_transformers",
+"title": "HuggingFaceEmbeddings (Sentence Transformers) integration",
+"name": "HuggingFaceEmbeddings (Sentence Transformers)",
+"classes": [
+"HuggingFaceEmbeddings",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/text_embeddings_inference",
+"title": "Text embeddings inference integration",
+"name": "Text embeddings inference",
+"classes": [
+"HuggingFaceEndpointEmbeddings",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/together",
+"title": "TogetherEmbeddings integration",
+"name": "TogetherEmbeddings",
+"classes": [
+"InMemoryVectorStore",
+"TogetherEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/upstage",
+"title": "UpstageEmbeddings integration",
+"name": "UpstageEmbeddings",
+"classes": [
+"UpstageEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/embeddings/voyageai",
+"title": "VoyageAI by MongoDB integration",
+"name": "Voyage AI",
+"classes": [
+"InMemoryVectorStore",
+"VoyageAIEmbeddings",
+"VoyageEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/graphs/amazon_neptune_open_cypher",
+"title": "Amazon neptune with cypher integration",
+"name": "Amazon neptune with cypher",
+"classes": [
+"ChatBedrockConverse",
+"InMemoryChatMessageHistory"
+]
+},
+{
+"path": "/oss/python/integrations/graphs/kuzu_db",
+"title": "Kuzu integration",
+"name": "Kuzu",
+"classes": [
+"ChatOpenAI",
+"LLMGraphTransformer"
+]
+},
+{
+"path": "/oss/python/integrations/graphs/memgraph",
+"title": "Memgraph integration",
+"name": "Memgraph",
+"classes": [
+"ChatOpenAI",
+"LLMGraphTransformer"
+]
+},
+{
+"path": "/oss/python/integrations/graphs/neo4j_cypher",
+"title": "Neo4j integration",
+"name": "Neo4j",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/graphs/sap_hana_rdf_graph",
+"title": "SAP HANA Cloud Knowledge Graph Engine",
+"name": "SAP HANA Cloud Knowledge Graph Engine",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/graphs/timbr",
+"title": "Timbr integration",
+"name": "Timbr",
+"classes": [
+"ChatAnthropic",
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/llms/ai21",
+"title": "AI21LLM integration",
+"name": "AI21LLM",
+"classes": [
+"AI21LLM",
+"ChatAI21"
+]
+},
+{
+"path": "/oss/python/integrations/llms/aimlapi",
+"title": "AIMLAPI integration",
+"name": "AIMLAPI",
+"classes": [
+"AimlapiLLM"
+]
+},
+{
+"path": "/oss/python/integrations/llms/anthropic",
+"title": "AnthropicLLM integration",
+"name": "AnthropicLLM",
+"classes": [
+"AnthropicLLM"
+]
+},
+{
+"path": "/oss/python/integrations/llms/azure_openai",
+"title": "Azure OpenAI integration",
+"name": "Azure OpenAI",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/llms/bedrock",
+"title": "Bedrock integration",
+"name": "Bedrock",
+"classes": [
+"AsyncCallbackHandler",
+"BedrockLLM"
+]
+},
+{
+"path": "/oss/python/integrations/llms/cohere",
+"title": "Cohere integration",
+"name": "Cohere",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/llms/google_generative_ai",
+"title": "GoogleGenerativeAI integration",
+"name": "GoogleGenerativeAI",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/llms/google_vertex_ai",
+"title": "Gemini Enterprise Agent Platform integration",
+"name": "Gemini Enterprise Agent Platform",
+"classes": [
+"ChatVertexAI"
+]
+},
+{
+"path": "/oss/python/integrations/llms/huggingface_endpoint",
+"title": "Huggingface endpoints integration",
+"name": "Huggingface endpoints",
+"classes": [
+"StreamingStdOutCallbackHandler"
+]
+},
+{
+"path": "/oss/python/integrations/llms/huggingface_pipelines",
+"title": "Hugging Face local pipelines integration",
+"name": "Hugging Face local pipelines",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/llms/ibm_watsonx",
+"title": "IBM watsonx.ai integration",
+"name": "WatsonxLLM",
+"classes": [
+"WatsonxLLM"
+]
+},
+{
+"path": "/oss/python/integrations/llms/modelscope_endpoint",
+"title": "ModelScopeEndpoint integration",
+"name": "ModelScope",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/llms/nvidia_ai_endpoints",
+"title": "NVIDIA integration",
+"name": "NVIDIA",
+"classes": [
+"ChatNVIDIA"
+]
+},
+{
+"path": "/oss/python/integrations/llms/ollama",
+"title": "Ollama integration",
+"name": "Ollama",
+"classes": [
+"ChatOllama",
+"ChatPromptTemplate",
+"OllamaLLM"
+]
+},
+{
+"path": "/oss/python/integrations/llms/openai",
+"title": "OpenAI integration",
+"name": "ChatOpenAI",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/llms/openvino",
+"title": "Openvino integration",
+"name": "Openvino",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/llms/pipeshift",
+"title": "Pipeshift integration",
+"name": "Pipeshift",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/llms/predictionguard",
+"title": "Predictionguard integration",
+"name": "Predictionguard",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/llms/sagemaker",
+"title": "SageMakerEndpoint integration",
+"name": "SageMakerEndpoint",
+"classes": [
+"LLMContentHandler"
+]
+},
+{
+"path": "/oss/python/integrations/llms/together",
+"title": "Together AI integration",
+"name": "Together AI",
+"classes": [
+"ChatTogether"
+]
+},
+{
+"path": "/oss/python/integrations/memory/mongodb-long-term-memory",
+"title": "Long-term memory with MongoDB Atlas",
+"name": "str",
+"classes": [
+"MongoDBStore"
+]
+},
+{
+"path": "/oss/python/integrations/memory/mongodb-short-term-memory",
+"title": "Short-term memory with MongoDB Atlas",
+"name": "",
+"classes": [
+"MongoDBSaver"
+]
+},
+{
+"path": "/oss/python/integrations/middleware/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/middleware/anthropic",
+"title": "Anthropic middleware integration",
+"name": "Anthropic middleware",
+"classes": [
+"AnthropicPromptCachingMiddleware",
+"ChatAnthropic",
+"ClaudeBashToolMiddleware",
+"FilesystemClaudeMemoryMiddleware",
+"FilesystemClaudeTextEditorMiddleware",
+"MemorySaver",
+"ShellToolMiddleware",
+"StateClaudeMemoryMiddleware",
+"StateClaudeTextEditorMiddleware"
+]
+},
+{
+"path": "/oss/python/integrations/middleware/aws",
+"title": "AWS middleware integration",
+"name": "AWS middleware",
+"classes": [
+"BedrockPromptCachingMiddleware",
+"ChatBedrock",
+"ChatBedrockConverse",
+"MemorySaver",
+"PaymentResponseHandler"
+]
+},
+{
+"path": "/oss/python/integrations/middleware/azure_ai",
+"title": "Microsoft Foundry middleware integration",
+"name": "Microsoft Foundry middleware",
+"classes": [
+"AzureContentModerationMiddleware",
+"AzureGroundednessMiddleware",
+"AzurePromptShieldMiddleware",
+"AzureProtectedMaterialMiddleware"
+]
+},
+{
+"path": "/oss/python/integrations/middleware/nvidia",
+"title": "NVIDIA middleware integration",
+"name": "NVIDIA middleware",
+"classes": [
+"ChatNVIDIA",
+"ChatOpenRouter",
+"SwitchyardRoutingMiddleware"
+]
+},
+{
+"path": "/oss/python/integrations/middleware/openai",
+"title": "OpenAI middleware integration",
+"name": "OpenAI middleware",
+"classes": [
+"ChatOpenAI",
+"OpenAIModerationMiddleware"
+]
+},
+{
+"path": "/oss/python/integrations/middleware/scaledown",
+"title": "ScaleDown middleware integration",
+"name": "ScaleDown middleware",
+"classes": [
+"ScaledownCompressionMiddleware",
+"ScaledownExtractionMiddleware",
+"ScaledownSummarizationMiddleware",
+"ScaledownToolCompressionMiddleware",
+"SummarizationMiddleware"
+]
+},
+{
+"path": "/oss/python/integrations/providers/aerospike",
+"title": "Aerospike integrations",
+"name": "",
+"classes": [
+"AerospikeSaver",
+"AerospikeStore"
+]
+},
+{
+"path": "/oss/python/integrations/providers/agentsystems",
+"title": "AgentSystems",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/ai21",
+"title": "AI21 labs integrations",
+"name": "",
+"classes": [
+"AI21LLM",
+"AI21SemanticTextSplitter",
+"ChatAI21"
+]
+},
+{
+"path": "/oss/python/integrations/providers/aimlapi",
+"title": "AI/ML API integrations",
+"name": "",
+"classes": [
+"AimlapiEmbeddings",
+"AimlapiLLM",
+"ChatAimlapi"
+]
+},
+{
+"path": "/oss/python/integrations/providers/alibaba_cloud",
+"title": "Alibaba cloud integrations",
+"name": "",
+"classes": [
+"ChatQwQ",
+"ChatQwen"
+]
+},
+{
+"path": "/oss/python/integrations/providers/all_providers",
+"title": "All LangChain Python integration providers",
+"name": "",
+"classes": [
+"AMUVectorStore",
+"AgentReaderLoader",
+"AnyToMarkdownLoader",
+"ChatEXAONE",
+"ChatLinkrra",
+"ChatLlamay",
+"ChatMeragpt",
+"ChatMessageHistory",
+"ChatOpenAI",
+"ChatOptiQ",
+"ChatRouter",
+"CommentScraperLoader",
+"ContextFetchRetriever",
+"ContextualCompressionRetriever",
+"CyborgVectorStore",
+"DoclingLoader",
+"FastOCRLoader",
+"FlatmarkLoader",
+"FoddaContextRetriever",
+"HouyiVectorStore",
+"LlamayEmbeddings",
+"MembaseRetriever",
+"OpenDataLoader",
+"RecallRetriever",
+"RushDBVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/providers/anthropic",
+"title": "Anthropic (Claude) integrations",
+"name": "",
+"classes": [
+"ChatAnthropic"
+]
+},
+{
+"path": "/oss/python/integrations/providers/anyllm",
+"title": "any-llm integrations",
+"name": "",
+"classes": [
+"ChatAnyLLM"
+]
+},
+{
+"path": "/oss/python/integrations/providers/astradb",
+"title": "Astra DB integrations",
+"name": "",
+"classes": [
+"AstraDBByteStore",
+"AstraDBLoader",
+"AstraDBStore",
+"AstraDBVectorStore",
+"SelfQueryRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/aws",
+"title": "AWS (Amazon) integrations",
+"name": "",
+"classes": [
+"AgentCoreMemorySaver",
+"AgentCoreMemoryStore",
+"AmazonKnowledgeBasesRetriever",
+"BaseChatOpenAI",
+"BedrockEmbeddings",
+"ChatAnthropic",
+"ChatAnthropicMantle",
+"ChatBedrockConverse",
+"ChatOpenAIMantle",
+"DynamoDBVectorStore",
+"InMemoryVectorStore",
+"ValkeyVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/providers/azure_ai",
+"title": "Azure AI integrations",
+"name": "",
+"classes": [
+"AsyncCosmosDBChatMessageHistory",
+"AzureAIOpenAIApiChatModel",
+"AzureAISearchRetriever",
+"AzureBlobBackend",
+"AzureChatOpenAI",
+"AzureOpenAIEmbeddings",
+"ChatOpenAI",
+"CosmosDBChatMessageHistory",
+"OpenAIEmbeddings",
+"SqliteSaver"
+]
+},
+{
+"path": "/oss/python/integrations/providers/baseten",
+"title": "Baseten integrations",
+"name": "",
+"classes": [
+"BasetenEmbeddings",
+"ChatBaseten"
+]
+},
+{
+"path": "/oss/python/integrations/providers/box",
+"title": "Box integrations",
+"name": "",
+"classes": [
+"BoxBlobLoader",
+"BoxLoader",
+"BoxRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/browser_use",
+"title": "Browser Use integrations",
+"name": "Browser Use",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/browserbase",
+"title": "Browserbase integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/cerebras",
+"title": "Cerebras integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/chroma",
+"title": "Chroma integrations",
+"name": "",
+"classes": [
+"SelfQueryRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/cockroachdb",
+"title": "CockroachDB integrations",
+"name": "",
+"classes": [
+"AsyncCockroachDBSaver",
+"AsyncCockroachDBVectorStore",
+"CockroachDBChatMessageHistory",
+"CockroachDBSaver",
+"CockroachDBStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/cohere",
+"title": "Cohere integrations",
+"name": "",
+"classes": [
+"ChatCohere",
+"ChatPromptTemplate",
+"CohereEmbeddings",
+"CohereRagRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/context",
+"title": "Context integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/cratedb",
+"title": "CrateDB integrations",
+"name": "",
+"classes": [
+"CharacterTextSplitter",
+"ChatOpenAI",
+"CrateDBChatMessageHistory",
+"CrateDBLoader",
+"CrateDBVectorStore",
+"OpenAIEmbeddings",
+"UnstructuredURLLoader"
+]
+},
+{
+"path": "/oss/python/integrations/providers/databricks",
+"title": "Databricks integrations",
+"name": "",
+"classes": [
+"ChatDatabricks",
+"DatabricksEmbeddings",
+"DatabricksSandbox"
+]
+},
+{
+"path": "/oss/python/integrations/providers/datadog",
+"title": "Datadog tracing integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/daytona",
+"title": "Daytona integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/deepseek",
+"title": "DeepSeek integrations",
+"name": "",
+"classes": [
+"ChatDeepSeek"
+]
+},
+{
+"path": "/oss/python/integrations/providers/dell",
+"title": "Dell integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/discord-shikenso",
+"title": "Discord integrations",
+"name": "",
+"classes": [
+"DiscordToolkit"
+]
+},
+{
+"path": "/oss/python/integrations/providers/docling",
+"title": "Docling integrations",
+"name": "",
+"classes": [
+"DoclingLoader"
+]
+},
+{
+"path": "/oss/python/integrations/providers/docugami",
+"title": "Docugami integrations",
+"name": "",
+"classes": [
+"DocugamiLoader"
+]
+},
+{
+"path": "/oss/python/integrations/providers/egnyte",
+"title": "Egnyte",
+"name": "",
+"classes": [
+"EgnyteRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/elasticsearch",
+"title": "Elasticsearch integrations",
+"name": "",
+"classes": [
+"ElasticsearchEmbeddings",
+"ElasticsearchRetriever",
+"ElasticsearchStore"
+]
+},
+{
+"path": "/oss/python/integrations/providers/exa_search",
+"title": "Exa integrations",
+"name": "",
+"classes": [
+"ExaSearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/fireworks",
+"title": "Fireworks integrations",
+"name": "",
+"classes": [
+"ChatFireworks",
+"FireworksEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/google",
+"title": "Google integrations",
+"name": "",
+"classes": [
+"BigQueryCallbackHandler",
+"ChatAnthropicVertex",
+"ChatGoogleGenerativeAI",
+"ChatVertexAI",
+"CloudVisionLoader",
+"GemmaChatLocalHF",
+"GemmaChatLocalKaggle",
+"GemmaChatVertexAIModelGarden",
+"GoogleGenerativeAIEmbeddings",
+"VertexAICallbackHandler",
+"VertexAIEmbeddings",
+"VertexAIImageCaptioningChat",
+"VertexAIImageEditorChat",
+"VertexAIImageGeneratorChat",
+"VertexAIMultiTurnSearchRetriever",
+"VertexAISearchRetriever",
+"VertexAISearchSummaryTool",
+"VertexAIVisualQnAChat"
+]
+},
+{
+"path": "/oss/python/integrations/providers/graph_rag",
+"title": "Graph RAG integrations",
+"name": "",
+"classes": [
+"GraphRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/graphsignal",
+"title": "Graphsignal integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/groq",
+"title": "Groq integrations",
+"name": "",
+"classes": [
+"ChatGroq"
+]
+},
+{
+"path": "/oss/python/integrations/providers/helicone",
+"title": "Helicone integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/huggingface",
+"title": "Hugging Face integrations",
+"name": "",
+"classes": [
+"ChatHuggingFace",
+"HuggingFaceEmbeddings",
+"HuggingFaceEndpointEmbeddings",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/ibm",
+"title": "IBM integrations",
+"name": "",
+"classes": [
+"ChatWatsonx",
+"WatsonxEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/johnsnowlabs",
+"title": "Johnsnowlabs integrations",
+"name": "",
+"classes": [
+"JohnSnowLabsEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/konlpy",
+"title": "Konlpy integrations",
+"name": "",
+"classes": [
+"KonlpyTextSplitter"
+]
+},
+{
+"path": "/oss/python/integrations/providers/kuzu",
+"title": "K\u00f9zu integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/langchain_decorators",
+"title": "LangChain decorators integrations",
+"name": "str = Field (description=\"The name of the company\")",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/providers/langfair",
+"title": "Langfair integrations",
+"name": "",
+"classes": [
+"ChatVertexAI"
+]
+},
+{
+"path": "/oss/python/integrations/providers/langfuse",
+"title": "Langfuse integrations",
+"name": "",
+"classes": [
+"CallbackHandler",
+"ChatOpenAI",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/providers/litellm",
+"title": "LiteLLM integrations",
+"name": "",
+"classes": [
+"ChatLiteLLM",
+"ChatLiteLLMRouter",
+"LiteLLMEmbeddings",
+"LiteLLMOCRLoader"
+]
+},
+{
+"path": "/oss/python/integrations/providers/localai",
+"title": "Localai integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/log10",
+"title": "Log10 integrations",
+"name": "",
+"classes": [
+"ChatAnthropic",
+"ChatOpenAI",
+"Log10Callback"
+]
+},
+{
+"path": "/oss/python/integrations/providers/memgraph",
+"title": "Memgraph integrations",
+"name": "",
+"classes": [
+"LLMGraphTransformer",
+"MemgraphToolkit"
+]
+},
+{
+"path": "/oss/python/integrations/providers/metal",
+"title": "Metal integrations",
+"name": "",
+"classes": [
+"MetalRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/microsoft",
+"title": "Microsoft integrations",
+"name": "",
+"classes": [
+"AzureAIOpenAIApiChatModel",
+"AzureChatOpenAI",
+"ChatAnthropic",
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/providers/milvus",
+"title": "Milvus integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/mindsdb",
+"title": "Mindsdb integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/mistralai",
+"title": "MistralAI integrations",
+"name": "",
+"classes": [
+"ChatMistralAI",
+"MistralAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/mlflow_tracking",
+"title": "MLflow integrations",
+"name": "",
+"classes": [
+"ChatOpenAI",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/providers/modal",
+"title": "Modal integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/modelscope",
+"title": "Modelscope integrations",
+"name": "",
+"classes": [
+"ModelScopeChatEndpoint",
+"ModelScopeEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/mongodb",
+"title": "MongoDB integrations",
+"name": "",
+"classes": [
+"MongoDBAtlasFullTextSearchRetriever",
+"MongoDBAtlasHybridSearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/mongodb_atlas",
+"title": "MongoDB atlas integrations",
+"name": "",
+"classes": [
+"FakeEmbeddings",
+"MongoDBAtlasFullTextSearchRetriever",
+"MongoDBAtlasHybridSearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/motorhead",
+"title": "Mot\u00f6rhead integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/neo4j",
+"title": "Neo4j integrations",
+"name": "",
+"classes": [
+"DiffbotGraphTransformer",
+"Neo4jSaver"
+]
+},
+{
+"path": "/oss/python/integrations/providers/nvidia",
+"title": "NVIDIA",
+"name": "",
+"classes": [
+"ChatNVIDIA",
+"ChatNVIDIADynamo",
+"ChatOpenRouter",
+"NVIDIAEmbeddings",
+"NVIDIARAGRetriever",
+"OpenShellSandbox",
+"SwitchyardRoutingMiddleware"
+]
+},
+{
+"path": "/oss/python/integrations/providers/oci",
+"title": "OCI Generative AI Integration for LangChain",
+"name": "",
+"classes": [
+"ChatOCIGenAI",
+"ChatOCIModelDeployment",
+"ChatOCIModelDeploymentTGI",
+"ChatOCIModelDeploymentVLLM",
+"ChatOCIOpenAI",
+"OCIGenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/ollama",
+"title": "Ollama integrations",
+"name": "",
+"classes": [
+"ChatOllama",
+"OllamaEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/open_agent_spec",
+"title": "Open agent spec integrations",
+"name": "",
+"classes": [
+"AgentSpecLoader",
+"ServerTool"
+]
+},
+{
+"path": "/oss/python/integrations/providers/openai",
+"title": "OpenAI integrations",
+"name": "",
+"classes": [
+"AzureOpenAIEmbeddings",
+"ChatOpenAI",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/openrouter",
+"title": "OpenRouter integrations",
+"name": "",
+"classes": [
+"ChatOpenRouter"
+]
+},
+{
+"path": "/oss/python/integrations/providers/oracleai",
+"title": "OracleAI vector search integrations",
+"name": "",
+"classes": [
+"OracleDocLoader",
+"OracleEmbeddings",
+"OracleTextSplitter"
+]
+},
+{
+"path": "/oss/python/integrations/providers/overview",
+"title": "LangChain Python integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/parallel",
+"title": "Parallel integrations",
+"name": "",
+"classes": [
+"BaseRetriever",
+"ChatParallel",
+"ParallelSearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/perplexity",
+"title": "Perplexity integrations",
+"name": "",
+"classes": [
+"ChatPerplexity",
+"PerplexityEmbeddings",
+"PerplexitySearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/pinecone",
+"title": "Pinecone integrations",
+"name": "",
+"classes": [
+"PineconeSparseEmbeddings",
+"PineconeSparseVectorStore",
+"PineconeVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/providers/pipeshift",
+"title": "Pipeshift integrations",
+"name": "",
+"classes": [
+"ChatPipeshift"
+]
+},
+{
+"path": "/oss/python/integrations/providers/plainid",
+"title": "PlainID integrations",
+"name": "",
+"classes": [
+"PlainIDRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/providers/predictionguard",
+"title": "Prediction guard integrations",
+"name": "",
+"classes": [
+"ChatPredictionGuard",
+"PredictionGuardEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/privy",
+"title": "Privy integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/qdrant",
+"title": "Qdrant integrations",
+"name": "",
+"classes": [
+"QdrantVectorStore",
+"SparseEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/ray_serve",
+"title": "Ray serve integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/redis",
+"title": "Redis integrations",
+"name": "",
+"classes": [
+"FakeEmbeddings",
+"RedisVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/providers/remembrall",
+"title": "Remembrall integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/replicate",
+"title": "Replicate integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/sambanova",
+"title": "Sambanova integrations",
+"name": "",
+"classes": [
+"ChatSambaNova",
+"SambaNovaEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/sap",
+"title": "Sap integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/shaleprotocol",
+"title": "Shale protocol integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/supadata",
+"title": "",
+"name": "",
+"classes": [
+"SupadataLoader"
+]
+},
+{
+"path": "/oss/python/integrations/providers/tableau",
+"title": "Tableau integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/tavily",
+"title": "Tavily integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/tensorlake",
+"title": "Tensorlake integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/timbr",
+"title": "Timbr integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/together",
+"title": "Together AI integrations",
+"name": "",
+"classes": [
+"ChatTogether"
+]
+},
+{
+"path": "/oss/python/integrations/providers/toolbox",
+"title": "Mcp toolbox integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/truefoundry",
+"title": "Truefoundry integrations",
+"name": "",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/providers/trulens",
+"title": "Trulens integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/providers/typesafe",
+"title": "TypeSafe integrations",
+"name": "",
+"classes": [
+"AgentMiddleware",
+"AutoModeMiddleware",
+"ModelRouterMiddleware"
+]
+},
+{
+"path": "/oss/python/integrations/providers/unstructured",
+"title": "Unstructured integrations",
+"name": "",
+"classes": [
+"UnstructuredLoader"
+]
+},
+{
+"path": "/oss/python/integrations/providers/upstage",
+"title": "Upstage integrations",
+"name": "",
+"classes": [
+"ChatUpstage",
+"UpstageDocumentParseLoader",
+"UpstageEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/voyageai",
+"title": "VoyageAI by MongoDB integrations",
+"name": "",
+"classes": [
+"VoyageAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/providers/weaviate",
+"title": "Weaviate integrations",
+"name": "",
+"classes": [
+"WeaviateVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/providers/xai",
+"title": "xAI integrations",
+"name": "",
+"classes": [
+"ChatXAI"
+]
+},
+{
+"path": "/oss/python/integrations/providers/yeagerai",
+"title": "Yeager.ai integrations",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/retrievers/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/retrievers/azure_ai_search",
+"title": "Azure AI Search integration",
+"name": "AzureAISearchRetriever",
+"classes": [
+"AzureAISearchRetriever",
+"AzureOpenAIEmbeddings",
+"CharacterTextSplitter",
+"ChatOpenAI",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/bedrock",
+"title": "Bedrock (knowledge bases) integration",
+"name": "AmazonKnowledgeBasesRetriever",
+"classes": [
+"AmazonKnowledgeBasesRetriever",
+"ChatBedrock",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/box",
+"title": "BoxRetriever integration",
+"name": "BoxRetriever",
+"classes": [
+"BoxRetriever",
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/cohere",
+"title": "Cohere RAG integration",
+"name": "Cohere RAG",
+"classes": [
+"ChatCohere",
+"CohereRagRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/cohere-reranker",
+"title": "Cohere reranker integration",
+"name": "Cohere reranker",
+"classes": [
+"ChatCohere",
+"CohereEmbeddings",
+"ContextualCompressionRetriever",
+"RecursiveCharacterTextSplitter",
+"TextLoader"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/egnyte",
+"title": "EgnyteRetriever",
+"name": "EgnyteRetriever",
+"classes": [
+"ChatOpenAI",
+"EgnyteRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/elasticsearch_retriever",
+"title": "Elasticsearch integration",
+"name": "ElasticsearchRetriever",
+"classes": [
+"ElasticsearchEmbeddings",
+"ElasticsearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/google_drive",
+"title": "Google drive integration",
+"name": "Google drive",
+"classes": [
+"GoogleDriveRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/google_vertex_ai_search",
+"title": "Gemini Enterprise Agent Platform search integration",
+"name": "VertexAISearchRetriever",
+"classes": [
+"GoogleCloudEnterpriseSearchRetriever",
+"VertexAIMultiTurnSearchRetriever",
+"VertexAISearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/graph_rag",
+"title": "Graph RAG integration",
+"name": "Graph RAG",
+"classes": [
+"AstraDBVectorStore",
+"GraphRetriever",
+"InMemoryVectorStore",
+"ShreddingTransformer"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/ibm_watsonx_ranker",
+"title": "IBM watsonx.ai integration",
+"name": "WatsonxRerank",
+"classes": [
+"ChatWatsonx",
+"ContextualCompressionRetriever",
+"RecursiveCharacterTextSplitter",
+"TextLoader",
+"WatsonxEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/mongodb_atlas",
+"title": "MongoDB Atlas",
+"name": "MongoDBAtlas",
+"classes": [
+"BaseRetriever",
+"ChatAnthropic",
+"ChatPromptTemplate",
+"MongoDBAtlasFullTextSearchRetriever",
+"MongoDBAtlasHybridSearchRetriever",
+"VoyageAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/nvidia",
+"title": "NVIDIARAGRetriever integration",
+"name": "NVIDIARAGRetriever",
+"classes": [
+"ChatNVIDIA",
+"ChatPromptTemplate",
+"NVIDIAEmbeddings",
+"NVIDIARAGRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/parallel",
+"title": "ParallelSearchRetriever integration",
+"name": "ParallelSearchRetriever",
+"classes": [
+"BaseRetriever",
+"ChatPromptTemplate",
+"ParallelSearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/perplexity_search",
+"title": "PerplexitySearch integration",
+"name": "PerplexitySearchRetriever",
+"classes": [
+"ChatOpenAI",
+"ChatPromptTemplate",
+"PerplexitySearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/retrievers/pinecone_rerank",
+"title": "Pinecone rerank integration",
+"name": "Pinecone rerank",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/retrievers/ragatouille",
+"title": "Ragatouille integration",
+"name": "Ragatouille",
+"classes": [
+"ChatOpenAI",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/sandboxes/aws",
+"title": "AgentCoreSandbox integration",
+"name": "AgentCoreSandbox",
+"classes": [
+"AgentCoreSandbox",
+"ChatAnthropic"
+]
+},
+{
+"path": "/oss/python/integrations/sandboxes/databricks",
+"title": "DatabricksSandbox integration",
+"name": "DatabricksSandbox",
+"classes": [
+"ChatAnthropic",
+"ChatDatabricks",
+"DatabricksSandbox"
+]
+},
+{
+"path": "/oss/python/integrations/sandboxes/daytona",
+"title": "DaytonaSandbox integration",
+"name": "DaytonaSandbox",
+"classes": [
+"ChatAnthropic",
+"DaytonaSandbox"
+]
+},
+{
+"path": "/oss/python/integrations/sandboxes/langsmith",
+"title": "LangSmith sandbox integration",
+"name": "LangSmith sandbox",
+"classes": [
+"ChatAnthropic",
+"LangSmithSandbox"
+]
+},
+{
+"path": "/oss/python/integrations/sandboxes/modal",
+"title": "ModalSandbox integration",
+"name": "ModalSandbox",
+"classes": [
+"ChatAnthropic",
+"ModalSandbox"
+]
+},
+{
+"path": "/oss/python/integrations/splitters/markdown_header_metadata_splitter",
+"title": "Split markdown - text splitter integration",
+"name": "Split markdown - text splitter",
+"classes": [
+"MarkdownHeaderTextSplitter",
+"RecursiveCharacterTextSplitter"
+]
+},
+{
+"path": "/oss/python/integrations/splitters/recursive_json_splitter",
+"title": "Split JSON data - text splitter integration",
+"name": "Split JSON data - text splitter",
+"classes": [
+"RecursiveJsonSplitter"
+]
+},
+{
+"path": "/oss/python/integrations/splitters/split_html",
+"title": "Split HTML - text splitter integration",
+"name": "Split HTML - text splitter",
+"classes": [
+"HTMLHeaderTextSplitter",
+"HTMLSectionSplitter",
+"HTMLSemanticPreservingSplitter",
+"RecursiveCharacterTextSplitter"
+]
+},
+{
+"path": "/oss/python/integrations/stores/astradb",
+"title": "AstraDBByteStore integration",
+"name": "AstraDBByteStore",
+"classes": [
+"AstraDBByteStore"
+]
+},
+{
+"path": "/oss/python/integrations/stores/bigtable",
+"title": "BigTableByteStore integration",
+"name": "BigtableByteStore",
+"classes": [
+"BaseRetriever",
+"CacheBackedEmbeddings",
+"KVDocumentRetriever",
+"SimpleKVStoreRetriever",
+"VertexAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/stores/elasticsearch",
+"title": "ElasticsearchEmbeddingsCache integration",
+"name": "ElasticsearchEmbeddingsCache",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/stores/file_system",
+"title": "LocalFileStore integration",
+"name": "LocalFileStore",
+"classes": [
+"LocalFileStore"
+]
+},
+{
+"path": "/oss/python/integrations/stores/in_memory",
+"title": "InMemoryByteStore integration",
+"name": "InMemoryByteStore",
+"classes": [
+"InMemoryByteStore"
+]
+},
+{
+"path": "/oss/python/integrations/stores/openviking",
+"title": "OpenVikingStore integration",
+"name": "OpenVikingStore",
+"classes": [
+"OpenVikingStore"
+]
+},
+{
+"path": "/oss/python/integrations/tools/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/tools/azure_ai",
+"title": "Microsoft Foundry tools integration",
+"name": "Microsoft Foundry tools",
+"classes": [
+"AzureOpenAIModelImageGenTool",
+"AzureOpenAITranscriptionsTool",
+"CodeInterpreterTool",
+"FileSearchTool",
+"ImageGenerationTool",
+"McpTool",
+"WebSearchTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/azure_ai_services",
+"title": "Microsoft Foundry Tools (formerly Azure AI Services) tools integration",
+"name": "Microsoft Foundry Tools (formerly Azure AI Services) tools",
+"classes": [
+"AzureAIContentUnderstandingTool",
+"AzureAIDocumentIntelligenceTool",
+"AzureAIImageAnalysisTool",
+"AzureAIServicesToolkit",
+"AzureAISpeechToTextTool",
+"AzureAITextAnalyticsHealthTool",
+"AzureAITextToSpeechTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/azure_dynamic_sessions",
+"title": "Azure container apps dynamic sessions integration",
+"name": "Azure container apps dynamic sessions",
+"classes": [
+"ChatOpenAI",
+"SessionsPythonREPLTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/azure_logic_apps",
+"title": "Azure Logic Apps integration",
+"name": "Azure Logic Apps",
+"classes": [
+"AzureLogicAppTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/bedrock_agentcore_browser",
+"title": "Amazon Bedrock agentcore browser integration",
+"name": "BrowserToolkit",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/tools/bedrock_agentcore_code_interpreter",
+"title": "Amazon Bedrock agentcore code interpreter integration",
+"name": "CodeInterpreterToolkit",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/tools/bedrock_agentcore_web_search",
+"title": "Amazon Bedrock AgentCore Web Search integration",
+"name": "WebSearchToolkit",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/tools/cdp_agentkit",
+"title": "Cdp agentkit toolkit integration",
+"name": "Cdp agentkit toolkit",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/tools/composio",
+"title": "Composio integration",
+"name": "Composio",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/tools/databricks",
+"title": "Databricks unity catalog (Uc) integration",
+"name": "Databricks unity catalog (Uc)",
+"classes": [
+"ChatDatabricks",
+"ChatPromptTemplate"
+]
+},
+{
+"path": "/oss/python/integrations/tools/discord",
+"title": "Discord integration",
+"name": "Discord",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/tools/exa_search",
+"title": "Exa search integration",
+"name": "Exa search",
+"classes": [
+"ExaSearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/tools/google_calendar",
+"title": "Google calendar toolkit integration",
+"name": "Google calendar toolkit",
+"classes": [
+"CalendarToolkit",
+"ChatModelTabs",
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/tools/google_cloud_texttospeech",
+"title": "Google cloud text-to-speech integration",
+"name": "Google cloud text-to-speech",
+"classes": [
+"GoogleCloudTextToSpeechTool",
+"TextToSpeechTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/google_drive",
+"title": "Google drive integration",
+"name": "Google drive",
+"classes": [
+"GoogleDriveSearchTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/google_gmail",
+"title": "Gmail toolkit integration",
+"name": "Gmail toolkit",
+"classes": [
+"ChatModelTabs",
+"ChatOpenAI",
+"GmailToolkit"
+]
+},
+{
+"path": "/oss/python/integrations/tools/google_imagen",
+"title": "Google imagen integration",
+"name": "Google imagen",
+"classes": [
+"VertexAIImageGeneratorChat",
+"VertexAIVisualQnAChat"
+]
+},
+{
+"path": "/oss/python/integrations/tools/google_search",
+"title": "Google search integration",
+"name": "Google search",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/tools/ibm_watsonx",
+"title": "IBM watsonx.ai integration",
+"name": "WatsonxToolkit",
+"classes": [
+"ChatWatsonx",
+"WatsonxToolkit"
+]
+},
+{
+"path": "/oss/python/integrations/tools/ibm_watsonx_sql",
+"title": "IBM watsonx.ai SQL integration",
+"name": "WatsonxSQLDatabaseToolkit",
+"classes": [
+"ChatWatsonx",
+"WatsonxSQLDatabaseToolkit"
+]
+},
+{
+"path": "/oss/python/integrations/tools/mcp_toolbox",
+"title": "Mcp toolbox for databases integration",
+"name": "Mcp toolbox for databases",
+"classes": [
+"ChatVertexAI",
+"MemorySaver"
+]
+},
+{
+"path": "/oss/python/integrations/tools/oracleai",
+"title": "Oracle AI vector search generate summary integration",
+"name": "Oracle AI vector search generate summary",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/tools/parallel_extract",
+"title": "Parallel extract integration",
+"name": "Parallel extract",
+"classes": [
+"ParallelExtractTool",
+"ParallelSearchTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/parallel_findall",
+"title": "Parallel FindAll integration",
+"name": "Parallel FindAll",
+"classes": [
+"ParallelFindAllTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/parallel_monitor",
+"title": "Parallel Monitor integration",
+"name": "Parallel Monitor",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/tools/parallel_search",
+"title": "Parallel search integration",
+"name": "Parallel search",
+"classes": [
+"BaseRetriever",
+"ChatParallel",
+"ParallelSearchRetriever",
+"ParallelSearchTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/parallel_task",
+"title": "Parallel Task API integration",
+"name": "Parallel Task API",
+"classes": [
+"ParallelTaskRunTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/perplexity_search",
+"title": "Perplexity search integration",
+"name": "Perplexity search",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/tools/privy",
+"title": "Privy integration",
+"name": "Privy",
+"classes": [
+"PrivyWalletTool"
+]
+},
+{
+"path": "/oss/python/integrations/tools/stagehand",
+"title": "Stagehand + Browserbase integration",
+"name": "Stagehand",
+"classes": [
+"InMemorySaver",
+"StagehandMiddleware"
+]
+},
+{
+"path": "/oss/python/integrations/tools/stripe",
+"title": "StripeAgentToolkit integration",
+"name": "StripeAgentToolkit",
+"classes": [
+"ChatAnthropic",
+"StripeAgentToolkit"
+]
+},
+{
+"path": "/oss/python/integrations/tools/tableau",
+"title": "Tableau integration",
+"name": "Tableau",
+"classes": [
+"ChatOpenAI"
+]
+},
+{
+"path": "/oss/python/integrations/tools/tavily_crawl",
+"title": "Tavily crawl integration",
+"name": "Tavily crawl",
+"classes": [
+"ChatModelTabs"
+]
+},
+{
+"path": "/oss/python/integrations/tools/tavily_extract",
+"title": "Tavily extract integration",
+"name": "Tavily extract",
+"classes": [
+"ChatModelTabs"
+]
+},
+{
+"path": "/oss/python/integrations/tools/tavily_map",
+"title": "Tavily map integration",
+"name": "Tavily map",
+"classes": [
+"ChatModelTabs"
+]
+},
+{
+"path": "/oss/python/integrations/tools/tavily_search",
+"title": "Tavily search integration",
+"name": "Tavily search",
+"classes": [
+"ChatModelTabs"
+]
+},
+{
+"path": "/oss/python/integrations/tools/unstructured_transform",
+"title": "Unstructured Transform integration",
+"name": "UnstructuredTransformToolkit",
+"classes": [
+"UnstructuredTransformToolkit"
+]
+},
+{
+"path": "/oss/python/integrations/tools/upstage_groundedness_check",
+"title": "Upstage groundedness check integration",
+"name": "Upstage groundedness check",
+"classes": []
+},
+{
+"path": "/oss/python/integrations/vectorstores/TEMPLATE",
+"title": "(MODULE_NAME) integration",
+"name": "",
+"classes": [
+"VectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/astradb",
+"title": "Astra DB integration",
+"name": "AstraDBVectorStore",
+"classes": [
+"AstraDBVectorStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/azure_cosmos_db_mongo_vcore",
+"title": "Azure Cosmos DB mongo vcore integration",
+"name": "AzureCosmosDBMongoVCoreVectorStore",
+"classes": [
+"AzureCosmosDBMongoVCoreVectorStore",
+"AzureOpenAIEmbeddings",
+"CharacterTextSplitter",
+"ChatGPT",
+"TextLoader"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/azure_cosmos_db_no_sql",
+"title": "Azure Cosmos DB NoSQL integration",
+"name": "AzureCosmosDBNoSqlVectorStore",
+"classes": [
+"AzureCosmosDBNoSqlVectorStore",
+"AzureOpenAIEmbeddings",
+"ChatGPT",
+"PyPDFLoader",
+"RecursiveCharacterTextSplitter"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/azure_db_for_postgresql",
+"title": "Azure database for postgresql - flexible server integration",
+"name": "Azure database for postgresql - flexible server",
+"classes": [
+"AzureOpenAIEmbeddings",
+"AzurePGVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/azuresearch",
+"title": "Azure AI Search integration",
+"name": "AzureSearch",
+"classes": [
+"AzureOpenAIEmbeddings",
+"CharacterTextSplitter",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/chroma",
+"title": "Chroma integration",
+"name": "Chroma",
+"classes": [
+"ChromaVectorStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/databricks_vector_search",
+"title": "Databricks vector search integration",
+"name": "DatabricksVectorSearch",
+"classes": [
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/elasticsearch",
+"title": "Elasticsearch integration",
+"name": "ElasticsearchStore",
+"classes": [
+"ElasticsearchStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/google_alloydb",
+"title": "Google alloydb for postgresql integration",
+"name": "Google AlloyDB",
+"classes": [
+"AlloyDBVectorStore",
+"VertexAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/google_bigquery_vector_search",
+"title": "Google bigquery vector search integration",
+"name": "Google bigquery vector search",
+"classes": [
+"BigQueryVectorStore",
+"VertexAIEmbeddings",
+"VertexFSVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/google_cloud_sql_mysql",
+"title": "Google cloud SQL for mysql integration",
+"name": "Google cloud SQL for mysql",
+"classes": [
+"MySQLVectorStore",
+"VertexAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/google_cloud_sql_pg",
+"title": "Google cloud SQL for postgresql integration",
+"name": "Google cloud SQL for postgresql",
+"classes": [
+"PostgresVectorStore",
+"VertexAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/google_firestore",
+"title": "Google firestore integration",
+"name": "Google firestore",
+"classes": [
+"FirestoreVectorStore",
+"VertexAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/google_memorystore_redis",
+"title": "Google memorystore for Redis integration",
+"name": "Google memorystore for Redis",
+"classes": [
+"CharacterTextSplitter",
+"FakeEmbeddings",
+"MemorystoreVectorStore",
+"RedisVectorStore",
+"TextLoader"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/google_spanner",
+"title": "Google spanner integration",
+"name": "Google spanner",
+"classes": [
+"HNLoader",
+"SpannerVectorStore",
+"VectorStore",
+"VertexAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/google_vertex_ai_feature_store",
+"title": "Feature Store on Gemini Enterprise Agent Platform integration",
+"name": "Feature Store on Gemini Enterprise Agent Platform",
+"classes": [
+"BigQueryVectorStore",
+"VertexAIEmbeddings",
+"VertexFSVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/google_vertex_ai_vector_search",
+"title": "Vector Search on Gemini Enterprise Agent Platform integration",
+"name": "Vector Search on Gemini Enterprise Agent Platform",
+"classes": [
+"PyPDFLoader",
+"RecursiveCharacterTextSplitter",
+"VectorSearchVectorStore",
+"VertexAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/in_memory",
+"title": "InMemoryVectorStore integration",
+"name": "InMemoryVectorStore",
+"classes": [
+"InMemoryVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/memorydb",
+"title": "Amazon MemoryDB integration",
+"name": "Amazon MemoryDB",
+"classes": [
+"BedrockEmbeddings",
+"InMemoryVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/milvus",
+"title": "Milvus integration",
+"name": "Milvus",
+"classes": [
+"MilvusVectorStore",
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/mongodb_atlas",
+"title": "MongoDB Atlas Integration",
+"name": "MongoDBAtlasVectorSearch",
+"classes": [
+"ContextualCompressionRetriever",
+"MongoDBAtlasHybridSearchRetriever",
+"RecursiveCharacterTextSplitter",
+"VoyageAIEmbeddings",
+"WikipediaLoader"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/neo4jvector",
+"title": "Neo4j vector index integration",
+"name": "Neo4j vector index",
+"classes": [
+"CharacterTextSplitter",
+"ChatOpenAI",
+"OpenAIEmbeddings",
+"TextLoader"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/oracle",
+"title": "Oracle AI vector search - integration",
+"name": "Oracle AI Database",
+"classes": [
+"HuggingFaceEmbeddings",
+"OracleEmbeddings",
+"OracleHybridSearchRetriever",
+"OracleTextSearchRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/pgvector",
+"title": "PGVector integration",
+"name": "PGVector",
+"classes": [
+"OpenAIEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/pgvectorstore",
+"title": "PGVectorStore integration",
+"name": "PGVectorStore",
+"classes": [
+"CohereEmbeddings",
+"PGVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/pinecone",
+"title": "Pinecone integration",
+"name": "PineconeVectorStore",
+"classes": [
+"OpenAIEmbeddings",
+"PineconeVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/pinecone_sparse",
+"title": "Pinecone (Sparse) integration",
+"name": "Pinecone (Sparse)",
+"classes": [
+"PineconeSparseEmbeddings",
+"PineconeSparseVectorStore",
+"VectorStoreRetriever"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/qdrant",
+"title": "Qdrant integration",
+"name": "QdrantVectorStore",
+"classes": [
+"OpenAIEmbeddings",
+"QdrantVectorStore",
+"SparseEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/redis",
+"title": "Redis integration",
+"name": "RedisVectorStore",
+"classes": [
+"OpenAIEmbeddings",
+"RedisVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/s3_vectors",
+"title": "Amazon S3 Vectors integration",
+"name": "AmazonS3Vectors",
+"classes": [
+"BedrockEmbeddings"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/sap_hanavector",
+"title": "Sap hana cloud vector engine integration",
+"name": "Sap hana cloud vector engine",
+"classes": [
+"CharacterTextSplitter",
+"HanaInternalEmbeddings",
+"OpenAIEmbeddings",
+"TextLoader"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/turbopuffer",
+"title": "turbopuffer integration",
+"name": "turbopuffer",
+"classes": [
+"OpenAIEmbeddings",
+"TurbopufferVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/valkey",
+"title": "Valkey",
+"name": "ValkeyVectorStore",
+"classes": [
+"BedrockEmbeddings",
+"OllamaEmbeddings",
+"ValkeyVectorStore"
+]
+},
+{
+"path": "/oss/python/integrations/vectorstores/weaviate",
+"title": "Weaviate integration",
+"name": "Weaviate",
+"classes": [
+"CharacterTextSplitter",
+"ChatOpenAI",
+"ChatPromptTemplate",
+"OpenAIEmbeddings",
+"TextLoader",
+"WeaviateVectorStore"
+]
+}
+]

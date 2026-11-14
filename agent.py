@@ -17,6 +17,7 @@ from src.middleware.link_validation_middleware import LinkValidationMiddleware
 from src.middleware.search_result_trim_middleware import SearchResultTrimMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
+from src.tools.integration_tools import read_integration_page
 from src.tools.pricing_tools import fetch_langchain_pricing
 from src.tools.pylon_tools import get_support_article_content, search_support_articles
 from src.utils.trace_root_metadata import build_docs_agent_trace_metadata
@@ -27,6 +28,7 @@ docs_agent_tools = [
     search_support_articles,
     get_support_article_content,
     fetch_langchain_pricing,
+    read_integration_page,
 ]
 
 docs_agent_middleware = [
