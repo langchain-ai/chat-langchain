@@ -16,8 +16,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 
 logger = logging.getLogger(__name__)
 
-NUDGE_AFTER_ROUNDS = 4
-STOP_AFTER_ROUNDS = 8
+NUDGE_AFTER_ROUNDS = 1
+STOP_AFTER_ROUNDS = 1
 
 NUDGE_NOTE = (
     "\n\n## Research budget\n"
