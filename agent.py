@@ -61,8 +61,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI  # noqa: E402
 
 agent = define_deep_agent(
     name="docs_agent",
-    # Experiment (#1288): gemini-3.8-flash with low thinking to cut latency/cost.
-    model=ChatGoogleGenerativeAI(model="gemini-3.8-flash", thinking_level="low"),
+    # Experiment (#1288): gemini-3.8-flash with minimal thinking to cut latency/cost.
+    model=ChatGoogleGenerativeAI(model="gemini-3.8-flash", thinking_level="minimal"),
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     metadata=build_docs_agent_trace_metadata(),
