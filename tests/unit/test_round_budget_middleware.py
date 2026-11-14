@@ -49,7 +49,7 @@ def test_nudge_after_four_rounds_keeps_tools():
 
 def test_stop_after_eight_rounds_removes_tools():
     out = _run(RoundBudgetMiddleware(), _request([HumanMessage("q"), *_rounds(8)]))
-    assert "no longer available" in out.system_message.content and out.tools == []
+    assert "no longer available" in out.system_message.content and out.tool_choice == "none"
 
 
 def test_list_content_system_message():

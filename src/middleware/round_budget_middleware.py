@@ -4,7 +4,7 @@ Most answers need 1-3 tool rounds. A tail of answers keeps searching one
 command at a time (search -> read -> search ...), which adds ~1.2s per round
 and pushes total latency past 20s. After NUDGE_AFTER_ROUNDS rounds in the
 current user turn the model is told to answer from what it has; after
-STOP_AFTER_ROUNDS rounds tools are removed so the next call must answer.
+STOP_AFTER_ROUNDS rounds tool calls are forbidden so the next call must answer.
 """
 
 from collections.abc import Awaitable, Callable
@@ -68,8 +68,10 @@ class RoundBudgetMiddleware(AgentMiddleware):
         if rounds >= self.stop_after:
             return request.override(
                 system_message=_with_note(request.system_message, STOP_NOTE),
-                tools=[],
-                tool_choice=None,
+                # Tools stay bound (the platform appends MCP docs tools after this
+                # middleware, so emptying the list does not remove them); forbid
+                # calling them instead.
+                tool_choice="none",
             )
         if rounds >= self.nudge_after:
             return request.override(
