@@ -68,6 +68,11 @@ class RoundBudgetMiddleware(AgentMiddleware):
 
     def _adjust(self, request: ModelRequest) -> ModelRequest:
         rounds = count_tool_rounds(request.messages)
+        logger.warning(
+            "round_budget_debug rounds=%d tail=%s",
+            rounds,
+            [type(m).__name__ for m in request.messages[-6:]],
+        )
         if rounds >= self.nudge_after:
             logger.warning(
                 "round_budget rounds=%d action=%s n_messages=%d n_tools=%d",
