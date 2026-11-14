@@ -59,12 +59,12 @@ docs_agent_middleware = [
     model_fallback_middleware,
     model_retry_middleware,
 ]
+from langchain_google_genai import ChatGoogleGenerativeAI  # noqa: E402
 
 agent = define_deep_agent(
     name="docs_agent",
-    # Keep this literal so `mda deploy` can infer the provider package and
-    # preflight GOOGLE_API_KEY.
-    model="google_genai:gemini-3.5-flash-lite",
+    # Experiment: same flash-lite model with thinking_level=low (default is minimal).
+    model=ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", thinking_level="low"),
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     metadata=build_docs_agent_trace_metadata(),
