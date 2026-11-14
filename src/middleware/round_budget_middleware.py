@@ -7,11 +7,14 @@ current user turn the model is told to answer from what it has; after
 STOP_AFTER_ROUNDS rounds tool calls are forbidden so the next call must answer.
 """
 
+import logging
 from collections.abc import Awaitable, Callable
 
 from langchain.agents.middleware import AgentMiddleware
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+
+logger = logging.getLogger(__name__)
 
 NUDGE_AFTER_ROUNDS = 4
 STOP_AFTER_ROUNDS = 8
@@ -65,6 +68,14 @@ class RoundBudgetMiddleware(AgentMiddleware):
 
     def _adjust(self, request: ModelRequest) -> ModelRequest:
         rounds = count_tool_rounds(request.messages)
+        if rounds >= self.nudge_after:
+            logger.warning(
+                "round_budget rounds=%d action=%s n_messages=%d n_tools=%d",
+                rounds,
+                "stop" if rounds >= self.stop_after else "nudge",
+                len(request.messages),
+                len(request.tools),
+            )
         if rounds >= self.stop_after:
             return request.override(
                 system_message=_with_note(request.system_message, STOP_NOTE),
