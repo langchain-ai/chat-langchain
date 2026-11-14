@@ -2,8 +2,10 @@
 
 Tool-calling rounds run on the agent's default (cheap) model. When that model
 returns a reply with no tool calls (i.e. it is ready to answer), the same request
-is re-run on a stronger model, which writes the final answer (and may still call
-tools). The cheap draft is discarded.
+is re-run on a stronger model with tool_choice="none", so it must write the final
+answer from the context gathered so far. The cheap draft is discarded.
+(Letting the strong model call tools made it re-open the search loop: 18 model
+calls on one smoke question.)
 """
 
 import logging
@@ -48,7 +50,7 @@ class SplitModelMiddleware(AgentMiddleware):
             return response
         logger.info("split-model: final turn -> %s", type(self.final_model).__name__)
         try:
-            return handler(request.override(model=self.final_model))
+            return handler(request.override(model=self.final_model, tool_choice="none"))
         except Exception:
             logger.exception("split-model: final model failed, keeping draft")
             return response
@@ -63,7 +65,7 @@ class SplitModelMiddleware(AgentMiddleware):
             return response
         logger.info("split-model: final turn -> %s", type(self.final_model).__name__)
         try:
-            return await handler(request.override(model=self.final_model))
+            return await handler(request.override(model=self.final_model, tool_choice="none"))
         except Exception:
             logger.exception("split-model: final model failed, keeping draft")
             return response
