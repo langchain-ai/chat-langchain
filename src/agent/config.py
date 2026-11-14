@@ -55,6 +55,13 @@ MODELS: dict[str, ModelConfig] = {
         description="Cheapest GPT-5.4-class model for simple high-volume tasks",
     ),
     # Google
+    "gemini-3.8-flash": ModelConfig(
+        id="google_genai:gemini-3.8-flash",
+        name="Gemini 3.8 Flash",
+        provider="google",
+        api_key_env="GOOGLE_API_KEY",
+        description="Most capable Gemini Flash model",
+    ),
     "gemini-3.5-flash-lite": ModelConfig(
         id="google_genai:gemini-3.5-flash-lite",
         name="Gemini 3.5 Flash Lite",
@@ -65,7 +72,7 @@ MODELS: dict[str, ModelConfig] = {
 }
 
 # Default models for different use cases
-DEFAULT_MODEL = MODELS["gemini-3.5-flash-lite"]
+DEFAULT_MODEL = MODELS["gemini-3.8-flash"]
 GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
 
 # Fallback chain (in order of preference)
