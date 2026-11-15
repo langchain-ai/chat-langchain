@@ -173,9 +173,8 @@ docs_agent_middleware = [
     model_retry_middleware,
 ]
 
-if os.environ.get("TITO_POLICY_BASE_URL"):
-    # An RL or eval trial reaches the live docs service: its feedback calls are not sent.
-    docs_agent_middleware.insert(0, TrialSideEffectsMiddleware())
+# Eval trials reach the live docs service: their feedback calls are not sent.
+docs_agent_middleware.insert(0, TrialSideEffectsMiddleware())
 if (tool_turn_budget := budget_from_env()) is not None:
     # RL training only: after the budget's tool-calling turns, the agent answers without tools.
     # Outside the model retry, so a retried closing call keeps its note.
@@ -188,9 +187,9 @@ if os.environ.get(CLOSED_BOOK_ENV):
 
 agent = define_deep_agent(
     name="docs_agent",
-    # A model object, so its reasoning effort is set; langchain-fireworks is a
-    # declared dependency.
-    model=main_model(),
+    # Keep this literal so `mda deploy` can infer the provider package and
+    # preflight ANTHROPIC_API_KEY.
+    model="anthropic:claude-opus-5-5",
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     metadata=build_docs_agent_trace_metadata(),
