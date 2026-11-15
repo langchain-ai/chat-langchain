@@ -258,6 +258,55 @@ function DashboardContent() {
     setThreadId(newThreadId)
   }
 
+  // Record a thread as soon as its first run exists, so it stays in history
+  // even if the answer never finishes (Stop, thread switch, reload, tab close).
+  // Before this, guest thread ids and owner metadata were only written after a
+  // completed answer, so those threads vanished from the sidebar.
+  const handleThreadStarted = async (threadId: string, firstUserMessage: string) => {
+    const ownerId = currentThreadOwnerId || userId
+    if (!ownerId) return
+
+    const isGuestOwnedThread =
+      Boolean(guestUserId && guestUserId === ownerId) || ownerId.startsWith("user-")
+    const isGuestThread =
+      shouldLoadGuestThreads && isGuestOwnedThread && userId !== ownerId
+    const updateThreadForOwner = isGuestThread
+      ? updateGuestThreadMetadata
+      : updatePrimaryThreadMetadata
+    const addOptimisticThreadForOwner = isGuestThread
+      ? addGuestOptimisticThread
+      : addPrimaryOptimisticThread
+
+    if (isGuestOwnedThread) {
+      setGuestThreadIds(addStoredGuestThreadId(ownerId, threadId))
+    }
+
+    if (threads.some((t) => t.thread_id === threadId)) return
+
+    // Provisional title from the question; the AI title replaces it once the
+    // first answer completes (title_pending marks it as replaceable).
+    const provisionalTitle =
+      generateQuickTitle(firstUserMessage) || "New conversation"
+    const resolvedClient = resolveClientProfile(clientProfile)
+    addOptimisticThreadForOwner({
+      thread_id: threadId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      metadata: {
+        user_id: ownerId,
+        title: provisionalTitle,
+        title_pending: true,
+        client: resolvedClient,
+      },
+    })
+    await updateThreadForOwner(threadId, {
+      user_id: ownerId,
+      title: provisionalTitle,
+      title_pending: true,
+      client: resolvedClient,
+    })
+  }
+
   // Update thread metadata when messages are sent
   const handleThreadUpdate = async (
     threadId: string,
@@ -297,7 +346,9 @@ function DashboardContent() {
 
     // Check if this thread already exists
     const existingThread = threads.find(t => t.thread_id === threadId)
-    const isUntitledThread = existingThread?.metadata?.title === "Untitled"
+    const isUntitledThread =
+      existingThread?.metadata?.title === "Untitled" ||
+      existingThread?.metadata?.title_pending === true
     const shouldGenerateAITitle = !existingThread || // First message (thread doesn't exist)
                                   isUntitledThread || // First real message (was "Untitled")
                                   (messageCount && messageCount > 1 && messageCount % 5 === 0) // Every 5 messages after
@@ -337,6 +388,7 @@ function DashboardContent() {
           updateThreadForOwner(threadId, {
             user_id: ownerId,
             title: aiTitle,
+            title_pending: false,
             lastMessage,
             client: resolvedClient,
           })
@@ -348,6 +400,7 @@ function DashboardContent() {
         updateThreadForOwner(threadId, {
           user_id: ownerId,
           title: quickTitle,
+          title_pending: false,
           lastMessage,
           client: resolvedClient,
         })
@@ -373,6 +426,7 @@ function DashboardContent() {
           updateThreadForOwner(threadId, {
             user_id: ownerId,
             title: aiTitle,
+            title_pending: false,
             lastMessage,
             client: resolvedClient,
           })
@@ -495,6 +549,7 @@ function DashboardContent() {
             authToken={currentThreadAuthToken}
             authRegion={authRegion}
             onThreadUpdate={handleThreadUpdate}
+            onThreadStarted={handleThreadStarted}
             onThreadNotFound={handleThreadNotFound}
             isNewThread={newThreads.has(threadId)}
             initialMessage={initialPrompt}

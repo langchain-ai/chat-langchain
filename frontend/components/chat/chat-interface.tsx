@@ -32,6 +32,12 @@ interface ChatInterfaceProps {
   authToken: string | null
   authRegion?: AuthRegion
   onThreadUpdate?: (threadId: string, title: string, lastMessage: string, client?: ClientProfile, messageCount?: number) => void
+  /**
+   * Called once the backend has created the run for a thread's first message,
+   * so the thread is recorded in history even if the answer never finishes
+   * (Stop, switching threads, reload or closing the tab mid-answer).
+   */
+  onThreadStarted?: (threadId: string, firstUserMessage: string) => void
   onThreadNotFound?: () => void
   isNewThread?: boolean
   customTitle?: string | null
@@ -53,6 +59,8 @@ interface ActiveRun {
   runId?: string
   assistantMessageId: string
   cancelRequested?: boolean
+  /** Set only for a thread's first message: its text, for onThreadStarted. */
+  firstUserMessage?: string
 }
 
 export function ChatInterface({
@@ -62,6 +70,7 @@ export function ChatInterface({
   authToken,
   authRegion,
   onThreadUpdate,
+  onThreadStarted,
   onThreadNotFound,
   initialMessage,
   customTitle,
@@ -217,12 +226,18 @@ export function ChatInterface({
     if (!activeRunRef.current) return
     activeRunRef.current.runId = runId
 
+    const firstUserMessage = activeRunRef.current.firstUserMessage
+    if (firstUserMessage !== undefined) {
+      activeRunRef.current.firstUserMessage = undefined
+      onThreadStarted?.(threadId, firstUserMessage)
+    }
+
     if (activeRunRef.current.cancelRequested && client) {
       void client.runs.cancel(threadId, runId).catch((error) => {
         console.warn("Unable to cancel LangGraph run:", error)
       })
     }
-  }, [client, threadId])
+  }, [client, threadId, onThreadStarted])
 
   // ============================================================================
   // Custom Hooks
@@ -569,7 +584,11 @@ export function ChatInterface({
 
     try {
       const assistantMessageId = generateMessageId()
-      activeRunRef.current = { assistantMessageId }
+      const isFirstMessage = !messages.some((m) => m.role === "user")
+      activeRunRef.current = {
+        assistantMessageId,
+        firstUserMessage: isFirstMessage ? userMessage.content : undefined,
+      }
       const { assistantContent } = await processStream(content, assistantMessageId, files)
 
       if (onThreadUpdate && assistantContent) {
