@@ -25,4 +25,4 @@ class ModelOverrideMiddleware(AgentMiddleware):
 def build_haiku_nothink() -> Any:
     from langchain_anthropic import ChatAnthropic
 
-    return ChatAnthropic(model="claude-haiku-5-5", thinking={"type": "disabled"}, max_tokens=16000)
+    return ChatAnthropic(model="claude-haiku-5-5", thinking={"type": "enabled", "budget_tokens": 1024}, max_tokens=16000)
