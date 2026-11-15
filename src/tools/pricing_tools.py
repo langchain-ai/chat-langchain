@@ -33,7 +33,10 @@ def _extract_text(html: str) -> str:
         flags=re.DOTALL | re.IGNORECASE,
     )
     text = re.sub(
-        r"<style\b[^>]*>[\s\S]*?</style\b[^>]*>", "", text, flags=re.DOTALL | re.IGNORECASE
+        r"<style\b[^>]*>[\s\S]*?</style\b[^>]*>",
+        "",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
     )
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"[ \t]+", " ", text)
@@ -54,7 +57,7 @@ async def _fetch_pricing_uncached() -> str:
 
 @tool
 async def fetch_langchain_pricing() -> str:
-    """Fetch live plan prices/types, seats, plan quotas (traces, Fleet runs, deployments), and pay-as-you-go rates from https://www.langchain.com/pricing; never guess current prices from memory. Plan numbers alone need no docs search. For feature behavior or existence involving pricing or costs (model pricing maps/model price maps, cost tracking, token costs on traces, usage-limit configuration, billing settings), use langchainDocs_search_docs_by_lang_chain and read relevant pages with langchainDocs_query_docs_filesystem_docs_by_lang_chain before answering from docs, including short feature-name follow-ups. If plan or rate information is also needed, search docs and call this tool in parallel. The pricing page, a docs-root listing, and previous answers cannot establish feature existence; if docs do not settle it, say what you could not verify rather than denying the feature."""
+    """Fetch live plan prices/types, seats, plan quotas (traces, Fleet runs, deployments), and pay-as-you-go rates from https://www.langchain.com/pricing; state a price, fee, or free status only if a tool result in this conversation explicitly confirms it for the exact offering. Otherwise say you cannot confirm the current price, correcting any unsupported earlier claim. “Academy: Free courses” does not establish certification or exam pricing; for unconfirmed Academy prices, direct the user to https://academy.langchain.com or https://support.langchain.com. Plan numbers alone need no docs search. For feature behavior or existence involving pricing or costs (model pricing maps/model price maps, cost tracking, token costs on traces, usage-limit configuration, billing settings), use langchainDocs_search_docs_by_lang_chain and read relevant pages with langchainDocs_query_docs_filesystem_docs_by_lang_chain before answering from docs, including short feature-name follow-ups. If plan or rate information is also needed, search docs and call this tool in parallel. The pricing page, a docs-root listing, and previous answers cannot establish feature existence; if docs do not settle it, say what you could not verify rather than denying the feature."""
     global _cached_text, _cached_at
 
     # Fast path: return cached text if it's still fresh. The lock here is
