@@ -15,6 +15,7 @@ from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
 from src.middleware.link_validation_middleware import LinkValidationMiddleware
 from src.middleware.search_result_trim_middleware import SearchResultTrimMiddleware
+from src.middleware.model_override_middleware import ModelOverrideMiddleware, build_haiku_nothink
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.integration_tools import read_integration_page
@@ -58,6 +59,7 @@ docs_agent_middleware = [
     SearchResultTrimMiddleware(),
     model_fallback_middleware,
     model_retry_middleware,
+    ModelOverrideMiddleware(build_haiku_nothink()),
 ]
 
 agent = define_deep_agent(
