@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { restoreThreadMessages } from "../lib/utils/chat/history.ts"
+import { keepUnsyncedLocalMessages, restoreThreadMessages } from "../lib/utils/chat/history.ts"
 
 test("restores one final answer while retaining ordered tool calls and actual results", () => {
   const payload = [
@@ -68,4 +68,36 @@ test("tolerates missing or unrelated backend data without displaying hidden reas
   assert.equal(result.length, 1)
   assert.equal(result[0]?.content, "Visible answer")
   assert.deepEqual(result[0]?.thinkingSteps, [])
+})
+
+test("a late history load keeps a just-sent message and its streaming reply", () => {
+  const restored = restoreThreadMessages(
+    [
+      { type: "human", id: "h1", content: "What is LangGraph?" },
+      { type: "ai", id: "a1", content: "A framework." },
+    ],
+    "thread"
+  )
+  const now = new Date()
+  const local = [
+    { id: "local-user", role: "user" as const, content: "Is it open source?", timestamp: now },
+    { id: "local-reply", role: "assistant" as const, content: "", timestamp: now, status: "streaming" as const },
+    { id: "stale-assistant", role: "assistant" as const, content: "old", timestamp: now },
+  ]
+  const result = keepUnsyncedLocalMessages(restored, local, "local-reply")
+  assert.deepEqual(result.map((message) => message.id), ["h1", "a1", "local-user", "local-reply"])
+})
+
+test("a late history load doesn't duplicate a message the server already has", () => {
+  const restored = restoreThreadMessages(
+    [
+      { type: "human", id: "h1", content: "What is LangGraph?" },
+      { type: "ai", id: "a1", content: "A framework." },
+      { type: "human", id: "h2", content: "Is it open source?" },
+    ],
+    "thread"
+  )
+  const local = [{ id: "local-user", role: "user" as const, content: "Is it open source?", timestamp: new Date() }]
+  assert.deepEqual(keepUnsyncedLocalMessages(restored, local, null).map((m) => m.id), ["h1", "a1", "h2"])
+  assert.equal(keepUnsyncedLocalMessages(restored, [], null), restored)
 })

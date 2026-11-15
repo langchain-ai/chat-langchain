@@ -6,7 +6,7 @@ import type { ClientProfile } from "@/lib/hooks"
 import { readRun, shareRun, type LangSmithAuth } from "@/lib/api/langsmith"
 import type { Message, ImageAttachment } from "@/lib/types"
 import { createUserMessage, generateMessageId } from "@/lib/utils/chat"
-import { restoreThreadMessages } from "@/lib/utils/chat/history"
+import { keepUnsyncedLocalMessages, restoreThreadMessages } from "@/lib/utils/chat/history"
 import { failActiveRun, settleInterruptedMessages } from "@/lib/utils/chat/presentation"
 import { claimInitialPrompt, getAttachedTextLength, limitComposerInput } from "@/lib/utils/chat/composer-state"
 import { truncate } from "@/lib/utils/string"
@@ -383,7 +383,7 @@ export function ChatInterface({
               ])
             )
 
-            return convertedMessages.map((msg) => {
+            const restored = convertedMessages.map((msg) => {
               // Try to find existing metadata by ID first, then by runId, then by content
               const existingByIdMatch = existingById.get(msg.id)
               const existingByRunIdMatch = msg.runId ? existingByRunId.get(msg.runId) : undefined
@@ -414,6 +414,11 @@ export function ChatInterface({
               }
               return msg
             })
+            // A message sent while this load was in flight isn't in the
+            // snapshot yet: keep it (and its streaming reply) visible.
+            return hasSentMessageRef.current === currentThreadId
+              ? keepUnsyncedLocalMessages(restored, prev, activeRunRef.current?.assistantMessageId)
+              : restored
           })
           uiDispatch({ type: 'SET_LOADING_THREAD', payload: false })
         } else {

@@ -337,3 +337,31 @@ export function restoreThreadMessages(
     )
   )
 }
+
+/**
+ * A history load can resolve after the user already sent a message on this
+ * thread (slow getState, or a thread opened while another answer streamed).
+ * Replacing state with the server snapshot would drop that turn from the view
+ * until reload, so keep local messages the snapshot doesn't have yet: user
+ * messages not already persisted, and the reply that is still streaming.
+ */
+export function keepUnsyncedLocalMessages(
+  restored: Message[],
+  local: Message[],
+  activeAssistantId?: string | null
+): Message[] {
+  const restoredIds = new Set(restored.map((message) => message.id))
+  const persistedUserContent = new Set(
+    restored
+      .filter((message) => message.role === "user")
+      .map((message) => message.content.trim())
+  )
+  const pending = local.filter((message) => {
+    if (restoredIds.has(message.id)) return false
+    if (message.role === "user") {
+      return !persistedUserContent.has(message.content.trim())
+    }
+    return Boolean(activeAssistantId) && message.id === activeAssistantId
+  })
+  return pending.length ? [...restored, ...pending] : restored
+}
