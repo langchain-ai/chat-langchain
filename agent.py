@@ -64,7 +64,7 @@ agent = define_deep_agent(
     name="docs_agent",
     # Keep this literal so `mda deploy` can infer the provider package and
     # preflight GOOGLE_API_KEY.
-    model="google_genai:gemini-3.5-flash-lite",
+    model="openai:gpt-6-luna",  # experiment: eval only (gpt-6-luna, $0.10/$0.50)
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     metadata=build_docs_agent_trace_metadata(),
