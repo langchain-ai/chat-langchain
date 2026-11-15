@@ -14,6 +14,10 @@ from src.middleware.guardrails_middleware import GuardrailsMiddleware
 from src.middleware.ingress_guards_middleware import IngressGuardsMiddleware
 from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
 from src.middleware.link_validation_middleware import LinkValidationMiddleware
+from src.middleware.model_override_middleware import (
+    ModelOverrideMiddleware,
+    build_docs_agent_model,
+)
 from src.middleware.reply_language_middleware import ReplyLanguageMiddleware
 from src.middleware.search_result_trim_middleware import SearchResultTrimMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
@@ -60,6 +64,8 @@ docs_agent_middleware = [
     # Short non-Latin-script questions with English terms got English replies
     # despite the prompt rule; name the reply language per model call.
     ReplyLanguageMiddleware(),
+    # Haiku 5.5 at low reasoning effort (see build_docs_agent_model).
+    ModelOverrideMiddleware(build_docs_agent_model()),
     model_fallback_middleware,
     model_retry_middleware,
 ]
@@ -67,7 +73,7 @@ docs_agent_middleware = [
 agent = define_deep_agent(
     name="docs_agent",
     # Keep this literal so `mda deploy` can infer the provider package and
-    # preflight GOOGLE_API_KEY.
+    # preflight ANTHROPIC_API_KEY.
     model="anthropic:claude-haiku-5-5",
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
