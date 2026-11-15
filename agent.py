@@ -59,12 +59,13 @@ docs_agent_middleware = [
     model_fallback_middleware,
     model_retry_middleware,
 ]
+from langchain_openai import ChatOpenAI  # noqa: E402
 
 agent = define_deep_agent(
     name="docs_agent",
     # Keep this literal so `mda deploy` can infer the provider package and
     # preflight GOOGLE_API_KEY.
-    model="openai:gpt-5.4-mini",  # experiment: middle model candidate (reasoning effort default none)
+    model=ChatOpenAI(model="gpt-5.4-mini", reasoning_effort="low"),  # experiment: middle model candidate
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     metadata=build_docs_agent_trace_metadata(),
