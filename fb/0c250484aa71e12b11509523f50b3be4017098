@@ -1,0 +1,21 @@
+src/tools/link_check_tools.py
+  s_34d0716d7e7df4::t_347b2e1b2c720d 18-19,27,30-34,67-86,90-94,121-130,137-138,142,145
+tests/unit/test_check_links_async.py
+  s_34d0716d7e7df4::t_471b8c20a78c65 259-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fb0c250484aa71e12b11509523f50b3be4017098",
+  "prompts": {},
+  "sessions": {
+    "s_34d0716d7e7df4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b1ebfcf-16b4-4b51-8e40-3df94bfcf96d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "nick-hollon-lc <nick.hollon@langchain.dev>"
+    }
+  }
+}
