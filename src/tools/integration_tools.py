@@ -17,6 +17,7 @@ import time
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 import httpx
 from langchain.tools import tool
@@ -53,6 +54,11 @@ _SUFFIXES = (
     "embeddings",
     "vectorstore",
     "retriever",
+    "graph",
+    "qachain",
+    "chain",
+    "searchresults",
+    "saver",
     "toolkit",
     "tool",
     "llm",
@@ -71,9 +77,36 @@ def _stem(q: str) -> str:
     return q
 
 
+_GENERIC_TOKENS = {
+    "langchain",
+    "chat",
+    "graph",
+    "chain",
+    "search",
+    "results",
+    "loader",
+    "tool",
+    "toolkit",
+}
+
+
+def _tokens(text: str) -> set[str]:
+    """Split class and package names into comparable tokens."""
+    text = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
+    text = re.sub(r"([A-Z])([A-Z][a-z])", r"\1 \2", text)
+    tokens = set(re.findall(r"[a-z0-9]+", text.lower()))
+    if "genai" in tokens:
+        tokens = (tokens - {"genai"}) | {"generative", "ai"}
+    return tokens
+
+
 def _score(entry: dict, query: str) -> int:
     """Score how well an index entry matches a class/provider name."""
-    q = _norm(query)
+    path = urlsplit(query.strip()).path.rstrip("/")
+    path = re.sub(r"\.mdx?$", "", path)
+    if "/" in path:
+        return 1000 if "/" + path.lstrip("/") == entry["path"] else 0
+    q = _norm(path)
     if not q:
         return 0
     slug = _norm(entry["path"].rsplit("/", 1)[-1])
@@ -90,6 +123,17 @@ def _score(entry: dict, query: str) -> int:
         # cloud-storage examples, WebBaseLoader in a reranker page), so a class
         # mention alone never makes a page the match; it only breaks ties.
         score += 10
+    tokens = _tokens(query) - _GENERIC_TOKENS
+    if tokens and tokens <= _tokens(
+        " ".join(
+            (
+                entry["path"].rsplit("/", 1)[-1],
+                entry.get("name", ""),
+                entry.get("title", ""),
+            )
+        )
+    ):
+        score += 60
     stem = _stem(q)
     if stem and stem != q and stem in (slug, name, title):
         score += 60
@@ -102,14 +146,16 @@ def _score(entry: dict, query: str) -> int:
     return score
 
 
-def find_candidates(query: str, language: str) -> list[dict]:
+def find_candidates(
+    query: str, language: str, min_score: int = MIN_READ_SCORE
+) -> list[dict]:
     """Return the best-matching integration pages for a name in one language."""
     prefix = f"/oss/{language}/integrations/"
     scored = [
         (_score(e, query), e) for e in _load_index() if e["path"].startswith(prefix)
     ]
-    scored = [s for s in scored if s[0] >= MIN_READ_SCORE]
-    scored.sort(key=lambda s: (-s[0], s[1]["path"]))
+    scored = [s for s in scored if s[0] >= min_score]
+    scored.sort(key=lambda s: ("/providers/" in s[1]["path"], -s[0], s[1]["path"]))
     return [e for _, e in scored[:MAX_CANDIDATES]]
 
 
@@ -142,16 +188,14 @@ async def _fetch_page(path: str) -> str:
 async def read_integration_page(
     name: str, language: Literal["python", "javascript"] = "python"
 ) -> str:
-    """Read the docs page for one specific integration: a provider, chat model, embedding model, document loader, vector store, retriever, tool, checkpointer or similar component (e.g. "DoclingLoader", "ChatOllama", "Pinecone", "PyMuPDFLoader", "Tavily").
-
-    Use it whenever the question names a specific integration, in parallel with docs search. Docs search and the docs filesystem do not contain most individual integration pages (they only return category index pages such as /oss/python/integrations/document_loaders/index), so don't conclude an integration is undocumented until you've called this.
-
-    Args:
-        name: The class, package or provider name, e.g. "DoclingLoader", "ChatOllama", "ollama".
-        language: "python" or "javascript" (the user's stack).
-    """
+    """Read a specific integration page by class, package, provider, slug, or documentation URL supplied by the user; use alongside docs search, which omits most integration pages, and set language to the user's stack (python or javascript)."""
     candidates = find_candidates(name, language)
     if not candidates:
+        closest = find_candidates(name, language, min_score=25)[:3]
+        if closest:
+            return "Closest integration pages: " + "; ".join(
+                f"{c['title']} ({DOCS_BASE_URL}{c['path']})" for c in closest
+            )
         return (
             f"No dedicated {language} integration page matches '{name}'. "
             "Use the docs search results / integrations index pages instead."
