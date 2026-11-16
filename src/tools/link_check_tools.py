@@ -15,6 +15,8 @@ DEFAULT_TIMEOUT = 10.0
 MAX_REDIRECTS = 5
 USER_AGENT = "LangChain-LinkChecker/1.0"
 CONTENT_CHECK_BYTES = 8192  # Only read first 8KB for soft 404 detection
+# reference.langchain.com renders its "not found" text near the end of a ~150-200 KB page
+DOMAIN_CONTENT_CHECK_BYTES = {"reference.langchain.com": 512 * 1024}
 
 # Domains known to have soft 404s (return 200 with "not found" content)
 SOFT_404_DOMAINS = {
@@ -22,7 +24,13 @@ SOFT_404_DOMAINS = {
     "python.langchain.com",
     "js.langchain.com",
     "support.langchain.com",
+    "reference.langchain.com",
 }
+
+# Package pages that answer every name the same way (PyPI serves a 200 bot check, npm a 403);
+# their registry APIs return 404 for a package that does not exist.
+_PYPI_PAGE = re.compile(r"^/project/([A-Za-z0-9._-]+)(?:/([A-Za-z0-9._!+-]+))?/?$")
+_NPM_PAGE = re.compile(r"^/package/((?:@[a-z0-9._~-]+/)?[a-z0-9._~-]+)/?$", re.IGNORECASE)
 
 # Simple in-memory cache
 _cache: dict[str, "LinkCheckResult"] = {}
@@ -56,9 +64,33 @@ def _needs_soft_404_check(url: str) -> bool:
         return False
 
 
-def _is_soft_404(content: str) -> bool:
+def _registry_url(url: str) -> str | None:
+    """The registry API URL that answers for a PyPI or npm package page, or None."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    host = parsed.netloc.lower()
+    if host in ("pypi.org", "www.pypi.org"):
+        match = _PYPI_PAGE.match(parsed.path)
+        if match:
+            name, version = match.groups()
+            return f"https://pypi.org/pypi/{name}/{version}/json" if version else f"https://pypi.org/pypi/{name}/json"
+    if host in ("www.npmjs.com", "npmjs.com"):
+        match = _NPM_PAGE.match(parsed.path)
+        if match:
+            return f"https://registry.npmjs.org/{match.group(1).replace('/', '%2F')}"
+    return None
+
+
+def _is_soft_404(content: str, host: str = "") -> bool:
     """Detect soft 404 pages that return HTTP 200 but show 'not found' content."""
     if "Article Not Found" in content:
+        return True
+    # reference.langchain.com: unknown symbols render "Symbol Not Found"; unknown packages are noindex
+    if host == "reference.langchain.com" and (
+        ">Symbol Not Found<" in content or '<meta name="robots" content="noindex"' in content
+    ):
         return True
 
     title_match = re.search(r'<title>(.*?)</title>', content, re.IGNORECASE)
@@ -86,21 +118,31 @@ async def _check_single_url(
 
     try:
         needs_content_check = _needs_soft_404_check(url)
+        registry_url = _registry_url(url)
 
-        if needs_content_check:
+        if registry_url:
+            response = await client.head(registry_url, timeout=timeout, follow_redirects=True)
+            is_valid = response.status_code == 200
+            result = LinkCheckResult(
+                url=url, valid=is_valid, status_code=response.status_code,
+                error=None if is_valid else f"HTTP {response.status_code} from {urlparse(registry_url).netloc}",
+            )
+        elif needs_content_check:
             # Stream response, only read first chunk for soft 404 detection
             async with client.stream("GET", url, timeout=timeout, follow_redirects=True) as response:
                 final_url = str(response.url) if str(response.url) != url else None
                 is_valid = 200 <= response.status_code < 400
 
                 if is_valid and response.status_code == 200:
+                    host = urlparse(url).netloc.lower()
+                    limit = DOMAIN_CONTENT_CHECK_BYTES.get(host, CONTENT_CHECK_BYTES)
                     content = ""
                     async for chunk in response.aiter_text():
                         content += chunk
-                        if len(content) >= CONTENT_CHECK_BYTES:
+                        if len(content) >= limit:
                             break
 
-                    if _is_soft_404(content):
+                    if _is_soft_404(content, host):
                         result = LinkCheckResult(
                             url=url, valid=False, status_code=200, final_url=final_url,
                             error="Soft 404: Page shows 'not found' content",

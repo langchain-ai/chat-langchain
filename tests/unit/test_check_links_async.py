@@ -256,3 +256,72 @@ async def test_support_article_normal_content_is_valid():
     assert result.valid
     assert result.status_code == 200
     assert result.error is None
+
+
+# ===========================================================================
+# Package pages and reference.langchain.com soft 404s
+# ===========================================================================
+
+import httpx
+
+from src.tools.link_check_tools import _cache, _is_soft_404, _registry_url
+
+
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        ("https://pypi.org/project/langsmith/", "https://pypi.org/pypi/langsmith/json"),
+        ("https://pypi.org/project/langsmith", "https://pypi.org/pypi/langsmith/json"),
+        ("https://pypi.org/project/langsmith/0.4.1/", "https://pypi.org/pypi/langsmith/0.4.1/json"),
+        ("https://www.npmjs.com/package/langchain", "https://registry.npmjs.org/langchain"),
+        ("https://www.npmjs.com/package/@langchain/core", "https://registry.npmjs.org/@langchain%2Fcore"),
+        ("https://pypi.org/project/langsmith/#history", "https://pypi.org/pypi/langsmith/json"),
+        ("https://pypi.org/search/?q=langsmith", None),
+        ("https://pypi.org/project/a/b/c/", None),
+        ("https://docs.langchain.com/oss/python/langchain/overview", None),
+    ],
+)
+def test_registry_url(url, expected):
+    assert _registry_url(url) == expected
+
+
+@pytest.mark.asyncio
+async def test_package_page_judged_by_registry_api():
+    """A PyPI page answers 200 for any name; the JSON API's 404 decides."""
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, str(request.url)))
+        if request.url.host == "pypi.org" and request.url.path.startswith("/pypi/"):
+            return httpx.Response(200 if request.url.path == "/pypi/langsmith/json" else 404)
+        return httpx.Response(200)
+
+    _cache.clear()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        real = await _check_single_url(client, "https://pypi.org/project/langsmith/", 5)
+        fake = await _check_single_url(client, "https://pypi.org/project/langsmith-align-evals/", 5)
+    assert real.valid and real.url == "https://pypi.org/project/langsmith/"
+    assert not fake.valid and fake.status_code == 404
+    assert seen == [
+        ("HEAD", "https://pypi.org/pypi/langsmith/json"),
+        ("HEAD", "https://pypi.org/pypi/langsmith-align-evals/json"),
+    ]
+
+
+def test_reference_soft_404_markers_only_on_reference_host():
+    symbol = '<div><h2 class="x">Symbol Not Found</h2></div>'
+    noindex = '<meta name="robots" content="noindex"/>'
+    assert _is_soft_404(symbol, "reference.langchain.com")
+    assert _is_soft_404(noindex, "reference.langchain.com")
+    assert not _is_soft_404(noindex, "docs.langchain.com")
+    assert not _is_soft_404("<title>AIMessage | LangChain Reference</title>", "reference.langchain.com")
+
+
+@pytest.mark.asyncio
+async def test_reference_symbol_not_found_beyond_8kb():
+    """The marker sits near the end of a large page, past the default 8 KB read."""
+    page = "<title>fake | LangChain Reference</title>" + "x" * 150_000 + "<h2>Symbol Not Found</h2>"
+    _cache.clear()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, text=page))) as client:
+        result = await _check_single_url(client, "https://reference.langchain.com/python/langchain/agents/create_agent", 5)
+    assert not result.valid and "Soft 404" in result.error
