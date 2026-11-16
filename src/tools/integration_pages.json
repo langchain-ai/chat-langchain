@@ -1339,8 +1339,10 @@
 "title": "ChatBedrock integration",
 "name": "ChatBedrock",
 "classes": [
-"ChatAnthropic",
-"ChatAnthropicBedrock",
+"ChatBedrock",
+"ChatBedrockConverse"
+],
+"verified_classes": [
 "ChatBedrock",
 "ChatBedrockConverse"
 ]
@@ -2196,7 +2198,12 @@
 "title": "Neo4j integration",
 "name": "Neo4j",
 "classes": [
-"ChatOpenAI"
+"Neo4jGraph",
+"GraphCypherQAChain"
+],
+"verified_classes": [
+"Neo4jGraph",
+"GraphCypherQAChain"
 ]
 },
 {
@@ -3755,6 +3762,11 @@
 "title": "Exa search integration",
 "name": "Exa search",
 "classes": [
+"ExaSearchResults",
+"ExaSearchRetriever"
+],
+"verified_classes": [
+"ExaSearchResults",
 "ExaSearchRetriever"
 ]
 },
@@ -3930,7 +3942,10 @@
 "title": "Tavily crawl integration",
 "name": "Tavily crawl",
 "classes": [
-"ChatModelTabs"
+"TavilyCrawl"
+],
+"verified_classes": [
+"TavilyCrawl"
 ]
 },
 {
@@ -3938,7 +3953,10 @@
 "title": "Tavily extract integration",
 "name": "Tavily extract",
 "classes": [
-"ChatModelTabs"
+"TavilyExtract"
+],
+"verified_classes": [
+"TavilyExtract"
 ]
 },
 {
@@ -3946,7 +3964,10 @@
 "title": "Tavily map integration",
 "name": "Tavily map",
 "classes": [
-"ChatModelTabs"
+"TavilyMap"
+],
+"verified_classes": [
+"TavilyMap"
 ]
 },
 {
@@ -3954,7 +3975,10 @@
 "title": "Tavily search integration",
 "name": "Tavily search",
 "classes": [
-"ChatModelTabs"
+"TavilySearch"
+],
+"verified_classes": [
+"TavilySearch"
 ]
 },
 {

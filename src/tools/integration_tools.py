@@ -86,12 +86,15 @@ def _score(entry: dict, query: str) -> int:
     if q in (name, slug, title):
         score += 100
     if q in classes:
-        # Classes found in a page's code are often incidental (PyPDFLoader in
-        # cloud-storage examples, WebBaseLoader in a reranker page), so a class
-        # mention alone never makes a page the match; it only breaks ties.
         score += 10
+    if "/providers/" not in entry["path"] and q in {
+        _norm(c) for c in entry.get("verified_classes", [])
+    }:
+        score += 70
     stem = _stem(q)
     if stem and stem != q and stem in (slug, name, title):
+        score += 60
+    if len(slug) >= 5 and q.startswith(slug):
         score += 60
     if len(q) >= 4 and (q in slug or (slug and len(slug) >= 4 and slug in q)):
         score += 30
@@ -102,13 +105,15 @@ def _score(entry: dict, query: str) -> int:
     return score
 
 
-def find_candidates(query: str, language: str) -> list[dict]:
+def find_candidates(
+    query: str, language: str, *, min_score: int = MIN_READ_SCORE
+) -> list[dict]:
     """Return the best-matching integration pages for a name in one language."""
     prefix = f"/oss/{language}/integrations/"
     scored = [
         (_score(e, query), e) for e in _load_index() if e["path"].startswith(prefix)
     ]
-    scored = [s for s in scored if s[0] >= MIN_READ_SCORE]
+    scored = [s for s in scored if s[0] >= min_score]
     scored.sort(key=lambda s: (-s[0], s[1]["path"]))
     return [e for _, e in scored[:MAX_CANDIDATES]]
 
@@ -152,9 +157,16 @@ async def read_integration_page(
     """
     candidates = find_candidates(name, language)
     if not candidates:
+        closest = find_candidates(name, language, min_score=1)[:3]
+        suggestions = ""
+        if closest:
+            suggestions = "\nClosest matching paths:\n" + "\n".join(
+                f"- {c['path']}" for c in closest
+            )
         return (
             f"No dedicated {language} integration page matches '{name}'. "
             "Use the docs search results / integrations index pages instead."
+            f"{suggestions}"
         )
     top = candidates[0]
     others = "\n".join(
