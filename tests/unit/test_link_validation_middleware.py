@@ -361,3 +361,140 @@ async def test_code_only_urls_are_not_validated():
             {"messages": [AIMessage(content=text)]}, None
         )
     assert result is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("block_content", [False, True])
+@pytest.mark.parametrize("outcome", ["valid", "operational", "failure", "budget"])
+async def test_canonical_hosts_persist_across_validation_outcomes(
+    block_content, outcome
+):
+    old = "http://docs.langsmith.com/tracing?view=all#details"
+    new = "https://docs.langchain.com/langsmith/tracing?view=all#details"
+    text = f'[`Guide`]({old} "Title") <{old}> {old}.\n`{old}`\n```text\n{old}\n```'
+    expected = text.replace(old, new, 3)
+    image = {"type": "image_url", "image_url": {"url": old}}
+    content = (
+        [{"type": "text", "text": text, "extra": True}, image, text]
+        if block_content
+        else text
+    )
+    message = AIMessage(content=content, id="answer", response_metadata={"kept": True})
+
+    async def validate(urls, timeout):
+        assert urls == [new]
+        if outcome == "failure":
+            raise RuntimeError("offline")
+        if outcome == "budget":
+            await asyncio.sleep(1)
+        return [
+            LinkCheckResult(
+                new, outcome == "valid", operational_failure=outcome == "operational"
+            )
+        ]
+
+    with (
+        patch(TARGET, validate),
+        patch("src.middleware.link_validation_middleware.VALIDATION_BUDGET", 0.01),
+    ):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [message]}, None
+        )
+    answer = result["messages"][0]
+    assert answer.content == (
+        [{"type": "text", "text": expected, "extra": True}, image, expected]
+        if block_content
+        else expected
+    )
+    assert answer.id == message.id
+    assert answer.response_metadata == message.response_metadata
+    assert message.content == content
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "host,path,expected",
+    [
+        ("docs.langsmith.com", "/langsmith/tracing", "/langsmith/tracing"),
+        (
+            "docs.langgraph.com",
+            "/oss/python/langgraph/overview",
+            "/oss/python/langgraph/overview",
+        ),
+        ("docs.lanchain.com", "/guide", "/guide"),
+        ("docs.langchian.com", "/guide", "/guide"),
+    ],
+)
+async def test_documentation_aliases_and_typos_are_checked_at_canonical_host(
+    host, path, expected
+):
+    original = f"https://{host}{path}?a=b#section"
+    canonical = f"https://docs.langchain.com{expected}?a=b#section"
+
+    async def validate(urls, timeout):
+        assert urls == [canonical]
+        return [LinkCheckResult(canonical, True)]
+
+    with patch(TARGET, validate):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [AIMessage(content=original)]}, None
+        )
+    assert result["messages"][0].content == canonical
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "host",
+    [
+        "reference.langchain.com",
+        "api.lanchain.com",
+        "docs.example.com",
+        "docs.langchain.com.evil.com",
+        "docs.langchain.org",
+    ],
+)
+async def test_other_hosts_are_not_corrected(host):
+    original = f"https://{host}/guide#section"
+
+    async def validate(urls, timeout):
+        assert urls == [original]
+        return [LinkCheckResult(original, True)]
+
+    with patch(TARGET, validate):
+        assert (
+            await LinkValidationMiddleware().aafter_model(
+                {"messages": [AIMessage(content=original)]}, None
+            )
+            is None
+        )
+
+
+@pytest.mark.asyncio
+async def test_redirect_rejection_and_official_timeout_in_final_answer():
+    invented = "https://docs.lanchain.com/sandboxes"
+    requested = "https://docs.langchain.com/sandboxes"
+    official = "https://docs.langchain.com/langsmith/tracing"
+
+    def respond(request):
+        if str(request.url) == official:
+            raise httpx.ReadTimeout("offline", request=request)
+        if str(request.url) == requested:
+            return httpx.Response(302, headers={"Location": "/langsmith/observability"})
+        return httpx.Response(200, text="<title>Observability</title>")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    with (
+        patch("src.tools.link_check_tools._cache", {}),
+        patch("src.tools.link_check_tools.httpx.AsyncClient", return_value=client),
+    ):
+        result = await LinkValidationMiddleware().aafter_model(
+            {
+                "messages": [
+                    AIMessage(
+                        content=f"Read [sandboxes]({invented}) and [tracing]({official})."
+                    )
+                ]
+            },
+            None,
+        )
+    assert result["messages"][0].content == f"Read sandboxes and [tracing]({official})."
