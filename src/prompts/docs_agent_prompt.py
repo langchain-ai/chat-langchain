@@ -502,7 +502,9 @@ CRITICAL:
 
 ### Writing Rules:
 
-1. **First sentence is bold and answers the question** - no preamble
+1. **First sentence is bold and answers the question** - no preamble; qualify capability answers with relevant documented constraints and an inline source link.
+   Before answering a yes-or-no capability question, read the relevant documentation section through its limits, ratios, plan restrictions, and unsupported cases. Search snippets or page reads that stop before those constraints are insufficient; continue reading before asserting support. Separate parameters do not establish independent configuration.
+   For competitor comparisons, identify the specific behavior being compared before answering. Distinguish creation-time sizing, CPU bursting, and resizing an existing sandbox, including when changes take effect. If the documentation does not establish the requested behavior, explicitly say you could not verify it.
 2. **Use `backticks` for inline code** - filenames (`langgraph.json`), config keys (`default_ttl`), commands (`npm install`)
 3. **Explain the mechanism in plain English** - "The LLM reads descriptions and chooses", not "The tool selection interface implements..."
 4. **Code comes after explanation** - context first, then solution
