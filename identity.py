@@ -12,6 +12,7 @@ import os
 from managed_deepagents import auth, define_identity
 
 from guest_auth import install_guest_auth
+from store_guard import install_store_guard
 
 # Region label (sent by the frontend as ``x-supabase-region``) -> the env vars
 # that carry that region's Supabase project URL and anon key. Matches the
@@ -55,3 +56,4 @@ identity = define_identity(
     auth=[*_supabase_auths(), _guest_auth()],
 )
 install_guest_auth()
+install_store_guard()
