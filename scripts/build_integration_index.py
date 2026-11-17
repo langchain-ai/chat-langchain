@@ -11,7 +11,9 @@ from pathlib import Path
 
 REPO = "langchain-ai/docs"
 OUT = Path(__file__).resolve().parent.parent / "src/tools/integration_pages.json"
-LEAF = re.compile(r"src/oss/(python|javascript)/integrations/[^/]+/[^/]+\.mdx$")
+LEAF = re.compile(
+    r"src/oss/(python|javascript)/integrations/[^/]+/(?:[^/]+/)*[^/]+\.mdx$"
+)
 CLASS = re.compile(
     r"\b(Chat[A-Z][A-Za-z0-9]+|[A-Z][A-Za-z0-9]+(?:Loader|Embeddings|VectorStore|Retriever|Graph|Chain|Tool|Toolkit|Saver|Store|Endpoint))\b"
 )

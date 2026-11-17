@@ -252,6 +252,100 @@
 "classes": []
 },
 {
+"path": "/oss/javascript/integrations/document_loaders/file_loaders/directory",
+"title": "DirectoryLoader integration",
+"name": "DirectoryLoader",
+"classes": [
+"BaseDocumentLoader",
+"CSVLoader",
+"DirectoryLoader",
+"JSONLinesLoader",
+"JSONLoader",
+"LangChain",
+"TextLoader"
+]
+},
+{
+"path": "/oss/javascript/integrations/document_loaders/file_loaders/json",
+"title": "JSON files integration",
+"name": "JSON files",
+"classes": [
+"JSONLoader",
+"LangChain"
+]
+},
+{
+"path": "/oss/javascript/integrations/document_loaders/file_loaders/jsonlines",
+"title": "Jsonlines files - integration",
+"name": "Jsonlines files -",
+"classes": [
+"JSONLinesLoader",
+"LangChain"
+]
+},
+{
+"path": "/oss/javascript/integrations/document_loaders/file_loaders/multi_file",
+"title": "Multiple individual files - integration",
+"name": "Multiple individual files -",
+"classes": [
+"CSVLoader",
+"JSONLinesLoader",
+"JSONLoader",
+"LangChain",
+"MultiFileLoader",
+"TextLoader"
+]
+},
+{
+"path": "/oss/javascript/integrations/document_loaders/file_loaders/oracleai",
+"title": "OracleDocLoader integration",
+"name": "OracleDocLoader",
+"classes": [
+"LangChain",
+"OracleDocLoader",
+"OracleEmbeddings"
+]
+},
+{
+"path": "/oss/javascript/integrations/document_loaders/file_loaders/text",
+"title": "TextLoader integration",
+"name": "TextLoader",
+"classes": [
+"BaseDocumentLoader",
+"LangChain",
+"TextLoader"
+]
+},
+{
+"path": "/oss/javascript/integrations/document_loaders/web_loaders/google_cloudsql_pg",
+"title": "Google cloud SQL for postgresql integration",
+"name": "Google cloud SQL for postgresql",
+"classes": [
+"LangChain",
+"PostgresLoader"
+]
+},
+{
+"path": "/oss/javascript/integrations/document_loaders/web_loaders/langsmith",
+"title": "LangSmithLoader integration",
+"name": "LangSmithLoader",
+"classes": [
+"LangChain",
+"LangSmithLoader"
+]
+},
+{
+"path": "/oss/javascript/integrations/document_loaders/web_loaders/soniox",
+"title": "Soniox",
+"name": "Soniox",
+"classes": [
+"ChatOpenAI",
+"ChatPromptTemplate",
+"LangChain",
+"SonioxAudioTranscriptLoader"
+]
+},
+{
 "path": "/oss/javascript/integrations/document_transformers/openai_metadata_tagger",
 "title": "OpenAI functions metadata tagger - integration",
 "name": "OpenAI functions metadata tagger -",

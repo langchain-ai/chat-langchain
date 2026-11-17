@@ -1,7 +1,12 @@
 """Tests for the integration page finder."""
 
+import json
+from pathlib import Path
+
+import httpx
 import pytest
 
+from scripts import build_integration_index
 from scripts.build_integration_index import _extract_classes
 from src.tools import integration_tools
 from src.tools.integration_tools import find_candidates, read_integration_page
@@ -39,6 +44,26 @@ def _paths(name: str, language: str = "python") -> list[str]:
             "/oss/python/integrations/chat/google_generative_ai",
         ),
         ("PGVector", "python", "/oss/python/integrations/vectorstores/pgvector"),
+        (
+            "https://docs.langchain.com/oss/javascript/integrations/document_loaders/file_loaders/multi_file",
+            "javascript",
+            "/oss/javascript/integrations/document_loaders/file_loaders/multi_file",
+        ),
+        (
+            "multi_file",
+            "javascript",
+            "/oss/javascript/integrations/document_loaders/file_loaders/multi_file",
+        ),
+        (
+            "MultiFileLoader",
+            "javascript",
+            "/oss/javascript/integrations/document_loaders/file_loaders/multi_file",
+        ),
+        (
+            "DirectoryLoader",
+            "javascript",
+            "/oss/javascript/integrations/document_loaders/file_loaders/directory",
+        ),
     ],
 )
 def test_top_match(name: str, language: str, expected: str) -> None:
@@ -47,6 +72,38 @@ def test_top_match(name: str, language: str, expected: str) -> None:
 
 def test_language_filter() -> None:
     assert all(p.startswith("/oss/python/") for p in _paths("ChatOllama", "python"))
+
+
+def test_nested_language_filter() -> None:
+    url = "https://docs.langchain.com/oss/javascript/integrations/document_loaders/file_loaders/multi_file"
+    assert _paths(url, "javascript") == [url.removeprefix("https://docs.langchain.com")]
+    assert _paths(url, "python") == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slug", ["multi_file", "directory"])
+async def test_read_nested_page(monkeypatch: pytest.MonkeyPatch, slug: str) -> None:
+    path = f"/oss/javascript/integrations/document_loaders/file_loaders/{slug}"
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == f"https://docs.langchain.com{path}.md"
+        return httpx.Response(
+            200, text="> ## Documentation Index\n\n# Loader documentation"
+        )
+
+    client = httpx.AsyncClient
+    monkeypatch.setattr(
+        integration_tools.httpx,
+        "AsyncClient",
+        lambda **kwargs: client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    monkeypatch.setattr(integration_tools, "_page_cache", {})
+    out = await read_integration_page.ainvoke(
+        {"name": f"https://docs.langchain.com{path}", "language": "javascript"}
+    )
+    assert out.startswith(f"Page: https://docs.langchain.com{path}\n")
+    assert "# Loader documentation" in out
+    assert "Documentation Index" not in out
 
 
 @pytest.mark.parametrize("name", ["PyPDFLoader", "WebBaseLoader", "", "x"])
@@ -199,3 +256,39 @@ def test_extract_integration_classes() -> None:
         "CustomModel",
         "CustomEmbeddings",
     }
+
+
+def test_build_nested_integration_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pages = [
+        "oss/python/integrations/chat/ollama",
+        "oss/javascript/integrations/document_loaders/file_loaders/multi_file",
+        "oss/javascript/integrations/document_loaders/web_loaders/langsmith",
+        "oss/python/integrations/document_loaders/nested/example",
+    ]
+    excluded = [
+        "oss/javascript/integrations/document_loaders/index",
+        "oss/javascript/integrations/document_loaders/file_loaders/index",
+        "oss/javascript/integrations/document_loaders/web_loaders/index",
+        "oss/python/integrations/chat/index",
+        "oss/javascript/integrations/index",
+    ]
+    output = tmp_path / "integration_pages.json"
+
+    def fake_get(url: str) -> str:
+        if "git/trees/" in url:
+            return json.dumps(
+                {"tree": [{"path": f"src/{p}.mdx"} for p in pages + excluded]}
+            )
+        assert any(url.endswith(f"src/{p}.mdx") for p in pages)
+        return '---\ntitle: "Multiple files"\nintegration:\n  name: "MultiFileLoader"\n---\nMultiFileLoader'
+
+    monkeypatch.setattr(build_integration_index, "_get", fake_get)
+    monkeypatch.setattr(build_integration_index, "OUT", output)
+    build_integration_index.main()
+    entries = json.loads(output.read_text())
+    assert {e["path"] for e in entries} == {f"/{p}" for p in pages}
+    assert all(e["title"] == "Multiple files" for e in entries)
+    assert all(e["name"] == "MultiFileLoader" for e in entries)
+    assert all(e["classes"] == ["MultiFileLoader"] for e in entries)
