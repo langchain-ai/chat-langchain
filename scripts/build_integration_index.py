@@ -13,8 +13,18 @@ REPO = "langchain-ai/docs"
 OUT = Path(__file__).resolve().parent.parent / "src/tools/integration_pages.json"
 LEAF = re.compile(r"src/oss/(python|javascript)/integrations/[^/]+/[^/]+\.mdx$")
 CLASS = re.compile(
-    r"\b(Chat[A-Z][A-Za-z0-9]+|[A-Z][A-Za-z0-9]+(?:Loader|Embeddings|VectorStore|Retriever))\b"
+    r"\b(Chat[A-Z][A-Za-z0-9]+|[A-Z][A-Za-z0-9]+(?:Loader|Embeddings|VectorStore|Retriever|Graph|Chain|Tool|Toolkit|Saver|Store|Endpoint))\b"
 )
+
+IMPORT = re.compile(r"\bfrom\s+[\w.]+\s+import\s+(\([^)]*\)|[^\n]+)")
+
+
+def _extract_classes(text: str) -> list[str]:
+    """Collect class mentions and names from from-import statements."""
+    classes = set(CLASS.findall(text))
+    for imported in IMPORT.findall(text):
+        classes.update(re.findall(r"\b[A-Z][A-Za-z0-9_]*\b", imported))
+    return sorted(classes)[:25]
 
 
 def _get(url: str) -> str:
@@ -40,7 +50,7 @@ def main() -> None:
             "path": path[3:-4],
             "title": title[1] if title else "",
             "name": name[1] if name else "",
-            "classes": sorted(set(CLASS.findall(text)))[:25],
+            "classes": _extract_classes(text),
         }
 
     with cf.ThreadPoolExecutor(16) as pool:
