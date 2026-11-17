@@ -17,6 +17,7 @@ from src.middleware.link_validation_middleware import LinkValidationMiddleware
 from src.middleware.reply_language_middleware import ReplyLanguageMiddleware
 from src.middleware.search_result_trim_middleware import SearchResultTrimMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
+from src.middleware.tool_name_repair_middleware import ToolNameRepairMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.integration_tools import read_integration_page
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -57,6 +58,7 @@ docs_agent_middleware = [
     # Docs search returns whole chunks; keep metadata plus short snippets
     # (pages are read with the filesystem tool anyway).
     SearchResultTrimMiddleware(),
+    ToolNameRepairMiddleware(),
     # Short non-Latin-script questions with English terms got English replies
     # despite the prompt rule; name the reply language per model call.
     ReplyLanguageMiddleware(),
