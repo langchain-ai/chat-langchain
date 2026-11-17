@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from langchain_fireworks import ChatFireworks
+from langchain_openai import ChatOpenAI
 from langchain_fireworks import chat_models as fireworks_chat_models
 from managed_deepagents import define_deep_agent
 
@@ -187,9 +188,15 @@ if os.environ.get(CLOSED_BOOK_ENV):
 
 agent = define_deep_agent(
     name="docs_agent",
-    # Keep this literal so `mda deploy` can infer the provider package and
-    # preflight ANTHROPIC_API_KEY.
-    model="anthropic:claude-opus-5-5",
+    # Through the LangSmith gateway; the trial sandbox's egress proxy adds the gateway key.
+    model=ChatOpenAI(
+        model="gpt-6.2-astra",
+        base_url="https://gateway.smith.langchain.com/openai/v1",
+        api_key="taskset-proxy-injected",
+        use_responses_api=True,
+        store=False,
+        include=["reasoning.encrypted_content"],
+    ),
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     metadata=build_docs_agent_trace_metadata(),
