@@ -9,7 +9,7 @@ from langchain.agents.middleware import AgentMiddleware, AgentState
 from langchain_core.messages import AIMessage
 from langgraph.runtime import Runtime
 
-from src.tools.link_check_tools import _check_urls_async
+from src.tools.link_check_tools import _canonicalize_docs_url, _check_urls_async
 
 logger = logging.getLogger(__name__)
 VALIDATION_BUDGET = 5.0
@@ -50,6 +50,25 @@ def _segments(text: str) -> list[tuple[bool, str]]:
         start = match.end()
     segments.append((False, text[start:]))
     return segments
+
+
+def _canonicalize_links(text: str) -> str:
+    """Rewrite prose destinations while preserving labels, punctuation, and code."""
+
+    def replace(match: re.Match) -> str:
+        url = _url(match)
+        group = "markdown" if match["markdown"] else "auto" if match["auto"] else "bare"
+        start = match.start(group) - match.start()
+        return (
+            match[0][:start]
+            + _canonicalize_docs_url(url)
+            + match[0][start + len(url) :]
+        )
+
+    return "".join(
+        segment if code else _LINK.sub(replace, segment)
+        for code, segment in _segments(text)
+    )
 
 
 def _remove_invalid(text: str, invalid: set[str]) -> str:
@@ -140,10 +159,11 @@ class LinkValidationMiddleware(AgentMiddleware):
                 and isinstance(block.get("text"), str)
             )
         ]
+        canonical_texts = [_canonicalize_links(text) for text in texts]
         urls = list(
             dict.fromkeys(
                 _url(m)
-                for text in texts
+                for text in canonical_texts
                 for code, segment in _segments(text)
                 if not code
                 for m in _LINK.finditer(segment)
@@ -151,6 +171,7 @@ class LinkValidationMiddleware(AgentMiddleware):
         )
         if not urls:
             return None
+        invalid: set[str] = set()
         try:
             results = await asyncio.wait_for(
                 _check_urls_async(urls, VALIDATION_BUDGET), timeout=VALIDATION_BUDGET
@@ -162,19 +183,24 @@ class LinkValidationMiddleware(AgentMiddleware):
             }
         except Exception:
             logger.warning(
-                "Final-answer link validation failed; preserving answer", exc_info=True
+                "Final-answer link validation failed; preserving unchecked links",
+                exc_info=True,
             )
+        if not invalid and canonical_texts == texts:
             return None
-        if not invalid:
-            return None
+
+        def rewrite(text: str) -> str:
+            canonical = _canonicalize_links(text)
+            return _remove_invalid(canonical, invalid) if invalid else canonical
+
         updated: str | list[str | dict]
         if isinstance(content, str):
-            updated = _remove_invalid(content, invalid)
+            updated = rewrite(content)
         else:
             updated = [
-                _remove_invalid(block, invalid)
+                rewrite(block)
                 if isinstance(block, str)
-                else {**block, "text": _remove_invalid(block["text"], invalid)}
+                else {**block, "text": rewrite(block["text"])}
                 if isinstance(block, dict)
                 and block.get("type") == "text"
                 and isinstance(block.get("text"), str)

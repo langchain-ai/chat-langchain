@@ -2,11 +2,11 @@
 
 import asyncio
 import ipaddress
-import socket
 import logging
 import re
+import socket
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 from langchain.tools import tool
@@ -55,6 +55,58 @@ def _is_valid_url(url: str) -> bool:
         )
     except Exception:
         return False
+
+
+def _canonicalize_docs_url(url: str) -> str:
+    """Normalize recognized documentation aliases and narrowly scoped host typos."""
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    path = parsed.path
+    if host == "docs.langsmith.com":
+        if path != "/langsmith" and not path.startswith("/langsmith/"):
+            path = "/langsmith" + (path if path.startswith("/") else "/" + path)
+    elif host != "docs.langgraph.com":
+        match = re.fullmatch(r"docs\.([a-z0-9-]+)\.com", host)
+        if not match or host == "docs.langchain.com":
+            return url
+        label = match[1]
+        target = "langchain"
+        if abs(len(label) - len(target)) > 2:
+            return url
+        previous = list(range(len(target) + 1))
+        for i, char in enumerate(label, 1):
+            current = [i]
+            for j, expected in enumerate(target, 1):
+                current.append(
+                    min(
+                        current[-1] + 1,
+                        previous[j] + 1,
+                        previous[j - 1] + (char != expected),
+                    )
+                )
+            previous = current
+        if previous[-1] > 2:
+            return url
+    return urlunparse(
+        parsed._replace(scheme="https", netloc="docs.langchain.com", path=path)
+    )
+
+
+def _is_same_page(url: str, destination: str) -> bool:
+    """Allow only page-preserving redirects and explicit public redirectors."""
+    requested = urlparse(url)
+    final = urlparse(destination)
+    if requested.hostname in {"aka.ms", "bit.ly"}:
+        return True
+    if final.scheme != requested.scheme and not (
+        requested.scheme == "http" and final.scheme == "https"
+    ):
+        return False
+    canonical = urlparse(_canonicalize_docs_url(url))
+    return (final.hostname, final.path.rstrip("/")) in {
+        (requested.hostname, requested.path.rstrip("/")),
+        (canonical.hostname, canonical.path.rstrip("/")),
+    } and final.port in {requested.port, 443 if final.scheme == "https" else 80}
 
 
 def _needs_soft_404_check(url: str) -> bool:
@@ -107,7 +159,6 @@ def _resolver_is_healthy() -> bool:
         return False
 
 
-
 class BlockedDestination(Exception):
     """The link points at a non-public address, so it is never requested."""
 
@@ -144,7 +195,6 @@ async def _assert_public_destination(request: httpx.Request) -> None:
         raise BlockedDestination(host)
 
 
-
 async def _check_single_url(
     client: httpx.AsyncClient,
     url: str,
@@ -169,6 +219,16 @@ async def _check_single_url(
                 "GET", url, timeout=timeout, follow_redirects=True
             ) as response:
                 final_url = str(response.url) if str(response.url) != url else None
+                if not _is_same_page(url, str(response.url)):
+                    result = LinkCheckResult(
+                        url=url,
+                        valid=False,
+                        status_code=response.status_code,
+                        final_url=final_url,
+                        error="Redirected to a different page",
+                    )
+                    _cache[url] = result
+                    return result
                 is_valid = (
                     200 <= response.status_code < 400
                     or response.status_code in (401, 403, 405)
@@ -208,6 +268,16 @@ async def _check_single_url(
                 response = await client.get(url, timeout=timeout, follow_redirects=True)
 
             final_url = str(response.url) if str(response.url) != url else None
+            if not _is_same_page(url, str(response.url)):
+                result = LinkCheckResult(
+                    url=url,
+                    valid=False,
+                    status_code=response.status_code,
+                    final_url=final_url,
+                    error="Redirected to a different page",
+                )
+                _cache[url] = result
+                return result
             is_valid = 200 <= response.status_code < 400 or response.status_code in (
                 401,
                 403,
