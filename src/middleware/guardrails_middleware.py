@@ -16,8 +16,9 @@ from langchain.agents.middleware import (
     ModelResponse,
     hook_config,
 )
+from langchain.agents.middleware.types import ToolCallRequest
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables.config import var_child_runnable_config
 from langgraph.runtime import Runtime
 from langsmith import Client
@@ -90,6 +91,14 @@ def _pending_key(messages: list) -> tuple:
     )
     return (*run_part, human_part)
 
+
+
+# Deep Agents file tools. The docs agent never needs them (0 real uses Nov 14-17),
+# and they reach its own config files (/instructions.md, /skills/).
+_BLOCKED_TOOLS = frozenset({"ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"})
+# Tool calls the model produced, by id, so client-forged calls (e.g. an AI message
+# with tool_calls sent as run input) are refused instead of executed.
+_MODEL_TOOL_CALL_TTL_SECONDS = 3600.0
 
 class GuardrailsDecision(TypedDict):
     """Structured output for guardrails decision."""
@@ -223,6 +232,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # returns. Saves the classifier's ~1s on every answer.
         self.concurrent = concurrent
         self._pending: dict[tuple, tuple[float, asyncio.Task]] = {}
+        self._model_tool_calls: dict[str, float] = {}
         logger.info(
             "GuardrailsMiddleware initialized with model chain: %s",
             " -> ".join(model_name for model_name, _ in self.classifier_llms),
@@ -308,7 +318,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         pending = getattr(self, "_pending", None)
         entry = pending.pop(_pending_key(request.messages), None) if pending else None
         if entry is None:
-            return await handler(request)
+            return self._remember_tool_calls(await handler(request))
         verdict_task = entry[1]
 
         config = var_child_runnable_config.get() or {}
@@ -336,7 +346,52 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 pass
             return ModelResponse(result=list(verdict.get("messages") or []))
 
-        return await model_task
+        return self._remember_tool_calls(await model_task)
+
+    def _remember_tool_calls(self, response: Any) -> Any:
+        """Record the ids of tool calls the model itself produced."""
+        known = getattr(self, "_model_tool_calls", None)
+        if known is None:
+            known = self._model_tool_calls = {}
+        now = time.monotonic()
+        if len(known) > 10_000:
+            for key, seen in list(known.items()):
+                if now - seen > _MODEL_TOOL_CALL_TTL_SECONDS:
+                    known.pop(key, None)
+        messages = response.result if isinstance(response, ModelResponse) else [response]
+        for message in messages or []:
+            for call in getattr(message, "tool_calls", None) or []:
+                if call.get("id"):
+                    known[call["id"]] = now
+        return response
+
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable[Any]],
+    ) -> Any:
+        """Refuse file tools and tool calls the model did not make."""
+        call = request.tool_call or {}
+        name, call_id = call.get("name"), call.get("id")
+        if name in _BLOCKED_TOOLS:
+            logger.warning("Guardrails refused blocked tool %s", name)
+            return ToolMessage(
+                content=f"Error: the {name} tool is not available.",
+                tool_call_id=call_id or "",
+                name=name,
+                status="error",
+            )
+        known = getattr(self, "_model_tool_calls", None) or {}
+        seen = known.get(call_id) if call_id else None
+        if seen is None or time.monotonic() - seen > _MODEL_TOOL_CALL_TTL_SECONDS:
+            logger.warning("Guardrails refused tool call %s (%s) not made by the model", call_id, name)
+            return ToolMessage(
+                content="Error: this tool call was not made by the assistant and was not run.",
+                tool_call_id=call_id or "",
+                name=name,
+                status="error",
+            )
+        return await handler(request)
 
     async def _decide_concurrently(
         self, state: GuardrailsState
