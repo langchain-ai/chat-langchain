@@ -118,9 +118,15 @@ async def _introspect_guest(request: Any) -> Any:
     return _json({"iss": claims["iss"], "sub": claims["sub"]}, 200)
 
 
+async def _debug_ip(request: Any) -> Any:  # TEMP preview-only, removed before merge
+    client = getattr(request, "client", None)
+    return _json({"xff": request.headers.get("x-forwarded-for"), "xri": request.headers.get("x-real-ip"), "peer": getattr(client, "host", None), "fwd": request.headers.get("forwarded")}, 200)
+
+
 def _guest_routes() -> list[Any]:
     routing = import_module("starlette.routing")
     return [
+        routing.Route("/identity/guest/debug-ip", _debug_ip, methods=["GET"]),
         routing.Route("/identity/guest", _issue_guest, methods=["POST"]),
         routing.Route("/identity/guest/introspect", _introspect_guest, methods=["GET"]),
     ]
