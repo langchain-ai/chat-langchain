@@ -7,6 +7,10 @@ test("while streaming the block shows the latest step in place", () => {
   assert.equal(activityLabel(["Searching docs", "Reading Persistence page."], true), "Reading Persistence page… (step 2)")
 })
 
+test("internal node steps never become the headline", () => {
+  assert.equal(activityLabel(["Searching docs", "Node: mda-schedule-delivery.after_agent"], true), "Searching docs… (step 2)")
+})
+
 test("once settled it summarises the steps", () => {
   assert.equal(activityLabel(["a", "b", "c"], false), "Agent steps (3)")
 })
