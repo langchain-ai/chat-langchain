@@ -498,3 +498,61 @@ async def test_redirect_rejection_and_official_timeout_in_final_answer():
             None,
         )
     assert result["messages"][0].content == f"Read sandboxes and [tracing]({official})."
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "data:text/markdown;charset=utf-8,%23%20Translated%20document",
+        "javascript:alert('download')",
+        "blob:https://example.com/document",
+        "JaVaScRiPt:alert('download')",
+        "custom+export:document",
+    ],
+)
+@pytest.mark.parametrize("wrapper", ["{}", '<{}> "Document"'])
+@pytest.mark.parametrize("prefix", ["", "- "])
+async def test_unsupported_markdown_destinations_preserve_labels(
+    destination, wrapper, prefix
+):
+    link = f"[`Download document`]({wrapper.format(destination)})"
+    code = f"`{link}`\n```markdown\n{link}\n```\n"
+    message = AIMessage(content=code + prefix + link)
+    result = await LinkValidationMiddleware().aafter_model(
+        {"messages": [message]}, None
+    )
+    assert result["messages"][0].content == code + prefix + "`Download document`"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [False, True])
+async def test_unsupported_links_are_removed_independently_of_web_validation(failure):
+    text = (
+        f"[Download](data:text/markdown,%23%20Document) [Docs]({GOOD}) "
+        f"[Missing]({BAD}) [Contact](mailto:help@example.com)"
+    )
+    validator = AsyncMock(
+        side_effect=RuntimeError("offline") if failure else None,
+        return_value=[
+            LinkCheckResult(GOOD, True, 200),
+            LinkCheckResult(BAD, False, 404),
+        ],
+    )
+    with patch(TARGET, validator):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [AIMessage(content=text)]}, None
+        )
+    missing = f"[Missing]({BAD})" if failure else "Missing"
+    assert result["messages"][0].content == (
+        f"Download [Docs]({GOOD}) {missing} [Contact](mailto:help@example.com)"
+    )
+
+
+@pytest.mark.asyncio
+async def test_mailto_and_relative_markdown_links_are_unchanged():
+    text = "[Contact](mailto:help@example.com) [Section](#section) [Page](/page)"
+    result = await LinkValidationMiddleware().aafter_model(
+        {"messages": [AIMessage(content=text)]}, None
+    )
+    assert result is None
