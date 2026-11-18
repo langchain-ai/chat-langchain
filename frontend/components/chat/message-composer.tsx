@@ -14,6 +14,7 @@ import { Kbd } from "@langchain/macaw-components/Kbd"
 import { Text } from "@langchain/macaw-components/Text"
 import { PlusIcon } from "@langchain/macaw-components/icons"
 import { FilePreviewGrid } from "./features/file-preview-grid"
+import { ArrowUpIcon } from "@phosphor-icons/react/dist/ssr/ArrowUp"
 import { MicrophoneIcon } from "@phosphor-icons/react/dist/ssr/Microphone"
 import { StopIcon } from "@phosphor-icons/react/dist/ssr/Stop"
 import { XIcon } from "@phosphor-icons/react/dist/ssr/X"
@@ -45,6 +46,8 @@ export interface MessageComposerProps {
   onVoiceToggle?: () => void
   voiceError?: string | null
   queuedMessages?: { content: string; id: string }[]
+  /** Stop the current answer and send this queued message right away. */
+  onSendQueuedMessageNow?: (id: string) => void
   onRemoveQueuedMessage?: (id: string) => void
 }
 
@@ -78,6 +81,7 @@ export function MessageComposer({
   onVoiceToggle,
   voiceError,
   queuedMessages = [],
+  onSendQueuedMessageNow,
   onRemoveQueuedMessage,
 }: MessageComposerProps) {
   const localInputRef = useRef<ChatComposerInputHandle>(null)
@@ -153,6 +157,17 @@ export function MessageComposer({
                   <Text as="span" variant="sm" className="min-w-0 flex-1 truncate">
                     {message.content}
                   </Text>
+                  {onSendQueuedMessageNow && (
+                    <IconButton
+                      type="button"
+                      icon={ArrowUpIcon}
+                      label="Stop the current answer and send this now"
+                      variant="plain"
+                      color="secondary"
+                      size="xs"
+                      onClick={() => onSendQueuedMessageNow(message.id)}
+                    />
+                  )}
                   {onRemoveQueuedMessage && (
                     <IconButton
                       type="button"
