@@ -89,10 +89,19 @@ def _json(payload: dict[str, Any], status: int) -> Any:
     return responses.JSONResponse(payload, status_code=status)
 
 
-async def _issue_guest(_request: Any) -> Any:
+async def _issue_guest(request: Any) -> Any:
     secret = _secret()
     if not secret:
         return _json({"detail": "Guest authentication is unavailable"}, 503)
+    from rate_limit import GUEST_MINTS, client_ip
+
+    client = getattr(request, "client", None)
+    ip = client_ip(request.headers, getattr(client, "host", None))
+    wait = GUEST_MINTS.hit(f"ip:{ip}")
+    if wait is not None:
+        response = _json({"detail": "Too many guest sessions. Try again later."}, 429)
+        response.headers["Retry-After"] = str(int(wait))
+        return response
     subject = f"guest:{uuid.uuid4()}"
     return _json({"token": sign_guest_token(secret, subject), "guestId": subject}, 200)
 
