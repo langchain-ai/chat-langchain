@@ -5,6 +5,8 @@
  */
 export function activityLabel(steps: string[], isStreaming: boolean): string {
   if (!isStreaming || steps.length === 0) return `Agent steps (${steps.length})`
-  const latest = steps[steps.length - 1].trim().replace(/\.+$/, "")
+  // Internal graph steps ("Node: ...") are not useful as the headline.
+  const shown = [...steps].reverse().find((s) => !/^Node:/i.test(s.trim())) ?? steps[steps.length - 1]
+  const latest = shown.trim().replace(/\.+$/, "")
   return steps.length > 1 ? `${latest}… (step ${steps.length})` : `${latest}…`
 }
