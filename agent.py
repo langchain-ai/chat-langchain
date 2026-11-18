@@ -187,9 +187,8 @@ if os.environ.get(CLOSED_BOOK_ENV):
 
 agent = define_deep_agent(
     name="docs_agent",
-    # Keep this literal so `mda deploy` can infer the provider package and
-    # preflight ANTHROPIC_API_KEY.
-    model="anthropic:claude-opus-5-5",
+    # Gemini through the LangSmith gateway (the trial sets GOOGLE_GEMINI_BASE_URL and the key).
+    model="google_genai:gemini-3.5-flash-lite",
     tools=docs_agent_tools,
     middleware=docs_agent_middleware,
     metadata=build_docs_agent_trace_metadata(),
