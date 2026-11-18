@@ -12,6 +12,7 @@ import os
 from managed_deepagents import auth, define_identity
 
 from guest_auth import install_guest_auth
+from rate_limit import install_run_limit
 from store_guard import install_store_guard
 
 # Region label (sent by the frontend as ``x-supabase-region``) -> the env vars
@@ -51,6 +52,8 @@ def _guest_auth() -> dict:
         "introspect": {"url": "${MDA_PUBLIC_API_URL}/identity/guest/introspect"},
     }
 
+
+install_run_limit()  # before the generated auth module calls build_managed_auth
 
 identity = define_identity(
     auth=[*_supabase_auths(), _guest_auth()],
