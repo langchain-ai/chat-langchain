@@ -1,5 +1,6 @@
 "use client"
 
+import { activityLabel } from "@/lib/utils/chat/activity-label"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import {
   ChatMessage,
@@ -175,7 +176,11 @@ export const MessageItem = memo(function MessageItem({
         type: "custom",
         content:
           steps.length > 0 ? (
-            <ChatToolCallGroup label={`Agent steps (${steps.length})`}>
+            <ChatToolCallGroup
+              key={isStreaming ? "activity-live" : "activity-done"}
+              label={activityLabel(steps, isStreaming)}
+              defaultExpanded={isStreaming ? false : undefined}
+            >
               {steps.map((step, index) => {
                 const id = `${message.id}-step-${index}`
                 const isLast = index === steps.length - 1
