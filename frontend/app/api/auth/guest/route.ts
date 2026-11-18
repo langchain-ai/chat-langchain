@@ -78,6 +78,7 @@ export async function POST(request: Request) {
   const cached = cookieStore.get(COOKIE_NAME)?.value
   const existing = cached ? readGuestToken(secret, cached) : null
   let token: string
+  let source = "cookie"
   if (existing && cached) {
     token = cached
   } else {
@@ -92,6 +93,7 @@ export async function POST(request: Request) {
     }
     // Engine down or not reachable: chat won't work either, but keep the old
     // local mint so a blip there doesn't block guests from loading the page.
+    source = minted.kind === "token" ? "engine" : "local"
     token =
       minted.kind === "token"
         ? minted.token
@@ -106,6 +108,8 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ guestId, token })
+  // Where the pass came from, so a fallback to the uncapped local mint shows up.
+  response.headers.set("x-guest-mint-source", source)
   response.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     maxAge: GUEST_SESSION_MAX_AGE_SECONDS,
