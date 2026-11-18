@@ -14,7 +14,6 @@ import pytest
 
 from src.middleware.retry_middleware import ModelRetryMiddleware
 
-
 # ---------------------------------------------------------------------------
 # Minimal fake exception class that mimics openai.BadRequestError
 # ---------------------------------------------------------------------------
@@ -33,7 +32,9 @@ class _FakeAPIError(Exception):
 # ---------------------------------------------------------------------------
 
 
-def _make_middleware(max_retries: int = 2, initial_delay: float = 0.0) -> ModelRetryMiddleware:
+def _make_middleware(
+    max_retries: int = 2, initial_delay: float = 0.0
+) -> ModelRetryMiddleware:
     return ModelRetryMiddleware(
         max_retries=max_retries,
         initial_delay=initial_delay,
@@ -101,3 +102,17 @@ async def test_exception_without_status_code_is_retried():
         await middleware.awrap_model_call(request=object(), handler=handler)
 
     assert calls["n"] == max_retries + 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["GoogleInvalidRequestError", "BadRequestError"])
+async def test_invalid_request_without_status_code_is_not_retried(name):
+    error_type = type(name, (Exception,), {})
+    exc = error_type("Invalid request")
+    handler, calls = _counting_handler(exc)
+
+    with pytest.raises(error_type) as caught:
+        await _make_middleware().awrap_model_call(request=object(), handler=handler)
+
+    assert caught.value is exc
+    assert calls["n"] == 1

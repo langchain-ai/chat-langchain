@@ -74,7 +74,11 @@ class ModelRetryMiddleware(AgentMiddleware):
                 finish_reason = self._get_finish_reason(response)
 
                 message = self._last_ai_message(response)
-                if finish_reason in RETRYABLE_FINISH_REASONS:
+                if finish_reason in RETRYABLE_FINISH_REASONS or (
+                    message is not None
+                    and not message.tool_calls
+                    and finish_reason in {"length", "MAX_TOKENS"}
+                ):
                     raise MalformedResponseError(f"Model returned {finish_reason}")
                 if (
                     message is not None
@@ -90,7 +94,9 @@ class ModelRetryMiddleware(AgentMiddleware):
                 # request that will never succeed on retry (e.g. bad image
                 # dimensions). Let ModelFallbackMiddleware handle them instead.
                 status_code = getattr(e, "status_code", None)
-                if isinstance(status_code, int) and 400 <= status_code < 500:
+                if (isinstance(status_code, int) and 400 <= status_code < 500) or type(
+                    e
+                ).__name__.endswith(("InvalidRequestError", "BadRequestError")):
                     raise
 
                 last_exception = e
