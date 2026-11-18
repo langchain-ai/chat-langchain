@@ -4,7 +4,11 @@ Nothing capped guest traffic before (Nov 17, 2026): one guest pass fired 60
 runs in four minutes, and a probe rotated 151 guest ids, each minted for free
 at ``POST /identity/guest``. Two cheap fences, kept in memory per replica:
 
-* guest pass minting, per client IP;
+* guest pass minting, per client IP (loose: the docs embed mints through
+  its own server-side proxy at ui-patterns.langchain.com, so every new docs
+  reader shares a few Vercel egress IPs. At 20 per 10 min that cap turned
+  away ~54 real readers in 2 hours on Nov 17; real mint volume is ~100 per
+  10 min across all of them);
 * new runs, per end-user id (guests and signed-in website users).
 
 Real traffic Nov 14-16 peaked at 5 runs/min and 18 runs/10 min for one id, so
@@ -67,7 +71,7 @@ class SlidingWindowLimiter:
                 del self._hits[key]
 
 
-GUEST_MINTS = SlidingWindowLimiter([(_env_int("GUEST_MINTS_PER_10MIN_PER_IP", 20), 600.0)])
+GUEST_MINTS = SlidingWindowLimiter([(_env_int("GUEST_MINTS_PER_10MIN_PER_IP", 300), 600.0)])
 RUNS = SlidingWindowLimiter(
     [
         (_env_int("RUNS_PER_MIN_PER_USER", 10), 60.0),
