@@ -14,6 +14,7 @@ service principals are never limited.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import threading
 import time
@@ -75,10 +76,28 @@ RUNS = SlidingWindowLimiter(
 )
 
 
+def _is_internal(address: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return True
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+
+
 def client_ip(headers: Mapping[str, str], fallback: str | None) -> str:
-    forwarded = headers.get("x-forwarded-for") or ""
-    first = forwarded.split(",")[0].strip()
-    return first or (headers.get("x-real-ip") or "").strip() or (fallback or "unknown")
+    """Rightmost public hop in ``X-Forwarded-For``.
+
+    The platform's load balancer appends the real client address, then internal
+    proxies append their own private hops (seen on a preview, Nov 17:
+    ``<client>, 172.22.x.x``). Anything to the left of the client address is
+    whatever the caller sent, so reading the first hop would let anyone pick
+    their own key.
+    """
+    hops = [hop.strip() for hop in (headers.get("x-forwarded-for") or "").split(",") if hop.strip()]
+    for hop in reversed(hops):
+        if not _is_internal(hop):
+            return hop
+    return (headers.get("x-real-ip") or "").strip() or (fallback or "unknown")
 
 
 def _is_limited_user(user: Any) -> bool:

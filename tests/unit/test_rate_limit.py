@@ -43,7 +43,9 @@ class TestLimiter(unittest.TestCase):
             self.assertIsNone(lim.hit("u", now=i * 30.0))
 
     def test_client_ip(self):
-        self.assertEqual(client_ip({"x-forwarded-for": "1.2.3.4, 10.0.0.1"}, "10.0.0.9"), "1.2.3.4")
+        self.assertEqual(client_ip({"x-forwarded-for": "34.71.41.140, 172.22.7.130"}, "172.22.0.142"), "34.71.41.140")
+        # a caller-supplied hop on the left can't change the key
+        self.assertEqual(client_ip({"x-forwarded-for": "1.1.1.1,34.71.41.140, 172.22.7.130"}, "172.22.1.3"), "34.71.41.140")
         self.assertEqual(client_ip({}, "10.0.0.9"), "10.0.0.9")
         self.assertEqual(client_ip({"x-real-ip": "5.6.7.8"}, None), "5.6.7.8")
 
@@ -81,10 +83,10 @@ class TestMintLimit(unittest.TestCase):
         import guest_auth
 
         rate_limit.GUEST_MINTS = SlidingWindowLimiter([(2, 600.0)])
-        req = SimpleNamespace(headers={"x-forwarded-for": "9.9.9.9"}, client=SimpleNamespace(host="10.0.0.1"))
+        req = SimpleNamespace(headers={"x-forwarded-for": "6.6.6.6, 9.9.9.9, 172.22.0.1"}, client=SimpleNamespace(host="10.0.0.1"))
         with patch.dict("os.environ", {"GUEST_AUTH_SECRET": "s"}):
             codes = [asyncio.run(guest_auth._issue_guest(req)).status_code for _ in range(3)]
-            other = SimpleNamespace(headers={"x-forwarded-for": "8.8.8.8"}, client=None)
+            other = SimpleNamespace(headers={"x-forwarded-for": "8.8.8.8, 172.22.0.1"}, client=None)
             self.assertEqual(asyncio.run(guest_auth._issue_guest(other)).status_code, 200)
         self.assertEqual(codes, [200, 200, 429])
 
