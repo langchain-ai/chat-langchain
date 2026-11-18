@@ -777,22 +777,6 @@ export function ChatInterface({
     }
   }, [client, threadId, uiDispatch])
 
-  // Double texting: move a queued message to the front, then stop the current
-  // answer. When the run settles, the queue effect sends it next, on the same
-  // thread, so the agent sees the earlier message and the new one together.
-  const sendQueuedMessageNow = useCallback(async (id: string) => {
-    const index = messageQueueRef.current.findIndex((item) => item.userMessage.id === id)
-    if (index < 0) return
-    const [item] = messageQueueRef.current.splice(index, 1)
-    messageQueueRef.current.unshift(item)
-    trackEvent("Queued Message Sent Now", { threadId })
-    if (activeRunRef.current) {
-      await handleStop()
-    } else {
-      processQueue()
-    }
-  }, [handleStop, processQueue, threadId])
-
   const handleRegenerate = useCallback(async () => {
     if (activeRunRef.current || uiState.isLoading || uiState.isRegenerating) return
 
@@ -980,7 +964,6 @@ export function ChatInterface({
             voiceError={voiceError}
             queuedMessages={queuedMessagesDisplay}
             onRemoveQueuedMessage={removeQueuedMessage}
-            onSendQueuedMessageNow={sendQueuedMessageNow}
           />
         )}
       </main>
