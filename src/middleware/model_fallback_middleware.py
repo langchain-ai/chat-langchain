@@ -17,6 +17,7 @@ from langchain.agents.middleware.types import (
     ModelRequest,
     ModelResponse,
 )
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AnyMessage, ToolMessage
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,16 @@ def repair_tool_call_ids(messages: list[AnyMessage]) -> list[AnyMessage]:
 class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
     """ModelFallbackMiddleware that repairs tool-call history on fallback."""
 
+    def __init__(
+        self,
+        first_model: str | BaseChatModel,
+        *additional_models: str | BaseChatModel,
+        primary_model: BaseChatModel | None = None,
+    ):
+        """Configure fallback models and an optional initialized primary model."""
+        super().__init__(first_model, *additional_models)
+        self.primary_model = primary_model
+
     def _repaired_request(self, request: ModelRequest) -> ModelRequest:
         repaired_messages = repair_tool_call_ids(request.messages)
         if repaired_messages is request.messages or len(repaired_messages) == len(
@@ -76,6 +87,8 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         handler: Callable[[ModelRequest], ModelResponse],
     ) -> ModelResponse | AIMessage:
         """Try fallback models in sequence, repairing history before each fallback."""
+        if self.primary_model is not None:
+            request = request.override(model=self.primary_model)
         last_exception: Exception
         try:
             return handler(request)
@@ -98,6 +111,8 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse | AIMessage:
         """Try fallback models in sequence, repairing history before each fallback."""
+        if self.primary_model is not None:
+            request = request.override(model=self.primary_model)
         last_exception: Exception
         try:
             return await handler(request)
