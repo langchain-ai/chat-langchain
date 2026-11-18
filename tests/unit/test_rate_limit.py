@@ -91,5 +91,41 @@ class TestMintLimit(unittest.TestCase):
         self.assertEqual(codes, [200, 200, 429])
 
 
+class TestForwardedIp(unittest.TestCase):
+    def test_signed_forward_keys_on_visitor(self):
+        import time as _t
+
+        import guest_auth
+        from rate_limit import forwarded_client_ip, sign_forwarded_ip
+
+        ts = int(_t.time())
+        good = {"x-guest-client-ip": "34.71.41.140", "x-guest-client-sig": f"{ts}.{sign_forwarded_ip('s', '34.71.41.140', ts)}"}
+        self.assertEqual(forwarded_client_ip(good, "s"), "34.71.41.140")
+        # wrong secret, stale, tampered ip, garbage -> not trusted
+        self.assertIsNone(forwarded_client_ip(good, "other"))
+        self.assertIsNone(forwarded_client_ip(good, "s", now=ts + 600))
+        self.assertIsNone(forwarded_client_ip({**good, "x-guest-client-ip": "1.1.1.1"}, "s"))
+        self.assertIsNone(forwarded_client_ip({"x-guest-client-ip": "1.1.1.1", "x-guest-client-sig": "nope"}, "s"))
+        self.assertIsNone(forwarded_client_ip({}, "s"))
+
+        # mints proxied by the website share Vercel's IP but are capped per visitor
+        rate_limit.GUEST_MINTS = SlidingWindowLimiter([(2, 600.0)])
+        vercel = {"x-forwarded-for": "76.76.21.21, 172.22.0.1"}
+
+        def req(ip):
+            sig = f"{ts}.{sign_forwarded_ip('s', ip, ts)}"
+            return SimpleNamespace(headers={**vercel, "x-guest-client-ip": ip, "x-guest-client-sig": sig}, client=None)
+
+        with patch.dict("os.environ", {"GUEST_AUTH_SECRET": "s"}):
+            a = [asyncio.run(guest_auth._issue_guest(req("5.5.5.5"))).status_code for _ in range(3)]
+            b = asyncio.run(guest_auth._issue_guest(req("7.7.7.7"))).status_code
+            # a forged, unsigned header falls back to the network hop
+            forged = SimpleNamespace(headers={**vercel, "x-guest-client-ip": "9.9.9.9"}, client=None)
+            c = [asyncio.run(guest_auth._issue_guest(forged)).status_code for _ in range(3)]
+        self.assertEqual(a, [200, 200, 429])
+        self.assertEqual(b, 200)
+        self.assertEqual(c, [200, 200, 429])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -66,3 +66,25 @@ export function readGuestToken(
     return null
   }
 }
+
+/**
+ * Signature the engine checks before trusting a forwarded client IP for its
+ * per-IP guest mint cap (rate_limit.forwarded_client_ip). Format "<ts>.<hex>".
+ */
+export function signForwardedIp(
+  secret: string,
+  ip: string,
+  now = Date.now()
+): string {
+  const ts = Math.floor(now / 1000)
+  const mac = createHmac("sha256", secret).update(`${ip}.${ts}`).digest("hex")
+  return `${ts}.${mac}`
+}
+
+/** Visitor IP as Vercel reports it (Vercel overwrites these headers). */
+export function requestClientIp(headers: Headers): string | null {
+  const real = headers.get("x-real-ip")?.trim()
+  if (real) return real
+  const first = headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+  return first || null
+}

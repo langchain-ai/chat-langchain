@@ -100,6 +100,48 @@ def client_ip(headers: Mapping[str, str], fallback: str | None) -> str:
     return (headers.get("x-real-ip") or "").strip() or (fallback or "unknown")
 
 
+FORWARD_IP_HEADER = "x-guest-client-ip"
+FORWARD_SIG_HEADER = "x-guest-client-sig"
+FORWARD_MAX_AGE_SECONDS = 120
+
+
+def sign_forwarded_ip(secret: str, ip: str, ts: int) -> str:
+    """HMAC the website's mint proxy puts on the client IP it forwards."""
+    import hashlib
+    import hmac
+
+    return hmac.new(secret.encode(), f"{ip}.{ts}".encode(), hashlib.sha256).hexdigest()
+
+
+def forwarded_client_ip(headers: Mapping[str, str], secret: str, now: float | None = None) -> str | None:
+    """Client IP vouched for by the website's ``/api/auth/guest`` proxy.
+
+    chat.langchain.com mints guest passes server-side (Vercel), so every mint
+    reaches us from Vercel's egress IPs. The proxy forwards the visitor's IP as
+    ``x-guest-client-ip: <ip>`` with ``x-guest-client-sig: <ts>.<hmac>`` keyed by
+    the shared guest secret; only a valid, fresh signature is trusted, so a
+    direct caller can't pick its own key.
+    """
+    import hmac
+
+    ip = (headers.get(FORWARD_IP_HEADER) or "").strip()
+    sig = (headers.get(FORWARD_SIG_HEADER) or "").strip()
+    if not ip or not sig or "." not in sig or not secret:
+        return None
+    ts_raw, mac = sig.split(".", 1)
+    try:
+        ts = int(ts_raw)
+        ipaddress.ip_address(ip)
+    except ValueError:
+        return None
+    current = time.time() if now is None else now
+    if abs(current - ts) > FORWARD_MAX_AGE_SECONDS:
+        return None
+    if not hmac.compare_digest(mac, sign_forwarded_ip(secret, ip, ts)):
+        return None
+    return ip
+
+
 def _is_limited_user(user: Any) -> bool:
     if _ia._is_unscoped_principal(user):
         return False

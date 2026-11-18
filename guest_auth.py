@@ -93,10 +93,12 @@ async def _issue_guest(request: Any) -> Any:
     secret = _secret()
     if not secret:
         return _json({"detail": "Guest authentication is unavailable"}, 503)
-    from rate_limit import GUEST_MINTS, client_ip
+    from rate_limit import GUEST_MINTS, client_ip, forwarded_client_ip
 
     client = getattr(request, "client", None)
-    ip = client_ip(request.headers, getattr(client, "host", None))
+    ip = forwarded_client_ip(request.headers, secret) or client_ip(
+        request.headers, getattr(client, "host", None)
+    )
     wait = GUEST_MINTS.hit(f"ip:{ip}")
     if wait is not None:
         response = _json({"detail": "Too many guest sessions. Try again later."}, 429)
