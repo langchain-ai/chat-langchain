@@ -96,7 +96,7 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
-MODEL_MAX_TOKENS = int(os.getenv("MODEL_MAX_TOKENS", "8192"))
+MODEL_MAX_TOKENS = int(os.getenv("MODEL_MAX_TOKENS", "16384"))
 MODEL_REQUEST_TIMEOUT = float(os.getenv("MODEL_REQUEST_TIMEOUT", "60"))
 
 # Primary model. Public callers cannot switch this at runtime.
