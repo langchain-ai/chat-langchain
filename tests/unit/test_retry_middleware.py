@@ -297,7 +297,7 @@ def test_prefilling_value_error_advances_to_fallback_once(model_name):
         f"Model '{model_name}' does not support model prefilling. The final "
         "request turn must be a user message or a function response."
     )
-    messages = [HumanMessage(content="Question"), AIMessage(content="Previous answer")]
+    messages = [HumanMessage(content="Question")]
     request = ModelRequest(model=primary, messages=messages)
     calls = []
     answer = ModelResponse(result=[AIMessage(content="Fallback answer")])
