@@ -79,6 +79,9 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         """Return the primary model and fallbacks to use for this request."""
         return self.primary_model, self.models
 
+    def _on_fallback(self, request: ModelRequest) -> None:
+        """Run when the primary model failed and fallbacks are about to be tried."""
+
     def _repaired_request(self, request: ModelRequest) -> ModelRequest:
         repaired_messages = repair_tool_call_ids(request.messages)
         if repaired_messages is request.messages or len(repaired_messages) == len(
@@ -102,6 +105,8 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         except Exception as e:
             last_exception = e
 
+        if fallback_models:
+            self._on_fallback(request)
         for fallback_model in fallback_models:
             repaired = self._repaired_request(request)
             try:
@@ -127,6 +132,8 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         except Exception as e:
             last_exception = e
 
+        if fallback_models:
+            self._on_fallback(request)
         for fallback_model in fallback_models:
             repaired = self._repaired_request(request)
             try:

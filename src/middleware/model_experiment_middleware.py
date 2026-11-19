@@ -30,6 +30,14 @@ Every model in both chains carries ``model_experiment``, ``model_arm`` and
 each model-call run next to the ``thread_id`` LangGraph already adds. Query
 ``model_arm = treatment AND model_role = fallback`` to find treatment threads
 that were not answered by the post-trained model.
+
+Model-call metadata only reaches the LLM child runs, so while the experiment
+is on, the root run of every turn is also tagged with ``model_experiment`` and
+the arm that turn runs (``model_arm``), and with ``model_fallback=True`` when
+a primary model failed and the turn fell back. Online eval rules and root
+filters can then split traces by arm and exclude fallback turns. When the
+SDK keeps only the root's id, not the root object, the same keys are logged
+as feedback on the trace instead.
 """
 
 from __future__ import annotations
@@ -39,6 +47,7 @@ import logging
 from dataclasses import dataclass
 from typing import Annotated, Any
 
+import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware
 from langchain.agents.middleware.types import (
     AgentState,
@@ -114,6 +123,30 @@ class ModelExperimentState(AgentState):
     model_arm: NotRequired[Annotated[str, PrivateStateAttr]]
 
 
+def _tag_root_run(metadata: dict[str, str | bool]) -> None:
+    """Set ``metadata`` on the current trace's root run, never failing the turn."""
+    try:
+        run_tree = ls.get_current_run_tree()
+        if not run_tree:
+            return
+        while run_tree.parent_run is not None:
+            run_tree = run_tree.parent_run
+        run_tree.metadata.update(metadata)
+        # Some SDK versions retain parent IDs without parent objects.
+        if run_tree.parent_run_id is not None:
+            for key, value in metadata.items():
+                if isinstance(value, bool):
+                    run_tree.client.create_feedback(
+                        run_id=run_tree.trace_id, key=key, score=int(value)
+                    )
+                else:
+                    run_tree.client.create_feedback(
+                        run_id=run_tree.trace_id, key=key, value=value
+                    )
+    except Exception:
+        logger.debug("Could not tag the root run with %s", metadata, exc_info=True)
+
+
 def _current_thread_id() -> str | None:
     from langgraph.config import get_config
 
@@ -126,7 +159,7 @@ def _current_thread_id() -> str | None:
 
 
 class ModelArmPinMiddleware(AgentMiddleware[ModelExperimentState]):
-    """Pin the thread's model arm in state on its first turn."""
+    """Pin the thread's model arm on its first turn and tag every turn's root run."""
 
     state_schema = ModelExperimentState
 
@@ -152,10 +185,15 @@ class ModelArmPinMiddleware(AgentMiddleware[ModelExperimentState]):
     def before_agent(
         self, state: dict[str, Any], runtime: Any
     ) -> dict[str, Any] | None:
-        """Save the arm on the thread's first turn; later turns keep it."""
-        if state.get("model_arm") in ARMS:
-            return None
-        return {"model_arm": self._initial_arm(state)}
+        """Save the arm on the thread's first turn and label the turn's root run."""
+        arm = state.get("model_arm")
+        update = None
+        if arm not in ARMS:
+            arm = self._initial_arm(state)
+            update = {"model_arm": arm}
+        if self.experiment.enabled:
+            _tag_root_run({"model_experiment": self.experiment.name, "model_arm": arm})
+        return update
 
     async def abefore_agent(
         self, state: dict[str, Any], runtime: Any
@@ -185,6 +223,10 @@ class ModelExperimentFallbackMiddleware(RepairingModelFallbackMiddleware):
     ) -> tuple[BaseChatModel | None, list[BaseChatModel]]:
         chain = self.experiment.chain_for((request.state or {}).get("model_arm"))
         return chain.primary, list(chain.fallbacks)
+
+    def _on_fallback(self, request: ModelRequest) -> None:
+        if self.experiment.enabled:
+            _tag_root_run({"model_fallback": True})
 
 
 __all__ = [

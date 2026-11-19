@@ -307,3 +307,85 @@ def test_bad_traffic_percent_fails_at_startup(config_module, monkeypatch, value)
     monkeypatch.setenv("FT_MODEL_TRAFFIC_PERCENT", value)
     with pytest.raises(ValueError, match="FT_MODEL_TRAFFIC_PERCENT"):
         config_module._ft_traffic_percent_from_env()
+
+
+# --- root run metadata --------------------------------------------------------
+
+
+@pytest.fixture(params=["linked", "detached"])
+def root_run(monkeypatch, request):
+    from types import SimpleNamespace
+
+    from langsmith.run_trees import RunTree
+
+    root = RunTree(name="root", extra={"metadata": {"existing": True}})
+
+    class Client:
+        def __init__(self):
+            self.feedback = []
+
+        def create_feedback(self, *, run_id, key, score=None, value=None):
+            self.feedback.append((run_id, key, score if value is None else value))
+
+    root.ls_client = Client()
+    child = (
+        SimpleNamespace(metadata={}, parent_run=root)
+        if request.param == "linked"
+        else root.create_child(name="model")
+    )
+    monkeypatch.setattr(
+        "src.middleware.model_experiment_middleware.ls.get_current_run_tree",
+        lambda: child,
+    )
+    detached = request.param == "detached"
+    return SimpleNamespace(
+        root=root,
+        metadata=child.metadata if detached else root.metadata,
+        feedback=lambda: dict((k, v) for _, k, v in root.client.feedback),
+        detached=detached,
+    )
+
+
+def test_root_run_is_tagged_with_the_arm_on_every_turn(root_run):
+    saver = InMemorySaver()
+    thread_id = str(uuid.uuid4())
+    agent = _agent(_experiment(percent=100), saver)
+    assert _ask(agent, thread_id) == "treatment"
+    root_run.metadata.clear()
+    root_run.root.client.feedback.clear()
+
+    assert _ask(agent, thread_id, "follow up") == "treatment"
+    expected = {"model_experiment": "test-experiment", "model_arm": ARM_TREATMENT}
+    assert expected.items() <= root_run.metadata.items()
+    assert "model_fallback" not in root_run.metadata
+    assert root_run.feedback() == (expected if root_run.detached else {})
+
+
+def test_root_run_shows_the_arm_actually_run_after_the_kill_switch(root_run):
+    saver = InMemorySaver()
+    thread_id = str(uuid.uuid4())
+    _ask(_agent(_experiment(percent=100), saver), thread_id)
+    root_run.metadata.clear()
+    assert _ask(_agent(_experiment(enabled=False), saver), thread_id) == "control"
+    assert "model_arm" not in root_run.metadata
+
+
+def test_root_run_is_marked_when_the_turn_falls_back(root_run):
+    treatment = ModelChain(_failing(), (_model("treatment-fallback"),))
+    agent = _agent(_experiment(percent=100, treatment=treatment), InMemorySaver())
+    assert _ask(agent, str(uuid.uuid4())) == "treatment-fallback"
+    assert root_run.metadata["model_arm"] == ARM_TREATMENT
+    assert root_run.metadata["model_fallback"] is True
+    if root_run.detached:
+        assert root_run.feedback()["model_fallback"] == 1
+
+
+def test_root_tagging_failure_does_not_fail_the_turn(monkeypatch):
+    def boom():
+        raise RuntimeError("tracing down")
+
+    monkeypatch.setattr(
+        "src.middleware.model_experiment_middleware.ls.get_current_run_tree", boom
+    )
+    agent = _agent(_experiment(percent=100), InMemorySaver())
+    assert _ask(agent, str(uuid.uuid4())) == "treatment"
