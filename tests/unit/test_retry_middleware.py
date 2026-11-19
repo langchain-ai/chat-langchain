@@ -240,3 +240,37 @@ def test_length_limited_tool_call_is_preserved(reason):
     assert (
         asyncio.run(ModelRetryMiddleware().awrap_model_call(None, handler)) is message
     )
+
+
+def test_stalled_attempt_hits_deadline_and_retries():
+    answer = AIMessage(content="Here is an answer")
+    calls = []
+
+    async def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            await asyncio.sleep(10)
+        return answer
+
+    response = asyncio.run(
+        ModelRetryMiddleware(initial_delay=0, attempt_deadline=0.05).awrap_model_call(
+            None, handler
+        )
+    )
+
+    assert response is answer
+    assert len(calls) == 2
+
+
+def test_stalled_attempts_raise_for_fallback_after_retries():
+    from src.middleware.retry_middleware import ModelAttemptTimeoutError
+
+    async def handler(request):
+        await asyncio.sleep(10)
+
+    with pytest.raises(ModelAttemptTimeoutError):
+        asyncio.run(
+            ModelRetryMiddleware(
+                max_retries=1, initial_delay=0, attempt_deadline=0.05
+            ).awrap_model_call(None, handler)
+        )
