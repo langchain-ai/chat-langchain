@@ -13,7 +13,10 @@ from src.tools.link_check_tools import _canonicalize_docs_url, _check_urls_async
 
 logger = logging.getLogger(__name__)
 VALIDATION_BUDGET = 5.0
-_URL = r"https?://(?:[^\s<>`\[\]()]+|\([^\s<>`\[\]()]*\))+"
+# One character per repetition: a nested `+` here backtracks exponentially when a
+# markdown link is not closed by an ASCII ")" (e.g. a fullwidth "）"), which
+# froze the event loop and got replicas killed on prod (Nov 18-19).
+_URL = r"https?://(?:[^\s<>`\[\]()]|\([^\s<>`\[\]()]*\))+"
 _LINK = re.compile(
     rf'\[(?P<label>[^\]\n]*)\]\(<?(?P<markdown>{_URL})>?(?:\s+"[^"\n]*")?\)'
     rf"|<(?P<auto>{_URL})>|(?P<bare>{_URL})"

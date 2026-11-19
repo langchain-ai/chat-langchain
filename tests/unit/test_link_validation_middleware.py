@@ -498,3 +498,28 @@ async def test_redirect_rejection_and_official_timeout_in_final_answer():
             None,
         )
     assert result["messages"][0].content == f"Read sandboxes and [tracing]({official})."
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "参见[文档](https://docs.langchain.com/oss/python/langchain/overview）这是中文" * 20,
+        "[unclosed](https://docs.langchain.com/" + "a" * 5000,
+        "[x](https://docs.langchain.com/a(b)c(d)e(f)g(h)i(j)k(l)m(n)o(p)q" + "r" * 200,
+    ],
+)
+def test_unclosed_markdown_links_scan_in_linear_time(text):
+    import time
+
+    from src.middleware.link_validation_middleware import (
+        _LINK,
+        _canonicalize_links,
+        _segments,
+    )
+
+    started = time.perf_counter()
+    canonical = _canonicalize_links(text)
+    for code, segment in _segments(canonical):
+        if not code:
+            list(_LINK.finditer(segment))
+    assert time.perf_counter() - started < 1.0
