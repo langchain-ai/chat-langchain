@@ -402,3 +402,17 @@ def test_list_content_keeps_shared_truncation_budget(run_metadata):
         "",
     ]
     assert run_metadata["secret_redacted"] is True
+
+
+def test_secret_redaction_is_not_quadratic_on_repeated_labels():
+    import time
+
+    from src.middleware.ingress_guards_middleware import (
+        MAX_MESSAGE_CHARS,
+        _SECRET_RE,
+    )
+
+    text = ("key=" * MAX_MESSAGE_CHARS)[:MAX_MESSAGE_CHARS]
+    start = time.monotonic()
+    _SECRET_RE.sub("", text)
+    assert time.monotonic() - start < 2.0

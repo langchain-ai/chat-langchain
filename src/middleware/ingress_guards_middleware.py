@@ -28,12 +28,15 @@ MAX_MESSAGE_CHARS = 50_000
 _PREFIXED_SECRET = (
     r"\b(?:sk-(?:ant-)?|tvly-|AIza|gh[po]_|xoxb-|pk_live_|lsv2_|lcl_)[A-Za-z0-9_-]+"
 )
+# The generic token branch is bounded (512 chars): unbounded lookaheads rescan the
+# rest of the message at every "key=" position, which is quadratic and froze the
+# event loop for ~8s on a 50k-char "key=key=..." message (an easy DoS).
 _SECRET_RE = re.compile(
     r"(?P<label>\b[\w-]*(?:key|token|secret|password)[\"']?\s*[:=]\s*)"
     r"(?P<quote>[\"']?)(?:"
     + _PREFIXED_SECRET
-    + r"|(?=[A-Za-z0-9_\-.+=]*[A-Za-z])(?=[A-Za-z0-9_\-.+=]*[0-9])"
-    r"[A-Za-z0-9_\-.+=]{16,})(?P=quote)(?![A-Za-z0-9_\-.+=/('\"\[])"
+    + r"|(?=[A-Za-z0-9_\-.+=]{0,511}[A-Za-z])(?=[A-Za-z0-9_\-.+=]{0,511}[0-9])"
+    r"[A-Za-z0-9_\-.+=]{16,512})(?P=quote)(?![A-Za-z0-9_\-.+=/('\"\[])"
     r"|" + _PREFIXED_SECRET + r"|\bBearer[ \t]+[A-Za-z0-9._~+/=-]+"
     r"|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+",
     re.IGNORECASE,
