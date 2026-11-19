@@ -122,6 +122,12 @@ class ModelRetryMiddleware(AgentMiddleware):
                 ).__name__.endswith(("InvalidRequestError", "BadRequestError")):
                     raise
 
+                if isinstance(e, ValueError) and str(e).endswith(
+                    "does not support model prefilling. The final request turn must "
+                    "be a user message or a function response."
+                ):
+                    raise
+
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)

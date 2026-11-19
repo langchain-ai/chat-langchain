@@ -274,3 +274,42 @@ def test_stalled_attempts_raise_for_fallback_after_retries():
                 max_retries=1, initial_delay=0, attempt_deadline=0.05
             ).awrap_model_call(None, handler)
         )
+
+
+@pytest.mark.parametrize(
+    "model_name", ["gemini-3.5-flash-lite", "gemini-3-pro-preview"]
+)
+def test_prefilling_value_error_advances_to_fallback_once(model_name):
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    from src.middleware.model_fallback_middleware import (
+        RepairingModelFallbackMiddleware,
+    )
+
+    primary = FakeListChatModel(responses=["Primary"])
+    fallback_model = FakeListChatModel(responses=["Fallback"])
+    fallback = RepairingModelFallbackMiddleware(fallback_model)
+    retry = ModelRetryMiddleware(initial_delay=0)
+    chain = _chain_async_model_call_handlers(
+        [fallback.awrap_model_call, retry.awrap_model_call]
+    )
+    error = ValueError(
+        f"Model '{model_name}' does not support model prefilling. The final "
+        "request turn must be a user message or a function response."
+    )
+    messages = [HumanMessage(content="Question"), AIMessage(content="Previous answer")]
+    request = ModelRequest(model=primary, messages=messages)
+    calls = []
+    answer = ModelResponse(result=[AIMessage(content="Fallback answer")])
+
+    async def handler(request):
+        calls.append(request.model)
+        assert request.messages == messages
+        if request.model is primary:
+            raise error
+        return answer
+
+    result = asyncio.run(chain(request, handler))
+
+    assert result.model_response is answer
+    assert calls == [primary, fallback_model]
