@@ -2,9 +2,21 @@
 
 Each new thread is assigned an arm from a salted sha256 of its ``thread_id``.
 The arm is saved in private agent state on the thread's first turn, so a
-conversation never changes model, even if the traffic percentage or salt
-changes later. Threads that already had answers before the experiment existed
-are pinned to control.
+conversation keeps its arm even if the traffic percentage or salt changes
+later. Threads that already had answers before the experiment existed are
+pinned to control.
+
+The saved arm is the bare word ``treatment`` or ``control``: it does not
+record which model or experiment it came from. So when a new LoRA is loaded
+into ``FT_MODEL_ID``, treatment threads that are already open continue on the
+new model. For a clean break between model versions, also change
+``FT_MODEL_EXPERIMENT`` in ``src/agent/config.py``. That only re-salts new
+threads, though: old treatment threads still run whatever ``FT_MODEL_ID``
+points to. The ``model_experiment`` label comes from the model, not the
+thread, so an old thread's later turns carry the new label; only its earlier
+turns keep the old one. Spot these threads in LangSmith as treatment threads
+with runs under both labels. Saving the experiment name with the arm would
+close this gap; it was left out on purpose to keep the pin simple.
 
 Two middlewares share one :class:`ModelExperiment`:
 

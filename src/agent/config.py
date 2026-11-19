@@ -98,6 +98,13 @@ FALLBACK_MODELS = [
 # FT_MODEL_TRAFFIC_PERCENT=0 instead stops new enrollment and keeps pinned
 # threads as they are. Change FT_MODEL_EXPERIMENT only for a new experiment:
 # it salts the thread hash and labels every model-call run in LangSmith.
+#
+# Swapping FT_MODEL_ID to a new LoRA moves already-open treatment threads onto
+# the new model too: the pinned arm doesn't record which model it came from.
+# Change FT_MODEL_EXPERIMENT as well for a clean break; old treatment threads
+# still run the new FT_MODEL_ID, and their later turns carry the new label
+# (only earlier turns keep the old one). See
+# src/middleware/model_experiment_middleware.py.
 FT_MODEL_EXPERIMENT = "clc-ft-model-v1"
 _DEFAULT_FT_MODEL_TRAFFIC_PERCENT = 30
 
