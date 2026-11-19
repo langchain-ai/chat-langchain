@@ -324,8 +324,9 @@ def root_run(monkeypatch, request):
         def __init__(self):
             self.feedback = []
 
-        def create_feedback(self, *, run_id, key, score=None, value=None):
-            self.feedback.append((run_id, key, score if value is None else value))
+        def create_feedback(self, *, trace_id, key, score=None, value=None):
+            assert trace_id == root.id
+            self.feedback.append((trace_id, key, score if value is None else value))
 
     root.ls_client = Client()
     child = (
@@ -358,7 +359,14 @@ def test_root_run_is_tagged_with_the_arm_on_every_turn(root_run):
     expected = {"model_experiment": "test-experiment", "model_arm": ARM_TREATMENT}
     assert expected.items() <= root_run.metadata.items()
     assert "model_fallback" not in root_run.metadata
-    assert root_run.feedback() == (expected if root_run.detached else {})
+    assert root_run.feedback() == {**expected, "model_arm_treatment": 1}
+
+
+def test_control_turns_score_zero_for_treatment(root_run):
+    agent = _agent(_experiment(percent=0), InMemorySaver())
+    assert _ask(agent, str(uuid.uuid4())) == "control"
+    assert root_run.feedback()["model_arm"] == ARM_CONTROL
+    assert root_run.feedback()["model_arm_treatment"] == 0
 
 
 def test_root_run_shows_the_arm_actually_run_after_the_kill_switch(root_run):
@@ -366,8 +374,10 @@ def test_root_run_shows_the_arm_actually_run_after_the_kill_switch(root_run):
     thread_id = str(uuid.uuid4())
     _ask(_agent(_experiment(percent=100), saver), thread_id)
     root_run.metadata.clear()
+    root_run.root.client.feedback.clear()
     assert _ask(_agent(_experiment(enabled=False), saver), thread_id) == "control"
     assert "model_arm" not in root_run.metadata
+    assert root_run.feedback() == {}
 
 
 def test_root_run_is_marked_when_the_turn_falls_back(root_run):
@@ -376,8 +386,7 @@ def test_root_run_is_marked_when_the_turn_falls_back(root_run):
     assert _ask(agent, str(uuid.uuid4())) == "treatment-fallback"
     assert root_run.metadata["model_arm"] == ARM_TREATMENT
     assert root_run.metadata["model_fallback"] is True
-    if root_run.detached:
-        assert root_run.feedback()["model_fallback"] == 1
+    assert root_run.feedback()["model_fallback"] == 1
 
 
 def test_root_tagging_failure_does_not_fail_the_turn(monkeypatch):

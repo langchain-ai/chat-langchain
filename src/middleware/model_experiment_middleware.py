@@ -31,13 +31,14 @@ each model-call run next to the ``thread_id`` LangGraph already adds. Query
 ``model_arm = treatment AND model_role = fallback`` to find treatment threads
 that were not answered by the post-trained model.
 
-Model-call metadata only reaches the LLM child runs, so while the experiment
-is on, the root run of every turn is also tagged with ``model_experiment`` and
-the arm that turn runs (``model_arm``), and with ``model_fallback=True`` when
-a primary model failed and the turn fell back. Online eval rules and root
-filters can then split traces by arm and exclude fallback turns. When the
-SDK keeps only the root's id, not the root object, the same keys are logged
-as feedback on the trace instead.
+Model-call metadata only reaches the LLM child runs, and metadata set on the
+root run from inside the graph doesn't persist in production, so while the
+experiment is on every turn's trace also gets feedback that eval rules and
+root filters can match: ``model_arm_treatment`` (score 1 for treatment, 0 for
+control), ``model_fallback`` (score 1 when a primary model failed and the
+turn fell back), and ``model_arm`` / ``model_experiment`` as string values
+for reading. The same keys are also set on the root run's metadata where the
+SDK allows it.
 """
 
 from __future__ import annotations
@@ -123,8 +124,14 @@ class ModelExperimentState(AgentState):
     model_arm: NotRequired[Annotated[str, PrivateStateAttr]]
 
 
-def _tag_root_run(metadata: dict[str, str | bool]) -> None:
-    """Set ``metadata`` on the current trace's root run, never failing the turn."""
+def _tag_root_run(
+    metadata: dict[str, str | bool], scores: dict[str, int] | None = None
+) -> None:
+    """Log ``metadata`` and ``scores`` as feedback on the current trace.
+
+    Never fails the turn. Passing ``trace_id`` batches the feedback in the
+    background instead of blocking on a request.
+    """
     try:
         run_tree = ls.get_current_run_tree()
         if not run_tree:
@@ -132,17 +139,14 @@ def _tag_root_run(metadata: dict[str, str | bool]) -> None:
         while run_tree.parent_run is not None:
             run_tree = run_tree.parent_run
         run_tree.metadata.update(metadata)
-        # Some SDK versions retain parent IDs without parent objects.
-        if run_tree.parent_run_id is not None:
-            for key, value in metadata.items():
-                if isinstance(value, bool):
-                    run_tree.client.create_feedback(
-                        run_id=run_tree.trace_id, key=key, score=int(value)
-                    )
-                else:
-                    run_tree.client.create_feedback(
-                        run_id=run_tree.trace_id, key=key, value=value
-                    )
+        client, trace_id = run_tree.client, run_tree.trace_id
+        for key, value in metadata.items():
+            if isinstance(value, bool):
+                client.create_feedback(trace_id=trace_id, key=key, score=int(value))
+            else:
+                client.create_feedback(trace_id=trace_id, key=key, value=value)
+        for key, score in (scores or {}).items():
+            client.create_feedback(trace_id=trace_id, key=key, score=score)
     except Exception:
         logger.debug("Could not tag the root run with %s", metadata, exc_info=True)
 
@@ -192,7 +196,10 @@ class ModelArmPinMiddleware(AgentMiddleware[ModelExperimentState]):
             arm = self._initial_arm(state)
             update = {"model_arm": arm}
         if self.experiment.enabled:
-            _tag_root_run({"model_experiment": self.experiment.name, "model_arm": arm})
+            _tag_root_run(
+                {"model_experiment": self.experiment.name, "model_arm": arm},
+                {"model_arm_treatment": int(arm == ARM_TREATMENT)},
+            )
         return update
 
     async def abefore_agent(
