@@ -73,6 +73,12 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         super().__init__(first_model, *additional_models)
         self.primary_model = primary_model
 
+    def _model_chain(
+        self, request: ModelRequest
+    ) -> tuple[BaseChatModel | None, list[BaseChatModel]]:
+        """Return the primary model and fallbacks to use for this request."""
+        return self.primary_model, self.models
+
     def _repaired_request(self, request: ModelRequest) -> ModelRequest:
         repaired_messages = repair_tool_call_ids(request.messages)
         if repaired_messages is request.messages or len(repaired_messages) == len(
@@ -87,15 +93,16 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         handler: Callable[[ModelRequest], ModelResponse],
     ) -> ModelResponse | AIMessage:
         """Try fallback models in sequence, repairing history before each fallback."""
-        if self.primary_model is not None:
-            request = request.override(model=self.primary_model)
+        primary_model, fallback_models = self._model_chain(request)
+        if primary_model is not None:
+            request = request.override(model=primary_model)
         last_exception: Exception
         try:
             return handler(request)
         except Exception as e:
             last_exception = e
 
-        for fallback_model in self.models:
+        for fallback_model in fallback_models:
             repaired = self._repaired_request(request)
             try:
                 return handler(repaired.override(model=fallback_model))
@@ -111,15 +118,16 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse | AIMessage:
         """Try fallback models in sequence, repairing history before each fallback."""
-        if self.primary_model is not None:
-            request = request.override(model=self.primary_model)
+        primary_model, fallback_models = self._model_chain(request)
+        if primary_model is not None:
+            request = request.override(model=primary_model)
         last_exception: Exception
         try:
             return await handler(request)
         except Exception as e:
             last_exception = e
 
-        for fallback_model in self.models:
+        for fallback_model in fallback_models:
             repaired = self._repaired_request(request)
             try:
                 return await handler(repaired.override(model=fallback_model))

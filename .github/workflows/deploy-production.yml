@@ -14,6 +14,7 @@
 #   LANGSMITH_TENANT_ID
 #   ANTHROPIC_API_KEY
 #   BASETEN_API_KEY
+#   FIREWORKS_API_KEY  (required once FT_MODEL_ID is set in src/agent/config.py)
 #   LANGGRAPH_AUTH_SECRET
 #   ALLOW_LEGACY_USER_ID_AUTH
 #   SUPABASE_URL / SUPABASE_ANON_KEY
@@ -69,6 +70,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BASETEN_API_KEY: ${{ secrets.BASETEN_API_KEY }}
+          FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
           PYLON_API_KEY: ${{ secrets.PYLON_API_KEY }}
           PYLON_KB_ID: ${{ secrets.PYLON_KB_ID }}
           MDA_GUEST_SIGNING_KEY: ${{ secrets.MDA_GUEST_SIGNING_KEY }}
@@ -118,6 +120,7 @@ jobs:
           write_env OPENAI_API_KEY "$OPENAI_API_KEY"
           write_env ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
           write_env BASETEN_API_KEY "$BASETEN_API_KEY"
+          write_env FIREWORKS_API_KEY "$FIREWORKS_API_KEY"
           write_env PYLON_API_KEY "$PYLON_API_KEY"
           write_env PYLON_KB_ID "$PYLON_KB_ID"
           write_env MDA_GUEST_SIGNING_KEY "$MDA_GUEST_SIGNING_KEY"

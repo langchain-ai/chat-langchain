@@ -5,6 +5,7 @@ from managed_deepagents import define_deep_agent
 from src.agent.config import (
     DEFAULT_MODEL,
     GUARDRAILS_MODEL,
+    model_arm_pin_middleware,
     model_fallback_middleware,
     model_retry_middleware,
     summarization_model,
@@ -34,6 +35,9 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
+    # Pin this thread's model arm (default vs post-trained model) before any
+    # other hook can end the turn; model_fallback_middleware runs that arm.
+    model_arm_pin_middleware,
     # Cap oversized user input (was auth.py). Trace metadata is applied via
     # define_deep_agent(metadata=...) so it lands on the LangSmith root run.
     IngressGuardsMiddleware(),
@@ -62,6 +66,7 @@ docs_agent_middleware = [
     # despite the prompt rule; name the reply language per model call.
     ReplyLanguageMiddleware(),
     ToolNameRepairMiddleware(),
+    # Runs the pinned arm's primary model, then its fallback chain.
     model_fallback_middleware,
     model_retry_middleware,
 ]

@@ -2,13 +2,21 @@
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 
 import dotenv
 from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
-from src.middleware.model_fallback_middleware import RepairingModelFallbackMiddleware
+from src.middleware.model_experiment_middleware import (
+    ARM_CONTROL,
+    ARM_TREATMENT,
+    ModelArmPinMiddleware,
+    ModelChain,
+    ModelExperiment,
+    ModelExperimentFallbackMiddleware,
+)
 from src.middleware.retry_middleware import (
     RETRYABLE_FINISH_REASONS,
     MalformedResponseError,
@@ -75,6 +83,32 @@ FALLBACK_MODELS = [
 ]
 
 # =============================================================================
+# Post-trained model experiment
+# =============================================================================
+# A Fireworks serverless LoRA serves FT_MODEL_TRAFFIC_PERCENT of new threads;
+# DEFAULT_MODEL serves the rest. Load the adapter with
+#   firectl model load-lora <model-id> --serverless
+# and set FT_MODEL_ID to its model resource name, without a `#deployment`
+# suffix: "accounts/<account-id>/models/<model-id>". Needs FIREWORKS_API_KEY.
+#
+# None keeps every thread on DEFAULT_MODEL, including threads already pinned
+# to treatment, so setting it back to None is the kill switch. Setting the
+# percentage to 0 instead stops new enrollment and keeps pinned threads as
+# they are. Change FT_MODEL_EXPERIMENT only for a new experiment: it salts
+# the thread hash and labels every model-call run in LangSmith.
+FT_MODEL_ID: str | None = None
+FT_MODEL_TRAFFIC_PERCENT = 30
+FT_MODEL_EXPERIMENT = "clc-ft-model-v1"
+
+_FIREWORKS_MODEL_ID = re.compile(r"accounts/[^/#\s]+/models/[^/#\s]+")
+
+if FT_MODEL_ID is not None and not _FIREWORKS_MODEL_ID.fullmatch(FT_MODEL_ID):
+    raise ValueError(
+        "FT_MODEL_ID must look like accounts/<account-id>/models/<model-id> "
+        f"(a serverless LoRA, no #deployment suffix); got {FT_MODEL_ID!r}"
+    )
+
+# =============================================================================
 # API Key Setup
 # =============================================================================
 
@@ -82,6 +116,7 @@ API_KEYS = [
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "GOOGLE_API_KEY",
+    "FIREWORKS_API_KEY",
 ]
 
 for key in API_KEYS:
@@ -99,9 +134,21 @@ MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 MODEL_MAX_TOKENS = int(os.getenv("MODEL_MAX_TOKENS", "16384"))
 MODEL_REQUEST_TIMEOUT = float(os.getenv("MODEL_REQUEST_TIMEOUT", "60"))
 
-# Primary model. Public callers cannot switch this at runtime.
+
+def _experiment_metadata(arm: str, role: str) -> dict[str, str]:
+    """LangSmith metadata naming the arm and role a model call served."""
+    metadata = {"model_role": role}
+    if FT_MODEL_ID is not None:
+        metadata |= {"model_experiment": FT_MODEL_EXPERIMENT, "model_arm": arm}
+    return metadata
+
+
+# Primary model (control arm). Public callers cannot switch this at runtime.
 default_model = init_chat_model(
-    model=DEFAULT_MODEL.id, max_tokens=MODEL_MAX_TOKENS, timeout=MODEL_REQUEST_TIMEOUT
+    model=DEFAULT_MODEL.id,
+    max_tokens=MODEL_MAX_TOKENS,
+    timeout=MODEL_REQUEST_TIMEOUT,
+    metadata=_experiment_metadata(ARM_CONTROL, "primary"),
 )
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
@@ -141,16 +188,57 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
-model_fallback_middleware = RepairingModelFallbackMiddleware(
-    *[
-        init_chat_model(
-            model=m.id, max_tokens=MODEL_MAX_TOKENS, timeout=MODEL_REQUEST_TIMEOUT
+
+def _experiment_model(model: str, *, arm: str, role: str, **kwargs: object):
+    """Init a chat model whose LangSmith runs say which arm and role they served."""
+    return init_chat_model(
+        model=model,
+        max_tokens=MODEL_MAX_TOKENS,
+        timeout=MODEL_REQUEST_TIMEOUT,
+        metadata=_experiment_metadata(arm, role),
+        **kwargs,
+    )
+
+
+def _fallback_chain(arm: str, models: list[ModelConfig]) -> tuple:
+    return tuple(_experiment_model(m.id, arm=arm, role="fallback") for m in models)
+
+
+def _treatment_chain() -> ModelChain | None:
+    if FT_MODEL_ID is None:
+        return None
+    if not os.getenv("FIREWORKS_API_KEY"):
+        raise RuntimeError(
+            "FT_MODEL_ID is set but FIREWORKS_API_KEY is missing; add the "
+            "FIREWORKS_API_KEY secret or set FT_MODEL_ID back to None."
         )
-        for m in FALLBACK_MODELS
-    ],
-    primary_model=default_model,
+    return ModelChain(
+        primary=_experiment_model(
+            FT_MODEL_ID, arm=ARM_TREATMENT, role="primary", model_provider="fireworks"
+        ),
+        # Treatment falls back to the control model first, then the usual chain.
+        fallbacks=_fallback_chain(ARM_TREATMENT, [DEFAULT_MODEL, *FALLBACK_MODELS]),
+    )
+
+
+model_experiment = ModelExperiment(
+    name=FT_MODEL_EXPERIMENT,
+    control=ModelChain(
+        primary=default_model,
+        fallbacks=_fallback_chain(ARM_CONTROL, FALLBACK_MODELS),
+    ),
+    treatment=_treatment_chain(),
+    treatment_percent=FT_MODEL_TRAFFIC_PERCENT,
 )
+# Goes first in the middleware list so the arm is pinned on every first turn.
+model_arm_pin_middleware = ModelArmPinMiddleware(model_experiment)
+model_fallback_middleware = ModelExperimentFallbackMiddleware(model_experiment)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
+if model_experiment.enabled:
+    logger.info(
+        f"Model experiment {FT_MODEL_EXPERIMENT}: {FT_MODEL_TRAFFIC_PERCENT}% of "
+        f"new threads -> {FT_MODEL_ID}"
+    )
 
 # =============================================================================
 # Exports
@@ -171,7 +259,12 @@ __all__ = [
     "model_retry_middleware",
     "tool_retry_middleware",
     "model_fallback_middleware",
+    "model_arm_pin_middleware",
+    "model_experiment",
     # Config
+    "FT_MODEL_ID",
+    "FT_MODEL_TRAFFIC_PERCENT",
+    "FT_MODEL_EXPERIMENT",
     "MAX_RETRIES",
     "logger",
 ]

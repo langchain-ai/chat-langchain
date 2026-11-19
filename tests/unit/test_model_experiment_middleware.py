@@ -1,0 +1,260 @@
+"""Tests for the thread-pinned post-trained model experiment."""
+
+import asyncio
+import itertools
+import os
+import uuid
+
+import pytest
+from langchain.agents import create_agent
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
+
+from src.middleware.model_experiment_middleware import (
+    ARM_CONTROL,
+    ARM_TREATMENT,
+    ModelArmPinMiddleware,
+    ModelChain,
+    ModelExperiment,
+    ModelExperimentFallbackMiddleware,
+    assign_arm,
+)
+from src.middleware.model_fallback_middleware import RepairingModelFallbackMiddleware
+
+
+def _model(name: str) -> GenericFakeChatModel:
+    # A fresh message per call: a reused message keeps its id, and the
+    # add_messages reducer would replace the earlier answer instead of appending.
+    return GenericFakeChatModel(
+        messages=(AIMessage(content=name) for _ in itertools.count())
+    )
+
+
+class _FailingModel(GenericFakeChatModel):
+    def _generate(self, *args, **kwargs):
+        raise RuntimeError("model down")
+
+
+def _failing() -> _FailingModel:
+    return _FailingModel(messages=iter(()))
+
+
+def _experiment(
+    *,
+    percent: int = 100,
+    treatment: ModelChain | None = None,
+    enabled: bool = True,
+) -> ModelExperiment:
+    if enabled and treatment is None:
+        treatment = ModelChain(_model("treatment"), (_model("treatment-fallback"),))
+    return ModelExperiment(
+        name="test-experiment",
+        control=ModelChain(_model("control"), (_model("control-fallback"),)),
+        treatment=treatment if enabled else None,
+        treatment_percent=percent,
+    )
+
+
+def _agent(experiment: ModelExperiment, checkpointer: InMemorySaver):
+    return create_agent(
+        model=_model("unused"),
+        middleware=[
+            ModelArmPinMiddleware(experiment),
+            ModelExperimentFallbackMiddleware(experiment),
+        ],
+        checkpointer=checkpointer,
+    )
+
+
+def _ask(agent, thread_id: str, text: str = "hi") -> str:
+    config = {"configurable": {"thread_id": thread_id}}
+    result = agent.invoke({"messages": [HumanMessage(content=text)]}, config)
+    return result["messages"][-1].content
+
+
+def _pinned_arm(agent, thread_id: str):
+    config = {"configurable": {"thread_id": thread_id}}
+    return agent.get_state(config).values.get("model_arm")
+
+
+# --- assignment -------------------------------------------------------------
+
+
+def test_assign_arm_is_deterministic_and_salted():
+    thread_id = str(uuid.uuid4())
+    assert assign_arm(thread_id, "a", 30) == assign_arm(thread_id, "a", 30)
+    ids = [str(uuid.uuid4()) for _ in range(2000)]
+    assert [assign_arm(t, "a", 50) for t in ids] != [
+        assign_arm(t, "b", 50) for t in ids
+    ]
+
+
+def test_assign_arm_hits_the_requested_share():
+    ids = [str(uuid.uuid4()) for _ in range(20_000)]
+    share = sum(assign_arm(t, "salt", 30) == ARM_TREATMENT for t in ids) / len(ids)
+    assert 0.28 < share < 0.32
+    assert all(assign_arm(t, "salt", 0) == ARM_CONTROL for t in ids[:500])
+    assert all(assign_arm(t, "salt", 100) == ARM_TREATMENT for t in ids[:500])
+
+
+def test_treatment_percent_is_bounded():
+    with pytest.raises(ValueError):
+        _experiment(percent=101)
+
+
+# --- end to end through create_agent ----------------------------------------
+
+
+def test_treatment_thread_stays_on_treatment_across_turns_and_config_changes():
+    saver = InMemorySaver()
+    thread_id = str(uuid.uuid4())
+    treatment = ModelChain(_model("treatment"), (_model("treatment-fallback"),))
+
+    first = _agent(_experiment(percent=100, treatment=treatment), saver)
+    assert _ask(first, thread_id) == "treatment"
+    assert _pinned_arm(first, thread_id) == ARM_TREATMENT
+
+    # Enrollment closed: the pinned thread keeps its arm.
+    closed = _agent(_experiment(percent=0, treatment=treatment), saver)
+    assert _ask(closed, thread_id, "follow up") == "treatment"
+    # New threads go to control.
+    assert _ask(closed, str(uuid.uuid4())) == "control"
+
+
+def test_control_thread_stays_on_control_when_percent_rises():
+    saver = InMemorySaver()
+    thread_id = str(uuid.uuid4())
+    assert _ask(_agent(_experiment(percent=0), saver), thread_id) == "control"
+    assert (
+        _ask(_agent(_experiment(percent=100), saver), thread_id, "again") == "control"
+    )
+
+
+def test_kill_switch_moves_pinned_treatment_threads_to_control():
+    saver = InMemorySaver()
+    thread_id = str(uuid.uuid4())
+    assert _ask(_agent(_experiment(percent=100), saver), thread_id) == "treatment"
+    killed = _agent(_experiment(enabled=False), saver)
+    assert _ask(killed, thread_id, "again") == "control"
+
+
+def test_threads_answered_before_the_experiment_stay_on_control():
+    saver = InMemorySaver()
+    thread_id = str(uuid.uuid4())
+    legacy = create_agent(
+        model=_model("unused"),
+        middleware=[
+            RepairingModelFallbackMiddleware(
+                _model("control-fallback"), primary_model=_model("control")
+            )
+        ],
+        checkpointer=saver,
+    )
+    assert _ask(legacy, thread_id) == "control"
+    experiment_agent = _agent(_experiment(percent=100), saver)
+    assert _ask(experiment_agent, thread_id, "again") == "control"
+    assert _pinned_arm(experiment_agent, thread_id) == ARM_CONTROL
+
+
+def test_arm_is_hidden_from_run_output_and_ignored_in_input():
+    saver = InMemorySaver()
+    agent = _agent(_experiment(percent=0), saver)
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+    result = agent.invoke(
+        {"messages": [HumanMessage(content="hi")], "model_arm": ARM_TREATMENT},
+        config,
+    )
+    assert "model_arm" not in result
+    assert result["messages"][-1].content == "control"
+
+
+def test_treatment_failure_falls_back_within_the_treatment_chain():
+    saver = InMemorySaver()
+    treatment = ModelChain(_failing(), (_model("treatment-fallback"),))
+    agent = _agent(_experiment(percent=100, treatment=treatment), saver)
+    assert _ask(agent, str(uuid.uuid4())) == "treatment-fallback"
+
+
+def test_async_run_uses_the_pinned_arm():
+    saver = InMemorySaver()
+    agent = _agent(_experiment(percent=100), saver)
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+
+    async def run():
+        return await agent.ainvoke({"messages": [HumanMessage(content="hi")]}, config)
+
+    assert asyncio.run(run())["messages"][-1].content == "treatment"
+
+
+def test_no_thread_id_runs_control():
+    agent = create_agent(
+        model=_model("unused"),
+        middleware=[
+            ModelArmPinMiddleware(_experiment(percent=100)),
+            ModelExperimentFallbackMiddleware(_experiment(percent=100)),
+        ],
+    )
+    result = agent.invoke({"messages": [HumanMessage(content="hi")]})
+    assert result["messages"][-1].content == "control"
+
+
+# --- production wiring --------------------------------------------------------
+
+
+@pytest.fixture
+def config_module(monkeypatch):
+    for key in ("GOOGLE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+        monkeypatch.setenv(key, os.environ.get(key) or "test-key")
+    from src.agent import config
+
+    return config
+
+
+def test_pin_middleware_runs_first_and_fallback_is_arm_aware(config_module):
+    from agent import docs_agent_middleware
+
+    assert docs_agent_middleware[0] is config_module.model_arm_pin_middleware
+    assert isinstance(
+        config_module.model_fallback_middleware, ModelExperimentFallbackMiddleware
+    )
+    assert config_module.model_fallback_middleware in docs_agent_middleware
+
+
+def test_experiment_is_off_until_a_model_id_is_set(config_module):
+    experiment = config_module.model_experiment
+    if config_module.FT_MODEL_ID is not None:
+        pytest.skip("FT_MODEL_ID is set")
+    assert not experiment.enabled
+    assert experiment.chain_for(ARM_TREATMENT) is experiment.control
+    assert experiment.control.primary.metadata["model_role"] == "primary"
+    assert all(
+        m.metadata["model_role"] == "fallback" for m in experiment.control.fallbacks
+    )
+
+
+def test_treatment_chain_is_a_labelled_fireworks_lora(config_module, monkeypatch):
+    monkeypatch.setattr(
+        config_module, "FT_MODEL_ID", "accounts/acme/models/clc-docs-lora"
+    )
+    monkeypatch.setenv("FIREWORKS_API_KEY", "test-key")
+    chain = config_module._treatment_chain()
+
+    assert type(chain.primary).__name__ == "ChatFireworks"
+    assert chain.primary.model_name == "accounts/acme/models/clc-docs-lora"
+    assert chain.primary.metadata["model_arm"] == ARM_TREATMENT
+    assert chain.primary.metadata["model_role"] == "primary"
+    assert (
+        chain.primary.metadata["model_experiment"] == config_module.FT_MODEL_EXPERIMENT
+    )
+    assert [m.metadata["model_role"] for m in chain.fallbacks] == ["fallback"] * 3
+    assert {m.metadata["model_arm"] for m in chain.fallbacks} == {ARM_TREATMENT}
+    # Treatment falls back to the control model first.
+    assert "gemini" in getattr(chain.fallbacks[0], "model", "")
+
+
+def test_treatment_chain_requires_a_fireworks_key(config_module, monkeypatch):
+    monkeypatch.setattr(config_module, "FT_MODEL_ID", "accounts/acme/models/x")
+    monkeypatch.delenv("FIREWORKS_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="FIREWORKS_API_KEY"):
+        config_module._treatment_chain()
