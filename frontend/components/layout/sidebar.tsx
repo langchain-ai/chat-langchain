@@ -23,6 +23,7 @@ import { Link } from "@langchain/macaw-components/Link"
 import { Logo } from "@langchain/macaw-components/Logo"
 import { Text } from "@langchain/macaw-components/Text"
 import type { Thread } from "@/lib/hooks/threads"
+import { groupThreads } from "@/lib/utils/chat/thread-groups"
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -56,23 +57,6 @@ const resources = [
     icon: <ArticleRegularIcon className="size-3" />,
   },
 ]
-
-function groupThreads(threads: Thread[]) {
-  const now = Date.now()
-  const groups: { title: string; threads: Thread[] }[] = [
-    { title: "Today", threads: [] },
-    { title: "Yesterday", threads: [] },
-    { title: "Previous 7 Days", threads: [] },
-    { title: "Older", threads: [] },
-  ]
-  for (const thread of threads) {
-    const age = now - new Date(thread.updated_at || thread.created_at).getTime()
-    const group =
-      age < 86_400_000 ? 0 : age < 172_800_000 ? 1 : age < 604_800_000 ? 2 : 3
-    groups[group].threads.push(thread)
-  }
-  return groups.filter((group) => group.threads.length > 0)
-}
 
 export const Sidebar = memo(function Sidebar({
   isCollapsed,
