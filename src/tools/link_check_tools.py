@@ -103,10 +103,21 @@ def _is_same_page(url: str, destination: str) -> bool:
     ):
         return False
     canonical = urlparse(_canonicalize_docs_url(url))
-    return (final.hostname, final.path.rstrip("/")) in {
-        (requested.hostname, requested.path.rstrip("/")),
-        (canonical.hostname, canonical.path.rstrip("/")),
+    return (_page_key(final.hostname), _page_key_path(final.path)) in {
+        (_page_key(requested.hostname), _page_key_path(requested.path)),
+        (_page_key(canonical.hostname), _page_key_path(canonical.path)),
     } and final.port in {requested.port, 443 if final.scheme == "https" else 80}
+
+
+def _page_key(host: str | None) -> str:
+    """Treat a host and its www. form as the same site."""
+    host = (host or "").lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def _page_key_path(path: str) -> str:
+    """Ignore spelling-only path changes: trailing slash, case, '_' vs '-'."""
+    return path.rstrip("/").lower().replace("_", "-")
 
 
 def _needs_soft_404_check(url: str) -> bool:
