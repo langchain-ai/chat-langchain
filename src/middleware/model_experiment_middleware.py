@@ -142,11 +142,17 @@ def _tag_root_run(
         client, trace_id = run_tree.client, run_tree.trace_id
         for key, value in metadata.items():
             if isinstance(value, bool):
-                client.create_feedback(trace_id=trace_id, key=key, score=int(value))
+                client.create_feedback(
+                    run_id=trace_id, trace_id=trace_id, key=key, score=int(value)
+                )
             else:
-                client.create_feedback(trace_id=trace_id, key=key, value=value)
+                client.create_feedback(
+                    run_id=trace_id, trace_id=trace_id, key=key, value=value
+                )
         for key, score in (scores or {}).items():
-            client.create_feedback(trace_id=trace_id, key=key, score=score)
+            client.create_feedback(
+                run_id=trace_id, trace_id=trace_id, key=key, score=score
+            )
     except Exception:
         logger.debug("Could not tag the root run with %s", metadata, exc_info=True)
 

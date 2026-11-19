@@ -324,8 +324,10 @@ def root_run(monkeypatch, request):
         def __init__(self):
             self.feedback = []
 
-        def create_feedback(self, *, trace_id, key, score=None, value=None):
-            assert trace_id == root.id
+        def create_feedback(self, *, run_id, trace_id, key, score=None, value=None):
+            # Trace-level feedback must name the root run, or LangSmith
+            # treats it as session-level feedback.
+            assert run_id == trace_id == root.id
             self.feedback.append((trace_id, key, score if value is None else value))
 
     root.ls_client = Client()
