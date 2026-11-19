@@ -14,13 +14,19 @@
 #   LANGSMITH_TENANT_ID
 #   ANTHROPIC_API_KEY
 #   BASETEN_API_KEY
-#   FIREWORKS_API_KEY  (required once FT_MODEL_ID is set in src/agent/config.py)
+#   FIREWORKS_API_KEY  (required once the FT_MODEL_ID variable is set)
 #   LANGGRAPH_AUTH_SECRET
 #   ALLOW_LEGACY_USER_ID_AUTH
 #   SUPABASE_URL / SUPABASE_ANON_KEY
 #   SUPABASE_EU_URL / SUPABASE_EU_ANON_KEY
 #   SUPABASE_APAC_URL / SUPABASE_APAC_ANON_KEY
 #   SUPABASE_AWS_URL / SUPABASE_AWS_ANON_KEY
+#
+# Optional repository variables (Settings -> Variables, not secrets):
+#   FT_MODEL_ID               Fireworks serverless LoRA for the post-trained
+#                             model A/B, accounts/<account-id>/models/<model-id>.
+#                             Unset = experiment off (the kill switch).
+#   FT_MODEL_TRAFFIC_PERCENT  Share of new threads sent to it (default 30).
 name: Deploy Production Agent
 
 "on":
@@ -71,6 +77,8 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BASETEN_API_KEY: ${{ secrets.BASETEN_API_KEY }}
           FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
+          FT_MODEL_ID: ${{ vars.FT_MODEL_ID }}
+          FT_MODEL_TRAFFIC_PERCENT: ${{ vars.FT_MODEL_TRAFFIC_PERCENT }}
           PYLON_API_KEY: ${{ secrets.PYLON_API_KEY }}
           PYLON_KB_ID: ${{ secrets.PYLON_KB_ID }}
           MDA_GUEST_SIGNING_KEY: ${{ secrets.MDA_GUEST_SIGNING_KEY }}
@@ -101,6 +109,10 @@ jobs:
             echo "GOOGLE_API_KEY secret is required for the default model" >&2
             exit 1
           fi
+          if [ -n "${FT_MODEL_ID:-}" ] && [ -z "${FIREWORKS_API_KEY:-}" ]; then
+            echo "FIREWORKS_API_KEY secret is required when FT_MODEL_ID is set" >&2
+            exit 1
+          fi
 
           # mda deploy prefers project .env for auth + hosted secrets forwarding.
           # Values are never printed; only non-empty entries are written.
@@ -121,6 +133,8 @@ jobs:
           write_env ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
           write_env BASETEN_API_KEY "$BASETEN_API_KEY"
           write_env FIREWORKS_API_KEY "$FIREWORKS_API_KEY"
+          write_env FT_MODEL_ID "$FT_MODEL_ID"
+          write_env FT_MODEL_TRAFFIC_PERCENT "$FT_MODEL_TRAFFIC_PERCENT"
           write_env PYLON_API_KEY "$PYLON_API_KEY"
           write_env PYLON_KB_ID "$PYLON_KB_ID"
           write_env MDA_GUEST_SIGNING_KEY "$MDA_GUEST_SIGNING_KEY"
@@ -137,6 +151,11 @@ jobs:
           write_env SUPABASE_AWS_ANON_KEY "$SUPABASE_AWS_ANON_KEY"
 
           echo "Wrote deploy .env with $(wc -l < .env | tr -d ' ') entries"
+          if [ -n "${FT_MODEL_ID:-}" ]; then
+            echo "Model experiment on: ${FT_MODEL_TRAFFIC_PERCENT:-30}% of new threads -> $FT_MODEL_ID"
+          else
+            echo "Model experiment off (FT_MODEL_ID unset)"
+          fi
 
       - name: Deploy Managed Deep Agent
         run: >

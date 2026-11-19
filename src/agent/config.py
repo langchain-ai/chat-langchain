@@ -86,27 +86,51 @@ FALLBACK_MODELS = [
 # Post-trained model experiment
 # =============================================================================
 # A Fireworks serverless LoRA serves FT_MODEL_TRAFFIC_PERCENT of new threads;
-# DEFAULT_MODEL serves the rest. Load the adapter with
+# DEFAULT_MODEL serves the rest. Both come from the deployment environment
+# (GitHub repository variables in the deploy workflow), so changing them is
+# a redeploy, not a code change. Load the adapter with
 #   firectl model load-lora <model-id> --serverless
 # and set FT_MODEL_ID to its model resource name, without a `#deployment`
 # suffix: "accounts/<account-id>/models/<model-id>". Needs FIREWORKS_API_KEY.
 #
-# None keeps every thread on DEFAULT_MODEL, including threads already pinned
-# to treatment, so setting it back to None is the kill switch. Setting the
-# percentage to 0 instead stops new enrollment and keeps pinned threads as
-# they are. Change FT_MODEL_EXPERIMENT only for a new experiment: it salts
-# the thread hash and labels every model-call run in LangSmith.
-FT_MODEL_ID: str | None = None
-FT_MODEL_TRAFFIC_PERCENT = 30
+# FT_MODEL_ID unset or empty keeps every thread on DEFAULT_MODEL, including
+# threads already pinned to treatment: unsetting it is the kill switch.
+# FT_MODEL_TRAFFIC_PERCENT=0 instead stops new enrollment and keeps pinned
+# threads as they are. Change FT_MODEL_EXPERIMENT only for a new experiment:
+# it salts the thread hash and labels every model-call run in LangSmith.
 FT_MODEL_EXPERIMENT = "clc-ft-model-v1"
+_DEFAULT_FT_MODEL_TRAFFIC_PERCENT = 30
 
 _FIREWORKS_MODEL_ID = re.compile(r"accounts/[^/#\s]+/models/[^/#\s]+")
 
-if FT_MODEL_ID is not None and not _FIREWORKS_MODEL_ID.fullmatch(FT_MODEL_ID):
-    raise ValueError(
-        "FT_MODEL_ID must look like accounts/<account-id>/models/<model-id> "
-        f"(a serverless LoRA, no #deployment suffix); got {FT_MODEL_ID!r}"
-    )
+
+def _ft_model_id_from_env() -> str | None:
+    model_id = (os.getenv("FT_MODEL_ID") or "").strip() or None
+    if model_id is not None and not _FIREWORKS_MODEL_ID.fullmatch(model_id):
+        raise ValueError(
+            "FT_MODEL_ID must look like accounts/<account-id>/models/<model-id> "
+            f"(a serverless LoRA, no #deployment suffix); got {model_id!r}"
+        )
+    return model_id
+
+
+def _ft_traffic_percent_from_env() -> int:
+    raw = (os.getenv("FT_MODEL_TRAFFIC_PERCENT") or "").strip()
+    if not raw:
+        return _DEFAULT_FT_MODEL_TRAFFIC_PERCENT
+    try:
+        percent = int(raw)
+    except ValueError:
+        percent = -1
+    if not 0 <= percent <= 100:
+        raise ValueError(
+            f"FT_MODEL_TRAFFIC_PERCENT must be a whole number 0-100; got {raw!r}"
+        )
+    return percent
+
+
+FT_MODEL_ID = _ft_model_id_from_env()
+FT_MODEL_TRAFFIC_PERCENT = _ft_traffic_percent_from_env()
 
 # =============================================================================
 # API Key Setup
@@ -210,7 +234,7 @@ def _treatment_chain() -> ModelChain | None:
     if not os.getenv("FIREWORKS_API_KEY"):
         raise RuntimeError(
             "FT_MODEL_ID is set but FIREWORKS_API_KEY is missing; add the "
-            "FIREWORKS_API_KEY secret or set FT_MODEL_ID back to None."
+            "FIREWORKS_API_KEY secret or unset FT_MODEL_ID."
         )
     return ModelChain(
         primary=_experiment_model(

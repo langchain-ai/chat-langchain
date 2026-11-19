@@ -258,3 +258,52 @@ def test_treatment_chain_requires_a_fireworks_key(config_module, monkeypatch):
     monkeypatch.delenv("FIREWORKS_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="FIREWORKS_API_KEY"):
         config_module._treatment_chain()
+
+
+# --- deployment environment ---------------------------------------------------
+
+
+@pytest.mark.parametrize("value", [None, "", "  "])
+def test_unset_model_id_turns_the_experiment_off(config_module, monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("FT_MODEL_ID", raising=False)
+    else:
+        monkeypatch.setenv("FT_MODEL_ID", value)
+    assert config_module._ft_model_id_from_env() is None
+
+
+def test_model_id_is_read_from_env(config_module, monkeypatch):
+    monkeypatch.setenv("FT_MODEL_ID", " accounts/acme/models/clc-docs-lora ")
+    assert config_module._ft_model_id_from_env() == "accounts/acme/models/clc-docs-lora"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "clc-docs-lora",
+        "accounts/acme/models/clc-docs-lora#accounts/acme/deployments/abc",
+        "fireworks:accounts/acme/models/clc-docs-lora",
+    ],
+)
+def test_malformed_model_id_fails_at_startup(config_module, monkeypatch, value):
+    monkeypatch.setenv("FT_MODEL_ID", value)
+    with pytest.raises(ValueError, match="FT_MODEL_ID"):
+        config_module._ft_model_id_from_env()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"), [(None, 30), ("", 30), ("0", 0), (" 45 ", 45), ("100", 100)]
+)
+def test_traffic_percent_is_read_from_env(config_module, monkeypatch, value, expected):
+    if value is None:
+        monkeypatch.delenv("FT_MODEL_TRAFFIC_PERCENT", raising=False)
+    else:
+        monkeypatch.setenv("FT_MODEL_TRAFFIC_PERCENT", value)
+    assert config_module._ft_traffic_percent_from_env() == expected
+
+
+@pytest.mark.parametrize("value", ["-1", "101", "30%", "0.3", "thirty"])
+def test_bad_traffic_percent_fails_at_startup(config_module, monkeypatch, value):
+    monkeypatch.setenv("FT_MODEL_TRAFFIC_PERCENT", value)
+    with pytest.raises(ValueError, match="FT_MODEL_TRAFFIC_PERCENT"):
+        config_module._ft_traffic_percent_from_env()
