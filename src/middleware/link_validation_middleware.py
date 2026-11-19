@@ -18,7 +18,7 @@ VALIDATION_BUDGET = 5.0
 # froze the event loop and got replicas killed on prod (Nov 18-19).
 _URL = r"https?://(?:[^\s<>`\[\]()]|\([^\s<>`\[\]()]*\))+"
 _LINK = re.compile(
-    rf'\[(?P<label>[^\]\n]*)\]\(<?(?P<markdown>{_URL})>?(?:\s+"[^"\n]*")?\)'
+    rf'\[(?P<label>[^\]\n]{{0,1000}})\]\(<?(?P<markdown>{_URL})>?(?:\s+"[^"\n]*")?\)'
     rf"|<(?P<auto>{_URL})>|(?P<bare>{_URL})"
 )
 _CODE = re.compile(
