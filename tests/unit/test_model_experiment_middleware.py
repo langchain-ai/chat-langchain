@@ -292,7 +292,7 @@ def test_malformed_model_id_fails_at_startup(config_module, monkeypatch, value):
 
 
 @pytest.mark.parametrize(
-    ("value", "expected"), [(None, 30), ("", 30), ("0", 0), (" 45 ", 45), ("100", 100)]
+    ("value", "expected"), [(None, 33), ("", 33), ("0", 0), (" 45 ", 45), ("100", 100)]
 )
 def test_traffic_percent_is_read_from_env(config_module, monkeypatch, value, expected):
     if value is None:
@@ -361,7 +361,11 @@ def test_root_run_is_tagged_with_the_arm_on_every_turn(root_run):
     expected = {"model_experiment": "test-experiment", "model_arm": ARM_TREATMENT}
     assert expected.items() <= root_run.metadata.items()
     assert "model_fallback" not in root_run.metadata
-    assert root_run.feedback() == {**expected, "model_arm_treatment": 1}
+    assert root_run.feedback() == {
+        **expected,
+        "model_arm_treatment": 1,
+        "model_arm_base": 0,
+    }
 
 
 def test_control_turns_score_zero_for_treatment(root_run):
@@ -400,3 +404,91 @@ def test_root_tagging_failure_does_not_fail_the_turn(monkeypatch):
     )
     agent = _agent(_experiment(percent=100), InMemorySaver())
     assert _ask(agent, str(uuid.uuid4())) == "treatment"
+
+
+# --- three-arm split: treatment / base / control -----------------------------
+
+
+def _three_arm(treatment_percent: int = 33, base_percent: int = 33, base=True):
+    return ModelExperiment(
+        name="test-experiment",
+        control=ModelChain(_model("control"), (_model("control-fallback"),)),
+        treatment=ModelChain(_model("treatment"), (_model("treatment-fallback"),)),
+        treatment_percent=treatment_percent,
+        base=ModelChain(_model("base"), (_model("base-fallback"),)) if base else None,
+        base_percent=base_percent,
+    )
+
+
+def test_three_arm_split_is_about_a_third_each():
+    from src.middleware.model_experiment_middleware import ARM_BASE
+
+    ids = [str(uuid.uuid4()) for _ in range(6000)]
+    arms = [assign_arm(t, "salt", 33, 33) for t in ids]
+    for arm in (ARM_TREATMENT, ARM_BASE, ARM_CONTROL):
+        assert abs(arms.count(arm) / len(ids) - 1 / 3) < 0.03
+
+
+def test_base_thread_runs_and_stays_on_the_base_model():
+    saver = InMemorySaver()
+    thread_id = str(uuid.uuid4())
+    agent = _agent(_three_arm(treatment_percent=0, base_percent=100), saver)
+    assert _ask(agent, thread_id) == "base"
+    assert _ask(agent, thread_id, "follow up") == "base"
+
+
+def test_without_a_base_chain_its_share_goes_to_control():
+    exp = _three_arm(treatment_percent=0, base_percent=100, base=False)
+    assert not exp.base_enabled and exp.effective_base_percent == 0
+    assert _ask(_agent(exp, InMemorySaver()), str(uuid.uuid4())) == "control"
+
+
+def test_kill_switch_also_turns_off_the_base_arm():
+    from src.middleware.model_experiment_middleware import ARM_BASE
+
+    saver = InMemorySaver()
+    thread_id = str(uuid.uuid4())
+    assert _ask(_agent(_three_arm(0, 100), saver), thread_id) == "base"
+    killed = ModelExperiment(
+        name="test-experiment",
+        control=ModelChain(_model("control"), (_model("control-fallback"),)),
+        treatment=None,
+        treatment_percent=0,
+        base=ModelChain(_model("base"), ()),
+        base_percent=100,
+    )
+    assert killed.chain_for(ARM_BASE) is killed.control
+    assert _ask(_agent(killed, saver), thread_id, "again") == "control"
+
+
+def test_arm_shares_cannot_exceed_100():
+    with pytest.raises(ValueError, match="at most 100"):
+        _three_arm(treatment_percent=60, base_percent=50)
+
+
+def test_base_turns_score_on_model_arm_base(root_run):
+    agent = _agent(_three_arm(treatment_percent=0, base_percent=100), InMemorySaver())
+    assert _ask(agent, str(uuid.uuid4())) == "base"
+    feedback = root_run.feedback()
+    assert feedback["model_arm"] == "base"
+    assert feedback["model_arm_base"] == 1
+    assert feedback["model_arm_treatment"] == 0
+
+
+def test_base_chain_is_a_labelled_fireworks_model(config_module, monkeypatch):
+    from src.middleware.model_experiment_middleware import ARM_BASE
+
+    monkeypatch.setattr(config_module, "FT_MODEL_ID", "accounts/acme/models/lora")
+    monkeypatch.setattr(
+        config_module, "FT_BASE_MODEL_ID", "accounts/fireworks/models/base-model"
+    )
+    monkeypatch.setenv("FIREWORKS_API_KEY", "test-key")
+    chain = config_module._base_chain()
+    assert type(chain.primary).__name__ == "ChatFireworks"
+    assert chain.primary.model_name == "accounts/fireworks/models/base-model"
+    assert chain.primary.metadata["model_arm"] == ARM_BASE
+    assert {m.metadata["model_arm"] for m in chain.fallbacks} == {ARM_BASE}
+    assert "gemini" in getattr(chain.fallbacks[0], "model", "")
+
+    monkeypatch.setattr(config_module, "FT_MODEL_ID", None)
+    assert config_module._base_chain() is None

@@ -10,6 +10,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.runnables import Runnable, RunnableLambda
 
 from src.middleware.model_experiment_middleware import (
+    ARM_BASE,
     ARM_CONTROL,
     ARM_TREATMENT,
     ModelArmPinMiddleware,
@@ -85,8 +86,12 @@ FALLBACK_MODELS = [
 # =============================================================================
 # Post-trained model experiment
 # =============================================================================
-# A Fireworks serverless LoRA serves FT_MODEL_TRAFFIC_PERCENT of new threads;
-# DEFAULT_MODEL serves the rest. Both come from the deployment environment
+# A Fireworks serverless LoRA serves FT_MODEL_TRAFFIC_PERCENT of new threads,
+# the base model it was tuned from (FT_BASE_MODEL_ID, also on Fireworks)
+# serves FT_BASE_MODEL_TRAFFIC_PERCENT, and DEFAULT_MODEL serves the rest.
+# Both percents default to 33, so the three arms split new threads ~1/3 each
+# (33/33/34). Leave FT_BASE_MODEL_ID unset for a two-arm split; the base arm
+# only runs while FT_MODEL_ID is set. Both come from the deployment environment
 # (GitHub repository variables in the deploy workflow), so changing them is
 # a redeploy, not a code change. Load the adapter with
 #   firectl model load-lora <model-id> --serverless
@@ -106,23 +111,23 @@ FALLBACK_MODELS = [
 # (only earlier turns keep the old one). See
 # src/middleware/model_experiment_middleware.py.
 FT_MODEL_EXPERIMENT = "clc-ft-model-v1"
-_DEFAULT_FT_MODEL_TRAFFIC_PERCENT = 30
+_DEFAULT_FT_MODEL_TRAFFIC_PERCENT = 33
 
 _FIREWORKS_MODEL_ID = re.compile(r"accounts/[^/#\s]+/models/[^/#\s]+")
 
 
-def _ft_model_id_from_env() -> str | None:
-    model_id = (os.getenv("FT_MODEL_ID") or "").strip() or None
+def _ft_model_id_from_env(env: str = "FT_MODEL_ID") -> str | None:
+    model_id = (os.getenv(env) or "").strip() or None
     if model_id is not None and not _FIREWORKS_MODEL_ID.fullmatch(model_id):
         raise ValueError(
-            "FT_MODEL_ID must look like accounts/<account-id>/models/<model-id> "
-            f"(a serverless LoRA, no #deployment suffix); got {model_id!r}"
+            f"{env} must look like accounts/<account-id>/models/<model-id> "
+            f"(a serverless model, no #deployment suffix); got {model_id!r}"
         )
     return model_id
 
 
-def _ft_traffic_percent_from_env() -> int:
-    raw = (os.getenv("FT_MODEL_TRAFFIC_PERCENT") or "").strip()
+def _ft_traffic_percent_from_env(env: str = "FT_MODEL_TRAFFIC_PERCENT") -> int:
+    raw = (os.getenv(env) or "").strip()
     if not raw:
         return _DEFAULT_FT_MODEL_TRAFFIC_PERCENT
     try:
@@ -130,14 +135,16 @@ def _ft_traffic_percent_from_env() -> int:
     except ValueError:
         percent = -1
     if not 0 <= percent <= 100:
-        raise ValueError(
-            f"FT_MODEL_TRAFFIC_PERCENT must be a whole number 0-100; got {raw!r}"
-        )
+        raise ValueError(f"{env} must be a whole number 0-100; got {raw!r}")
     return percent
 
 
 FT_MODEL_ID = _ft_model_id_from_env()
 FT_MODEL_TRAFFIC_PERCENT = _ft_traffic_percent_from_env()
+FT_BASE_MODEL_ID = _ft_model_id_from_env("FT_BASE_MODEL_ID")
+FT_BASE_MODEL_TRAFFIC_PERCENT = _ft_traffic_percent_from_env(
+    "FT_BASE_MODEL_TRAFFIC_PERCENT"
+)
 
 # =============================================================================
 # API Key Setup
@@ -235,9 +242,7 @@ def _fallback_chain(arm: str, models: list[ModelConfig]) -> tuple:
     return tuple(_experiment_model(m.id, arm=arm, role="fallback") for m in models)
 
 
-def _treatment_chain() -> ModelChain | None:
-    if FT_MODEL_ID is None:
-        return None
+def _fireworks_chain(model_id: str, arm: str) -> ModelChain:
     if not os.getenv("FIREWORKS_API_KEY"):
         raise RuntimeError(
             "FT_MODEL_ID is set but FIREWORKS_API_KEY is missing; add the "
@@ -245,11 +250,25 @@ def _treatment_chain() -> ModelChain | None:
         )
     return ModelChain(
         primary=_experiment_model(
-            FT_MODEL_ID, arm=ARM_TREATMENT, role="primary", model_provider="fireworks"
+            model_id, arm=arm, role="primary", model_provider="fireworks"
         ),
-        # Treatment falls back to the control model first, then the usual chain.
-        fallbacks=_fallback_chain(ARM_TREATMENT, [DEFAULT_MODEL, *FALLBACK_MODELS]),
+        # Fireworks arms fall back to the control model first, then the usual chain.
+        fallbacks=_fallback_chain(arm, [DEFAULT_MODEL, *FALLBACK_MODELS]),
     )
+
+
+def _treatment_chain() -> ModelChain | None:
+    if FT_MODEL_ID is None:
+        return None
+    return _fireworks_chain(FT_MODEL_ID, ARM_TREATMENT)
+
+
+def _base_chain() -> ModelChain | None:
+    # The base arm is only a comparison for the post-trained model, so the
+    # FT_MODEL_ID kill switch turns it off too.
+    if FT_MODEL_ID is None or FT_BASE_MODEL_ID is None:
+        return None
+    return _fireworks_chain(FT_BASE_MODEL_ID, ARM_BASE)
 
 
 model_experiment = ModelExperiment(
@@ -260,6 +279,8 @@ model_experiment = ModelExperiment(
     ),
     treatment=_treatment_chain(),
     treatment_percent=FT_MODEL_TRAFFIC_PERCENT,
+    base=_base_chain(),
+    base_percent=FT_BASE_MODEL_TRAFFIC_PERCENT,
 )
 # Goes first in the middleware list so the arm is pinned on every first turn.
 model_arm_pin_middleware = ModelArmPinMiddleware(model_experiment)
@@ -269,6 +290,11 @@ if model_experiment.enabled:
     logger.info(
         f"Model experiment {FT_MODEL_EXPERIMENT}: {FT_MODEL_TRAFFIC_PERCENT}% of "
         f"new threads -> {FT_MODEL_ID}"
+    )
+if model_experiment.base_enabled:
+    logger.info(
+        f"Model experiment {FT_MODEL_EXPERIMENT}: {FT_BASE_MODEL_TRAFFIC_PERCENT}% "
+        f"of new threads -> base {FT_BASE_MODEL_ID}"
     )
 
 # =============================================================================
@@ -295,6 +321,8 @@ __all__ = [
     # Config
     "FT_MODEL_ID",
     "FT_MODEL_TRAFFIC_PERCENT",
+    "FT_BASE_MODEL_ID",
+    "FT_BASE_MODEL_TRAFFIC_PERCENT",
     "FT_MODEL_EXPERIMENT",
     "MAX_RETRIES",
     "logger",
