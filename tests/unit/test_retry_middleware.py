@@ -123,9 +123,10 @@ def test_exception_retries_preserve_last_error():
     assert len(calls) == 3
 
 
+@pytest.mark.parametrize("failure_reason", [None, "length", "MAX_TOKENS"])
 @pytest.mark.parametrize("successful_model", [0, 1, 2, None])
 def test_agent_fallback_retries_each_model_before_advancing(
-    monkeypatch, successful_model
+    monkeypatch, successful_model, failure_reason
 ):
     from agent import docs_agent_middleware
     from src.agent import config
@@ -146,12 +147,23 @@ def test_agent_fallback_retries_each_model_before_advancing(
         index = next(i for i, model in enumerate(models) if request.model is model)
         calls.append(index)
         return ModelResponse(
-            result=[AIMessage(content="Answer" if index == successful_model else "")]
+            result=[
+                AIMessage(
+                    content="Answer"
+                    if index == successful_model
+                    else ("Partial answer" if failure_reason else ""),
+                    response_metadata={"finish_reason": failure_reason}
+                    if index != successful_model and failure_reason
+                    else {},
+                )
+            ]
         )
 
     request = ModelRequest(model=models[0], messages=[HumanMessage(content="Question")])
     if successful_model is None:
-        with pytest.raises(MalformedResponseError, match="empty response"):
+        with pytest.raises(
+            MalformedResponseError, match=failure_reason or "empty response"
+        ):
             asyncio.run(chain(request, handler))
         expected = [i for i in range(3) for _ in range(retry.max_retries + 1)]
     else:
@@ -191,3 +203,74 @@ def test_empty_response_uses_exponential_backoff(monkeypatch):
 
     assert result.content == "Answer"
     assert delays == [0.5, 1.0]
+
+
+@pytest.mark.parametrize("reason", ["length", "MAX_TOKENS"])
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_truncated_final_response_is_retried(reason, wrapped):
+    outcomes = [
+        AIMessage(
+            content="Partial answer", response_metadata={"finish_reason": reason}
+        ),
+        AIMessage(content="Complete answer"),
+    ]
+
+    async def handler(request):
+        message = outcomes.pop(0)
+        return ModelResponse(result=[message]) if wrapped else message
+
+    result = asyncio.run(
+        ModelRetryMiddleware(initial_delay=0).awrap_model_call(None, handler)
+    )
+    assert (result.result[-1] if wrapped else result).content == "Complete answer"
+    assert not outcomes
+
+
+@pytest.mark.parametrize("reason", ["length", "MAX_TOKENS"])
+def test_length_limited_tool_call_is_preserved(reason):
+    message = AIMessage(
+        content="",
+        tool_calls=[{"name": "search", "args": {}, "id": "call-1"}],
+        response_metadata={"finish_reason": reason},
+    )
+
+    async def handler(request):
+        return message
+
+    assert (
+        asyncio.run(ModelRetryMiddleware().awrap_model_call(None, handler)) is message
+    )
+
+
+def test_stalled_attempt_hits_deadline_and_retries():
+    answer = AIMessage(content="Here is an answer")
+    calls = []
+
+    async def handler(request):
+        calls.append(1)
+        if len(calls) == 1:
+            await asyncio.sleep(10)
+        return answer
+
+    response = asyncio.run(
+        ModelRetryMiddleware(initial_delay=0, attempt_deadline=0.05).awrap_model_call(
+            None, handler
+        )
+    )
+
+    assert response is answer
+    assert len(calls) == 2
+
+
+def test_stalled_attempts_raise_for_fallback_after_retries():
+    from src.middleware.retry_middleware import ModelAttemptTimeoutError
+
+    async def handler(request):
+        await asyncio.sleep(10)
+
+    with pytest.raises(ModelAttemptTimeoutError):
+        asyncio.run(
+            ModelRetryMiddleware(
+                max_retries=1, initial_delay=0, attempt_deadline=0.05
+            ).awrap_model_call(None, handler)
+        )

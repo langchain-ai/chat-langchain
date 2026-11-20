@@ -182,6 +182,34 @@ async def test_valid_links_leave_answer_unchanged(label):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("valid", [True, False])
+@pytest.mark.parametrize("label", ["文档", "`文档`"])
+async def test_fullwidth_closed_links_preserve_following_prose(valid, label):
+    url = "https://docs.langchain.com/oss/python/langchain/overview"
+    code = f"``[{label}]({url}）``\n```markdown\n[{label}]({url}）\n```\n"
+    text = code + f"参见[{label}]({url}）这是中文\n- [{label}]({url}）"
+
+    def respond(request):
+        status = 200 if valid and str(request.url) == url else 404
+        return httpx.Response(status, request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    with (
+        patch("src.tools.link_check_tools._cache", {}),
+        patch("src.tools.link_check_tools.httpx.AsyncClient", return_value=client),
+    ):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [AIMessage(content=text)]}, None
+        )
+    expected = (
+        f"参见[{label}]({url})这是中文\n- [{label}]({url})"
+        if valid
+        else f"参见{label}这是中文"
+    )
+    assert result["messages"][0].content == code + expected
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("fence, closing", [("```", "```"), ("~~~", "~~~~")])
 async def test_code_and_reachable_endpoints_survive_invalid_prose_links(fence, closing):
     docs_mcp = "https://docs.langchain.com/mcp"
@@ -498,6 +526,32 @@ async def test_redirect_rejection_and_official_timeout_in_final_answer():
             None,
         )
     assert result["messages"][0].content == f"Read sandboxes and [tracing]({official})."
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "参见[文档](https://docs.langchain.com/oss/python/langchain/overview）这是中文"
+        * 20,
+        "[unclosed](https://docs.langchain.com/" + "a" * 5000,
+        "[x](https://docs.langchain.com/a(b)c(d)e(f)g(h)i(j)k(l)m(n)o(p)q" + "r" * 200,
+    ],
+)
+def test_unclosed_markdown_links_scan_in_linear_time(text):
+    import time
+
+    from src.middleware.link_validation_middleware import (
+        _LINK,
+        _canonicalize_links,
+        _segments,
+    )
+
+    started = time.perf_counter()
+    canonical = _canonicalize_links(text)
+    for code, segment in _segments(canonical):
+        if not code:
+            list(_LINK.finditer(segment))
+    assert time.perf_counter() - started < 1.0
 
 
 @pytest.mark.asyncio

@@ -21,6 +21,7 @@
  * - Implements retry logic for LangSmith API calls (run data may not be immediately available)
  */
 
+import { isNewFinalMessage, lastAiMessageId } from "@/lib/utils/chat/final-message"
 import { useCallback } from "react"
 import { Client } from "@langchain/langgraph-sdk"
 import type {
@@ -424,6 +425,8 @@ export function useStreamHandler({
       let assistantToolCalls: ToolCall[] = []
       let runId: string | undefined = undefined
       let hasSeenNewResponse = false
+      // Last AI message id from the run's first "values" event (the previous turn).
+      const baselineAi: { captured: boolean; id: string | null } = { captured: false, id: null }
 
       const agentType = "docs-agent"
 
@@ -727,6 +730,10 @@ export function useStreamHandler({
       // Handle "values" mode - final state with complete output
       // IMPORTANT: Skip subgraph events to avoid showing subagent content in main chat
       if (eventType === "values" && !isSubgraphEvent && data?.messages && Array.isArray(data.messages)) {
+        if (!baselineAi.captured) {
+          baselineAi.captured = true
+          baselineAi.id = lastAiMessageId(data.messages)
+        }
         // Find the last assistant message
         const finalAIMessage = [...data.messages].reverse().find((msg: any) =>
           msg.type === "ai" || msg.role === "assistant"
@@ -744,7 +751,7 @@ export function useStreamHandler({
         // 3. Haven't set content yet
         // 4. Not a subagent response
         // 5. We've seen NEW streaming content for this request (prevents using old thread history)
-        if (finalContent && hasFinalMessage && !looksLikeSubagentResponse && hasSeenNewResponse && !assistantContent) {
+        if (finalContent && hasFinalMessage && !looksLikeSubagentResponse && (hasSeenNewResponse || isNewFinalMessage(baselineAi, finalAIMessage)) && !assistantContent) {
           assistantContent = finalContent
 
           setMessages((prev) => {

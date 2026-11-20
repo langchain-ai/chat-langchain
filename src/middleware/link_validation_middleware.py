@@ -13,10 +13,12 @@ from src.tools.link_check_tools import _canonicalize_docs_url, _check_urls_async
 
 logger = logging.getLogger(__name__)
 VALIDATION_BUDGET = 5.0
-_URL = r"https?://(?:[^\s<>`\[\]()]+|\([^\s<>`\[\]()]*\))+"
-_MARKDOWN_URL = r"[A-Za-z][A-Za-z0-9+.-]*:(?:[^\s<>`\[\]()]+|\([^\s<>`\[\]()]*\))*"
+# One character per repetition: a nested `+` here backtracks exponentially when a
+# markdown link is not closed by a recognized delimiter.
+_URL = r"https?://(?:[^\s<>`\[\]()）]|\([^\s<>`\[\]()）]*\))+"
+_MARKDOWN_URL = r"[A-Za-z][A-Za-z0-9+.-]*:(?:[^\s<>`\[\]()）]|\([^\s<>`\[\]()）]*\))*"
 _LINK = re.compile(
-    rf'\[(?P<label>[^\]\n]*)\]\(<?(?P<markdown>{_MARKDOWN_URL})>?(?:\s+"[^"\n]*")?\)'
+    rf'\[(?P<label>[^\]\n]{{0,1000}})\]\(<?(?P<markdown>{_MARKDOWN_URL})>?(?:\s+"[^"\n]*")?[)）]'
     rf"|<(?P<auto>{_URL})>|(?P<bare>{_URL})"
 )
 _CODE = re.compile(
@@ -62,11 +64,10 @@ def _canonicalize_links(text: str) -> str:
             return match[0]
         group = "markdown" if match["markdown"] else "auto" if match["auto"] else "bare"
         start = match.start(group) - match.start()
-        return (
-            match[0][:start]
-            + _canonicalize_docs_url(url)
-            + match[0][start + len(url) :]
-        )
+        suffix = match[0][start + len(url) :]
+        if match["markdown"] and suffix.endswith("）"):
+            suffix = suffix[:-1] + ")"
+        return match[0][:start] + _canonicalize_docs_url(url) + suffix
 
     return "".join(
         segment if code else _LINK.sub(replace, segment)

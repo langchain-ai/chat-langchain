@@ -309,6 +309,22 @@ async def test_support_article_normal_content_is_valid():
             True,
         ),
         ("https://example.com/guide", "http://example.com/guide", False),
+        (
+            "https://reference.langchain.com/python/langchain_core",
+            "https://reference.langchain.com/python/langchain-core",
+            True,
+        ),
+        ("https://example.com/Guide", "https://example.com/guide", True),
+        ("https://python.org/guide", "https://www.python.org/guide", True),
+        ("https://www.example.com/guide", "https://example.com/guide/", True),
+        ("https://agentskills.io/", "https://agentskills.io/home", False),
+        (
+            "https://console.anthropic.com/settings",
+            "https://platform.claude.com/settings",
+            False,
+        ),
+        ("https://example.com/a_b", "https://example.com/a-c", False),
+        ("https://www.example.com/guide", "https://other.example.com/guide", False),
     ],
 )
 async def test_redirects_must_preserve_requested_page(requested, destination, valid):

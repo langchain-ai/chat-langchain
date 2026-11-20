@@ -96,9 +96,13 @@ for key in API_KEYS:
 
 # Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
+MODEL_MAX_TOKENS = int(os.getenv("MODEL_MAX_TOKENS", "16384"))
+MODEL_REQUEST_TIMEOUT = float(os.getenv("MODEL_REQUEST_TIMEOUT", "60"))
 
 # Primary model. Public callers cannot switch this at runtime.
-default_model = init_chat_model(model=DEFAULT_MODEL.id)
+default_model = init_chat_model(
+    model=DEFAULT_MODEL.id, max_tokens=MODEL_MAX_TOKENS, timeout=MODEL_REQUEST_TIMEOUT
+)
 logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 
 
@@ -112,7 +116,9 @@ def _raise_for_retryable_finish_reason(response: object) -> object:
 
 def _init_retrying_model(model: str) -> Runnable:
     return (
-        init_chat_model(model=model)
+        init_chat_model(
+            model=model, max_tokens=MODEL_MAX_TOKENS, timeout=MODEL_REQUEST_TIMEOUT
+        )
         | RunnableLambda(_raise_for_retryable_finish_reason)
     ).with_retry(stop_after_attempt=MAX_RETRIES + 1)
 
@@ -135,7 +141,15 @@ summarization_model = init_retry_fallback_model(DEFAULT_MODEL.id)
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
-model_fallback_middleware = RepairingModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
+model_fallback_middleware = RepairingModelFallbackMiddleware(
+    *[
+        init_chat_model(
+            model=m.id, max_tokens=MODEL_MAX_TOKENS, timeout=MODEL_REQUEST_TIMEOUT
+        )
+        for m in FALLBACK_MODELS
+    ],
+    primary_model=default_model,
+)
 logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
 
 # =============================================================================
