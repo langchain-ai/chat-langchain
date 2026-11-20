@@ -2,6 +2,8 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto"
 
 export const GUEST_TOKEN_ISSUER = "mda:guest"
 const TTL_SECONDS = 24 * 60 * 60
+/** Re-sign a still-valid pass for the same guest once it has less than this left. */
+export const RENEW_BELOW_SECONDS = 12 * 60 * 60
 
 function encode(value: string): string {
   return Buffer.from(value).toString("base64url")
@@ -36,7 +38,7 @@ export function readGuestToken(
   secret: string,
   token: string,
   now = Date.now()
-): { sub: string } | null {
+): { sub: string; exp: number } | null {
   const parts = token.split(".")
   if (parts.length !== 3) return null
   const [header, body, signature] = parts
@@ -61,10 +63,27 @@ export function readGuestToken(
       return null
     }
     if (typeof claims.exp !== "number" || claims.exp * 1000 <= now) return null
-    return { sub: claims.sub }
+    return { sub: claims.sub, exp: claims.exp }
   } catch {
     return null
   }
+}
+
+/**
+ * Sliding renewal: a valid pass close to expiry gets a fresh 24h for the SAME
+ * guest id, so returning guests keep their (owner-scoped) thread history
+ * instead of silently becoming a new guest 24h after their first visit.
+ * Returns null when the pass is invalid or doesn't need renewing yet.
+ */
+export function renewGuestToken(
+  secret: string,
+  token: string,
+  now = Date.now()
+): string | null {
+  const claims = readGuestToken(secret, token, now)
+  if (!claims) return null
+  if (claims.exp * 1000 - now > RENEW_BELOW_SECONDS * 1000) return null
+  return signGuestToken(secret, claims.sub, now)
 }
 
 /**
