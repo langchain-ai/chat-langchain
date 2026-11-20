@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 from typing import Awaitable, Callable
 
 from langchain.agents.middleware.types import (
@@ -20,6 +21,16 @@ RETRYABLE_FINISH_REASONS = {
 }
 
 
+# Wall-clock cap per model attempt. The provider `timeout` is a per-read HTTP
+# timeout, so a stalled stream can hang a run indefinitely. Real Gemini calls
+# on prod (7,812 calls, Nov 17-18 PT) peaked at 14.4s, p99.9 8.8s.
+MODEL_ATTEMPT_DEADLINE = float(os.getenv("MODEL_ATTEMPT_DEADLINE", "45"))
+
+
+class ModelAttemptTimeoutError(Exception):
+    """Raised when one model attempt exceeds the wall-clock deadline."""
+
+
 class MalformedResponseError(Exception):
     """Raised when model returns a malformed response after exhausting retries."""
 
@@ -34,12 +45,14 @@ class ModelRetryMiddleware(AgentMiddleware):
         max_retries: int = 2,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
+        attempt_deadline: float | None = MODEL_ATTEMPT_DEADLINE,
     ):
         """Configure the retry budget and exponential backoff."""
         super().__init__()
         self.max_retries = max_retries
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
+        self.attempt_deadline = attempt_deadline
 
     def _last_ai_message(self, response: ModelResponse | AIMessage) -> AIMessage | None:
         """Return the last AI message from a wrapped or direct response."""
@@ -70,7 +83,17 @@ class ModelRetryMiddleware(AgentMiddleware):
 
         for attempt in range(self.max_retries + 1):
             try:
-                response = await handler(request)
+                if self.attempt_deadline:
+                    try:
+                        response = await asyncio.wait_for(
+                            handler(request), timeout=self.attempt_deadline
+                        )
+                    except asyncio.TimeoutError as exc:
+                        raise ModelAttemptTimeoutError(
+                            f"Model attempt exceeded {self.attempt_deadline:.0f}s"
+                        ) from exc
+                else:
+                    response = await handler(request)
                 finish_reason = self._get_finish_reason(response)
 
                 message = self._last_ai_message(response)
@@ -99,6 +122,12 @@ class ModelRetryMiddleware(AgentMiddleware):
                 ).__name__.endswith(("InvalidRequestError", "BadRequestError")):
                     raise
 
+                if isinstance(e, ValueError) and str(e).endswith(
+                    "does not support model prefilling. The final request turn must "
+                    "be a user message or a function response."
+                ):
+                    raise
+
                 last_exception = e
                 if attempt < self.max_retries:
                     delay = self.initial_delay * (self.backoff_factor**attempt)
@@ -119,4 +148,4 @@ class ModelRetryMiddleware(AgentMiddleware):
         raise RuntimeError("Unexpected state in retry middleware")
 
 
-__all__ = ["ModelRetryMiddleware", "MalformedResponseError"]
+__all__ = ["ModelRetryMiddleware", "MalformedResponseError", "ModelAttemptTimeoutError"]
