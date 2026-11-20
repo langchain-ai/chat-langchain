@@ -109,6 +109,23 @@ def _is_same_page(url: str, destination: str) -> bool:
     } and final.port in {requested.port, 443 if final.scheme == "https" else 80}
 
 
+def _is_sign_in_destination(url: str) -> bool:
+    """Recognize known identity providers by hostname and GitHub's login path."""
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    return (
+        host
+        in {
+            "accounts.google.com",
+            "login.microsoftonline.com",
+            "login.live.com",
+            "login.microsoft.com",
+        }
+        or host.endswith(".auth0.com")
+        or (host == "github.com" and parsed.path == "/login")
+    )
+
+
 def _page_key(host: str | None) -> str:
     """Treat a host and its www. form as the same site."""
     host = (host or "").lower()
@@ -230,7 +247,10 @@ async def _check_single_url(
                 "GET", url, timeout=timeout, follow_redirects=True
             ) as response:
                 final_url = str(response.url) if str(response.url) != url else None
-                if not _is_same_page(url, str(response.url)):
+                if not (
+                    _is_same_page(url, str(response.url))
+                    or _is_sign_in_destination(str(response.url))
+                ):
                     result = LinkCheckResult(
                         url=url,
                         valid=False,
@@ -279,7 +299,10 @@ async def _check_single_url(
                 response = await client.get(url, timeout=timeout, follow_redirects=True)
 
             final_url = str(response.url) if str(response.url) != url else None
-            if not _is_same_page(url, str(response.url)):
+            if not (
+                _is_same_page(url, str(response.url))
+                or _is_sign_in_destination(str(response.url))
+            ):
                 result = LinkCheckResult(
                     url=url,
                     valid=False,
