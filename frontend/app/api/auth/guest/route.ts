@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import {
   newGuestSubject,
   readGuestToken,
+  renewGuestToken,
   requestClientIp,
   signForwardedIp,
   signGuestToken,
@@ -80,7 +81,10 @@ export async function POST(request: Request) {
   let token: string
   let source = "cookie"
   if (existing && cached) {
-    token = cached
+    // Same guest id, fresh expiry when it's close to running out.
+    const renewed = renewGuestToken(secret, cached)
+    token = renewed ?? cached
+    if (renewed) source = "renewed"
   } else {
     const minted = await mintAtEngine(secret, request)
     if (minted.kind === "limited") {

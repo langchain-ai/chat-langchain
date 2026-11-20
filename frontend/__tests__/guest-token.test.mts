@@ -48,3 +48,27 @@ test("reads the visitor IP from Vercel headers", async () => {
   )
   assert.equal(requestClientIp(new Headers()), null)
 })
+
+test("renews a pass close to expiry for the same guest", async () => {
+  const { renewGuestToken } = await import("../lib/server/guest-token.ts")
+  const subject = newGuestSubject()
+  const token = signGuestToken(SECRET, subject, 0)
+  // 13h in: more than 12h left, nothing to renew.
+  assert.equal(renewGuestToken(SECRET, token, 11 * 60 * 60 * 1000), null)
+  // 20h in: renewed, same subject, expiry pushed 24h from now.
+  const now = 20 * 60 * 60 * 1000
+  const renewed = renewGuestToken(SECRET, token, now)
+  assert.ok(renewed)
+  const claims = readGuestToken(SECRET, renewed, now)
+  assert.equal(claims?.sub, subject)
+  assert.equal(claims?.exp, now / 1000 + 24 * 60 * 60)
+  // Still valid past the original expiry.
+  assert.equal(readGuestToken(SECRET, renewed, 30 * 60 * 60 * 1000)?.sub, subject)
+})
+
+test("never renews an expired or forged pass", async () => {
+  const { renewGuestToken } = await import("../lib/server/guest-token.ts")
+  const token = signGuestToken(SECRET, newGuestSubject(), 0)
+  assert.equal(renewGuestToken(SECRET, token, 25 * 60 * 60 * 1000), null)
+  assert.equal(renewGuestToken("other-secret", token, 20 * 60 * 60 * 1000), null)
+})
