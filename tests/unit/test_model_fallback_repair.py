@@ -1,19 +1,26 @@
 """Tests for tool-call history repair in the model fallback middleware."""
 
+import asyncio
+
+import pytest
+from langchain.agents import create_agent
+from langchain.agents.middleware.types import ModelRequest, ModelResponse
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.checkpoint.memory import InMemorySaver
 
 from src.middleware.model_fallback_middleware import (
     MISSING_TOOL_RESULT_PLACEHOLDER,
+    RepairingModelFallbackMiddleware,
     repair_tool_call_ids,
 )
+from src.middleware.retry_middleware import ModelRetryMiddleware
 
 
 def _ai_with_tool_calls(*ids):
     return AIMessage(
         content="",
-        tool_calls=[
-            {"id": tc_id, "name": "search", "args": {}} for tc_id in ids
-        ],
+        tool_calls=[{"id": tc_id, "name": "search", "args": {}} for tc_id in ids],
     )
 
 
@@ -99,3 +106,96 @@ def test_repair_ignores_ai_message_without_tool_calls():
     repaired = repair_tool_call_ids(messages)
 
     assert repaired == messages
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    "ending", ["answer", "human", "tool_call", "tool_result", "empty"]
+)
+def test_completed_turn_reuses_answer_without_invoking_models(asynchronous, ending):
+    answer = AIMessage(content="Previous answer", id="answer-1")
+    messages = [HumanMessage(content="Question", id="question-1"), answer]
+    if ending == "human":
+        messages.append(HumanMessage(content="Question", id="question-2"))
+    elif ending == "tool_call":
+        messages.append(_ai_with_tool_calls("call-1"))
+    elif ending == "tool_result":
+        messages.extend(
+            [
+                _ai_with_tool_calls("call-1"),
+                ToolMessage(content="Result", tool_call_id="call-1"),
+            ]
+        )
+    elif ending == "empty":
+        messages = []
+    model = FakeMessagesListChatModel(responses=[AIMessage(content="Fresh answer")])
+    middleware = RepairingModelFallbackMiddleware(model)
+    request = ModelRequest(model=model, messages=messages)
+    calls = []
+    fresh = ModelResponse(result=[AIMessage(content="Fresh answer")])
+
+    def handler(request):
+        calls.append(request)
+        return fresh
+
+    async def async_handler(request):
+        return handler(request)
+
+    result = (
+        asyncio.run(middleware.awrap_model_call(request, async_handler))
+        if asynchronous
+        else middleware.wrap_model_call(request, handler)
+    )
+    if ending == "answer":
+        assert result.result == [answer]
+        assert result.result[0].id == "answer-1"
+        assert calls == []
+    else:
+        assert result is fresh
+        assert len(calls) == 1
+
+
+def test_checkpointed_resend_reuses_answer_and_fresh_turn_calls_primary():
+    primary = FakeMessagesListChatModel(
+        responses=[
+            AIMessage(content="First answer", id="answer-1"),
+            AIMessage(content="Fresh answer", id="answer-2"),
+        ]
+    )
+    fallback = FakeMessagesListChatModel(
+        responses=[AIMessage(content="Fallback answer")]
+    )
+    graph = create_agent(
+        model=primary,
+        middleware=[
+            RepairingModelFallbackMiddleware(fallback),
+            ModelRetryMiddleware(initial_delay=0),
+        ],
+        checkpointer=InMemorySaver(),
+    )
+    config = {"configurable": {"thread_id": "resend"}}
+    question = HumanMessage(content="Question", id="question-1")
+
+    async def run():
+        async def invoke(inputs):
+            return await graph.ainvoke(inputs, config)
+
+        first = await invoke({"messages": [question]})
+        replay = await invoke({"messages": first["messages"]})
+        duplicate = await invoke({"messages": [question]})
+        fresh = await invoke(
+            {"messages": [HumanMessage(content="Question", id="question-2")]}
+        )
+        return first, replay, duplicate, fresh
+
+    first, replay, duplicate, fresh = asyncio.run(run())
+    assert [message.id for message in first["messages"]] == ["question-1", "answer-1"]
+    assert replay["messages"] == first["messages"]
+    assert duplicate["messages"] == first["messages"]
+    assert [message.id for message in fresh["messages"]] == [
+        "question-1",
+        "answer-1",
+        "question-2",
+        "answer-2",
+    ]
+    assert fresh["messages"][-1].content == "Fresh answer"

@@ -91,16 +91,28 @@ async def test_500_error_is_retried():
 
 
 @pytest.mark.asyncio
-async def test_exception_without_status_code_is_retried():
+@pytest.mark.parametrize(
+    "exc",
+    [
+        RuntimeError("network blip"),
+        ValueError("Invalid model configuration"),
+        ValueError("Model does not support model prefilling"),
+        RuntimeError(
+            "Model 'gemini-3.5-flash-lite' does not support model prefilling. The final "
+            "request turn must be a user message or a function response."
+        ),
+    ],
+)
+async def test_exception_without_status_code_is_retried(exc):
     """Generic exceptions with no status_code attribute must still be retried."""
     max_retries = 2
     middleware = _make_middleware(max_retries=max_retries, initial_delay=0.0)
-    exc = RuntimeError("network blip")
     handler, calls = _counting_handler(exc)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(type(exc)) as caught:
         await middleware.awrap_model_call(request=object(), handler=handler)
 
+    assert caught.value is exc
     assert calls["n"] == max_retries + 1
 
 

@@ -1,5 +1,6 @@
-"""Model fallback middleware with tool-call history repair.
+"""Model fallback middleware with completed-turn reuse and tool-call history repair.
 
+Completed assistant turns reuse the stored answer without invoking a model.
 Wraps `langchain.agents.middleware.ModelFallbackMiddleware` to ensure the
 message history satisfies OpenAI's strict tool-call ordering before a
 fallback model (notably `ChatOpenAI`) is invoked. OpenAI rejects requests
@@ -61,7 +62,7 @@ def repair_tool_call_ids(messages: list[AnyMessage]) -> list[AnyMessage]:
 
 
 class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
-    """ModelFallbackMiddleware that repairs tool-call history on fallback."""
+    """Reuse completed turns and repair tool-call history on fallback."""
 
     def __init__(
         self,
@@ -87,6 +88,10 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         handler: Callable[[ModelRequest], ModelResponse],
     ) -> ModelResponse | AIMessage:
         """Try fallback models in sequence, repairing history before each fallback."""
+        if request.messages:
+            last_message = request.messages[-1]
+            if isinstance(last_message, AIMessage) and not last_message.tool_calls:
+                return ModelResponse(result=[last_message])
         if self.primary_model is not None:
             request = request.override(model=self.primary_model)
         last_exception: Exception
@@ -111,6 +116,10 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse | AIMessage:
         """Try fallback models in sequence, repairing history before each fallback."""
+        if request.messages:
+            last_message = request.messages[-1]
+            if isinstance(last_message, AIMessage) and not last_message.tool_calls:
+                return ModelResponse(result=[last_message])
         if self.primary_model is not None:
             request = request.override(model=self.primary_model)
         last_exception: Exception
