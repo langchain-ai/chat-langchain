@@ -143,6 +143,13 @@ What MDA owns in this deployment:
 - **Thread titles** — generated in the browser (deterministic truncation).
 - **Checkpointer** — managed by the Managed Deep Agents runtime.
 
+When updating `instructions.md`, mirror the change in
+`src/prompts/docs_agent_prompt.py`. Run
+`PYTHONPATH=. python scripts/push_docs_agent_prompt.py` with the prompt-owning
+workspace credentials, then promote the resulting Hub commit to the production
+tag so Hub consumers receive the update. The script pushes a new commit; it
+does not move the production tag.
+
 ## Resources
 
 - [LangChain Documentation](https://docs.langchain.com/oss/python/langchain/overview)
