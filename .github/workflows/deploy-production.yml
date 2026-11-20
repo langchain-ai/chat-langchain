@@ -31,7 +31,7 @@
 #                             third arm. Unset = two arms. Needs FT_MODEL_ID.
 #   FT_BASE_MODEL_TRAFFIC_PERCENT  Share of new threads sent to it (default 33).
 #   FT_REASONING_EFFORT       reasoning_effort for both Fireworks arms: low,
-#                             medium, high (default) or "default" to leave unset.
+#                             high (default), max or "default" to leave unset.
 name: Deploy Production Agent
 
 "on":

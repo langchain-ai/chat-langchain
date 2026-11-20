@@ -500,7 +500,7 @@ def test_base_chain_is_a_labelled_fireworks_model(config_module, monkeypatch):
         (None, "high"),
         ("", "high"),
         ("LOW", "low"),
-        ("medium", "medium"),
+        ("max", "max"),
         ("default", None),
     ],
 )
@@ -512,7 +512,7 @@ def test_reasoning_effort_is_read_from_env(config_module, monkeypatch, raw, expe
     assert config_module._ft_reasoning_effort_from_env() == expected
 
 
-@pytest.mark.parametrize("raw", ["none", "max", "3"])
+@pytest.mark.parametrize("raw", ["none", "medium", "3"])
 def test_bad_reasoning_effort_fails_at_startup(config_module, monkeypatch, raw):
     monkeypatch.setenv("FT_REASONING_EFFORT", raw)
     with pytest.raises(ValueError, match="FT_REASONING_EFFORT"):

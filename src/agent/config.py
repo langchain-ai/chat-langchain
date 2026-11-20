@@ -146,7 +146,8 @@ FT_BASE_MODEL_ID = _ft_model_id_from_env("FT_BASE_MODEL_ID")
 # reasoning_effort for both Fireworks arms. "high" matches the offline evals;
 # leaving it unset on Fireworks gives GLM far more thinking (2-5x the tokens,
 # much slower). GLM-5.3 is thinking-only, so "none" is rejected with a 400.
-_FT_REASONING_EFFORTS = ("low", "medium", "high")
+# Fireworks accepts low, high and max for GLM (no medium).
+_FT_REASONING_EFFORTS = ("low", "high", "max")
 
 
 def _ft_reasoning_effort_from_env() -> str | None:
@@ -155,8 +156,7 @@ def _ft_reasoning_effort_from_env() -> str | None:
         return None
     if raw not in _FT_REASONING_EFFORTS:
         raise ValueError(
-            "FT_REASONING_EFFORT must be one of low, medium, high or default; "
-            f"got {raw!r}"
+            f"FT_REASONING_EFFORT must be one of low, high, max or default; got {raw!r}"
         )
     return raw
 
