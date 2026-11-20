@@ -1,8 +1,12 @@
 """Tests for the legal and contract question handoff."""
 
+import asyncio
+
 import langsmith as ls
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain.agents import create_agent
+from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from agent import docs_agent_middleware
 from src.middleware.guardrails_middleware import GuardrailsMiddleware
@@ -69,6 +73,11 @@ def test_legal_questions_are_detected(query):
         "How do I add a health check to my deployment?",
         "How much does the Plus plan cost per seat?",
         "How do I set data retention for traces?",
+        "How do I train a model with Smithtune?",
+        "How do I stop a Smithtune training job?",
+        "How do I disable LangSmith tracing?",
+        "How do I opt out of telemetry with LANGGRAPH_CLI_NO_ANALYTICS?",
+        "How do I disable analytics while training a model with Smithtune?",
     ],
 )
 def test_technical_questions_are_not_detected(query):
@@ -154,4 +163,67 @@ def test_handoff_only_uses_latest_human_message():
             HumanMessage(content="How do I compute SCCs in a graph?"),
         ]
     }
+    assert LegalHandoffMiddleware().before_agent(state, runtime=None) is None
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    "query",
+    [
+        "how do I opt out of langsmith training on our traces",
+        "How can I keep my data out of model training?",
+        "Stop using our prompts for training models",
+        "How can I prevent customer data from being used to train models?",
+        "I don't want my data used for model training",
+        "How do we exclude our conversations from fine-tuning?",
+        "How do I opt out of training-related retention of customer traces?",
+        "Is disabling LANGSMITH_TRACING how I opt out of training on my data?",
+    ],
+)
+def test_training_opt_out_ends_run_before_model(query, asynchronous):
+    model = FakeMessagesListChatModel(
+        responses=[AIMessage(content="Unsupported policy or telemetry instructions")]
+    )
+    graph = create_agent(model=model, middleware=[LegalHandoffMiddleware()])
+    state = {"messages": [HumanMessage(content=query)]}
+
+    result = asyncio.run(graph.ainvoke(state)) if asynchronous else graph.invoke(state)
+
+    answer = result["messages"][-1].content
+    assert result["legal_handoff"] is True
+    assert "can't confirm" in answer
+    assert "Contact support" in answer
+    assert SUPPORT_TICKET_ARTICLE_URL in answer
+    assert "LANGSMITH_TRACING" not in answer
+    assert "LANGGRAPH_CLI_NO_ANALYTICS" not in answer
+    assert "Unsupported policy" not in answer
+
+
+def test_policy_question_with_tool_evidence_remains_on_model_path():
+    state = {
+        "messages": [
+            HumanMessage(content="Does LangSmith use customer traces to train models?"),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "search", "args": {}, "id": "policy"}],
+            ),
+            ToolMessage(
+                content="Policy: customer traces are not used to train models. Source: policy page.",
+                tool_call_id="policy",
+            ),
+        ]
+    }
+
+    assert LegalHandoffMiddleware().before_agent(state, runtime=None) is None
+
+
+def test_training_handoff_does_not_capture_later_telemetry_question():
+    state = {
+        "messages": [
+            HumanMessage(content="How do I opt out of training on our traces?"),
+            AIMessage(content="Please open a support ticket."),
+            HumanMessage(content="How do I disable telemetry instead?"),
+        ]
+    }
+
     assert LegalHandoffMiddleware().before_agent(state, runtime=None) is None

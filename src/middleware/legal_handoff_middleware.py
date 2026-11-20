@@ -1,4 +1,4 @@
-"""Hand legal and contract questions to a person instead of answering them.
+"""Hand legal, contract, and training opt-out questions to a person.
 
 The docs agent has no authority to confirm what a DPA, SCC, BAA, or contract
 covers, or whether a customer's amendment is acceptable. Answers it produced
@@ -85,6 +85,29 @@ LEGAL_HANDOFF_MESSAGE = (
 )
 
 
+_TRAINING_RE = re.compile(
+    r"\b(?:train(?:ing|s|ed)?|fine[- ]?tun(?:e|ing))\b", re.IGNORECASE
+)
+_CUSTOMER_DATA_RE = re.compile(
+    r"\b(?:data|traces?|prompts?|inputs?|conversations?)\b", re.IGNORECASE
+)
+_TRAINING_OPT_OUT_RE = re.compile(
+    r"\b(?:opt[ -]?out|stop|prevent|exclude|keep|avoid|disable|ensure)\b"
+    r"|\b(?:don['’]t|do not|not) (?:use|used|train|want|be used)\b",
+    re.IGNORECASE,
+)
+
+TRAINING_OPT_OUT_HANDOFF_MESSAGE = (
+    "**I can't confirm a training data-use policy or opt-out procedure from the "
+    "documentation available in this conversation.** Please open a support ticket "
+    "to confirm whether customer data is used for model training, any related "
+    "retention, and how to opt out.\n\n"
+    "If you're on the support portal, click **Contact support** below this reply. "
+    "Otherwise, follow the steps in "
+    f"[How to Submit a Support Ticket]({SUPPORT_TICKET_ARTICLE_URL})."
+)
+
+
 class LegalHandoffState(AgentState):
     """Extended state schema with the legal handoff flag."""
 
@@ -122,7 +145,7 @@ def is_legal_question(text: str) -> bool:
 
 
 class LegalHandoffMiddleware(AgentMiddleware[LegalHandoffState]):
-    """Return a fixed handoff for legal and contract questions."""
+    """Return a fixed handoff for legal terms and training opt-out requests."""
 
     state_schema = LegalHandoffState
 
@@ -130,7 +153,7 @@ class LegalHandoffMiddleware(AgentMiddleware[LegalHandoffState]):
     def before_agent(
         self, state: LegalHandoffState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """End the run with a handoff when the latest user turn is a legal question."""
+        """Hand off legal and training opt-out requests in the latest user turn."""
         messages = state.get("messages", [])
         for message in reversed(messages):
             if isinstance(message, HumanMessage):
@@ -140,13 +163,19 @@ class LegalHandoffMiddleware(AgentMiddleware[LegalHandoffState]):
             return None
 
         match = _legal_match(text)
+        handoff_message = LEGAL_HANDOFF_MESSAGE
         if not match:
-            return None
+            if not (_TRAINING_RE.search(text) and _CUSTOMER_DATA_RE.search(text)):
+                return None
+            match = _TRAINING_OPT_OUT_RE.search(text)
+            if not match:
+                return None
+            handoff_message = TRAINING_OPT_OUT_HANDOFF_MESSAGE
 
         logger.info("Legal handoff triggered by term: %s", match.group(0))
         self._track_handoff_metadata(match.group(0))
         return {
-            "messages": [AIMessage(content=LEGAL_HANDOFF_MESSAGE)],
+            "messages": [AIMessage(content=handoff_message)],
             "legal_handoff": True,
             "jump_to": "end",
         }
