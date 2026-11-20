@@ -161,11 +161,7 @@ class ModelExperimentState(AgentState):
 def _tag_root_run(
     metadata: dict[str, str | bool], scores: dict[str, int] | None = None
 ) -> None:
-    """Log ``metadata`` and ``scores`` as feedback on the current trace.
-
-    Never fails the turn. Passing ``trace_id`` batches the feedback in the
-    background instead of blocking on a request.
-    """
+    """Log root-linked feedback without failing the turn if tracing fails."""
     try:
         run_tree = ls.get_current_run_tree()
         if not run_tree:
@@ -174,18 +170,33 @@ def _tag_root_run(
             run_tree = run_tree.parent_run
         run_tree.metadata.update(metadata)
         client, trace_id = run_tree.client, run_tree.trace_id
+        session_id = run_tree.session_id
+        if session_id is None:
+            session_id = client.read_project(project_name=run_tree.session_name).id
         for key, value in metadata.items():
             if isinstance(value, bool):
                 client.create_feedback(
-                    run_id=trace_id, trace_id=trace_id, key=key, score=int(value)
+                    run_id=trace_id,
+                    trace_id=trace_id,
+                    session_id=session_id,
+                    key=key,
+                    score=int(value),
                 )
             else:
                 client.create_feedback(
-                    run_id=trace_id, trace_id=trace_id, key=key, value=value
+                    run_id=trace_id,
+                    trace_id=trace_id,
+                    session_id=session_id,
+                    key=key,
+                    value=value,
                 )
         for key, score in (scores or {}).items():
             client.create_feedback(
-                run_id=trace_id, trace_id=trace_id, key=key, score=score
+                run_id=trace_id,
+                trace_id=trace_id,
+                session_id=session_id,
+                key=key,
+                score=score,
             )
     except Exception:
         logger.debug("Could not tag the root run with %s", metadata, exc_info=True)

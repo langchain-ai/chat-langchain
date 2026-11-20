@@ -143,15 +143,13 @@ FT_MODEL_ID = _ft_model_id_from_env()
 FT_MODEL_TRAFFIC_PERCENT = _ft_traffic_percent_from_env()
 FT_BASE_MODEL_ID = _ft_model_id_from_env("FT_BASE_MODEL_ID")
 
-# reasoning_effort for both Fireworks arms. "high" matches the offline evals;
-# leaving it unset on Fireworks gives GLM far more thinking (2-5x the tokens,
-# much slower). GLM-5.3 is thinking-only, so "none" is rejected with a 400.
-# Fireworks accepts low, high and max for GLM (no medium).
+# Use low reasoning effort across both Fireworks arms to limit latency.
+# GLM-5.3 is thinking-only; Fireworks accepts low, high and max (no medium).
 _FT_REASONING_EFFORTS = ("low", "high", "max")
 
 
 def _ft_reasoning_effort_from_env() -> str | None:
-    raw = (os.getenv("FT_REASONING_EFFORT") or "high").strip().lower()
+    raw = (os.getenv("FT_REASONING_EFFORT") or "low").strip().lower()
     if raw in ("default", "unset"):
         return None
     if raw not in _FT_REASONING_EFFORTS:

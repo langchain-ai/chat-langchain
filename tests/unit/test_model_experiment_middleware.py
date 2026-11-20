@@ -2,6 +2,7 @@
 
 import asyncio
 import itertools
+import json
 import os
 import uuid
 
@@ -312,28 +313,54 @@ def test_bad_traffic_percent_fails_at_startup(config_module, monkeypatch, value)
 # --- root run metadata --------------------------------------------------------
 
 
-@pytest.fixture(params=["linked", "detached"])
+@pytest.fixture(params=["linked", "detached", "project-id"])
 def root_run(monkeypatch, request):
     from types import SimpleNamespace
 
+    from langsmith import Client as LangSmithClient
     from langsmith.run_trees import RunTree
 
-    root = RunTree(name="root", extra={"metadata": {"existing": True}})
+    project_id = uuid.uuid4()
+    root = RunTree(
+        name="root",
+        project_name="test-project",
+        project_id=project_id if request.param == "project-id" else None,
+        extra={"metadata": {"existing": True}},
+    )
 
-    class Client:
+    class Client(LangSmithClient):
         def __init__(self):
+            super().__init__(
+                api_url="http://localhost:1984",
+                api_key="test-key",
+                auto_batch_tracing=False,
+                info={
+                    "version": "0.8.10",
+                    "instance_flags": {
+                        "ch_query_enabled": False,
+                        "sdb_query_enabled": True,
+                    },
+                },
+            )
             self.feedback = []
 
-        def create_feedback(self, *, run_id, trace_id, key, score=None, value=None):
-            # Trace-level feedback must name the root run, or LangSmith
-            # treats it as session-level feedback.
-            assert run_id == trace_id == root.id
-            self.feedback.append((trace_id, key, score if value is None else value))
+        def read_project(self, *, project_name):
+            assert project_name == "test-project"
+            return SimpleNamespace(id=project_id)
+
+        def request_with_retries(self, method, pathname, *, request_kwargs, **kwargs):
+            assert (method, pathname) == ("POST", "/feedback")
+            body = json.loads(request_kwargs["data"])
+            assert body["session_id"] == str(project_id)
+            assert body["run_id"] == body["trace_id"] == str(root.id)
+            self.feedback.append(
+                (body["trace_id"], body["key"], body.get("value", body.get("score")))
+            )
 
     root.ls_client = Client()
     child = (
         SimpleNamespace(metadata={}, parent_run=root)
-        if request.param == "linked"
+        if request.param != "detached"
         else root.create_child(name="model")
     )
     monkeypatch.setattr(
@@ -497,11 +524,13 @@ def test_base_chain_is_a_labelled_fireworks_model(config_module, monkeypatch):
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        (None, "high"),
-        ("", "high"),
+        (None, "low"),
+        ("", "low"),
+        ("high", "high"),
         ("LOW", "low"),
         ("max", "max"),
         ("default", None),
+        ("unset", None),
     ],
 )
 def test_reasoning_effort_is_read_from_env(config_module, monkeypatch, raw, expected):
@@ -519,15 +548,19 @@ def test_bad_reasoning_effort_fails_at_startup(config_module, monkeypatch, raw):
         config_module._ft_reasoning_effort_from_env()
 
 
-def test_fireworks_arms_send_the_reasoning_effort(config_module, monkeypatch):
+@pytest.mark.parametrize("effort", ["low", "high", "max", None])
+def test_fireworks_arms_send_the_reasoning_effort(config_module, monkeypatch, effort):
     monkeypatch.setattr(config_module, "FT_MODEL_ID", "accounts/acme/models/lora")
     monkeypatch.setattr(
         config_module, "FT_BASE_MODEL_ID", "accounts/fireworks/models/base-model"
     )
     monkeypatch.setenv("FIREWORKS_API_KEY", "test-key")
-    monkeypatch.setattr(config_module, "FT_REASONING_EFFORT", "high")
+    control_params = config_module.default_model.model_dump()
+    monkeypatch.setattr(config_module, "FT_REASONING_EFFORT", effort)
     for chain in (config_module._treatment_chain(), config_module._base_chain()):
-        assert chain.primary.reasoning_effort == "high"
-        assert chain.primary._default_params["reasoning_effort"] == "high"
-    monkeypatch.setattr(config_module, "FT_REASONING_EFFORT", None)
-    assert config_module._treatment_chain().primary.reasoning_effort is None
+        assert chain.primary.reasoning_effort == effort
+        assert chain.primary._default_params.get("reasoning_effort") == effort
+        assert all(
+            getattr(m, "reasoning_effort", None) is None for m in chain.fallbacks
+        )
+    assert config_module.default_model.model_dump() == control_params
