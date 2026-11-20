@@ -16,8 +16,9 @@ VALIDATION_BUDGET = 5.0
 # One character per repetition: a nested `+` here backtracks exponentially when a
 # markdown link is not closed by a recognized delimiter.
 _URL = r"https?://(?:[^\s<>`\[\]()）]|\([^\s<>`\[\]()）]*\))+"
+_MARKDOWN_URL = r"[A-Za-z][A-Za-z0-9+.-]*:(?:[^\s<>`\[\]()）]|\([^\s<>`\[\]()）]*\))*"
 _LINK = re.compile(
-    rf'\[(?P<label>[^\]\n]{{0,1000}})\]\(<?(?P<markdown>{_URL})>?(?:\s+"[^"\n]*")?[)）]'
+    rf'\[(?P<label>[^\]\n]{{0,1000}})\]\(<?(?P<markdown>{_MARKDOWN_URL})>?(?:\s+"[^"\n]*")?[)）]'
     rf"|<(?P<auto>{_URL})>|(?P<bare>{_URL})"
 )
 _CODE = re.compile(
@@ -59,6 +60,8 @@ def _canonicalize_links(text: str) -> str:
 
     def replace(match: re.Match) -> str:
         url = _url(match)
+        if url.split(":", 1)[0].lower() not in {"http", "https"}:
+            return match[0]
         group = "markdown" if match["markdown"] else "auto" if match["auto"] else "bare"
         start = match.start(group) - match.start()
         suffix = match[0][start + len(url) :]
@@ -118,6 +121,7 @@ def _remove_invalid_prose(text: str, invalid: set[str]) -> str:
         if (
             link
             and _url(link) in invalid
+            and _url(link).split(":", 1)[0].lower() in {"http", "https"}
             and (not link["bare"] or link[0] == _url(link))
         ):
             continue
@@ -170,18 +174,27 @@ class LinkValidationMiddleware(AgentMiddleware):
                 for m in _LINK.finditer(segment)
             )
         )
-        if not urls:
+        invalid = {
+            url
+            for url in urls
+            if url.split(":", 1)[0].lower() not in {"http", "https", "mailto"}
+        }
+        urls = [
+            url for url in urls if url.split(":", 1)[0].lower() in {"http", "https"}
+        ]
+        if not urls and not invalid:
             return None
-        invalid: set[str] = set()
         try:
-            results = await asyncio.wait_for(
-                _check_urls_async(urls, VALIDATION_BUDGET), timeout=VALIDATION_BUDGET
-            )
-            invalid = {
-                result.url
-                for result in results
-                if not result.valid and not result.operational_failure
-            }
+            if urls:
+                results = await asyncio.wait_for(
+                    _check_urls_async(urls, VALIDATION_BUDGET),
+                    timeout=VALIDATION_BUDGET,
+                )
+                invalid.update(
+                    result.url
+                    for result in results
+                    if not result.valid and not result.operational_failure
+                )
         except Exception:
             logger.warning(
                 "Final-answer link validation failed; preserving unchecked links",
