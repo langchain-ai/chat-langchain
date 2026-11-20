@@ -3,12 +3,11 @@
 import asyncio
 import os
 from copy import deepcopy
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import langsmith as ls
 import pytest
-from langchain.agents.middleware import ModelResponse
+from langchain.agents.middleware import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables.config import var_child_runnable_config
 from langgraph.runtime import Runtime
@@ -32,7 +31,7 @@ def _middleware(decide) -> GuardrailsMiddleware:
 
 
 def _request(messages):
-    return SimpleNamespace(messages=messages)
+    return ModelRequest(model=Mock(), messages=messages)
 
 
 async def _run_turn(middleware, model_delay=0.2, verdict_delay=0.2):

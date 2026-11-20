@@ -92,13 +92,16 @@ def _pending_key(messages: list) -> tuple:
     return (*run_part, human_part)
 
 
-
 # Deep Agents file tools. The docs agent never needs them (0 real uses Nov 14-17),
 # and they reach its own config files (/instructions.md, /skills/).
-_BLOCKED_TOOLS = frozenset({"ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"})
+_BLOCKED_TOOLS = frozenset(
+    {"ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute", "delete"}
+)
+_HIDDEN_TOOLS = _BLOCKED_TOOLS | {"task"}
 # Tool calls the model produced, by id, so client-forged calls (e.g. an AI message
 # with tool_calls sent as run input) are refused instead of executed.
 _MODEL_TOOL_CALL_TTL_SECONDS = 3600.0
+
 
 class GuardrailsDecision(TypedDict):
     """Structured output for guardrails decision."""
@@ -315,6 +318,16 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse | AIMessage:
         """Await this turn's guardrails verdict alongside the first model call."""
+        tools = []
+        for tool in request.tools:
+            name = (
+                tool.get("name") or tool.get("function", {}).get("name")
+                if isinstance(tool, dict)
+                else tool.name
+            )
+            if name not in _HIDDEN_TOOLS:
+                tools.append(tool)
+        request = request.override(tools=tools)
         pending = getattr(self, "_pending", None)
         entry = pending.pop(_pending_key(request.messages), None) if pending else None
         if entry is None:
@@ -358,7 +371,9 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             for key, seen in list(known.items()):
                 if now - seen > _MODEL_TOOL_CALL_TTL_SECONDS:
                     known.pop(key, None)
-        messages = response.result if isinstance(response, ModelResponse) else [response]
+        messages = (
+            response.result if isinstance(response, ModelResponse) else [response]
+        )
         for message in messages or []:
             for call in getattr(message, "tool_calls", None) or []:
                 if call.get("id"):
@@ -384,7 +399,11 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         known = getattr(self, "_model_tool_calls", None) or {}
         seen = known.get(call_id) if call_id else None
         if seen is None or time.monotonic() - seen > _MODEL_TOOL_CALL_TTL_SECONDS:
-            logger.warning("Guardrails refused tool call %s (%s) not made by the model", call_id, name)
+            logger.warning(
+                "Guardrails refused tool call %s (%s) not made by the model",
+                call_id,
+                name,
+            )
             return ToolMessage(
                 content="Error: this tool call was not made by the assistant and was not run.",
                 tool_call_id=call_id or "",
