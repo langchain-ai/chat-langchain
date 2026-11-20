@@ -748,10 +748,9 @@ export function useStreamHandler({
         // Only set content if:
         // 1. We have final content
         // 2. No pending tool calls
-        // 3. Haven't set content yet
-        // 4. Not a subagent response
-        // 5. We've seen NEW streaming content for this request (prevents using old thread history)
-        if (finalContent && hasFinalMessage && !looksLikeSubagentResponse && (hasSeenNewResponse || isNewFinalMessage(baselineAi, finalAIMessage)) && !assistantContent) {
+        // 3. Not a subagent response
+        // 4. We've seen NEW streaming content for this request (prevents using old thread history)
+        if (finalContent && hasFinalMessage && !looksLikeSubagentResponse && (hasSeenNewResponse || isNewFinalMessage(baselineAi, finalAIMessage)) && finalContent !== assistantContent) {
           assistantContent = finalContent
 
           setMessages((prev) => {
