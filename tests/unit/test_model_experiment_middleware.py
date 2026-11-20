@@ -492,3 +492,42 @@ def test_base_chain_is_a_labelled_fireworks_model(config_module, monkeypatch):
 
     monkeypatch.setattr(config_module, "FT_MODEL_ID", None)
     assert config_module._base_chain() is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (None, "high"),
+        ("", "high"),
+        ("LOW", "low"),
+        ("medium", "medium"),
+        ("default", None),
+    ],
+)
+def test_reasoning_effort_is_read_from_env(config_module, monkeypatch, raw, expected):
+    if raw is None:
+        monkeypatch.delenv("FT_REASONING_EFFORT", raising=False)
+    else:
+        monkeypatch.setenv("FT_REASONING_EFFORT", raw)
+    assert config_module._ft_reasoning_effort_from_env() == expected
+
+
+@pytest.mark.parametrize("raw", ["none", "max", "3"])
+def test_bad_reasoning_effort_fails_at_startup(config_module, monkeypatch, raw):
+    monkeypatch.setenv("FT_REASONING_EFFORT", raw)
+    with pytest.raises(ValueError, match="FT_REASONING_EFFORT"):
+        config_module._ft_reasoning_effort_from_env()
+
+
+def test_fireworks_arms_send_the_reasoning_effort(config_module, monkeypatch):
+    monkeypatch.setattr(config_module, "FT_MODEL_ID", "accounts/acme/models/lora")
+    monkeypatch.setattr(
+        config_module, "FT_BASE_MODEL_ID", "accounts/fireworks/models/base-model"
+    )
+    monkeypatch.setenv("FIREWORKS_API_KEY", "test-key")
+    monkeypatch.setattr(config_module, "FT_REASONING_EFFORT", "high")
+    for chain in (config_module._treatment_chain(), config_module._base_chain()):
+        assert chain.primary.reasoning_effort == "high"
+        assert chain.primary._default_params["reasoning_effort"] == "high"
+    monkeypatch.setattr(config_module, "FT_REASONING_EFFORT", None)
+    assert config_module._treatment_chain().primary.reasoning_effort is None

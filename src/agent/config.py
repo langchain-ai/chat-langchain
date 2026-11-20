@@ -142,6 +142,26 @@ def _ft_traffic_percent_from_env(env: str = "FT_MODEL_TRAFFIC_PERCENT") -> int:
 FT_MODEL_ID = _ft_model_id_from_env()
 FT_MODEL_TRAFFIC_PERCENT = _ft_traffic_percent_from_env()
 FT_BASE_MODEL_ID = _ft_model_id_from_env("FT_BASE_MODEL_ID")
+
+# reasoning_effort for both Fireworks arms. "high" matches the offline evals;
+# leaving it unset on Fireworks gives GLM far more thinking (2-5x the tokens,
+# much slower). GLM-5.3 is thinking-only, so "none" is rejected with a 400.
+_FT_REASONING_EFFORTS = ("low", "medium", "high")
+
+
+def _ft_reasoning_effort_from_env() -> str | None:
+    raw = (os.getenv("FT_REASONING_EFFORT") or "high").strip().lower()
+    if raw in ("default", "unset"):
+        return None
+    if raw not in _FT_REASONING_EFFORTS:
+        raise ValueError(
+            "FT_REASONING_EFFORT must be one of low, medium, high or default; "
+            f"got {raw!r}"
+        )
+    return raw
+
+
+FT_REASONING_EFFORT = _ft_reasoning_effort_from_env()
 FT_BASE_MODEL_TRAFFIC_PERCENT = _ft_traffic_percent_from_env(
     "FT_BASE_MODEL_TRAFFIC_PERCENT"
 )
@@ -250,7 +270,13 @@ def _fireworks_chain(model_id: str, arm: str) -> ModelChain:
         )
     return ModelChain(
         primary=_experiment_model(
-            model_id, arm=arm, role="primary", model_provider="fireworks"
+            model_id,
+            arm=arm,
+            role="primary",
+            model_provider="fireworks",
+            **(
+                {"reasoning_effort": FT_REASONING_EFFORT} if FT_REASONING_EFFORT else {}
+            ),
         ),
         # Fireworks arms fall back to the control model first, then the usual chain.
         fallbacks=_fallback_chain(arm, [DEFAULT_MODEL, *FALLBACK_MODELS]),
@@ -323,6 +349,7 @@ __all__ = [
     "FT_MODEL_TRAFFIC_PERCENT",
     "FT_BASE_MODEL_ID",
     "FT_BASE_MODEL_TRAFFIC_PERCENT",
+    "FT_REASONING_EFFORT",
     "FT_MODEL_EXPERIMENT",
     "MAX_RETRIES",
     "logger",

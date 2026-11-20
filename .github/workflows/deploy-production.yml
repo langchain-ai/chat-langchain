@@ -30,6 +30,8 @@
 #   FT_BASE_MODEL_ID          Fireworks base model the LoRA was tuned from, as a
 #                             third arm. Unset = two arms. Needs FT_MODEL_ID.
 #   FT_BASE_MODEL_TRAFFIC_PERCENT  Share of new threads sent to it (default 33).
+#   FT_REASONING_EFFORT       reasoning_effort for both Fireworks arms: low,
+#                             medium, high (default) or "default" to leave unset.
 name: Deploy Production Agent
 
 "on":
@@ -84,6 +86,7 @@ jobs:
           FT_MODEL_TRAFFIC_PERCENT: ${{ vars.FT_MODEL_TRAFFIC_PERCENT }}
           FT_BASE_MODEL_ID: ${{ vars.FT_BASE_MODEL_ID }}
           FT_BASE_MODEL_TRAFFIC_PERCENT: ${{ vars.FT_BASE_MODEL_TRAFFIC_PERCENT }}
+          FT_REASONING_EFFORT: ${{ vars.FT_REASONING_EFFORT }}
           PYLON_API_KEY: ${{ secrets.PYLON_API_KEY }}
           PYLON_KB_ID: ${{ secrets.PYLON_KB_ID }}
           MDA_GUEST_SIGNING_KEY: ${{ secrets.MDA_GUEST_SIGNING_KEY }}
@@ -142,6 +145,7 @@ jobs:
           write_env FT_MODEL_TRAFFIC_PERCENT "$FT_MODEL_TRAFFIC_PERCENT"
           write_env FT_BASE_MODEL_ID "$FT_BASE_MODEL_ID"
           write_env FT_BASE_MODEL_TRAFFIC_PERCENT "$FT_BASE_MODEL_TRAFFIC_PERCENT"
+          write_env FT_REASONING_EFFORT "$FT_REASONING_EFFORT"
           write_env PYLON_API_KEY "$PYLON_API_KEY"
           write_env PYLON_KB_ID "$PYLON_KB_ID"
           write_env MDA_GUEST_SIGNING_KEY "$MDA_GUEST_SIGNING_KEY"
