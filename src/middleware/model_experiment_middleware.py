@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 from dataclasses import dataclass
 from typing import Annotated, Any
 
@@ -61,7 +62,7 @@ from langchain.agents.middleware.types import (
     PrivateStateAttr,
 )
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from typing_extensions import NotRequired
 
 from src.middleware.model_fallback_middleware import RepairingModelFallbackMiddleware
@@ -255,6 +256,32 @@ class ModelArmPinMiddleware(AgentMiddleware[ModelExperimentState]):
         return self.before_agent(state, runtime)
 
 
+# --- preview-only tuning knobs (do not merge) -------------------------------
+# Each knob is read per run from config["configurable"] first, then the env,
+# so one preview can compare settings without a redeploy.
+CONCISE_NOTE = (
+    "## Answer length\n"
+    "Keep answers short. Lead with the direct answer in 1-3 sentences, then at "
+    "most one short code example and 1-3 documentation links. Do not use section "
+    "headings unless the user asks for a full guide. Aim for under 250 words and "
+    "leave out background the user did not ask for."
+)
+
+
+def _tuning_knob(config_key: str, env_key: str) -> object:
+    try:
+        from langgraph.config import get_config
+
+        value = (get_config().get("configurable") or {}).get(config_key)
+    except Exception:
+        value = None
+    if value in (None, ""):
+        value = os.getenv(env_key) or None
+    if isinstance(value, str) and value.lower() in ("0", "false", "off", "default"):
+        return None
+    return value
+
+
 class ModelExperimentFallbackMiddleware(RepairingModelFallbackMiddleware):
     """Fallback middleware that runs the pinned arm's model chain.
 
@@ -275,7 +302,40 @@ class ModelExperimentFallbackMiddleware(RepairingModelFallbackMiddleware):
         self, request: ModelRequest
     ) -> tuple[BaseChatModel | None, list[BaseChatModel]]:
         chain = self.experiment.chain_for((request.state or {}).get("model_arm"))
-        return chain.primary, list(chain.fallbacks)
+        primary = chain.primary
+        effort = _tuning_knob("ft_reasoning_effort", "FT_REASONING_EFFORT")
+        if effort and self._is_fireworks_arm(request) and primary is not None:
+            if str(effort).isdigit():
+                effort = int(effort)
+            primary = primary.model_copy(update={"reasoning_effort": effort})
+        return primary, list(chain.fallbacks)
+
+    def _is_fireworks_arm(self, request: ModelRequest) -> bool:
+        arm = (request.state or {}).get("model_arm")
+        return (
+            arm in (ARM_TREATMENT, ARM_BASE)
+            and self.experiment.chain_for(arm) is not self.experiment.control
+        )
+
+    def _styled(self, request: ModelRequest) -> ModelRequest:
+        if not _tuning_knob("ft_concise", "FT_CONCISE"):
+            return request
+        if not self._is_fireworks_arm(request) or request.system_message is None:
+            return request
+        content = request.system_message.content
+        if isinstance(content, str):
+            content = content + "\n\n" + CONCISE_NOTE
+        else:
+            content = [*content, {"type": "text", "text": CONCISE_NOTE}]
+        return request.override(system_message=SystemMessage(content=content))
+
+    def wrap_model_call(self, request, handler):  # type: ignore[override]
+        """Apply the tuning knobs for Fireworks arms, then run the arm's chain."""
+        return super().wrap_model_call(self._styled(request), handler)
+
+    async def awrap_model_call(self, request, handler):  # type: ignore[override]
+        """Apply the tuning knobs for Fireworks arms, then run the arm's chain."""
+        return await super().awrap_model_call(self._styled(request), handler)
 
     def _on_fallback(self, request: ModelRequest) -> None:
         if self.experiment.enabled:
