@@ -89,7 +89,8 @@ _TRAINING_RE = re.compile(
     r"\b(?:train(?:ing|s|ed)?|fine[- ]?tun(?:e|ing))\b", re.IGNORECASE
 )
 _CUSTOMER_DATA_RE = re.compile(
-    r"\b(?:data|traces?|prompts?|inputs?|conversations?)\b", re.IGNORECASE
+    r"\b(?:data|traces?|prompts?|inputs?|conversations?)\b|\bdat\s*\Z",
+    re.IGNORECASE,
 )
 _TRAINING_OPT_OUT_RE = re.compile(
     r"\b(?:opt[ -]?out|stop|prevent|exclude|keep|avoid|disable|ensure)\b"

@@ -78,6 +78,8 @@ def test_legal_questions_are_detected(query):
         "How do I disable LangSmith tracing?",
         "How do I opt out of telemetry with LANGGRAPH_CLI_NO_ANALYTICS?",
         "How do I disable analytics while training a model with Smithtune?",
+        "How do I stop a Smithtune training job on my dataset?",
+        "How do I stop training jobs stored in a database?",
     ],
 )
 def test_technical_questions_are_not_detected(query):
@@ -170,6 +172,9 @@ def test_handoff_only_uses_latest_human_message():
 @pytest.mark.parametrize(
     "query",
     [
+        "How to opt-out of training dat",
+        "How to opt-out of training dat  ",
+        "No how do I opt out of langsmith training on our traces",
         "how do I opt out of langsmith training on our traces",
         "How can I keep my data out of model training?",
         "Stop using our prompts for training models",
