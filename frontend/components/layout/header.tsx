@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   SignOutRegularIcon,
   SidebarSimpleRightRegularIcon,
@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@langchain/macaw-components/DropdownMenu"
 import { useAuth } from "@/lib/auth"
+import { isComposerTypingTarget, shouldAutoOpenAuthModal } from "@/lib/utils/auth-modal"
 
 const AUTH_MODAL_DISMISSED_KEY = "chat-langchain-auth-modal-dismissed"
 
@@ -41,11 +42,28 @@ export function Header({
   const { user, loading, signOut } = useAuth()
   const searchParams = useSearchParams()
 
+  const userStartedTypingRef = useRef(false)
+
   useEffect(() => {
-    if (showInitialAuthPrompt && !loading && !user) {
-      if (sessionStorage.getItem(AUTH_MODAL_DISMISSED_KEY) === "true") {
-        return
+    const markTyping = (event: Event) => {
+      if (isComposerTypingTarget(event.target)) {
+        userStartedTypingRef.current = true
       }
+    }
+    document.addEventListener("input", markTyping, true)
+    return () => document.removeEventListener("input", markTyping, true)
+  }, [])
+
+  useEffect(() => {
+    if (
+      shouldAutoOpenAuthModal({
+        enabled: showInitialAuthPrompt,
+        loading,
+        signedIn: Boolean(user),
+        dismissed: sessionStorage.getItem(AUTH_MODAL_DISMISSED_KEY) === "true",
+        userStartedTyping: userStartedTypingRef.current,
+      })
+    ) {
       setShowAuthModal(true)
     }
   }, [loading, user, showInitialAuthPrompt])
