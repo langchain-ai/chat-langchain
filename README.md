@@ -63,6 +63,29 @@ cp .env.example .env
 | `PYLON_CACHE_TTL_SECONDS` | Optional. Seconds to cache the Pylon KB article and collection lists (default `900`) |
 | `USE_LOCAL_PROMPTS` | Optional. Set to `true` to use local prompt files instead of pulling Prompt Hub prompts |
 
+#### Fireworks experiment tuning
+
+`FT_REASONING_EFFORT` controls both Fireworks primary models. It defaults to
+`high`, matching the offline evaluations; supported overrides are `low`, `high`,
+and `max`. `default` or `unset` omits the parameter and uses the provider default.
+Values are case-insensitive and trimmed; a missing or empty value selects `high`,
+while whitespace-only and unsupported values fail at startup.
+
+The Fireworks arms have shown roughly 17–18s latency versus 7s for control.
+The independent effect of lower reasoning effort on latency and answer quality
+has not been measured, so retain `high` until that trade-off is approved.
+Operators can tune effort and compare per-arm latency alongside answer quality
+using the existing `model_experiment`, `model_arm`, and `model_role` trace metadata
+and arm feedback.
+
+To limit new conversations entering the slower arms, reduce
+`FT_MODEL_TRAFFIC_PERCENT` and `FT_BASE_MODEL_TRAFFIC_PERCENT` (each defaults to
+`33`). Setting both to `0` stops new enrollment while preserving existing pinned
+conversations. These percentages and reasoning effort are deploy-time environment
+settings supplied by GitHub repository variables; changing them requires a
+redeploy. Unsetting `FT_MODEL_ID` disables both Fireworks arms, including for
+already pinned conversations.
+
 ### Running Locally
 
 #### Backend
