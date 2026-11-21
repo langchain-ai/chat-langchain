@@ -341,3 +341,85 @@ async def test_redirects_must_preserve_requested_page(requested, destination, va
     assert result.valid == valid
     assert not result.operational_failure
     assert result.error == (None if valid else "Redirected to a different page")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "requested",
+    [
+        "https://aistudio.google.com/app/apikey",
+        "https://portal.azure.com/",
+        "https://docs.langchain.com/private-guide",
+    ],
+)
+@pytest.mark.parametrize(
+    "destination,recognized",
+    [
+        ("https://accounts.google.com/ServiceLogin", True),
+        ("https://login.microsoftonline.com/tenant/oauth2/authorize", True),
+        ("https://login.live.com/oauth20_authorize.srf", True),
+        ("https://login.microsoft.com/", True),
+        ("https://tenant.auth0.com/authorize", True),
+        ("https://github.com/login?return_to=%2Fsettings", True),
+        ("https://github.com/login/other", False),
+        ("https://github.com/settings", False),
+        ("https://accounts.google.com.evil.com/ServiceLogin", False),
+        ("https://login.microsoftonline.com.evil.com/login", False),
+        ("https://evilauth0.com/authorize", False),
+        ("https://tenant.auth0.com.evil.com/login", False),
+        ("https://accounts.google.com@evil.com/login", False),
+        ("https://evil.com/signin", False),
+        ("https://evil.com/login", False),
+        ("https://evil.com/sign-in", False),
+        ("https://evil.com/oauth/authorize", False),
+        ("https://evil.com/ServiceLogin", False),
+    ],
+)
+@pytest.mark.parametrize("status", [200, 401, 403, 405, 404, 500])
+async def test_sign_in_redirects_preserve_status_validation_and_cache(
+    requested, destination, recognized, status
+):
+    import httpx
+
+    def respond(request):
+        if str(request.url) == requested:
+            return httpx.Response(302, headers={"Location": destination})
+        return httpx.Response(status, text="<title>Sign in</title>")
+
+    with patch("src.tools.link_check_tools._cache", {}):
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            result = await _check_single_url(client, requested, 1)
+        cached = await _check_single_url(client, requested, 1)
+    accepted = status in (200, 401, 403, 405)
+    assert result.valid == (recognized and accepted)
+    assert result.url == requested
+    assert result.final_url == destination
+    assert result.status_code == status
+    assert not result.operational_failure
+    assert result.error == (
+        "Redirected to a different page"
+        if not recognized
+        else None
+        if accepted
+        else f"HTTP {status}"
+    )
+    assert cached == result
+
+
+@pytest.mark.asyncio
+async def test_sign_in_redirect_still_checks_soft_404_content():
+    import httpx
+
+    requested = "https://docs.langchain.com/private-guide"
+    destination = "https://accounts.google.com/ServiceLogin"
+
+    def respond(request):
+        if str(request.url) == requested:
+            return httpx.Response(302, headers={"Location": destination})
+        return httpx.Response(200, text="<title>Page not found</title>")
+
+    with patch("src.tools.link_check_tools._cache", {}):
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            result = await _check_single_url(client, requested, 1)
+    assert not result.valid
+    assert result.error == "Soft 404: Page shows 'not found' content"
