@@ -62,9 +62,14 @@ def _canonicalize_docs_url(url: str) -> str:
     parsed = urlparse(url)
     host = parsed.hostname or ""
     path = parsed.path
-    if host == "docs.langsmith.com":
+    if host in {"docs.langsmith.com", "docs.langsmith"}:
         if path != "/langsmith" and not path.startswith("/langsmith/"):
             path = "/langsmith" + (path if path.startswith("/") else "/" + path)
+    elif host == "docs.link":
+        if not path.startswith(
+            ("/oss/", "/langsmith/", "/langgraph-platform/", "/labs/")
+        ):
+            return url
     elif host != "docs.langgraph.com":
         match = re.fullmatch(r"docs\.([a-z0-9-]+)\.com", host)
         if not match or host == "docs.langchain.com":

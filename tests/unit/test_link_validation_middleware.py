@@ -392,13 +392,22 @@ async def test_code_only_urls_are_not_validated():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "host,path",
+    [
+        ("docs.langsmith.com", "/tracing"),
+        ("docs.langsmith", "/llm-gateway-data-policy"),
+        ("docs.link", "/oss/python/concepts/human-in-the-loop"),
+    ],
+)
 @pytest.mark.parametrize("block_content", [False, True])
 @pytest.mark.parametrize("outcome", ["valid", "operational", "failure", "budget"])
 async def test_canonical_hosts_persist_across_validation_outcomes(
-    block_content, outcome
+    host, path, block_content, outcome
 ):
-    old = "http://docs.langsmith.com/tracing?view=all#details"
-    new = "https://docs.langchain.com/langsmith/tracing?view=all#details"
+    old = f"http://{host}{path}?view=all#details"
+    prefix = "/langsmith" if host.startswith("docs.langsmith") else ""
+    new = f"https://docs.langchain.com{prefix}{path}?view=all#details"
     text = f'[`Guide`]({old} "Title") <{old}> {old}.\n`{old}`\n```text\n{old}\n```'
     expected = text.replace(old, new, 3)
     image = {"type": "image_url", "image_url": {"url": old}}
@@ -445,6 +454,22 @@ async def test_canonical_hosts_persist_across_validation_outcomes(
     [
         ("docs.langsmith.com", "/langsmith/tracing", "/langsmith/tracing"),
         (
+            "docs.langsmith",
+            "/llm-gateway-data-policy",
+            "/langsmith/llm-gateway-data-policy",
+        ),
+        ("docs.langsmith", "/langsmith", "/langsmith"),
+        ("docs.langsmith", "/langsmith/tracing", "/langsmith/tracing"),
+        ("docs.langsmith", "/langsmith-extra", "/langsmith/langsmith-extra"),
+        (
+            "docs.link",
+            "/oss/python/concepts/human-in-the-loop",
+            "/oss/python/concepts/human-in-the-loop",
+        ),
+        ("docs.link", "/langsmith/tracing", "/langsmith/tracing"),
+        ("docs.link", "/langgraph-platform/deploy", "/langgraph-platform/deploy"),
+        ("docs.link", "/labs/guide", "/labs/guide"),
+        (
             "docs.langgraph.com",
             "/oss/python/langgraph/overview",
             "/oss/python/langgraph/overview",
@@ -465,9 +490,10 @@ async def test_documentation_aliases_and_typos_are_checked_at_canonical_host(
 
     with patch(TARGET, validate):
         result = await LinkValidationMiddleware().aafter_model(
-            {"messages": [AIMessage(content=original)]}, None
+            {"messages": [AIMessage(content=f"Relevant docs:\n- [Guide]({original})")]},
+            None,
         )
-    assert result["messages"][0].content == canonical
+    assert result["messages"][0].content == f"Relevant docs:\n- [Guide]({canonical})"
 
 
 @pytest.mark.asyncio
@@ -495,6 +521,35 @@ async def test_other_hosts_are_not_corrected(host):
             )
             is None
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "original,checked",
+    [
+        ("https://docs.link/guide", "https://docs.link/guide"),
+        ("https://docs.link/oss", "https://docs.link/oss"),
+        ("https://docs.link/oss-extra/x", "https://docs.link/oss-extra/x"),
+        ("https://example.link/oss/x", "https://example.link/oss/x"),
+        ("https://docs.link/oss/missing", "https://docs.langchain.com/oss/missing"),
+        (
+            "https://docs.langsmith/missing",
+            "https://docs.langchain.com/langsmith/missing",
+        ),
+    ],
+)
+async def test_unrecognized_and_repaired_urls_are_removed_when_invalid(
+    original, checked
+):
+    async def validate(urls, timeout):
+        assert urls == [checked]
+        return [LinkCheckResult(checked, False, 404)]
+
+    with patch(TARGET, validate):
+        result = await LinkValidationMiddleware().aafter_model(
+            {"messages": [AIMessage(content=f"See [guide]({original}).")]}, None
+        )
+    assert result["messages"][0].content == "See guide."
 
 
 @pytest.mark.asyncio
