@@ -113,6 +113,10 @@ class ModelRetryMiddleware(AgentMiddleware):
                 return response
 
             except Exception as e:
+                # A stalled model should hand control to fallback immediately.
+                if isinstance(e, ModelAttemptTimeoutError):
+                    raise
+
                 # Don't retry client errors (4xx) - they indicate an invalid
                 # request that will never succeed on retry (e.g. bad image
                 # dimensions). Let ModelFallbackMiddleware handle them instead.
