@@ -8,7 +8,11 @@ from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage
 
-from src.middleware.retry_middleware import MalformedResponseError, ModelRetryMiddleware
+from src.middleware.retry_middleware import (
+    MalformedResponseError,
+    ModelAttemptTimeoutError,
+    ModelRetryMiddleware,
+)
 
 
 @pytest.mark.parametrize("wrapped", [False, True])
@@ -106,7 +110,8 @@ def test_finish_reason_comes_from_last_wrapped_ai_message():
         asyncio.run(ModelRetryMiddleware(max_retries=0).awrap_model_call(None, handler))
 
 
-def test_exception_retries_preserve_last_error():
+@pytest.mark.parametrize("max_retries", [0, 2])
+def test_exception_retries_preserve_last_error(max_retries):
     error = RuntimeError("Provider unavailable")
     calls = []
 
@@ -116,11 +121,13 @@ def test_exception_retries_preserve_last_error():
 
     with pytest.raises(RuntimeError) as caught:
         asyncio.run(
-            ModelRetryMiddleware(initial_delay=0).awrap_model_call(None, handler)
+            ModelRetryMiddleware(
+                max_retries=max_retries, initial_delay=0
+            ).awrap_model_call(None, handler)
         )
 
     assert caught.value is error
-    assert len(calls) == 3
+    assert len(calls) == max_retries + 1
 
 
 @pytest.mark.parametrize("failure_reason", [None, "length", "MAX_TOKENS"])
@@ -242,38 +249,69 @@ def test_length_limited_tool_call_is_preserved(reason):
     )
 
 
-def test_stalled_attempt_hits_deadline_and_retries():
-    answer = AIMessage(content="Here is an answer")
+def test_stalled_attempt_raises_without_retries(caplog):
     calls = []
 
     async def handler(request):
-        calls.append(1)
-        if len(calls) == 1:
+        calls.append(request)
+        await asyncio.sleep(10)
+
+    with pytest.raises(ModelAttemptTimeoutError, match="Model attempt exceeded"):
+        asyncio.run(
+            ModelRetryMiddleware(
+                initial_delay=0, attempt_deadline=0.05
+            ).awrap_model_call(None, handler)
+        )
+
+    assert len(calls) == 1
+    assert any(
+        record.levelname == "WARNING" and "Model attempt exceeded" in record.message
+        for record in caplog.records
+    )
+
+
+def test_stalled_attempt_advances_to_experiment_fallback():
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    from src.middleware.model_experiment_middleware import (
+        ARM_TREATMENT,
+        ModelChain,
+        ModelExperiment,
+        ModelExperimentFallbackMiddleware,
+    )
+
+    primary = FakeListChatModel(responses=["Primary"])
+    fallback_model = FakeListChatModel(responses=["Fallback"])
+    control = ModelChain(fallback_model, (fallback_model,))
+    experiment = ModelExperiment(
+        name="test-experiment",
+        control=control,
+        treatment=ModelChain(primary, (fallback_model,)),
+        treatment_percent=100,
+    )
+    fallback = ModelExperimentFallbackMiddleware(experiment)
+    retry = ModelRetryMiddleware(initial_delay=0, attempt_deadline=0.05)
+    chain = _chain_async_model_call_handlers(
+        [fallback.awrap_model_call, retry.awrap_model_call]
+    )
+    calls = []
+    answer = ModelResponse(result=[AIMessage(content="Fallback answer")])
+
+    async def handler(request):
+        calls.append(request.model)
+        if request.model is primary:
             await asyncio.sleep(10)
         return answer
 
-    response = asyncio.run(
-        ModelRetryMiddleware(initial_delay=0, attempt_deadline=0.05).awrap_model_call(
-            None, handler
-        )
+    request = ModelRequest(
+        model=fallback_model,
+        messages=[HumanMessage(content="Question")],
+        state={"model_arm": ARM_TREATMENT},
     )
+    result = asyncio.run(chain(request, handler))
 
-    assert response is answer
-    assert len(calls) == 2
-
-
-def test_stalled_attempts_raise_for_fallback_after_retries():
-    from src.middleware.retry_middleware import ModelAttemptTimeoutError
-
-    async def handler(request):
-        await asyncio.sleep(10)
-
-    with pytest.raises(ModelAttemptTimeoutError):
-        asyncio.run(
-            ModelRetryMiddleware(
-                max_retries=1, initial_delay=0, attempt_deadline=0.05
-            ).awrap_model_call(None, handler)
-        )
+    assert result.model_response is answer
+    assert calls == [primary, fallback_model]
 
 
 @pytest.mark.parametrize(

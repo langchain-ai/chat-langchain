@@ -112,6 +112,9 @@ class ModelRetryMiddleware(AgentMiddleware):
 
                 return response
 
+            except ModelAttemptTimeoutError as e:
+                logger.warning("Model attempt timed out; advancing to fallback: %s", e)
+                raise
             except Exception as e:
                 # Don't retry client errors (4xx) - they indicate an invalid
                 # request that will never succeed on retry (e.g. bad image
