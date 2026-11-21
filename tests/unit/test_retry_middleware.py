@@ -8,7 +8,11 @@ from langchain.agents.middleware import ModelFallbackMiddleware
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage
 
-from src.middleware.retry_middleware import MalformedResponseError, ModelRetryMiddleware
+from src.middleware.retry_middleware import (
+    MalformedResponseError,
+    ModelAttemptTimeoutError,
+    ModelRetryMiddleware,
+)
 
 
 @pytest.mark.parametrize("wrapped", [False, True])
@@ -242,38 +246,78 @@ def test_length_limited_tool_call_is_preserved(reason):
     )
 
 
-def test_stalled_attempt_hits_deadline_and_retries():
-    answer = AIMessage(content="Here is an answer")
+def test_stalled_attempt_hits_deadline_without_retrying():
     calls = []
+    cancelled = []
 
     async def handler(request):
-        calls.append(1)
-        if len(calls) == 1:
+        calls.append(request)
+        try:
             await asyncio.sleep(10)
-        return answer
-
-    response = asyncio.run(
-        ModelRetryMiddleware(initial_delay=0, attempt_deadline=0.05).awrap_model_call(
-            None, handler
-        )
-    )
-
-    assert response is answer
-    assert len(calls) == 2
-
-
-def test_stalled_attempts_raise_for_fallback_after_retries():
-    from src.middleware.retry_middleware import ModelAttemptTimeoutError
-
-    async def handler(request):
-        await asyncio.sleep(10)
+        finally:
+            cancelled.append(True)
 
     with pytest.raises(ModelAttemptTimeoutError):
         asyncio.run(
             ModelRetryMiddleware(
-                max_retries=1, initial_delay=0, attempt_deadline=0.05
+                initial_delay=0, attempt_deadline=0.05
             ).awrap_model_call(None, handler)
         )
+
+    assert len(calls) == 1
+    assert cancelled == [True]
+
+
+def test_stalled_primary_advances_to_fallback_after_one_deadline():
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    from src.middleware.model_fallback_middleware import (
+        RepairingModelFallbackMiddleware,
+    )
+
+    primary = FakeListChatModel(responses=["Primary"])
+    fallback_model = FakeListChatModel(responses=["Fallback answer"])
+    fallback = RepairingModelFallbackMiddleware(fallback_model)
+    retry = ModelRetryMiddleware(initial_delay=0, attempt_deadline=0.05)
+    chain = _chain_async_model_call_handlers(
+        [fallback.awrap_model_call, retry.awrap_model_call]
+    )
+    request = ModelRequest(model=primary, messages=[HumanMessage(content="Question")])
+    calls = []
+
+    async def handler(request):
+        calls.append(request.model)
+        if request.model is primary:
+            await asyncio.sleep(10)
+        message = await request.model.ainvoke(request.messages)
+        return ModelResponse(result=[message])
+
+    result = asyncio.run(chain(request, handler))
+
+    assert result.model_response.result[-1].content == "Fallback answer"
+    assert calls == [primary, fallback_model]
+
+
+def test_external_cancellation_propagates_without_retry():
+    async def run():
+        started = asyncio.Event()
+        calls = []
+
+        async def handler(request):
+            calls.append(request)
+            started.set()
+            await asyncio.sleep(10)
+
+        task = asyncio.create_task(
+            ModelRetryMiddleware(attempt_deadline=10).awrap_model_call(None, handler)
+        )
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert len(calls) == 1
+
+    asyncio.run(run())
 
 
 @pytest.mark.parametrize(
