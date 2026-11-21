@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from src.prompts.docs_agent_prompt import docs_agent_prompt
 from src.utils import prompt_provenance as provenance
 
 
@@ -82,3 +85,17 @@ def test_resolve_hub_provenance_without_overrides_uses_default_client(monkeypatc
     assert constructed == [{}, {}]
     assert result["prompt_source"].startswith("hub:")
     assert "prompt_commit" not in result
+
+
+def test_feedback_policy_is_mirrored():
+    instructions = (Path(__file__).resolve().parents[2] / "instructions.md").read_text()
+    policies = []
+    for prompt in (instructions, docs_agent_prompt):
+        paragraphs = [
+            paragraph
+            for paragraph in prompt.split("\n\n")
+            if paragraph.startswith("When users share product feedback,")
+        ]
+        assert len(paragraphs) == 1
+        policies.append(paragraphs[0])
+    assert policies[0] == policies[1]
