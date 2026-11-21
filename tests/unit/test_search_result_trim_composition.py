@@ -126,3 +126,64 @@ def test_large_tool_results_reach_model_after_filesystem_processing(
         assert "/large_tool_results/call-1" in state["files"]
         assert "Title: Result 0" in tool_messages[1].content
         assert "No such file" not in tool_messages[1].content
+
+
+@pytest.mark.parametrize("concurrent", [False, True])
+def test_guardrails_omit_harness_tools_from_model_binding(concurrent):
+    from unittest.mock import AsyncMock
+
+    from src.middleware.guardrails_middleware import GuardrailsMiddleware
+    from src.middleware.tool_name_repair_middleware import ToolNameRepairMiddleware
+
+    def docs() -> str:
+        return "Documentation"
+
+    names = ["langchainDocs_search_docs_by_lang_chain", "read_integration_page"]
+    model = RecordingModel(
+        responses=[
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "langgraphDocs_search_docs_by_lang_chain",
+                        "args": {},
+                        "id": "docs-1",
+                    }
+                ],
+            ),
+            AIMessage(content="Done"),
+        ]
+    )
+    guardrails = GuardrailsMiddleware.__new__(GuardrailsMiddleware)
+    guardrails.concurrent = concurrent
+    guardrails._pending = {}
+    guardrails._decide = AsyncMock(return_value=None)
+    graph = create_deep_agent(
+        model=model,
+        tools=[
+            StructuredTool.from_function(docs, name=name, description=name)
+            for name in names
+        ],
+        middleware=[guardrails, ToolNameRepairMiddleware()],
+        backend=StateBackend(),
+    )
+    inputs = {"messages": [{"role": "user", "content": "Find docs"}]}
+    state = asyncio.run(graph.ainvoke(inputs))
+    assert state["messages"][-1].content == "Done"
+    result = next(
+        message for message in state["messages"] if isinstance(message, ToolMessage)
+    )
+    assert result.content == "Documentation"
+    assert result.name == names[0]
+    assert set(names) <= set(model.bound_tool_names)
+    assert not set(model.bound_tool_names) & {
+        "ls",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "glob",
+        "grep",
+        "execute",
+        "delete",
+        "task",
+    }
