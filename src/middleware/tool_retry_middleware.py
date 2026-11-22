@@ -1,4 +1,5 @@
 """Retry and sanitize tool-call failures before they reach users."""
+
 import asyncio
 import json
 import logging
@@ -140,10 +141,38 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
                     )
                     return self._tool_message(request, "No results found.")
 
-                if self._is_retryable(error) and attempt < self.max_attempts:
-                    delay = self.initial_delay * (
-                        self.backoff_factor ** (attempt - 1)
+                if (
+                    tool_name
+                    == "langchainDocs_query_docs_filesystem_docs_by_lang_chain"
+                    and any(
+                        marker in self._error_text(error).lower()
+                        for marker in ("timed out", "timeout")
                     )
+                    and attempt >= min(2, self.max_attempts)
+                ):
+                    return self._tool_message(
+                        request,
+                        json.dumps(
+                            {
+                                "error": "Docs command timed out",
+                                "message": (
+                                    "The command exceeded the docs server's "
+                                    "10-second limit."
+                                ),
+                                "command": request.tool_call["args"].get("command", "")[
+                                    :120
+                                ],
+                                "tool": tool_name,
+                                "suggestion": (
+                                    "Scope rg to a specific folder or file, or use "
+                                    "langchainDocs_search_docs_by_lang_chain."
+                                ),
+                            }
+                        ),
+                    )
+
+                if self._is_retryable(error) and attempt < self.max_attempts:
+                    delay = self.initial_delay * (self.backoff_factor ** (attempt - 1))
                     logger.warning(
                         "Tool %s failed attempt %s/%s: %s; retrying in %.2fs",
                         tool_name,
@@ -169,7 +198,9 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         # Defensive fallback; loop should always return on success or final error.
         assert last_error is not None
-        return self._tool_message(request, self._final_error_content(request, last_error))
+        return self._tool_message(
+            request, self._final_error_content(request, last_error)
+        )
 
 
 __all__ = ["ToolRetryMiddleware"]
