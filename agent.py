@@ -17,6 +17,7 @@ from src.middleware.legal_handoff_middleware import LegalHandoffMiddleware
 from src.middleware.link_validation_middleware import LinkValidationMiddleware
 from src.middleware.reply_language_middleware import ReplyLanguageMiddleware
 from src.middleware.search_result_trim_middleware import SearchResultTrimMiddleware
+from src.middleware.stale_tool_result_middleware import StaleToolResultMiddleware
 from src.middleware.summarization_middleware import CustomSummarizationMiddleware
 from src.middleware.tool_name_repair_middleware import ToolNameRepairMiddleware
 from src.prompts.context_summary_prompt import context_summary_prompt
@@ -58,6 +59,7 @@ docs_agent_middleware = [
         summary_prompt=context_summary_prompt,
         trim_tokens_to_summarize=None,
     ),
+    StaleToolResultMiddleware(),
     tool_retry_middleware,
     # Docs search returns whole chunks; keep metadata plus short snippets
     # (pages are read with the filesystem tool anyway).
