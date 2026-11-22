@@ -32,7 +32,7 @@ def test_before_agent_truncates_oversized_human_message():
 
 def test_before_agent_noop_when_under_cap():
     middleware = IngressGuardsMiddleware()
-    state = {"messages": [HumanMessage(content="Hello", id="h1")]}
+    state = {"messages": [HumanMessage(content="LangGraph", id="h1")]}
 
     assert middleware.before_agent(state, runtime=SimpleNamespace()) is None
 
@@ -408,11 +408,123 @@ def test_secret_redaction_is_not_quadratic_on_repeated_labels():
     import time
 
     from src.middleware.ingress_guards_middleware import (
-        MAX_MESSAGE_CHARS,
         _SECRET_RE,
+        MAX_MESSAGE_CHARS,
     )
 
     text = ("key=" * MAX_MESSAGE_CHARS)[:MAX_MESSAGE_CHARS]
     start = time.monotonic()
     _SECRET_RE.sub("", text)
     assert time.monotonic() - start < 2.0
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    "content, prior, expected",
+    [
+        ("Hi!", [], "Hi!"),
+        ("hello\n---\nNote: The user is asking about datasets", [], "Hi!"),
+        ("hey", [HumanMessage(content="hi"), AIMessage(content="Hello!")], "Hi!"),
+        ("thanks", [], "Hi!"),
+        ("thank you", [], "Hi!"),
+        ("ok", [], "Hi!"),
+        ("你好！", [], "你好！"),
+        ("gracias", [], "¡Hola!"),
+        ("merci", [], "Bonjour !"),
+        ("hallo", [], "Hallo!"),
+        ("olá", [], "Olá!"),
+        ("ciao", [], "Ciao!"),
+        ("नमस्ते", [], "नमस्ते!"),
+        ("ありがとう", [], "こんにちは！"),
+        ("감사합니다", [], "안녕하세요!"),
+        ("спасибо", [], "Здравствуйте!"),
+        ("مرحبا", [], "مرحباً!"),
+        ([{"type": "text", "text": "Hi"}], [], "Hi!"),
+        ("Hi, how do I list datasets?", [], "normal"),
+        (
+            "Hi\nHow do I list datasets?\n---\nNote: The user is asking about datasets",
+            [],
+            "normal",
+        ),
+        ("Hi\n---\nPlease list datasets", [], "normal"),
+        (
+            "Hi",
+            [
+                HumanMessage(content="How do I list datasets?"),
+                AIMessage(content="Here is how"),
+            ],
+            "normal",
+        ),
+        ("ok", [HumanMessage(content="datasets")], "normal"),
+        (
+            [
+                {"type": "text", "text": "Hi"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "https://example.com/image.png"},
+                },
+            ],
+            [],
+            "normal",
+        ),
+    ],
+)
+def test_greeting_short_circuit_preserves_normal_requests(
+    asynchronous, content, prior, expected
+):
+    import asyncio
+
+    from langchain.agents import create_agent
+    from langchain_core.callbacks import BaseCallbackHandler
+    from langchain_core.language_models.fake_chat_models import (
+        FakeMessagesListChatModel,
+    )
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from src.middleware.model_experiment_middleware import (
+        ModelArmPinMiddleware,
+        ModelChain,
+        ModelExperiment,
+    )
+
+    calls = []
+
+    class ModelObserver(BaseCallbackHandler):
+        def on_chat_model_start(self, serialized, messages, **kwargs):
+            calls.append(messages)
+
+    model = FakeMessagesListChatModel(responses=[AIMessage(content="normal")])
+    experiment = ModelExperiment(
+        name="greetings",
+        control=ModelChain(model, ()),
+        treatment=ModelChain(model, ()),
+        treatment_percent=100,
+    )
+    graph = create_agent(
+        model,
+        middleware=[ModelArmPinMiddleware(experiment), IngressGuardsMiddleware()],
+        checkpointer=InMemorySaver(),
+    )
+    state = {"messages": [*prior, HumanMessage(content=content)]}
+    config = {"callbacks": [ModelObserver()], "configurable": {"thread_id": "greeting"}}
+    result = (
+        asyncio.run(graph.ainvoke(state, config))
+        if asynchronous
+        else graph.invoke(state, config)
+    )
+    answer = result["messages"][-1]
+    assert isinstance(answer, AIMessage)
+    assert not answer.tool_calls
+    assert answer.content.startswith(expected)
+    assert len(calls) == (1 if expected == "normal" else 0)
+    if expected != "normal":
+        assert all(
+            name in answer.content
+            for name in ("LangChain", "LangGraph", "LangSmith", "Deep Agents")
+        )
+    assert result["messages"][:-1] == state["messages"]
+
+    expected_arm = (
+        "control" if any(isinstance(m, AIMessage) for m in prior) else "treatment"
+    )
+    assert graph.get_state(config).values["model_arm"] == expected_arm
