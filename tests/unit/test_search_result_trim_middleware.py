@@ -62,7 +62,14 @@ def test_ten_results_preserve_metadata_with_bounded_snippets(
     search_payload, asynchronous, text_blocks
 ):
     content = (
-        [{"type": "text", "text": search_payload, "extra": "keep"}]
+        [
+            {
+                "type": "text",
+                "text": search_payload,
+                "extra": "keep",
+                "id": "lc_4d671a0f-bc1a-4ee3-adce-299cb887cf17",
+            }
+        ]
         if text_blocks
         else search_payload
     )
@@ -82,6 +89,7 @@ def test_ten_results_preserve_metadata_with_bounded_snippets(
     )
     if text_blocks:
         assert result.content[0]["extra"] == "keep"
+        assert "id" not in result.content[0]
 
 
 @pytest.mark.parametrize("asynchronous", [False, True])
@@ -165,3 +173,30 @@ def test_ignores_tools_that_only_contain_the_name(search_payload):
     message = ToolMessage(content=search_payload, tool_call_id="call-1")
     result = invoke_middleware(message, tool_name="search_docs_by_lang_chainx")
     assert result.content == message.content
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    "tool_name",
+    [
+        "query_docs_filesystem_docs_by_lang_chain",
+        "langchainDocs_query_docs_filesystem_docs_by_lang_chain",
+    ],
+)
+def test_filesystem_docs_remove_block_ids_without_trimming(tool_name, asynchronous):
+    text = "Title: Full page\nContent: " + "documentation " * 2000
+    content = [
+        {"type": "text", "text": text, "id": "lc_4d671a0f-bc1a-4ee3-adce-299cb887cf17"},
+        {
+            "type": "text",
+            "text": "[Docs](https://docs.langchain.com/page#section)",
+            "id": "lc_67dabe2c-3ea5-4e74-9e51-7fb19ff300e7",
+        },
+    ]
+    message = ToolMessage(content=content, tool_call_id="read-1")
+    result = invoke_middleware(message, tool_name, asynchronous)
+    assert result.content == [
+        {"type": "text", "text": text},
+        {"type": "text", "text": "[Docs](https://docs.langchain.com/page#section)"},
+    ]
+    assert message.content == content

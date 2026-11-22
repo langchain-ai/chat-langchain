@@ -1,4 +1,4 @@
-"""Trim documentation search chunks before they enter model context."""
+"""Normalize documentation results and trim search chunks for model context."""
 
 import re
 from collections.abc import Awaitable, Callable
@@ -10,11 +10,15 @@ from langgraph.types import Command
 
 SNIPPET_CHARS = 300
 SEARCH_TOOL_SUFFIX = "search_docs_by_lang_chain"
+READ_TOOL_SUFFIX = "query_docs_filesystem_docs_by_lang_chain"
 
 
-def _is_docs_search(name: str) -> bool:
-    """Match the docs search tool with or without its MCP server prefix."""
-    return name == SEARCH_TOOL_SUFFIX or name.endswith("_" + SEARCH_TOOL_SUFFIX)
+def _is_docs_tool(name: str) -> bool:
+    """Match documentation tools with or without their MCP server prefix."""
+    return any(
+        name == suffix or name.endswith("_" + suffix)
+        for suffix in (SEARCH_TOOL_SUFFIX, READ_TOOL_SUFFIX)
+    )
 
 
 class SearchResultTrimMiddleware(AgentMiddleware):
@@ -42,22 +46,32 @@ class SearchResultTrimMiddleware(AgentMiddleware):
         separator = "\n" if body.endswith("\n") else ""
         return header + body[:SNIPPET_CHARS].rstrip() + "..." + separator
 
-    def _trim_result(self, result: ToolMessage | Command) -> ToolMessage | Command:
-        """Copy a tool message with only its text content trimmed."""
+    def _trim_result(
+        self, result: ToolMessage | Command, *, trim_snippets: bool = True
+    ) -> ToolMessage | Command:
+        """Remove block IDs and optionally trim search snippets in a copied message."""
         if not isinstance(result, ToolMessage):
             return result
         content = result.content
         if isinstance(content, str):
-            content = self._trim_text(content)
+            if trim_snippets:
+                content = self._trim_text(content)
         else:
             content = [
-                {**block, "text": self._trim_text(block["text"])}
+                {key: value for key, value in block.items() if key != "id"}
                 if isinstance(block, dict)
-                and block.get("type") == "text"
-                and isinstance(block.get("text"), str)
                 else block
                 for block in content
             ]
+            if trim_snippets:
+                content = [
+                    {**block, "text": self._trim_text(block["text"])}
+                    if isinstance(block, dict)
+                    and block.get("type") == "text"
+                    and isinstance(block.get("text"), str)
+                    else block
+                    for block in content
+                ]
         return result.model_copy(update={"content": content})
 
     def wrap_tool_call(
@@ -65,19 +79,23 @@ class SearchResultTrimMiddleware(AgentMiddleware):
         request: ToolCallRequest,
         handler: Callable[[ToolCallRequest], ToolMessage | Command],
     ) -> ToolMessage | Command:
-        """Trim synchronous docs search results and pass other tools through."""
+        """Normalize synchronous docs results and trim search snippets."""
         result = handler(request)
-        if not _is_docs_search(request.tool_call["name"]):
+        if not _is_docs_tool(request.tool_call["name"]):
             return result
-        return self._trim_result(result)
+        return self._trim_result(
+            result, trim_snippets=request.tool_call["name"].endswith(SEARCH_TOOL_SUFFIX)
+        )
 
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
         handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command]],
     ) -> ToolMessage | Command:
-        """Trim asynchronous docs search results and pass other tools through."""
+        """Normalize asynchronous docs results and trim search snippets."""
         result = await handler(request)
-        if not _is_docs_search(request.tool_call["name"]):
+        if not _is_docs_tool(request.tool_call["name"]):
             return result
-        return self._trim_result(result)
+        return self._trim_result(
+            result, trim_snippets=request.tool_call["name"].endswith(SEARCH_TOOL_SUFFIX)
+        )

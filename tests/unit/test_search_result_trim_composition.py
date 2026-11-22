@@ -187,3 +187,48 @@ def test_guardrails_omit_harness_tools_from_model_binding(concurrent):
         "delete",
         "task",
     }
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    "tool_name",
+    [
+        "langchainDocs_search_docs_by_lang_chain",
+        "langchainDocs_query_docs_filesystem_docs_by_lang_chain",
+    ],
+)
+def test_documentation_block_ids_do_not_reach_model(tool_name, asynchronous):
+    block_id = "lc_4d671a0f-bc1a-4ee3-adce-299cb887cf17"
+    text = "[State](https://docs.langchain.com/oss/python/langgraph/graph-api#state)"
+
+    def docs() -> ToolMessage:
+        return ToolMessage(
+            content=[{"type": "text", "text": text, "id": block_id}],
+            tool_call_id="call-1",
+        )
+
+    model = RecordingModel(
+        responses=[
+            AIMessage(
+                content="",
+                tool_calls=[{"name": tool_name, "args": {}, "id": "call-1"}],
+            ),
+            AIMessage(content="Done"),
+        ]
+    )
+    graph = create_deep_agent(
+        model=model,
+        tools=[StructuredTool.from_function(docs, name=tool_name, description="Docs")],
+        middleware=[SearchResultTrimMiddleware()],
+        backend=StateBackend(),
+    )
+    inputs = {"messages": [{"role": "user", "content": "Explain state"}]}
+    if asynchronous:
+        asyncio.run(graph.ainvoke(inputs))
+    else:
+        graph.invoke(inputs)
+    result = next(
+        message for message in model.model_inputs[1] if isinstance(message, ToolMessage)
+    )
+    assert result.content == [{"type": "text", "text": text}]
+    assert block_id not in result.model_dump_json()
