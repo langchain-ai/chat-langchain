@@ -35,6 +35,12 @@ class TestPylonUnavailable(unittest.TestCase):
         self.assertEqual(out["status"], 401)
         self.assertIn("Do not conclude that no support article exists", out["note"])
 
+    def test_note_only_discloses_for_support_only_questions(self, *_):
+        note = pylon.KB_UNAVAILABLE_NOTE
+        self.assertIn("only when the question needs support-only content", note)
+        self.assertIn("otherwise answer from the docs without mentioning it", note)
+        self.assertNotIn("tell the user plainly", note)
+
     def test_search_reports_unavailable_on_connection_error(self, *_):
         out = self._search(requests.exceptions.ConnectionError("boom"))
         self.assertTrue(out["support_kb_unavailable"])

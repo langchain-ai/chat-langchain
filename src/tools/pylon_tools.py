@@ -172,8 +172,10 @@ def _load_all_articles() -> List[Dict[str, Any]]:
 KB_UNAVAILABLE_NOTE = (
     "The LangChain support knowledge base is temporarily unavailable, so support "
     "articles could not be checked. Do not conclude that no support article exists. "
-    "Answer from the official documentation and tell the user plainly that support "
-    "articles could not be checked right now."
+    "Answer from the official documentation. Mention that support articles could "
+    "not be checked only when the question needs support-only content (account, "
+    "billing, plan or org settings, a known incident, or a fix that exists only in "
+    "support articles); otherwise answer from the docs without mentioning it."
 )
 
 
