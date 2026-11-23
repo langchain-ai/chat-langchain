@@ -143,10 +143,12 @@ FT_MODEL_ID = _ft_model_id_from_env()
 FT_MODEL_TRAFFIC_PERCENT = _ft_traffic_percent_from_env()
 FT_BASE_MODEL_ID = _ft_model_id_from_env("FT_BASE_MODEL_ID")
 
-# reasoning_effort for both Fireworks arms. "high" matches the offline evals;
-# leaving it unset on Fireworks gives GLM far more thinking (2-5x the tokens,
-# much slower). GLM-5.3 is thinking-only, so "none" is rejected with a 400.
-# Fireworks accepts low, high and max for GLM (no medium).
+# reasoning_effort for both Fireworks arms. "high" matches the offline evals.
+# Observed arm latency was ~17-18s versus ~7s for control; the latency and
+# quality effects of lowering effort have not been measured independently.
+# Keep the evaluated default until that trade-off is approved; operators can
+# tune FT_REASONING_EFFORT. GLM-5.3 is thinking-only: Fireworks accepts low,
+# high and max (no medium or none); default/unset omits the parameter.
 _FT_REASONING_EFFORTS = ("low", "high", "max")
 
 
