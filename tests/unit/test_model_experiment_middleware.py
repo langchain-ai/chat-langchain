@@ -157,6 +157,44 @@ def test_threads_answered_before_the_experiment_stay_on_control():
     assert _pinned_arm(experiment_agent, thread_id) == ARM_CONTROL
 
 
+def _replayed_input(text: str = "and now?") -> dict:
+    # An offline eval replays a conversation's earlier turns into a new thread.
+    return {
+        "messages": [
+            HumanMessage(content="first question"),
+            AIMessage(content="an earlier answer"),
+            HumanMessage(content=text),
+        ]
+    }
+
+
+def test_replayed_thread_stays_on_control_by_default():
+    agent = _agent(_experiment(percent=100), InMemorySaver())
+    thread_id = str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    result = agent.invoke(_replayed_input(), config)
+    assert result["messages"][-1].content == "control"
+    assert _pinned_arm(agent, thread_id) == ARM_CONTROL
+
+
+def test_replayed_thread_is_assigned_when_the_flag_is_on():
+    experiment = ModelExperiment(
+        name="test-experiment",
+        control=ModelChain(_model("control"), (_model("control-fallback"),)),
+        treatment=ModelChain(_model("treatment"), (_model("treatment-fallback"),)),
+        treatment_percent=100,
+        assign_replayed_threads=True,
+    )
+    agent = _agent(experiment, InMemorySaver())
+    thread_id = str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    result = agent.invoke(_replayed_input(), config)
+    assert result["messages"][-1].content == "treatment"
+    assert _pinned_arm(agent, thread_id) == ARM_TREATMENT
+    # Later turns keep the pinned arm.
+    assert _ask(agent, thread_id, "again") == "treatment"
+
+
 def test_arm_is_hidden_from_run_output_and_ignored_in_input():
     saver = InMemorySaver()
     agent = _agent(_experiment(percent=0), saver)
@@ -300,6 +338,37 @@ def test_traffic_percent_is_read_from_env(config_module, monkeypatch, value, exp
     else:
         monkeypatch.setenv("FT_MODEL_TRAFFIC_PERCENT", value)
     assert config_module._ft_traffic_percent_from_env() == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, False),
+        ("", False),
+        ("false", False),
+        ("0", False),
+        ("TRUE", True),
+        (" yes ", True),
+        ("1", True),
+    ],
+)
+def test_assign_replayed_threads_is_read_from_env(
+    config_module, monkeypatch, value, expected
+):
+    if value is None:
+        monkeypatch.delenv("FT_ASSIGN_REPLAYED_THREADS", raising=False)
+    else:
+        monkeypatch.setenv("FT_ASSIGN_REPLAYED_THREADS", value)
+    assert config_module._flag_from_env("FT_ASSIGN_REPLAYED_THREADS") is expected
+
+
+@pytest.mark.parametrize("value", ["on", "2", "maybe"])
+def test_bad_assign_replayed_threads_fails_at_startup(
+    config_module, monkeypatch, value
+):
+    monkeypatch.setenv("FT_ASSIGN_REPLAYED_THREADS", value)
+    with pytest.raises(ValueError, match="FT_ASSIGN_REPLAYED_THREADS"):
+        config_module._flag_from_env("FT_ASSIGN_REPLAYED_THREADS")
 
 
 @pytest.mark.parametrize("value", ["-1", "101", "30%", "0.3", "thirty"])

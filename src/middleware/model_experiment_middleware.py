@@ -110,6 +110,10 @@ class ModelExperiment:
     keeps already-pinned treatment threads on the post-trained model.
     ``base`` is optional and only runs while ``treatment`` is set; with no
     base chain, ``base_percent`` is ignored and those threads go to control.
+    ``assign_replayed_threads`` assigns an arm to a new thread whose first
+    run already carries earlier answers (an offline eval replaying a
+    conversation), instead of keeping it on control as a thread answered
+    before the experiment started.
     """
 
     name: str
@@ -118,6 +122,7 @@ class ModelExperiment:
     treatment_percent: int
     base: ModelChain | None = None
     base_percent: int = 0
+    assign_replayed_threads: bool = False
 
     def __post_init__(self) -> None:
         """Reject traffic percentages outside 0-100 or summing past 100."""
@@ -216,8 +221,11 @@ class ModelArmPinMiddleware(AgentMiddleware[ModelExperimentState]):
         if not self.experiment.enabled:
             return ARM_CONTROL
         # Threads that were already answering before the experiment started
-        # stay on the model they began with.
-        if any(isinstance(m, AIMessage) for m in state.get("messages") or ()):
+        # stay on the model they began with, unless replayed threads are
+        # assigned like new ones (offline evals).
+        if not self.experiment.assign_replayed_threads and any(
+            isinstance(m, AIMessage) for m in state.get("messages") or ()
+        ):
             return ARM_CONTROL
         thread_id = _current_thread_id()
         if not thread_id:

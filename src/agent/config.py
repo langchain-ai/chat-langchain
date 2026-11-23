@@ -166,6 +166,24 @@ FT_BASE_MODEL_TRAFFIC_PERCENT = _ft_traffic_percent_from_env(
     "FT_BASE_MODEL_TRAFFIC_PERCENT"
 )
 
+# Offline evals replay a conversation's earlier turns into a new thread. By
+# default such a thread stays on control, like a thread answered before the
+# experiment; FT_ASSIGN_REPLAYED_THREADS=true assigns it an arm like any new
+# thread. Leave it unset in production.
+_TRUE, _FALSE = ("1", "true", "yes"), ("", "0", "false", "no")
+
+
+def _flag_from_env(env: str) -> bool:
+    raw = (os.getenv(env) or "").strip().lower()
+    if raw in _TRUE:
+        return True
+    if raw in _FALSE:
+        return False
+    raise ValueError(f"{env} must be true or false; got {raw!r}")
+
+
+FT_ASSIGN_REPLAYED_THREADS = _flag_from_env("FT_ASSIGN_REPLAYED_THREADS")
+
 # =============================================================================
 # API Key Setup
 # =============================================================================
@@ -307,6 +325,7 @@ model_experiment = ModelExperiment(
     treatment_percent=FT_MODEL_TRAFFIC_PERCENT,
     base=_base_chain(),
     base_percent=FT_BASE_MODEL_TRAFFIC_PERCENT,
+    assign_replayed_threads=FT_ASSIGN_REPLAYED_THREADS,
 )
 # Goes first in the middleware list so the arm is pinned on every first turn.
 model_arm_pin_middleware = ModelArmPinMiddleware(model_experiment)
