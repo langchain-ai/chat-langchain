@@ -1,0 +1,23 @@
+src/middleware/model_experiment_middleware.py
+  s_a71c9385f87139::t_8d582580c38c03 113-116,125
+  s_a71c9385f87139::t_5ce15809400eab 224-228
+src/agent/config.py
+  s_a71c9385f87139::t_82950d359b2a76 169-186
+  s_a71c9385f87139::t_cc6282367bef1f 328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0de89988249597ae9179ca01aa1603b5f0d9af01",
+  "prompts": {},
+  "sessions": {
+    "s_a71c9385f87139": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9cf0d5f2-040f-4f9b-83b4-97b5f9c0dce5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "nick-hollon-lc <nick.hollon@langchain.dev>"
+    }
+  }
+}
