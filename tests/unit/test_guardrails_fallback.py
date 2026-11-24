@@ -2,11 +2,15 @@
 
 import asyncio
 import os
+import runpy
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
+import langsmith as ls
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.tracers.langchain import wait_for_all_tracers
 from langgraph.runtime import Runtime
 
 os.environ["USE_LOCAL_PROMPTS"] = "1"
@@ -242,3 +246,53 @@ def test_guardrails_does_not_classify_summary_as_current_query():
     )
 
     assert result["decision"] == "ALLOWED"
+
+
+@pytest.mark.parametrize("commit", [None, "guardrails-hub-commit"])
+def test_hub_prompt_load_preserves_text_without_tracing(monkeypatch, commit):
+    monkeypatch.setenv("USE_LOCAL_PROMPTS", "0")
+    template = ChatPromptTemplate.from_messages(
+        [("system", "Guardrails {scope}"), ("placeholder", "{messages}")]
+    ).partial(scope="system text")
+    template.metadata = {"lc_hub_commit_hash": commit} if commit else {}
+    pull = Mock(return_value=template)
+    monkeypatch.setattr(ls.Client, "pull_prompt", pull)
+    client = Mock(spec=ls.Client)
+
+    with ls.tracing_context(enabled=True, client=client):
+        loaded = runpy.run_path(guardrails_module.__file__)
+        wait_for_all_tracers()
+        client.create_run.assert_not_called()
+        assert loaded["_GUARDRAILS_SYSTEM_PROMPT"] == "Guardrails system text"
+        assert loaded["guardrails_prompt_commit"] == commit
+        assert loaded["guardrails_prompt_source"] == (
+            f"hub:{loaded['_GUARDRAILS_PROMPT_HUB_NAME']}"
+        )
+        pull.assert_called_once_with(loaded["_GUARDRAILS_PROMPT_HUB_NAME"])
+
+        result = template.invoke({"messages": []})
+        wait_for_all_tracers()
+        assert result.messages[0].content == loaded["_GUARDRAILS_SYSTEM_PROMPT"]
+        client.create_run.assert_called_once()
+
+
+@pytest.mark.parametrize("local_mode", [False, True])
+def test_prompt_load_local_fallback_preserves_provenance(monkeypatch, local_mode):
+    monkeypatch.setenv("USE_LOCAL_PROMPTS", "1" if local_mode else "0")
+    pull = Mock(side_effect=RuntimeError("Hub unavailable"))
+    monkeypatch.setattr(ls.Client, "pull_prompt", pull)
+    client = Mock(spec=ls.Client)
+
+    with ls.tracing_context(enabled=True, client=client):
+        loaded = runpy.run_path(guardrails_module.__file__)
+        wait_for_all_tracers()
+
+    assert loaded["_GUARDRAILS_SYSTEM_PROMPT"] == (
+        guardrails_module._LOCAL_GUARDRAILS_SYSTEM_PROMPT
+    )
+    assert loaded["guardrails_prompt_commit"] is None
+    assert loaded["guardrails_prompt_source"] == (
+        "local:src/prompts/guardrails_prompts.py"
+    )
+    assert pull.call_count == (0 if local_mode else 1)
+    client.create_run.assert_not_called()
