@@ -13,6 +13,7 @@ from src.middleware.model_experiment_middleware import (
     ARM_BASE,
     ARM_CONTROL,
     ARM_TREATMENT,
+    CONCISE_INSTRUCTION,
     ModelArmPinMiddleware,
     ModelChain,
     ModelExperiment,
@@ -110,7 +111,8 @@ FALLBACK_MODELS = [
 # still run the new FT_MODEL_ID, and their later turns carry the new label
 # (only earlier turns keep the old one). See
 # src/middleware/model_experiment_middleware.py.
-FT_MODEL_EXPERIMENT = "clc-ft-model-v1"
+# v2 (Nov 24): treatment runs with a concise instruction and reasoning low.
+FT_MODEL_EXPERIMENT = "clc-ft-model-v2"
 _DEFAULT_FT_MODEL_TRAFFIC_PERCENT = 33
 
 _FIREWORKS_MODEL_ID = re.compile(r"accounts/[^/#\s]+/models/[^/#\s]+")
@@ -150,18 +152,32 @@ FT_BASE_MODEL_ID = _ft_model_id_from_env("FT_BASE_MODEL_ID")
 _FT_REASONING_EFFORTS = ("low", "high", "max")
 
 
-def _ft_reasoning_effort_from_env() -> str | None:
-    raw = (os.getenv("FT_REASONING_EFFORT") or "high").strip().lower()
+def _ft_reasoning_effort_from_env(
+    env: str = "FT_REASONING_EFFORT", default: str = "high"
+) -> str | None:
+    raw = (os.getenv(env) or default).strip().lower()
     if raw in ("default", "unset"):
         return None
     if raw not in _FT_REASONING_EFFORTS:
-        raise ValueError(
-            f"FT_REASONING_EFFORT must be one of low, high, max or default; got {raw!r}"
-        )
+        raise ValueError(f"{env} must be one of low, high, max or default; got {raw!r}")
     return raw
 
 
 FT_REASONING_EFFORT = _ft_reasoning_effort_from_env()
+# The treatment arm's own reasoning_effort (default low) and concise answer
+# instruction (FT_TREATMENT_CONCISE, default on; "0"/"false"/"off" turns it
+# off). The base arm keeps FT_REASONING_EFFORT and no instruction.
+FT_TREATMENT_REASONING_EFFORT = _ft_reasoning_effort_from_env(
+    "FT_TREATMENT_REASONING_EFFORT", "low"
+)
+FT_TREATMENT_CONCISE = (
+    os.getenv("FT_TREATMENT_CONCISE") or "1"
+).strip().lower() not in (
+    "0",
+    "false",
+    "off",
+    "no",
+)
 FT_BASE_MODEL_TRAFFIC_PERCENT = _ft_traffic_percent_from_env(
     "FT_BASE_MODEL_TRAFFIC_PERCENT"
 )
@@ -262,7 +278,9 @@ def _fallback_chain(arm: str, models: list[ModelConfig]) -> tuple:
     return tuple(_experiment_model(m.id, arm=arm, role="fallback") for m in models)
 
 
-def _fireworks_chain(model_id: str, arm: str) -> ModelChain:
+def _fireworks_chain(
+    model_id: str, arm: str, reasoning_effort: str | None
+) -> ModelChain:
     if not os.getenv("FIREWORKS_API_KEY"):
         raise RuntimeError(
             "FT_MODEL_ID is set but FIREWORKS_API_KEY is missing; add the "
@@ -274,9 +292,7 @@ def _fireworks_chain(model_id: str, arm: str) -> ModelChain:
             arm=arm,
             role="primary",
             model_provider="fireworks",
-            **(
-                {"reasoning_effort": FT_REASONING_EFFORT} if FT_REASONING_EFFORT else {}
-            ),
+            **({"reasoning_effort": reasoning_effort} if reasoning_effort else {}),
         ),
         # Fireworks arms fall back to the control model first, then the usual chain.
         fallbacks=_fallback_chain(arm, [DEFAULT_MODEL, *FALLBACK_MODELS]),
@@ -286,7 +302,9 @@ def _fireworks_chain(model_id: str, arm: str) -> ModelChain:
 def _treatment_chain() -> ModelChain | None:
     if FT_MODEL_ID is None:
         return None
-    return _fireworks_chain(FT_MODEL_ID, ARM_TREATMENT)
+    return _fireworks_chain(
+        FT_MODEL_ID, ARM_TREATMENT, reasoning_effort=FT_TREATMENT_REASONING_EFFORT
+    )
 
 
 def _base_chain() -> ModelChain | None:
@@ -294,7 +312,9 @@ def _base_chain() -> ModelChain | None:
     # FT_MODEL_ID kill switch turns it off too.
     if FT_MODEL_ID is None or FT_BASE_MODEL_ID is None:
         return None
-    return _fireworks_chain(FT_BASE_MODEL_ID, ARM_BASE)
+    return _fireworks_chain(
+        FT_BASE_MODEL_ID, ARM_BASE, reasoning_effort=FT_REASONING_EFFORT
+    )
 
 
 model_experiment = ModelExperiment(
@@ -307,6 +327,7 @@ model_experiment = ModelExperiment(
     treatment_percent=FT_MODEL_TRAFFIC_PERCENT,
     base=_base_chain(),
     base_percent=FT_BASE_MODEL_TRAFFIC_PERCENT,
+    treatment_instruction=CONCISE_INSTRUCTION if FT_TREATMENT_CONCISE else None,
 )
 # Goes first in the middleware list so the arm is pinned on every first turn.
 model_arm_pin_middleware = ModelArmPinMiddleware(model_experiment)

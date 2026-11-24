@@ -526,8 +526,65 @@ def test_fireworks_arms_send_the_reasoning_effort(config_module, monkeypatch):
     )
     monkeypatch.setenv("FIREWORKS_API_KEY", "test-key")
     monkeypatch.setattr(config_module, "FT_REASONING_EFFORT", "high")
-    for chain in (config_module._treatment_chain(), config_module._base_chain()):
-        assert chain.primary.reasoning_effort == "high"
-        assert chain.primary._default_params["reasoning_effort"] == "high"
-    monkeypatch.setattr(config_module, "FT_REASONING_EFFORT", None)
+    monkeypatch.setattr(config_module, "FT_TREATMENT_REASONING_EFFORT", "low")
+    treatment, base = config_module._treatment_chain(), config_module._base_chain()
+    assert treatment.primary.reasoning_effort == "low"
+    assert treatment.primary._default_params["reasoning_effort"] == "low"
+    assert base.primary.reasoning_effort == "high"
+    assert base.primary._default_params["reasoning_effort"] == "high"
+    monkeypatch.setattr(config_module, "FT_TREATMENT_REASONING_EFFORT", None)
     assert config_module._treatment_chain().primary.reasoning_effort is None
+
+
+def test_treatment_instruction_only_on_treatment_arm():
+    from types import SimpleNamespace
+
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+    from langchain_core.messages import SystemMessage
+
+    from src.middleware.model_experiment_middleware import CONCISE_INSTRUCTION
+
+    m = lambda: FakeListChatModel(responses=["x"])  # noqa: E731
+    exp = ModelExperiment(
+        name="s",
+        control=ModelChain(m(), (m(),)),
+        treatment=ModelChain(m(), ()),
+        treatment_percent=50,
+        treatment_instruction=CONCISE_INSTRUCTION,
+    )
+    mw = ModelExperimentFallbackMiddleware(exp)
+
+    class Req(SimpleNamespace):
+        def override(self, **kw):
+            return Req(**{**self.__dict__, **kw})
+
+    sys_msg = SystemMessage(content="base prompt")
+    out = mw._with_treatment_instruction(
+        Req(state={"model_arm": "treatment"}, system_message=sys_msg)
+    )
+    texts = [b["text"] for b in out.system_message.content]
+    assert texts == ["base prompt", CONCISE_INSTRUCTION]
+    for arm in ("control", "base", None):
+        req = Req(state={"model_arm": arm}, system_message=sys_msg)
+        assert mw._with_treatment_instruction(req) is req
+    off = ModelExperimentFallbackMiddleware(
+        ModelExperiment(
+            name="s",
+            control=ModelChain(m(), (m(),)),
+            treatment=None,
+            treatment_percent=0,
+            treatment_instruction=CONCISE_INSTRUCTION,
+        )
+    )
+    req = Req(state={"model_arm": "treatment"}, system_message=sys_msg)
+    assert off._with_treatment_instruction(req) is req
+
+
+def test_treatment_reasoning_effort_defaults_to_low(config_module, monkeypatch):
+    monkeypatch.delenv("FT_TREATMENT_REASONING_EFFORT", raising=False)
+    assert (
+        config_module._ft_reasoning_effort_from_env(
+            "FT_TREATMENT_REASONING_EFFORT", "low"
+        )
+        == "low"
+    )

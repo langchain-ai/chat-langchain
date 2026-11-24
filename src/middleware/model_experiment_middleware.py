@@ -61,7 +61,7 @@ from langchain.agents.middleware.types import (
     PrivateStateAttr,
 )
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from typing_extensions import NotRequired
 
 from src.middleware.model_fallback_middleware import RepairingModelFallbackMiddleware
@@ -72,6 +72,20 @@ ARM_CONTROL = "control"
 ARM_TREATMENT = "treatment"
 ARM_BASE = "base"
 ARMS = frozenset({ARM_CONTROL, ARM_TREATMENT, ARM_BASE})
+
+# Appended to the system message on treatment-arm model calls when the
+# experiment sets ``treatment_instruction`` (see FT_TREATMENT_CONCISE in
+# src/agent/config.py). On a 50-question preview replay (Nov 24) this plus
+# reasoning_effort=low halved the post-trained model's latency and answer
+# length without losing pairwise preference or correctness.
+CONCISE_INSTRUCTION = (
+    "Answer length for this conversation: be concise. Lead with the direct answer "
+    "in one or two sentences, then give only the code and steps the user needs, "
+    "usually one short code block. Aim for under about 200 words unless the user "
+    "asks for detail or a full walkthrough. Do not restate the question, list "
+    "alternatives, or add optional extras the user did not ask for. Keep every "
+    "required citation link and keep all technical details accurate."
+)
 
 
 def assign_arm(
@@ -118,6 +132,7 @@ class ModelExperiment:
     treatment_percent: int
     base: ModelChain | None = None
     base_percent: int = 0
+    treatment_instruction: str | None = None
 
     def __post_init__(self) -> None:
         """Reject traffic percentages outside 0-100 or summing past 100."""
@@ -277,6 +292,33 @@ class ModelExperimentFallbackMiddleware(RepairingModelFallbackMiddleware):
         chain = self.experiment.chain_for((request.state or {}).get("model_arm"))
         return chain.primary, list(chain.fallbacks)
 
+    def _with_treatment_instruction(self, request: ModelRequest) -> ModelRequest:
+        instruction = self.experiment.treatment_instruction
+        if not instruction or not self.experiment.enabled:
+            return request
+        if (request.state or {}).get("model_arm") != ARM_TREATMENT:
+            return request
+        content = request.system_message.content if request.system_message else ""
+        blocks: list[str | dict] = (
+            [{"type": "text", "text": content}]
+            if isinstance(content, str)
+            else list(content)
+        )
+        blocks.append({"type": "text", "text": instruction})
+        return request.override(system_message=SystemMessage(content=blocks))
+
+    def wrap_model_call(self, request: ModelRequest, handler: Any) -> Any:
+        """Add the treatment instruction on treatment threads, then run the chain."""
+        return super().wrap_model_call(
+            self._with_treatment_instruction(request), handler
+        )
+
+    async def awrap_model_call(self, request: ModelRequest, handler: Any) -> Any:
+        """Async version of :meth:`wrap_model_call`."""
+        return await super().awrap_model_call(
+            self._with_treatment_instruction(request), handler
+        )
+
     def _on_fallback(self, request: ModelRequest) -> None:
         if self.experiment.enabled:
             _tag_root_run({"model_fallback": True})
@@ -284,6 +326,7 @@ class ModelExperimentFallbackMiddleware(RepairingModelFallbackMiddleware):
 
 __all__ = [
     "ARM_BASE",
+    "CONCISE_INSTRUCTION",
     "ARM_CONTROL",
     "ARM_TREATMENT",
     "ModelArmPinMiddleware",
