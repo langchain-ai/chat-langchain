@@ -2,6 +2,9 @@
 
 import asyncio
 import json
+import shlex
+import shutil
+import subprocess
 
 import pytest
 from langchain_core.messages import ToolMessage
@@ -89,3 +92,80 @@ def test_non_timeout_service_errors_use_full_retry_budget(tool_name, max_attempt
     payload = json.loads(result.content)
     assert payload["error"] == "Tool unavailable"
     assert str(max_attempts) in payload["message"]
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("rg -rn copy /docs", "rg -n copy /docs"),
+        ("rg -ril copy /docs", "rg -il copy /docs"),
+        ("rg -irn copy /docs", "rg -in copy /docs"),
+        ("rg -rl copy /docs", "rg -l copy /docs"),
+        (
+            'rg -rn "copy|credits" /docs | head -20',
+            'rg -n "copy|credits" /docs | head -20',
+        ),
+        (
+            "rg -rn 'copy;credits' /docs && rg -rl copy /docs; rg -ril copy /docs || sed -n '1p' /docs",
+            "rg -n 'copy;credits' /docs && rg -l copy /docs; rg -il copy /docs || sed -n '1p' /docs",
+        ),
+        (r"rg -rn copy\|credits /docs", r"rg -n copy\|credits /docs"),
+        (
+            "rg -C 3 -e '-rn' -g '*.mdx' -rn /docs",
+            "rg -C 3 -e '-rn' -g '*.mdx' -n /docs",
+        ),
+        ("rg -n -C 3 copy /docs", "rg -n -C 3 copy /docs"),
+        ("sed -rn '1p' /docs", "sed -rn '1p' /docs"),
+        ("rg -r replacement copy /docs", "rg -r replacement copy /docs"),
+        ("rg --replace replacement copy /docs", "rg --replace replacement copy /docs"),
+        ("rg -rn --replace=value copy /docs", "rg -rn --replace=value copy /docs"),
+        ("rg -rvalue copy /docs", "rg -rvalue copy /docs"),
+        ("rg -rn -- '-rl' /docs", "rg -n -- '-rl' /docs"),
+        ("rg -- -rn /docs", "rg -- -rn /docs"),
+        ("rg -rnX copy /docs", "rg -rnX copy /docs"),
+        ("rg --unknown -rn copy /docs", "rg --unknown -rn copy /docs"),
+        ("rg -rn 'unterminated", "rg -rn 'unterminated"),
+        ("echo $(rg -rn copy /docs)", "echo $(rg -rn copy /docs)"),
+        ("rg -rn copy /docs > output", "rg -rn copy /docs > output"),
+        ("echo 'rg -rn copy /docs'", "echo 'rg -rn copy /docs'"),
+        ("rg copy -rn /docs", "rg copy -rn /docs"),
+    ],
+)
+@pytest.mark.parametrize("tool_name", [FILESYSTEM, SEARCH])
+def test_docs_command_normalization(command, expected, tool_name):
+    request = request_for(tool_name, {"command": command, "other": "preserved"})
+
+    async def handler(received):
+        assert received.tool_call["args"] == {
+            "command": expected if tool_name == FILESYSTEM else command,
+            "other": "preserved",
+        }
+        assert received.tool_call["id"] == "docs-call"
+        return ToolMessage(content="original matches", tool_call_id="docs-call")
+
+    result = asyncio.run(ToolRetryMiddleware().awrap_tool_call(request, handler))
+
+    assert result.content == "original matches"
+    assert request.tool_call["args"]["command"] == command
+
+
+@pytest.mark.skipif(shutil.which("rg") is None, reason="ripgrep is not installed")
+def test_normalized_filesystem_search_returns_original_matches(tmp_path):
+    page = tmp_path / "models.mdx"
+    page.write_text("Copy a model with model.model_copy(update={}).\n")
+    request = request_for(
+        FILESYSTEM, {"command": f"rg -rn model_copy {shlex.quote(str(page))}"}
+    )
+
+    async def handler(received):
+        output = subprocess.run(
+            shlex.split(received.tool_call["args"]["command"]),
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        return ToolMessage(content=output, tool_call_id="docs-call")
+
+    result = asyncio.run(ToolRetryMiddleware().awrap_tool_call(request, handler))
+
+    assert result.content == "1:Copy a model with model.model_copy(update={}).\n"
