@@ -111,7 +111,7 @@ FALLBACK_MODELS = [
 # still run the new FT_MODEL_ID, and their later turns carry the new label
 # (only earlier turns keep the old one). See
 # src/middleware/model_experiment_middleware.py.
-# v2 (Nov 24): treatment runs with a concise instruction and reasoning low.
+# v2 (Nov 24): treatment runs with a concise answer instruction.
 FT_MODEL_EXPERIMENT = "clc-ft-model-v2"
 _DEFAULT_FT_MODEL_TRAFFIC_PERCENT = 33
 
@@ -164,11 +164,12 @@ def _ft_reasoning_effort_from_env(
 
 
 FT_REASONING_EFFORT = _ft_reasoning_effort_from_env()
-# The treatment arm's own reasoning_effort (default low) and concise answer
+# The treatment arm's own reasoning_effort (default high; low was faster but
+# scored worse in offline evals and on preview correctness) and concise answer
 # instruction (FT_TREATMENT_CONCISE, default on; "0"/"false"/"off" turns it
 # off). The base arm keeps FT_REASONING_EFFORT and no instruction.
 FT_TREATMENT_REASONING_EFFORT = _ft_reasoning_effort_from_env(
-    "FT_TREATMENT_REASONING_EFFORT", "low"
+    "FT_TREATMENT_REASONING_EFFORT", "high"
 )
 FT_TREATMENT_CONCISE = (
     os.getenv("FT_TREATMENT_CONCISE") or "1"

@@ -580,11 +580,11 @@ def test_treatment_instruction_only_on_treatment_arm():
     assert off._with_treatment_instruction(req) is req
 
 
-def test_treatment_reasoning_effort_defaults_to_low(config_module, monkeypatch):
+def test_treatment_reasoning_effort_defaults_to_high(config_module, monkeypatch):
     monkeypatch.delenv("FT_TREATMENT_REASONING_EFFORT", raising=False)
     assert (
         config_module._ft_reasoning_effort_from_env(
-            "FT_TREATMENT_REASONING_EFFORT", "low"
+            "FT_TREATMENT_REASONING_EFFORT", "high"
         )
-        == "low"
+        == "high"
     )

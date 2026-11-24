@@ -33,7 +33,7 @@
 #   FT_REASONING_EFFORT       reasoning_effort for both Fireworks arms: low,
 #                             high (default), max or "default" to leave unset.
 #   FT_TREATMENT_REASONING_EFFORT  reasoning_effort for the treatment arm only
-#                             (default low; overrides FT_REASONING_EFFORT there).
+#                             (default high; overrides FT_REASONING_EFFORT there).
 #   FT_TREATMENT_CONCISE      Concise-answer instruction on the treatment arm
 #                             (default on; 0/false/off turns it off).
 name: Deploy Production Agent
