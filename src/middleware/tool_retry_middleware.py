@@ -119,6 +119,20 @@ def _normalize_docs_command(command: str) -> str:
     return command
 
 
+# Docs MCP tools whose rare stalled calls are worth hedging. Prod (Nov 17-23):
+# healthy search p99 ~3s, filesystem p99 ~5s, but ~1-2% of traces hit a call
+# that stalls to the 10s client timeout, and the same call retried succeeds
+# ~85-95% of the time. Starting one duplicate after HEDGE_AFTER_SECONDS rescues
+# those stalls ~5s earlier without failing legitimately slow commands.
+HEDGED_TOOLS = frozenset(
+    {
+        "langchainDocs_search_docs_by_lang_chain",
+        "langchainDocs_query_docs_filesystem_docs_by_lang_chain",
+    }
+)
+HEDGE_AFTER_SECONDS = 5.0
+
+
 class ToolRetryMiddleware(AgentMiddleware[AgentState]):
     """Retry transient tool failures and return model-readable errors."""
 
@@ -127,8 +141,10 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         max_attempts: int = 3,
         initial_delay: float = 0.5,
         backoff_factor: float = 2.0,
+        hedge_after: float | None = HEDGE_AFTER_SECONDS,
     ):
         super().__init__()
+        self.hedge_after = hedge_after
         self.max_attempts = max_attempts
         self.initial_delay = initial_delay
         self.backoff_factor = backoff_factor
@@ -205,6 +221,41 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         }
         return json.dumps(payload)
 
+    async def _call(self, request: ToolCallRequest, handler):
+        """Run one attempt; for hedged tools, race a duplicate after a delay."""
+        if self.hedge_after is None or self._tool_name(request) not in HEDGED_TOOLS:
+            return await handler(request)
+
+        first = asyncio.ensure_future(handler(request))
+        second: asyncio.Future | None = None
+        try:
+            done, _ = await asyncio.wait({first}, timeout=self.hedge_after)
+            if done:
+                return first.result()
+
+            logger.info(
+                "Tool %s still running after %.1fs; starting hedged duplicate",
+                self._tool_name(request),
+                self.hedge_after,
+            )
+            second = asyncio.ensure_future(handler(request))
+            pending = {first, second}
+            error: BaseException | None = None
+            while pending:
+                done, pending = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED
+                )
+                for task in done:
+                    if task.exception() is None:
+                        return task.result()
+                    error = error or task.exception()
+            assert error is not None
+            raise error
+        finally:
+            for task in (first, second):
+                if task is not None and not task.done():
+                    task.cancel()
+
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
@@ -231,7 +282,7 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
 
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return await handler(request)
+                return await self._call(request, handler)
             except Exception as error:
                 last_error = error
                 tool_name = self._tool_name(request)
