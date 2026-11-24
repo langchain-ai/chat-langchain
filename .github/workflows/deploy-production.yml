@@ -32,6 +32,10 @@
 #   FT_BASE_MODEL_TRAFFIC_PERCENT  Share of new threads sent to it (default 33).
 #   FT_REASONING_EFFORT       reasoning_effort for both Fireworks arms: low,
 #                             high (default), max or "default" to leave unset.
+#   FT_TREATMENT_REASONING_EFFORT  reasoning_effort for the treatment arm only
+#                             (default high; overrides FT_REASONING_EFFORT there).
+#   FT_TREATMENT_CONCISE      Concise-answer instruction on the treatment arm
+#                             (default on; 0/false/off turns it off).
 name: Deploy Production Agent
 
 "on":
@@ -87,6 +91,8 @@ jobs:
           FT_BASE_MODEL_ID: ${{ vars.FT_BASE_MODEL_ID }}
           FT_BASE_MODEL_TRAFFIC_PERCENT: ${{ vars.FT_BASE_MODEL_TRAFFIC_PERCENT }}
           FT_REASONING_EFFORT: ${{ vars.FT_REASONING_EFFORT }}
+          FT_TREATMENT_REASONING_EFFORT: ${{ vars.FT_TREATMENT_REASONING_EFFORT }}
+          FT_TREATMENT_CONCISE: ${{ vars.FT_TREATMENT_CONCISE }}
           PYLON_API_KEY: ${{ secrets.PYLON_API_KEY }}
           PYLON_KB_ID: ${{ secrets.PYLON_KB_ID }}
           MDA_GUEST_SIGNING_KEY: ${{ secrets.MDA_GUEST_SIGNING_KEY }}
