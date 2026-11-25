@@ -8,6 +8,7 @@ Test strategy: use `unittest.mock` to patch the internal HTTP layer so the tests
 fast, deterministic, and require no real network access or LangSmith credentials.
 """
 
+import asyncio
 from unittest.mock import patch
 
 import pytest
@@ -94,7 +95,7 @@ async def test_check_links_works_in_async_context():
         # by @tool.  LangChain's StructuredTool exposes it as .acall / .ainvoke.
         # We call the underlying coroutine function directly to keep the test
         # independent of LangChain's tool-wrapping internals.
-        result = await check_links.acall({"urls": ["https://example.com"]})
+        result = await check_links.ainvoke({"urls": ["https://example.com"]})
 
     assert "1/1 valid" in result
     assert "  - https://example.com" in result
@@ -113,7 +114,7 @@ async def test_check_links_async_context_does_not_raise_runtime_error():
     ):
         raised = False
         try:
-            await check_links.acall({"urls": ["https://docs.langchain.com/"]})
+            await check_links.ainvoke({"urls": ["https://docs.langchain.com/"]})
         except RuntimeError as exc:
             if "event loop is already running" in str(exc):
                 raised = True
@@ -132,7 +133,7 @@ async def test_check_links_async_context_does_not_raise_runtime_error():
 
 
 def test_check_links_works_in_sync_context():
-    """check_links.invoke() must work when called outside an async context."""
+    """check_links (async-only tool, run via asyncio.run) must work when called outside an async context."""
     fake_results = [
         LinkCheckResult(url="https://example.com", valid=True, status_code=200),
         LinkCheckResult(
@@ -147,8 +148,10 @@ def test_check_links_works_in_sync_context():
         "src.tools.link_check_tools._check_urls_async",
         new=_make_async_check_mock(fake_results),
     ):
-        result = check_links.invoke(
-            {"urls": ["https://example.com", "https://bad.example.com"]}
+        result = asyncio.run(
+            check_links.ainvoke(
+                {"urls": ["https://example.com", "https://bad.example.com"]}
+            )
         )
 
     assert "1/2 valid" in result
@@ -169,14 +172,16 @@ def test_check_links_sync_deduplicates_urls():
         "src.tools.link_check_tools._check_urls_async",
         new=_recording_mock,
     ):
-        result = check_links.invoke(
-            {
-                "urls": [
-                    "https://example.com",
-                    "https://example.com",
-                    "https://example.com",
-                ]
-            }
+        result = asyncio.run(
+            check_links.ainvoke(
+                {
+                    "urls": [
+                        "https://example.com",
+                        "https://example.com",
+                        "https://example.com",
+                    ]
+                }
+            )
         )
 
     # _check_urls_async should have been called with exactly ONE unique URL
@@ -193,14 +198,14 @@ def test_check_links_sync_deduplicates_urls():
 def test_check_links_empty_list():
     """Passing an empty list should return the 'no URLs' message without error."""
     # No mock needed — the early-return branch is hit before any async work.
-    result = check_links.invoke({"urls": []})
+    result = asyncio.run(check_links.ainvoke({"urls": []}))
     assert result == "No URLs provided to check."
 
 
 @pytest.mark.asyncio
 async def test_check_links_async_empty_list():
     """Empty list in async context should also return the 'no URLs' message."""
-    result = await check_links.acall({"urls": []})
+    result = await check_links.ainvoke({"urls": []})
     assert result == "No URLs provided to check."
 
 
@@ -218,7 +223,7 @@ def test_check_links_invalid_url_format():
         "src.tools.link_check_tools._check_urls_async",
         new=_make_async_check_mock(fake_results),
     ):
-        result = check_links.invoke({"urls": ["not-a-url"]})
+        result = asyncio.run(check_links.ainvoke({"urls": ["not-a-url"]}))
 
     assert "0/1 valid" in result
     assert "Invalid URL format" in result
@@ -237,7 +242,7 @@ async def test_check_links_async_invalid_url_format():
         "src.tools.link_check_tools._check_urls_async",
         new=_make_async_check_mock(fake_results),
     ):
-        result = await check_links.acall({"urls": ["ftp://not-supported"]})
+        result = await check_links.ainvoke({"urls": ["ftp://not-supported"]})
 
     assert "0/1 valid" in result
     assert "Invalid URL format" in result
