@@ -2,7 +2,7 @@
 
 These were previously enforced in ``src/api/auth.py`` (``validate_inputs``).
 Under MDA, identity/thread scoping is declared in ``identity.py``; this
-middleware caps oversized user input and redacts credentials in user text.
+middleware handles content-free greetings, caps input, and redacts credentials.
 
 Trace metadata (prompt provenance, ``LANGSMITH_AGENT_VERSION``, ``source_type``)
 is applied at agent compile time via ``define_deep_agent(metadata=...)`` in
@@ -18,7 +18,8 @@ import re
 from typing import Any
 
 import langsmith as ls
-from langchain.agents.middleware import AgentMiddleware, AgentState
+from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.runtime import Runtime
 
 #: Upper bound on user-provided text, matching the previous ``MAX_MESSAGE_CHARS``.
@@ -43,14 +44,94 @@ _SECRET_RE = re.compile(
 )
 
 
-class IngressGuardsMiddleware(AgentMiddleware):
-    """Cap user input and redact credentials at agent ingress."""
+_GREETING_REPLIES = [
+    (
+        ("hi", "hello", "hey", "thanks", "thank you", "ok", "okay"),
+        "Hi! How can I help with LangChain, LangGraph, LangSmith, or Deep Agents?",
+    ),
+    (
+        ("你好", "您好", "嗨", "谢谢", "謝謝", "好的"),
+        "你好！有什么关于 LangChain、LangGraph、LangSmith 或 Deep Agents 的问题需要帮助吗？",
+    ),
+    (
+        ("こんにちは", "ありがとう", "ありがとうございます", "はい"),
+        "こんにちは！LangChain、LangGraph、LangSmith、Deep Agents について、どのようなご質問がありますか？",
+    ),
+    (
+        ("안녕하세요", "안녕", "감사합니다", "고마워", "네"),
+        "안녕하세요! LangChain, LangGraph, LangSmith 또는 Deep Agents에 대해 무엇을 도와드릴까요?",
+    ),
+    (
+        ("hola", "gracias", "vale"),
+        "¡Hola! ¿En qué puedo ayudarte con LangChain, LangGraph, LangSmith o Deep Agents?",
+    ),
+    (
+        ("bonjour", "salut", "merci", "d’accord", "d'accord"),
+        "Bonjour ! Comment puis-je vous aider avec LangChain, LangGraph, LangSmith ou Deep Agents ?",
+    ),
+    (
+        ("hallo", "danke", "danke schön"),
+        "Hallo! Wie kann ich bei Fragen zu LangChain, LangGraph, LangSmith oder Deep Agents helfen?",
+    ),
+    (
+        ("olá", "oi", "obrigado", "obrigada"),
+        "Olá! Como posso ajudar com LangChain, LangGraph, LangSmith ou Deep Agents?",
+    ),
+    (
+        ("ciao", "grazie"),
+        "Ciao! Come posso aiutarti con LangChain, LangGraph, LangSmith o Deep Agents?",
+    ),
+    (
+        ("привет", "здравствуйте", "спасибо", "хорошо"),
+        "Здравствуйте! Чем могу помочь с LangChain, LangGraph, LangSmith или Deep Agents?",
+    ),
+    (
+        ("مرحبا", "مرحباً", "أهلا", "شكرا", "شكراً"),
+        "مرحباً! كيف يمكنني مساعدتك في أسئلة حول LangChain أو LangGraph أو LangSmith أو Deep Agents؟",
+    ),
+    (
+        ("नमस्ते", "धन्यवाद"),
+        "नमस्ते! LangChain, LangGraph, LangSmith या Deep Agents के बारे में मैं आपकी क्या मदद कर सकता हूँ?",
+    ),
+]
+_GREETING_LOOKUP = {
+    greeting: reply for greetings, reply in _GREETING_REPLIES for greeting in greetings
+}
 
+
+def _greeting_reply(content: Any) -> str | None:
+    """Match an entire text-only turn, excluding the appended page note."""
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+            else:
+                return None
+        content = " ".join(parts)
+    if not isinstance(content, str):
+        return None
+    body = content.partition("\n---\nNote: The user is asking")[0]
+    greeting = " ".join(body.casefold().split()).strip(" !.,?¡¿。！？،؛")
+    return _GREETING_LOOKUP.get(greeting)
+
+
+class IngressGuardsMiddleware(AgentMiddleware):
+    """Handle greetings, cap input, and redact credentials at agent ingress."""
+
+    @hook_config(can_jump_to=["end"])
     def before_agent(
         self, state: AgentState, runtime: Runtime
     ) -> dict[str, Any] | None:
-        """Cap and redact the latest user message before downstream processing."""
+        """Handle content-free greetings, then cap and redact user input."""
         messages = state.get("messages", [])
+        humans = [message for message in messages if isinstance(message, HumanMessage)]
+        if humans and all(_greeting_reply(message.content) for message in humans[:-1]):
+            reply = _greeting_reply(humans[-1].content)
+            if reply:
+                return {"messages": [AIMessage(content=reply)], "jump_to": "end"}
         for message in reversed(messages):
             if getattr(message, "type", None) == "human":
                 capped = self._truncate_content(message.content)
