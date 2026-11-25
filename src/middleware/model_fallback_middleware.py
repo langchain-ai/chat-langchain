@@ -1,14 +1,4 @@
-"""Model fallback middleware with completed-turn reuse and tool-call history repair.
-
-Completed assistant turns reuse the stored answer without invoking a model.
-Wraps `langchain.agents.middleware.ModelFallbackMiddleware` to ensure the
-message history satisfies OpenAI's strict tool-call ordering before a
-fallback model (notably `ChatOpenAI`) is invoked. OpenAI rejects requests
-where an assistant message with `tool_calls` is not followed by a
-`ToolMessage` for every `tool_call_id`; cross-provider fallbacks (e.g.
-Gemini -> OpenAI) and history-rewriting summarization can leave dangling
-tool calls that trigger `BadRequestError`.
-"""
+"""Reuse completed turns and normalize cross-provider model history."""
 
 import logging
 from typing import Awaitable, Callable
@@ -20,10 +10,37 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AnyMessage, ToolMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 logger = logging.getLogger(__name__)
 
 MISSING_TOOL_RESULT_PLACEHOLDER = "[tool result unavailable during model fallback]"
+
+
+def normalize_model_history(
+    messages: list[AnyMessage], model: BaseChatModel
+) -> list[AnyMessage]:
+    """Remove Gemini-only message metadata when targeting another provider."""
+    if isinstance(model, ChatGoogleGenerativeAI):
+        return messages
+    normalized = messages
+    keys = {"function_call", "__gemini_function_call_thought_signatures__"}
+    for i, message in enumerate(messages):
+        if isinstance(message, AIMessage) and keys.intersection(
+            message.additional_kwargs
+        ):
+            if normalized is messages:
+                normalized = list(messages)
+            normalized[i] = message.model_copy(
+                update={
+                    "additional_kwargs": {
+                        key: value
+                        for key, value in message.additional_kwargs.items()
+                        if key not in keys
+                    }
+                }
+            )
+    return normalized
 
 
 def repair_tool_call_ids(messages: list[AnyMessage]) -> list[AnyMessage]:
@@ -62,7 +79,7 @@ def repair_tool_call_ids(messages: list[AnyMessage]) -> list[AnyMessage]:
 
 
 class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
-    """Reuse completed turns and repair tool-call history on fallback."""
+    """Normalize model history and repair dangling tool calls on fallback."""
 
     def __init__(
         self,
@@ -106,7 +123,11 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
             request = request.override(model=primary_model)
         last_exception: Exception
         try:
-            return handler(request)
+            return handler(
+                request.override(
+                    messages=normalize_model_history(request.messages, request.model)
+                )
+            )
         except Exception as e:
             last_exception = e
 
@@ -115,7 +136,14 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         for fallback_model in fallback_models:
             repaired = self._repaired_request(request)
             try:
-                return handler(repaired.override(model=fallback_model))
+                return handler(
+                    repaired.override(
+                        model=fallback_model,
+                        messages=normalize_model_history(
+                            repaired.messages, fallback_model
+                        ),
+                    )
+                )
             except Exception as e:
                 last_exception = e
                 continue
@@ -137,7 +165,11 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
             request = request.override(model=primary_model)
         last_exception: Exception
         try:
-            return await handler(request)
+            return await handler(
+                request.override(
+                    messages=normalize_model_history(request.messages, request.model)
+                )
+            )
         except Exception as e:
             last_exception = e
 
@@ -146,7 +178,14 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         for fallback_model in fallback_models:
             repaired = self._repaired_request(request)
             try:
-                return await handler(repaired.override(model=fallback_model))
+                return await handler(
+                    repaired.override(
+                        model=fallback_model,
+                        messages=normalize_model_history(
+                            repaired.messages, fallback_model
+                        ),
+                    )
+                )
             except Exception as e:
                 last_exception = e
                 continue
