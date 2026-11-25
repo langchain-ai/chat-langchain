@@ -199,3 +199,199 @@ def test_checkpointed_resend_reuses_answer_and_fresh_turn_calls_primary():
         "answer-2",
     ]
     assert fresh["messages"][-1].content == "Fresh answer"
+
+
+def _gemini_history():
+    message = _ai_with_tool_calls("call_a")
+    message.additional_kwargs = {
+        "function_call": {"name": "search", "arguments": "{}"},
+        "__gemini_function_call_thought_signatures__": {"call_a": "signature"},
+        "other": "preserved",
+    }
+    return [
+        HumanMessage(content="hi"),
+        message,
+        ToolMessage(tool_call_id="call_a", content="result"),
+    ]
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("experiment", [False, True])
+@pytest.mark.parametrize("fireworks_fallback", [False, True])
+def test_fireworks_history_payload(asynchronous, experiment, fireworks_fallback):
+    from langchain_fireworks import ChatFireworks
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    from src.middleware.model_experiment_middleware import (
+        ARM_BASE,
+        ModelChain,
+        ModelExperiment,
+        ModelExperimentFallbackMiddleware,
+    )
+
+    fireworks = ChatFireworks(model="accounts/fireworks/models/test", api_key="test")
+    gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key="test")
+    primary, fallback = (
+        (gemini, fireworks) if fireworks_fallback else (fireworks, gemini)
+    )
+    if experiment:
+        chain = ModelChain(primary, (fallback,))
+        middleware = ModelExperimentFallbackMiddleware(
+            ModelExperiment(
+                name="test",
+                control=ModelChain(gemini, (gemini,)),
+                treatment=chain,
+                base=chain,
+                treatment_percent=0,
+                base_percent=100,
+            )
+        )
+    else:
+        middleware = RepairingModelFallbackMiddleware(fallback, primary_model=primary)
+    messages = _gemini_history()
+    request = ModelRequest(
+        model=gemini, messages=messages, state={"model_arm": ARM_BASE}
+    )
+    targets = []
+    response = ModelResponse(result=[AIMessage(content="answer")])
+
+    requests = []
+
+    def handler(current):
+        targets.append(current.model)
+        requests.append(current)
+        if len(targets) == 1:
+            raise RuntimeError("primary unavailable")
+        return response
+
+    async def async_handler(current):
+        return handler(current)
+
+    result = (
+        asyncio.run(middleware.awrap_model_call(request, async_handler))
+        if asynchronous
+        else middleware.wrap_model_call(request, handler)
+    )
+    assert result is response
+    assert targets == [primary, fallback]
+    for current in requests:
+        if current.model is gemini:
+            assert current.messages[1] is messages[1]
+        else:
+            payload, _ = fireworks._create_message_dicts(current.messages, stop=None)
+            assistant = payload[1]
+            assert "function_call" not in assistant
+            assert "__gemini_function_call_thought_signatures__" not in assistant
+            assert assistant["tool_calls"] == [
+                {
+                    "id": "call_a",
+                    "type": "function",
+                    "function": {"name": "search", "arguments": "{}"},
+                }
+            ]
+            assert current.messages[1].additional_kwargs == {"other": "preserved"}
+            assert current.messages[2] is messages[2]
+
+    assert "function_call" in messages[1].additional_kwargs
+    assert messages[1].tool_calls == _ai_with_tool_calls("call_a").tool_calls
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_clean_primary_history_preserves_identity(asynchronous):
+    model = FakeMessagesListChatModel(responses=[AIMessage(content="answer")])
+    middleware = RepairingModelFallbackMiddleware(model)
+    messages = [
+        HumanMessage(content="hi"),
+        _ai_with_tool_calls("call_a"),
+        ToolMessage(tool_call_id="call_a", content="result"),
+    ]
+    request = ModelRequest(model=model, messages=messages)
+    response = ModelResponse(result=[AIMessage(content="answer")])
+
+    def handler(current):
+        assert current.messages is request.messages
+        assert all(a is b for a, b in zip(current.messages, messages))
+        return response
+
+    async def async_handler(current):
+        return handler(current)
+
+    result = (
+        asyncio.run(middleware.awrap_model_call(request, async_handler))
+        if asynchronous
+        else middleware.wrap_model_call(request, handler)
+    )
+    assert result is response
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_fireworks_succeeds_after_gemini_tool_call_fallback(monkeypatch, asynchronous):
+    from langchain_fireworks import ChatFireworks
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    fireworks = ChatFireworks(model="accounts/fireworks/models/test", api_key="test")
+    gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key="test")
+    middleware = RepairingModelFallbackMiddleware(gemini, primary_model=fireworks)
+    payloads = []
+
+    def create(**payload):
+        payloads.append(payload)
+        return {
+            "choices": [
+                {
+                    "message": {"role": "assistant", "content": "answer"},
+                    "finish_reason": "stop",
+                }
+            ],
+        }
+
+    async def acreate(**payload):
+        return create(**payload)
+
+    monkeypatch.setattr(fireworks.client, "create", create)
+    monkeypatch.setattr(fireworks.async_client, "create", acreate)
+    history = _gemini_history()
+    calls = []
+
+    def handler(request):
+        calls.append(request.model)
+        if len(calls) == 1:
+            raise RuntimeError("initial Fireworks failure")
+        if request.model is gemini:
+            return ModelResponse(result=[history[1]])
+        return ModelResponse(result=[request.model.invoke(request.messages)])
+
+    async def async_handler(request):
+        if len(calls) < 2:
+            return handler(request)
+        calls.append(request.model)
+        return ModelResponse(result=[await request.model.ainvoke(request.messages)])
+
+    async def run():
+        first = await middleware.awrap_model_call(
+            ModelRequest(model=fireworks, messages=history[:1]), async_handler
+        )
+        return await middleware.awrap_model_call(
+            ModelRequest(
+                model=fireworks, messages=[history[0], first.result[0], history[2]]
+            ),
+            async_handler,
+        )
+
+    if asynchronous:
+        result = asyncio.run(run())
+    else:
+        first = middleware.wrap_model_call(
+            ModelRequest(model=fireworks, messages=history[:1]), handler
+        )
+        result = middleware.wrap_model_call(
+            ModelRequest(
+                model=fireworks, messages=[history[0], first.result[0], history[2]]
+            ),
+            handler,
+        )
+    assert result.result[0].content == "answer"
+    assert calls == [fireworks, gemini, fireworks]
+    assert len(payloads) == 1
+    assert "function_call" not in payloads[0]["messages"][1]
+    assert payloads[0]["messages"][1]["tool_calls"][0]["id"] == "call_a"
