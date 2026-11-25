@@ -57,7 +57,7 @@ _SUFFIXES = (
     "graph",
     "qachain",
     "chain",
-    "searchresults",
+    "results",
     "saver",
     "toolkit",
     "tool",
@@ -147,7 +147,7 @@ def _score(entry: dict, query: str) -> int:
     ):
         score += 60
     if stem and stem != q and stem in (slug, name, title):
-        score += 25
+        score += 150 if stem == name else 25
     if len(q) >= 4 and (q in slug or (slug and len(slug) >= 4 and slug in q)):
         score += 30
     if len(q) >= 4 and any(q in c for c in classes):

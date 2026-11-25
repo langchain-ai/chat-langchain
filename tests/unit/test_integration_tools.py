@@ -33,6 +33,21 @@ def _paths(name: str, language: str = "python") -> list[str]:
             "python",
             "/oss/python/integrations/tools/perplexity_search",
         ),
+        (
+            "perplexity_search",
+            "python",
+            "/oss/python/integrations/tools/perplexity_search",
+        ),
+        (
+            "PerplexitySearchResults",
+            "python",
+            "/oss/python/integrations/tools/perplexity_search",
+        ),
+        (
+            "Perplexity search tool",
+            "python",
+            "/oss/python/integrations/tools/perplexity_search",
+        ),
         ("ChatOpenAI", "python", "/oss/python/integrations/chat/openai"),
         ("DeepSeek", "python", "/oss/python/integrations/chat/deepseek"),
         ("bedrock", "python", "/oss/python/integrations/chat/bedrock"),
@@ -226,14 +241,24 @@ async def test_stem_only_match_does_not_read_page(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Perplexity search",
+        "perplexity_search",
+        "PerplexitySearchResults",
+        "Perplexity search tool",
+    ],
+)
 async def test_alternate_page_url_reads_exact_page(
     monkeypatch: pytest.MonkeyPatch,
+    name: str,
 ) -> None:
     async def fake_fetch(path: str) -> str:
         return f"# page {path}"
 
     monkeypatch.setattr(integration_tools, "_fetch_page", fake_fetch)
-    out = await read_integration_page.ainvoke({"name": "Perplexity search"})
+    out = await read_integration_page.ainvoke({"name": name})
     assert out.startswith(
         "Page: https://docs.langchain.com/oss/python/integrations/tools/perplexity_search\n"
     )
