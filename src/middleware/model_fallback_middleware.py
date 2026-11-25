@@ -2,9 +2,9 @@
 
 Completed assistant turns reuse the stored answer without invoking a model.
 Wraps `langchain.agents.middleware.ModelFallbackMiddleware` to ensure the
-message history satisfies OpenAI's strict tool-call ordering before a
-fallback model (notably `ChatOpenAI`) is invoked. OpenAI rejects requests
-where an assistant message with `tool_calls` is not followed by a
+message history satisfies OpenAI's strict tool-call ordering before each
+model is invoked, stripping Gemini-only metadata for other providers.
+OpenAI rejects requests where an assistant message with `tool_calls` is not followed by a
 `ToolMessage` for every `tool_call_id`; cross-provider fallbacks (e.g.
 Gemini -> OpenAI) and history-rewriting summarization can leave dangling
 tool calls that trigger `BadRequestError`.
@@ -20,10 +20,33 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AnyMessage, ToolMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 logger = logging.getLogger(__name__)
 
 MISSING_TOOL_RESULT_PLACEHOLDER = "[tool result unavailable during model fallback]"
+
+
+def sanitize_gemini_metadata(messages: list[AnyMessage]) -> list[AnyMessage]:
+    """Copy AI messages without Gemini-only function-call metadata."""
+    sanitized = messages
+    keys = {"function_call", "__gemini_function_call_thought_signatures__"}
+    for i, message in enumerate(messages):
+        if isinstance(message, AIMessage) and keys.intersection(
+            message.additional_kwargs
+        ):
+            if sanitized is messages:
+                sanitized = list(messages)
+            sanitized[i] = message.model_copy(
+                update={
+                    "additional_kwargs": {
+                        key: value
+                        for key, value in message.additional_kwargs.items()
+                        if key not in keys
+                    }
+                }
+            )
+    return sanitized
 
 
 def repair_tool_call_ids(messages: list[AnyMessage]) -> list[AnyMessage]:
@@ -58,11 +81,11 @@ def repair_tool_call_ids(messages: list[AnyMessage]) -> list[AnyMessage]:
             i = j
             continue
         i += 1
-    return repaired
+    return messages if len(repaired) == len(messages) else repaired
 
 
 class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
-    """Reuse completed turns and repair tool-call history on fallback."""
+    """Reuse completed turns and prepare tool-call history for each target model."""
 
     def __init__(
         self,
@@ -84,19 +107,20 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         """Run when the primary model failed and fallbacks are about to be tried."""
 
     def _repaired_request(self, request: ModelRequest) -> ModelRequest:
-        repaired_messages = repair_tool_call_ids(request.messages)
-        if repaired_messages is request.messages or len(repaired_messages) == len(
-            request.messages
-        ):
+        messages = request.messages
+        if not isinstance(request.model, ChatGoogleGenerativeAI):
+            messages = sanitize_gemini_metadata(messages)
+        messages = repair_tool_call_ids(messages)
+        if messages is request.messages:
             return request
-        return request.override(messages=repaired_messages)
+        return request.override(messages=messages)
 
     def wrap_model_call(
         self,
         request: ModelRequest,
         handler: Callable[[ModelRequest], ModelResponse],
     ) -> ModelResponse | AIMessage:
-        """Try fallback models in sequence, repairing history before each fallback."""
+        """Prepare history for the primary model and each fallback in sequence."""
         if request.messages:
             last_message = request.messages[-1]
             if isinstance(last_message, AIMessage) and not last_message.tool_calls:
@@ -106,16 +130,16 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
             request = request.override(model=primary_model)
         last_exception: Exception
         try:
-            return handler(request)
+            return handler(self._repaired_request(request))
         except Exception as e:
             last_exception = e
 
         if fallback_models:
             self._on_fallback(request)
         for fallback_model in fallback_models:
-            repaired = self._repaired_request(request)
+            repaired = self._repaired_request(request.override(model=fallback_model))
             try:
-                return handler(repaired.override(model=fallback_model))
+                return handler(repaired)
             except Exception as e:
                 last_exception = e
                 continue
@@ -127,7 +151,7 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse | AIMessage:
-        """Try fallback models in sequence, repairing history before each fallback."""
+        """Prepare history for the primary model and each fallback in sequence."""
         if request.messages:
             last_message = request.messages[-1]
             if isinstance(last_message, AIMessage) and not last_message.tool_calls:
@@ -137,16 +161,16 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
             request = request.override(model=primary_model)
         last_exception: Exception
         try:
-            return await handler(request)
+            return await handler(self._repaired_request(request))
         except Exception as e:
             last_exception = e
 
         if fallback_models:
             self._on_fallback(request)
         for fallback_model in fallback_models:
-            repaired = self._repaired_request(request)
+            repaired = self._repaired_request(request.override(model=fallback_model))
             try:
-                return await handler(repaired.override(model=fallback_model))
+                return await handler(repaired)
             except Exception as e:
                 last_exception = e
                 continue
@@ -157,5 +181,6 @@ class RepairingModelFallbackMiddleware(ModelFallbackMiddleware):
 __all__ = [
     "RepairingModelFallbackMiddleware",
     "repair_tool_call_ids",
+    "sanitize_gemini_metadata",
     "MISSING_TOOL_RESULT_PLACEHOLDER",
 ]

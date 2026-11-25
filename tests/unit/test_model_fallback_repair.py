@@ -199,3 +199,186 @@ def test_checkpointed_resend_reuses_answer_and_fresh_turn_calls_primary():
         "answer-2",
     ]
     assert fresh["messages"][-1].content == "Fresh answer"
+
+
+def _gemini_history():
+    return [
+        HumanMessage(content="Search docs"),
+        AIMessage(
+            content="Searching",
+            id="gemini-tool-message",
+            tool_calls=[{"id": "call-1", "name": "search", "args": {"query": "docs"}}],
+            additional_kwargs={
+                "function_call": {"name": "search", "arguments": '{"query":"docs"}'},
+                "__gemini_function_call_thought_signatures__": {"call-1": "signature"},
+                "other": "preserved",
+            },
+        ),
+        ToolMessage(content="Docs result", tool_call_id="call-1"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "messages", [[], [HumanMessage(content="hi")], [_ai_with_tool_calls("a")]]
+)
+def test_sanitize_clean_history_retains_list(messages):
+    from src.middleware.model_fallback_middleware import sanitize_gemini_metadata
+
+    assert sanitize_gemini_metadata(messages) is messages
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("experiment", [False, True])
+@pytest.mark.parametrize("gemini_first", [False, True])
+@pytest.mark.parametrize("dangling", [False, True])
+@pytest.mark.parametrize("fail_primary", [False, True])
+def test_each_target_gets_compatible_history(
+    asynchronous, experiment, gemini_first, dangling, fail_primary
+):
+    from langchain_fireworks import ChatFireworks
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    from src.middleware.model_experiment_middleware import (
+        ARM_TREATMENT,
+        ModelChain,
+        ModelExperiment,
+        ModelExperimentFallbackMiddleware,
+    )
+
+    fireworks = ChatFireworks(model="accounts/fireworks/models/test", api_key="test")
+    gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key="test")
+    primary, fallback = (gemini, fireworks) if gemini_first else (fireworks, gemini)
+    if experiment:
+        chain = ModelChain(primary, (fallback,))
+        middleware = ModelExperimentFallbackMiddleware(
+            ModelExperiment(
+                name="test",
+                control=chain,
+                treatment=chain,
+                treatment_percent=100,
+                treatment_instruction="Be concise.",
+            )
+        )
+    else:
+        middleware = RepairingModelFallbackMiddleware(fallback, primary_model=primary)
+    messages = _gemini_history()
+    if dangling:
+        messages.pop()
+    original = messages[1].model_copy(deep=True)
+    request = ModelRequest(
+        model=fallback, messages=messages, state={"model_arm": ARM_TREATMENT}
+    )
+    calls = []
+    response = ModelResponse(result=[AIMessage(content="answer")])
+
+    def handler(outgoing):
+        calls.append(outgoing.model)
+        ai = outgoing.messages[1]
+        assert ai.content == original.content
+        assert ai.id == original.id
+        assert ai.tool_calls == original.tool_calls
+        assert ai.additional_kwargs.get("other") == "preserved"
+        assert outgoing.messages[2].tool_call_id == "call-1"
+        if outgoing.model is gemini:
+            assert ai.additional_kwargs == original.additional_kwargs
+        else:
+            assert ai.additional_kwargs == {"other": "preserved"}
+            wire, _ = fireworks._create_message_dicts(outgoing.messages, None)
+            assert "function_call" not in wire[1]
+            assert "__gemini_function_call_thought_signatures__" not in wire[1]
+            assert wire[1]["tool_calls"][0]["id"] == "call-1"
+        if experiment:
+            assert outgoing.system_message.content[-1]["text"] == "Be concise."
+        if fail_primary and len(calls) == 1:
+            raise TimeoutError("model timeout")
+        return response
+
+    async def async_handler(outgoing):
+        return handler(outgoing)
+
+    result = (
+        asyncio.run(middleware.awrap_model_call(request, async_handler))
+        if asynchronous
+        else middleware.wrap_model_call(request, handler)
+    )
+    assert result is response
+    assert calls == ([primary, fallback] if fail_primary else [primary])
+    assert messages[1] == original
+    assert len(messages) == (2 if dangling else 3)
+
+
+def test_fireworks_arm_recovers_after_gemini_tool_fallback(monkeypatch):
+    from langchain_core.outputs import ChatGeneration, ChatResult
+    from langchain_fireworks import ChatFireworks
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    from src.middleware.model_experiment_middleware import (
+        ARM_TREATMENT,
+        ModelChain,
+        ModelExperiment,
+        ModelExperimentFallbackMiddleware,
+    )
+
+    fireworks = ChatFireworks(model="accounts/fireworks/models/test", api_key="test")
+    gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key="test")
+    payloads = []
+
+    def complete(llm, **kwargs):
+        payloads.append(kwargs["messages"])
+        if len(payloads) == 1:
+            raise TimeoutError("tool-use timeout")
+        for message in kwargs["messages"]:
+            assert "function_call" not in message
+            assert "__gemini_function_call_thought_signatures__" not in message
+        return {
+            "choices": [
+                {
+                    "message": {"role": "assistant", "content": "Fireworks answer"},
+                    "finish_reason": "stop",
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        "langchain_fireworks.chat_models._completion_with_retry", complete
+    )
+    monkeypatch.setattr(
+        ChatGoogleGenerativeAI,
+        "_generate",
+        lambda *a, **kw: ChatResult(
+            generations=[ChatGeneration(message=_gemini_history()[1])]
+        ),
+    )
+
+    def search(query: str) -> str:
+        """Search documentation."""
+        return "Docs result"
+
+    chain = ModelChain(fireworks, (gemini,))
+    graph = create_agent(
+        model=fireworks,
+        tools=[search],
+        middleware=[
+            ModelExperimentFallbackMiddleware(
+                ModelExperiment(
+                    name="test",
+                    control=chain,
+                    treatment=chain,
+                    treatment_percent=100,
+                    treatment_instruction="Be concise.",
+                )
+            )
+        ],
+        checkpointer=InMemorySaver(),
+    )
+    config = {"configurable": {"thread_id": "gemini-fallback"}, "recursion_limit": 10}
+    graph.update_state(config, {"model_arm": ARM_TREATMENT})
+    first = graph.invoke({"messages": [HumanMessage(content="Search docs")]}, config)
+    second = graph.invoke({"messages": [HumanMessage(content="Follow up")]}, config)
+    assert first["messages"][-1].content == "Fireworks answer"
+    assert second["messages"][-1].content == "Fireworks answer"
+    assert len(payloads) == 3
+    tool_call = next(m for m in payloads[1] if m.get("tool_calls"))
+    assert tool_call["tool_calls"][0]["id"] == "call-1"
+    stored = next(m for m in second["messages"] if m.id == "gemini-tool-message")
+    assert stored.additional_kwargs == _gemini_history()[1].additional_kwargs
