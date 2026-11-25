@@ -1,5 +1,7 @@
 """Tests for the integration page finder."""
 
+import re
+
 import pytest
 
 from scripts.build_integration_index import _extract_classes
@@ -26,6 +28,14 @@ def _paths(name: str, language: str = "python") -> list[str]:
         ),
         ("ChatOllama", "javascript", "/oss/javascript/integrations/chat/ollama"),
         ("ollama", "javascript", "/oss/javascript/integrations/chat/ollama"),
+        (
+            "Perplexity search",
+            "python",
+            "/oss/python/integrations/tools/perplexity_search",
+        ),
+        ("ChatOpenAI", "python", "/oss/python/integrations/chat/openai"),
+        ("DeepSeek", "python", "/oss/python/integrations/chat/deepseek"),
+        ("bedrock", "python", "/oss/python/integrations/chat/bedrock"),
         ("ChatAnthropic", "python", "/oss/python/integrations/chat/anthropic"),
         ("Neo4jGraph", "python", "/oss/python/integrations/graphs/neo4j_cypher"),
         (
@@ -199,3 +209,37 @@ def test_extract_integration_classes() -> None:
         "CustomModel",
         "CustomEmbeddings",
     }
+
+
+@pytest.mark.asyncio
+async def test_stem_only_match_does_not_read_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def unexpected_fetch(path: str) -> str:
+        pytest.fail(f"A stem-only match must not read {path}")
+
+    monkeypatch.setattr(integration_tools, "_fetch_page", unexpected_fetch)
+    assert _paths("TextLoader") == []
+    out = await read_integration_page.ainvoke({"name": "TextLoader"})
+    assert out.startswith(("Closest integration pages:", "No dedicated python"))
+    assert not out.startswith("Page:")
+
+
+@pytest.mark.asyncio
+async def test_alternate_page_url_reads_exact_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_fetch(path: str) -> str:
+        return f"# page {path}"
+
+    monkeypatch.setattr(integration_tools, "_fetch_page", fake_fetch)
+    out = await read_integration_page.ainvoke({"name": "Perplexity search"})
+    assert out.startswith(
+        "Page: https://docs.langchain.com/oss/python/integrations/tools/perplexity_search\n"
+    )
+    urls = re.findall(r"^- (https://docs\.langchain\.com/\S+)", out, re.MULTILINE)
+    assert urls
+    for url in urls:
+        page = await read_integration_page.ainvoke({"name": url})
+        assert page.startswith(f"Page: {url}\n")
+        assert f"# page {url.removeprefix(integration_tools.DOCS_BASE_URL)}" in page

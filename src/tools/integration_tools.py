@@ -116,27 +116,38 @@ def _score(entry: dict, query: str) -> int:
     )
     classes = {_norm(c) for c in entry.get("classes", [])}
     score = 0
-    if q in (name, slug, title):
+    if q == name or q == name.removeprefix("chat"):
+        score += 200
+    elif q in (slug, title):
         score += 100
     if q in classes:
         # Classes found in a page's code are often incidental (PyPDFLoader in
         # cloud-storage examples, WebBaseLoader in a reranker page), so a class
         # mention alone never makes a page the match; it only breaks ties.
         score += 10
+    stem = _stem(q)
     tokens = _tokens(query) - _GENERIC_TOKENS
-    if tokens and tokens <= _tokens(
-        " ".join(
-            (
-                entry["path"].rsplit("/", 1)[-1],
-                entry.get("name", ""),
-                entry.get("title", ""),
+    entry_tokens = (
+        _tokens(
+            " ".join(
+                (
+                    entry["path"].rsplit("/", 1)[-1],
+                    entry.get("name", ""),
+                    entry.get("title", ""),
+                )
             )
         )
+        - _GENERIC_TOKENS
+        - {"integration", "integrations"}
+    )
+    if (
+        tokens
+        and tokens <= entry_tokens
+        and (stem == q or stem in (slug, name, title) or tokens == entry_tokens)
     ):
         score += 60
-    stem = _stem(q)
     if stem and stem != q and stem in (slug, name, title):
-        score += 60
+        score += 25
     if len(q) >= 4 and (q in slug or (slug and len(slug) >= 4 and slug in q)):
         score += 30
     if len(q) >= 4 and any(q in c for c in classes):
@@ -188,7 +199,7 @@ async def _fetch_page(path: str) -> str:
 async def read_integration_page(
     name: str, language: Literal["python", "javascript"] = "python"
 ) -> str:
-    """Read a specific integration page by class, package, provider, slug, or documentation URL supplied by the user; use alongside docs search, which omits most integration pages, and set language to the user's stack (python or javascript)."""
+    """Read a specific integration page by class, package, provider, slug, or any docs.langchain.com integration URL (including one returned by a previous result); use alongside docs search, which omits most integration pages, and set language to the user's stack (python or javascript)."""
     candidates = find_candidates(name, language)
     if not candidates:
         closest = find_candidates(name, language, min_score=25)[:3]
@@ -210,11 +221,11 @@ async def read_integration_page(
         logger.warning("integration page fetch failed for %s: %s", top["path"], exc)
         return (
             f"Best match: {DOCS_BASE_URL}{top['path']} ({top['title']}), but it could not be "
-            f"read right now. Other matches:\n{others}"
+            f"read right now. Other matching pages (pass a URL as name to read it):\n{others}"
         )
     if len(page) > MAX_PAGE_CHARS:
         page = page[:MAX_PAGE_CHARS].rstrip() + "\n\n[page truncated]"
     header = f"Page: {DOCS_BASE_URL}{top['path']}\nTitle: {top['title']}\n"
     if others:
-        header += f"Other matching pages:\n{others}\n"
+        header += f"Other matching pages (pass a URL as name to read it):\n{others}\n"
     return f"{header}\n{page}"
