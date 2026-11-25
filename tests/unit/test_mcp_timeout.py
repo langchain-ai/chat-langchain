@@ -72,9 +72,11 @@ def test_docs_search_deadline_and_retry(stall_first_attempt):
                     failed_attempt_durations.append(time.monotonic() - started)
                     raise
 
+            call_started = time.monotonic()
             result = asyncio.run(
                 ToolRetryMiddleware().awrap_tool_call(request, handler)
             )
+            elapsed = time.monotonic() - call_started
 
             assert "Found documentation" in str(result.content)
             assert result.tool_call_id == "docs-search"
@@ -82,8 +84,10 @@ def test_docs_search_deadline_and_retry(stall_first_attempt):
                 2 if stall_first_attempt else 1
             )
             if stall_first_attempt:
-                assert len(failed_attempt_durations) == 1
-                assert 9 <= failed_attempt_durations[0] < 15
+                # The hedge duplicates the stalled call after ~5s and the
+                # duplicate wins; the stalled attempt is cancelled, not failed.
+                assert failed_attempt_durations == []
+                assert 4 <= elapsed < 9
             else:
                 assert failed_attempt_durations == []
         finally:
