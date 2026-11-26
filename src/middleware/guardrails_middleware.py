@@ -118,6 +118,12 @@ class GuardrailsDecision(TypedDict):
     explanation: str
 
 
+class GuardrailsClassification(GuardrailsDecision):
+    """Classifier decision with the model outcomes used to reach it."""
+
+    classifier_verdicts: NotRequired[list[dict[str, Any]]]
+
+
 def _normalize_decision(result: dict) -> GuardrailsDecision:
     """Normalize recognized classifier decisions and reject invalid values."""
     decision = result.get("decision")
@@ -430,15 +436,18 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
     async def _decide_concurrently(
         self, state: GuardrailsState
-    ) -> tuple[dict[str, Any] | None, GuardrailsDecision | None]:
+    ) -> tuple[dict[str, Any] | None, GuardrailsClassification | None]:
         """Keep classification and its metadata inside an open trace span."""
         with ls.trace("GuardrailsClassifier", run_type="chain") as run:
             verdict = await self._decide(state)
-            decision: GuardrailsDecision | None = None
+            decision: GuardrailsClassification | None = None
             if "guardrails_result" in run.metadata:
                 decision = {
                     "decision": run.metadata["guardrails_result"],
                     "explanation": run.metadata["guardrails_explanation"],
+                    "classifier_verdicts": run.metadata.get(
+                        "guardrails_classifier_verdicts", []
+                    ),
                 }
             return verdict, decision
 
@@ -458,11 +467,6 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         safe_last_content = self._content_to_safe_text(last_content)
         query_preview = safe_last_content[:100]
 
-        # One classifier, every turn. Covers topic relevance + zero-tolerance
-        # categories (NSFW, fiction, harmful-use-case, prompt-extraction,
-        # social-pressure). The prompt's lenient follow-up rules keep legit
-        # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
-        # while zero-tolerance bullets override the default ALLOW.
         try:
             guardrails_decision = await self._classify_query(messages)
         except GuardrailsClassificationError:
@@ -622,12 +626,14 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
-    async def _classify_query(self, messages: list) -> GuardrailsDecision:
+    async def _classify_query(self, messages: list) -> GuardrailsClassification:
         """Classify query or raise GuardrailsClassificationError after retries."""
         # Extract the current query (last human message)
         current_message = None
         current_query = None
-        for msg in reversed(messages):
+        current_index = len(messages)
+        for current_index in range(len(messages) - 1, -1, -1):
+            msg = messages[current_index]
             if (
                 isinstance(msg, HumanMessage)
                 and msg.additional_kwargs.get("lc_source") != "summarization"
@@ -650,7 +656,7 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
-        for msg in reversed(messages[:-1]):  # Exclude current message
+        for msg in reversed(messages[:current_index]):
             if (
                 isinstance(msg, HumanMessage)
                 and msg.additional_kwargs.get("lc_source") != "summarization"
@@ -670,6 +676,19 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
                 + "\n".join(f"- {q}" for q in recent)
             )
 
+        previous_answer = next(
+            (
+                msg
+                for msg in reversed(messages[:current_index])
+                if isinstance(msg, AIMessage)
+            ),
+            None,
+        )
+        if previous_answer is not None:
+            answer_text = self._extract_message_text(previous_answer)
+            if answer_text:
+                context_section += f"\n\nPrevious answer: {answer_text[:300]}"
+
         current_content = _shorten_for_classification(
             getattr(current_message, "content", current_query or "")
         )
@@ -681,65 +700,68 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         ]
 
         last_exception: Exception | None = None
+        blocked_decision: GuardrailsDecision | None = None
+        verdicts: list[dict[str, Any]] = []
+        for model_index, (model_name, _) in enumerate(self.classifier_llms):
+            try:
+                result = await self._classify_with_model(prompt, model_index)
+            except GuardrailsClassificationError as exc:
+                last_exception = exc
+                verdicts.append({"model": model_name, "error": str(exc)})
+                if blocked_decision is not None:
+                    return {**blocked_decision, "classifier_verdicts": verdicts}
+                continue
+            verdicts.append({"model": model_name, **result})
+            if result["decision"] == "ALLOWED":
+                return {**result, "classifier_verdicts": verdicts}
+            blocked_decision = result
 
-        for model_index, (model_name, llm) in enumerate(self.classifier_llms):
-            structured_llm = llm.with_structured_output(GuardrailsDecision)
-
-            for attempt in range(GUARDRAILS_MAX_RETRIES + 1):
-                try:
-                    result: Any = await asyncio.wait_for(
-                        structured_llm.ainvoke(
-                            prompt, config={"callbacks": [], "tags": ["guardrails"]}
-                        ),
-                        timeout=GUARDRAILS_TIMEOUT_SECONDS,
-                    )
-                    result = _normalize_decision(result)
-                    if model_index > 0:
-                        logger.info(
-                            "Guardrails classification succeeded with fallback model: %s",
-                            model_name,
-                        )
-                    return result
-                except Exception as e:
-                    last_exception = e
-                    if attempt < GUARDRAILS_MAX_RETRIES:
-                        logger.warning(
-                            "Guardrails classification failed with %s attempt %s/%s: %s. Retrying...",
-                            model_name,
-                            attempt + 1,
-                            GUARDRAILS_MAX_RETRIES + 1,
-                            e,
-                        )
-                        continue
-
-                    if model_index < len(self.classifier_llms) - 1:
-                        next_model = self.classifier_llms[model_index + 1][0]
-                        logger.error(
-                            "Guardrails classification failed with %s after %s attempts: %s. Falling back to %s.",
-                            model_name,
-                            GUARDRAILS_MAX_RETRIES + 1,
-                            e,
-                            next_model,
-                        )
-                    else:
-                        logger.error(
-                            "Guardrails classification failed with %s after %s attempts: %s",
-                            model_name,
-                            GUARDRAILS_MAX_RETRIES + 1,
-                            e,
-                        )
-
+        if blocked_decision is not None:
+            return {**blocked_decision, "classifier_verdicts": verdicts}
         raise GuardrailsClassificationError(
             f"Guardrails classification failed after retries: {last_exception}"
         )
 
-    def _track_decision_metadata(self, decision: GuardrailsDecision) -> None:
+    async def _classify_with_model(
+        self, prompt: list, model_index: int
+    ) -> GuardrailsDecision:
+        """Run one classifier with its retry budget."""
+        model_name, llm = self.classifier_llms[model_index]
+        last_exception: Exception | None = None
+        for attempt in range(GUARDRAILS_MAX_RETRIES + 1):
+            try:
+                structured_llm = llm.with_structured_output(GuardrailsDecision)
+                result: Any = await asyncio.wait_for(
+                    structured_llm.ainvoke(
+                        prompt, config={"callbacks": [], "tags": ["guardrails"]}
+                    ),
+                    timeout=GUARDRAILS_TIMEOUT_SECONDS,
+                )
+                return _normalize_decision(result)
+            except Exception as exc:
+                last_exception = exc
+                logger.warning(
+                    "Guardrails classification failed with %s attempt %s/%s: %s",
+                    model_name,
+                    attempt + 1,
+                    GUARDRAILS_MAX_RETRIES + 1,
+                    exc,
+                )
+        raise GuardrailsClassificationError(
+            f"Guardrails classification failed after retries: {last_exception}"
+        )
+
+    def _track_decision_metadata(self, decision: GuardrailsClassification) -> None:
         """Add guardrails decision to LangSmith run metadata."""
         try:
             run_tree = ls.get_current_run_tree()
             if run_tree:
                 run_tree.metadata["guardrails_result"] = decision["decision"]
                 run_tree.metadata["guardrails_explanation"] = decision["explanation"]
+                if "classifier_verdicts" in decision:
+                    run_tree.metadata["guardrails_classifier_verdicts"] = decision[
+                        "classifier_verdicts"
+                    ]
         except Exception:
             pass  # Silently ignore if run tree is not available
 
