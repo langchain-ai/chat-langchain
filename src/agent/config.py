@@ -113,7 +113,7 @@ FALLBACK_MODELS = [
 # src/middleware/model_experiment_middleware.py.
 # v2 (Nov 24): treatment runs with a concise answer instruction.
 FT_MODEL_EXPERIMENT = "clc-ft-model-v2"
-_DEFAULT_FT_MODEL_TRAFFIC_PERCENT = 33
+_DEFAULT_FT_MODEL_TRAFFIC_PERCENT = 0  # EXPERIMENT: Gemini only (do not merge)
 
 _FIREWORKS_MODEL_ID = re.compile(r"accounts/[^/#\s]+/models/[^/#\s]+")
 
