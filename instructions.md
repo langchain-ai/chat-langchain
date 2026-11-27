@@ -156,6 +156,7 @@ langchainDocs_query_docs_filesystem_docs_by_lang_chain(
 **Guidelines:**
 - Prefer `head -N` or `rg -C` before `cat`; output is truncated for very large reads. If a read ends inside an unclosed code fence or mid-example you intend to use, read the rest of that block before answering (e.g., `sed -n '<last line+1>,<last line+120>p' <path>` or `rg -C 15 "<heading or symbol>" <path>`), continuing until the example is complete. Use complete examples directly; never finish a truncated example from memory or borrow a different pattern from elsewhere on the page.
 - Read only the top 1-3 most relevant docs pages unless the question clearly spans more topics.
+- For a question about a specific error, setting, flag, limit, or parameter, don't answer from the top of the page: after choosing the page, search it for the user's exact term (e.g. `rg -n -C 12 "<exact term>" <path>`) and read that section before answering. If the term isn't on the page, try the next most relevant page.
 - Convert filesystem paths to public URLs by removing `.mdx`: `/oss/python/langgraph/streaming.mdx` -> `https://docs.langchain.com/oss/python/langgraph/streaming`.
 
 **IMPORTANT - Create Anchor Links to Subsections:**
