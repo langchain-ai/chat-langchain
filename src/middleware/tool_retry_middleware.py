@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import shlex
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, AgentState
@@ -32,6 +33,90 @@ RETRYABLE_ERROR_MARKERS = (
     "timeout",
     "too many requests",
 )
+
+
+def _normalize_docs_command(command: str) -> str:
+    """Repair unambiguous grep-style recursion clusters without rebuilding shell text."""
+    if any(char in command for char in "\n\r$`"):
+        return command
+    token_pattern = re.compile(
+        r"""(?:[^\s'"\\|;&<>()#]+|\\[^\n]|'[^']*'|"(?:\\.|[^"\\])*")+|&&|\|\||[|;]"""
+    )
+    tokens = list(token_pattern.finditer(command))
+    end = 0
+    for token in tokens:
+        if command[end : token.start()].strip():
+            return command
+        end = token.end()
+    if command[end:].strip():
+        return command
+
+    replacements = []
+    segments: list[list[re.Match[str]]] = [[]]
+    for token in tokens:
+        if token.group() in {"|", ";", "&&", "||"}:
+            segments.append([])
+        else:
+            segments[-1].append(token)
+    for segment in segments:
+        if not segment or segment[0].group() != "rg":
+            continue
+        try:
+            words = [shlex.split(token.group())[0] for token in segment]
+        except (ValueError, IndexError):
+            return command
+        if any(word == "-r" or word.split("=", 1)[0] == "--replace" for word in words):
+            continue
+        pending = []
+        index = 1
+        while index < len(words):
+            word = words[index]
+            if word == "--" or not word.startswith("-") or word == "-":
+                break
+            if (
+                re.fullmatch(r"-[nilr]+", word)
+                and word.count("r") == 1
+                and len(word) > 2
+            ):
+                token = segment[index]
+                if token.group() == word:
+                    pending.append((token.start(), token.end(), word.replace("r", "")))
+            elif re.fullmatch(r"-[nil]+", word):
+                pass
+            elif word in {
+                "-A",
+                "-B",
+                "-C",
+                "-e",
+                "-f",
+                "-g",
+                "-t",
+                "-T",
+                "-m",
+                "--after-context",
+                "--before-context",
+                "--context",
+                "--regexp",
+                "--file",
+                "--glob",
+                "--iglob",
+                "--type",
+                "--type-not",
+                "--max-count",
+                "--encoding",
+            }:
+                index += 1
+                if index >= len(words):
+                    pending = []
+                    break
+            else:
+                pending = []
+                break
+            index += 1
+        replacements.extend(pending)
+    for start, end, replacement in reversed(replacements):
+        command = command[:start] + replacement + command[end:]
+    return command
 
 
 class ToolRetryMiddleware(AgentMiddleware[AgentState]):
@@ -125,6 +210,23 @@ class ToolRetryMiddleware(AgentMiddleware[AgentState]):
         request: ToolCallRequest,
         handler,
     ) -> ToolMessage | Command:
+        if (
+            self._tool_name(request)
+            == "langchainDocs_query_docs_filesystem_docs_by_lang_chain"
+        ):
+            args = request.tool_call.get("args", {})
+            command = args.get("command")
+            if isinstance(command, str):
+                normalized = _normalize_docs_command(command)
+                if normalized != command:
+                    logger.info("Normalized docs filesystem rg recursion flags")
+                    request = request.override(
+                        tool_call={
+                            **request.tool_call,
+                            "args": {**args, "command": normalized},
+                        }
+                    )
+
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_attempts + 1):
