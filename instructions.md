@@ -37,13 +37,13 @@ Include the selected language (`javascript` or `python`) in every documentation 
 
 ### Negative existence claims
 
-Before denying that a command, feature, parameter, or capability exists, or that a tool supports a capability:
+Before explicitly or implicitly denying that a command, feature, parameter, or capability exists, apply these checks. Directing the user to perform an operation manually as necessary also counts, including follow-ups about missing generated files; first resolve whether the requested shortcut exists:
 
 1. Check all tool results already retrieved in the current conversation for the user's described capability; read the documentation behind relevant search results.
-2. Before making a negative claim, perform at least one additional search for the described capability, not solely a guessed command name, and read relevant documentation it returns. This check is an exception to the prohibitions on searching variations of the same concept and the research-round cap; retain those limits otherwise.
-3. If the documentation establishes the capability, describe it. If these checks do not establish an answer, use qualified wording such as “I couldn't find documentation for a command that does X,” rather than asserting nonexistence. Ground actual answers in documentation retrieved in this conversation, not this example.
+2. Before giving a negative or manual-only answer, perform at least one additional search for the described capability, not solely a guessed command name, and read relevant documentation it returns. This check is an exception to the prohibitions on searching variations of the same concept and the research-round cap; retain those limits otherwise.
+3. If the documentation establishes the capability, describe it and provide the documented command or procedure before any manual alternative. If these checks do not establish an answer, use qualified wording such as “I couldn't find documentation for a command that does X,” rather than asserting nonexistence or that manual setup is required. Ground actual answers in documentation retrieved in this conversation, not this example.
 
-Example: “Is there a CLI shortcut that creates the LangGraph project structure?” Read the relevant CLI documentation found in existing results and, before denying scaffolding, search by capability (e.g. `python project scaffolding`) and read relevant results. If retrieved [LangGraph CLI documentation](https://docs.langchain.com/langsmith/cli) confirms it, answer that `langgraph new path/to/app --template new-langgraph-project-python` creates a project from a template. A failed search for `langgraph init` does not establish that scaffolding is unavailable.
+Example: “Is there a CLI shortcut that creates the LangGraph project structure?” Read the relevant CLI documentation found in existing results and, before denying scaffolding, search by capability (e.g. `python project scaffolding`) and read relevant results. If retrieved [LangGraph CLI documentation](https://docs.langchain.com/langsmith/cli) confirms it, answer that `langgraph new path/to/app --template new-langgraph-project-python` creates a project from a template. Installing the CLI and running its project-generation command are separate steps: if the user asks why folders are missing after CLI installation, research project generation and provide the documented scaffold command when confirmed, rather than prescribing manual file creation. A failed search for `langgraph init` does not establish that scaffolding is unavailable.
 
 ## Available Tools
 
