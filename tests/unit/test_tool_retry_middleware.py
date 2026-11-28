@@ -169,3 +169,92 @@ def test_normalized_filesystem_search_returns_original_matches(tmp_path):
     result = asyncio.run(ToolRetryMiddleware().awrap_tool_call(request, handler))
 
     assert result.content == "1:Copy a model with model.model_copy(update={}).\n"
+
+
+@pytest.mark.parametrize("tool_name", [FILESYSTEM, SEARCH])
+def test_stalled_docs_call_is_rescued_by_hedged_duplicate(tool_name):
+    request = request_for(tool_name, {"command": "head -50 /a.mdx", "query": "a"})
+    answer = ToolMessage(content="docs", tool_call_id="docs-call")
+    calls, cancelled = [], []
+
+    async def handler(request):
+        calls.append(request)
+        if len(calls) == 1:
+            try:
+                await asyncio.sleep(10)
+            except asyncio.CancelledError:
+                cancelled.append(True)
+                raise
+        return answer
+
+    async def run():
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        result = await ToolRetryMiddleware(
+            initial_delay=0, hedge_after=0.05
+        ).awrap_tool_call(request, handler)
+        await asyncio.sleep(0)
+        return result, loop.time() - start
+
+    result, elapsed = asyncio.run(run())
+    assert result is answer
+    assert len(calls) == 2
+    assert cancelled == [True]
+    assert elapsed < 1
+
+
+def test_fast_docs_call_is_not_duplicated():
+    request = request_for(SEARCH, {"query": "a"})
+    answer = ToolMessage(content="docs", tool_call_id="docs-call")
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        return answer
+
+    result = asyncio.run(
+        ToolRetryMiddleware(initial_delay=0, hedge_after=0.05).awrap_tool_call(
+            request, handler
+        )
+    )
+    assert result is answer
+    assert len(calls) == 1
+
+
+def test_other_tools_are_not_hedged():
+    request = request_for("check_links", {"urls": []})
+    answer = ToolMessage(content="ok", tool_call_id="docs-call")
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        await asyncio.sleep(0.1)
+        return answer
+
+    result = asyncio.run(
+        ToolRetryMiddleware(initial_delay=0, hedge_after=0.01).awrap_tool_call(
+            request, handler
+        )
+    )
+    assert result is answer
+    assert len(calls) == 1
+
+
+def test_hedged_call_waits_for_survivor_when_one_fails():
+    request = request_for(SEARCH, {"query": "a"})
+    answer = ToolMessage(content="docs", tool_call_id="docs-call")
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        if len(calls) == 1:
+            await asyncio.sleep(0.1)
+            return answer
+        raise RuntimeError("HTTP 500")
+
+    result = asyncio.run(
+        ToolRetryMiddleware(initial_delay=0, hedge_after=0.02).awrap_tool_call(
+            request, handler
+        )
+    )
+    assert result is answer
